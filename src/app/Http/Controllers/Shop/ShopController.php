@@ -63,6 +63,18 @@ class ShopController extends Controller
                 $tickets  = $sum['tickets'];
                 $products = $sum['products'];
 
+                // La base locale peut être PARTIELLE (CA_DB < CA_API) tout en
+                // étant représentative (même panier moyen). On redresse donc
+                // les comptages au prorata du CA de l'API : le panier affiché
+                // reste celui observé en base, et tickets/jour retrouve le
+                // périmètre complet. Base complète → ratio 1 (aucun effet).
+                $caDb = (float)$sum['ca'];
+                if ($caDb > 0 && $turnover > 0) {
+                    $scale    = $turnover / $caDb;
+                    $tickets  = (int)round($tickets * $scale);
+                    $products = (int)round($products * $scale);
+                }
+
                 // Tickets et CA couvrent toute la fenêtre du P&L → la moyenne
                 // par jour se divise par le NOMBRE DE JOURS DE LA FENÊTRE
                 // (date_from → date_to inclus), pas par les jours écoulés.
@@ -77,11 +89,14 @@ class ShopController extends Controller
                 $days     = max(1, (int)date('t')); // nombre de jours du mois
             }
 
-            $shop['ca_month']           = $ca;
-            $shop['tickets_count']      = $tickets;
-            $shop['tickets_per_day']    = $tickets > 0 ? $tickets / $days : 0.0;
-            $shop['avg_basket']         = $tickets > 0 ? $ca / $tickets : 0.0;
-            $shop['products_per_client'] = $tickets > 0 ? $products / $tickets : 0.0;
+            $shop['ca_month']        = $ca;
+            $shop['tickets_count']   = $tickets;
+            $shop['tickets_per_day'] = $tickets > 0 ? $tickets / $days : 0.0;
+            $shop['avg_basket']      = $tickets > 0 ? $ca / $tickets : 0.0;
+            // Produits/client : calculable seulement si la base contient le
+            // détail des lignes (produits > tickets). Sinon null → « — ».
+            $ppc = $tickets > 0 ? $products / $tickets : 0.0;
+            $shop['products_per_client'] = $ppc > 1.05 ? $ppc : null;
         }
         unset($shop);
 

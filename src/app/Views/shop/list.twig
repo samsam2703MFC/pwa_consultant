@@ -348,7 +348,7 @@
                                 <span class="shop-kpi-lbl">panier moyen</span>
                             </div>
                             <div class="shop-kpi">
-                                <span class="shop-kpi-val">{{ shop.products_per_client|number_format(1, ',', ' ') }}</span>
+                                <span class="shop-kpi-val">{{ shop.products_per_client is not null ? shop.products_per_client|number_format(1, ',', ' ') : '—' }}</span>
                                 <span class="shop-kpi-lbl">produits / client</span>
                             </div>
                         </div>

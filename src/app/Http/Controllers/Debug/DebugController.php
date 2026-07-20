@@ -110,7 +110,8 @@ class DebugController extends Controller
             echo '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:8px;overflow:hidden">';
             echo '<tr style="background:#8D1D2C;color:#fff;text-align:left">'
                . '<th style="padding:6px">id</th><th>magasin</th><th>fenêtre</th><th>j</th>'
-               . '<th>TurnOver</th><th>tickets</th><th>produits</th><th>t/j</th><th>panier</th><th>p/client</th></tr>';
+               . '<th>CA API</th><th>CA DB</th><th>ratio</th><th>tickets DB</th><th>tickets redressés</th>'
+               . '<th>t/j</th><th>panier</th></tr>';
             foreach ($shops as $s) {
                 $sid  = (int)($s['id'] ?? 0);
                 $name = $s['representative_name'] ?? $s['name'] ?? ('#' . $sid);
@@ -119,29 +120,51 @@ class DebugController extends Controller
                 $T    = isset($pd['turnover']['value']) ? (float)$pd['turnover']['value'] : 0.0;
                 $fd   = isset($pd['date_from']) ? substr((string)$pd['date_from'], 0, 10) : '';
                 $td   = isset($pd['date_to'])   ? substr((string)$pd['date_to'], 0, 10)   : '';
-                $tickets = 0; $products = 0; $days = 1;
+                $ticketsDb = 0; $caDb = 0.0; $days = 1;
                 if (\DateTimeImmutable::createFromFormat('!Y-m-d', $fd) && \DateTimeImmutable::createFromFormat('!Y-m-d', $td)) {
                     $sum = $this->shopSales->getShopSummary($sid, $fd, $td);
-                    $tickets = $sum['tickets']; $products = $sum['products'];
+                    $ticketsDb = $sum['tickets']; $caDb = (float)$sum['ca'];
                     $toExcl = (new \DateTimeImmutable($td))->modify('+1 day');
                     $days = max(1, (int)(new \DateTimeImmutable($fd))->diff($toExcl)->days);
                 }
-                $tj     = $tickets > 0 ? $tickets / $days : 0;
-                $basket = $tickets > 0 ? $T / $tickets : 0;
-                $ppc    = $tickets > 0 ? $products / $tickets : 0;
+                // Redressement au prorata du CA (même logique que ShopController).
+                $scale   = ($caDb > 0 && $T > 0) ? $T / $caDb : 1.0;
+                $tickets = (int)round($ticketsDb * $scale);
+                $tj      = $tickets > 0 ? $tickets / $days : 0;
+                $basket  = $tickets > 0 ? $T / $tickets : 0;
                 echo '<tr style="border-top:1px solid #eee">'
                    . '<td style="padding:6px">' . $esc($sid) . '</td>'
                    . '<td>' . $esc($name) . '</td>'
                    . '<td>' . $esc($fd) . '→' . $esc($td) . '</td>'
                    . '<td>' . $esc($days) . '</td>'
                    . '<td>' . $esc(number_format($T, 0, ',', ' ')) . '</td>'
+                   . '<td>' . $esc(number_format($caDb, 0, ',', ' ')) . '</td>'
+                   . '<td>' . $esc(number_format($scale, 3, ',', ' ')) . '</td>'
+                   . '<td>' . $esc($ticketsDb) . '</td>'
                    . '<td><b>' . $esc($tickets) . '</b></td>'
-                   . '<td><b>' . $esc($products) . '</b></td>'
-                   . '<td>' . $esc(number_format($tj, 1, ',', ' ')) . '</td>'
-                   . '<td>' . $esc(number_format($basket, 2, ',', ' ')) . '</td>'
-                   . '<td>' . $esc(number_format($ppc, 2, ',', ' ')) . '</td></tr>';
+                   . '<td><b>' . $esc(number_format($tj, 1, ',', ' ')) . '</b></td>'
+                   . '<td><b>' . $esc(number_format($basket, 2, ',', ' ')) . '</b></td></tr>';
             }
             echo '</table></div>';
+
+            // Tables de la base — pour repérer une table de lignes de ticket
+            // (détail produits) permettant un vrai « produits / client ».
+            $tables = $this->shopSales->listTables();
+            echo '<h3 style="font-family:sans-serif">Tables de la base (' . count($tables) . ')</h3>';
+            if ($tables === []) {
+                echo '<p>⚠️ Base injoignable ou aucune table.</p>';
+            } else {
+                echo '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:12px;background:#fff;border-radius:8px;overflow:hidden">';
+                echo '<tr style="background:#241f1c;color:#fff;text-align:left"><th style="padding:4px 10px">table</th><th style="padding:4px 10px">lignes (≈)</th></tr>';
+                foreach ($tables as $t => $rows) {
+                    $hot = (bool)preg_match('/transaction|ticket|order|sale|line|item|product/i', $t);
+                    echo '<tr style="border-top:1px solid #eee' . ($hot ? ';background:#fff7ec' : '') . '">'
+                       . '<td style="padding:3px 10px">' . ($hot ? '<b>' : '') . $esc($t) . ($hot ? '</b>' : '') . '</td>'
+                       . '<td style="padding:3px 10px">' . $esc(number_format($rows, 0, ',', ' ')) . '</td></tr>';
+                }
+                echo '</table></div>';
+            }
+
             echo '<p style="font-family:sans-serif;color:#8D1D2C">⚠️ Diagnostic temporaire — retire <code>SetEnv PNL_DIAG 1</code> après usage.</p>';
             echo '</body>';
             return;

@@ -14,19 +14,17 @@ class ShopSalesRepository
      * Indicateurs de vente d'UN magasin sur une fenêtre de dates métier
      * [fromDate, toDate] (inclusives, format Y-m-d).
      *
-     * IMPORTANT : dans `transaction`, 1 ligne = 1 PRODUIT vendu. Un ticket
-     * (= un client) regroupe plusieurs lignes partageant le même ticket_key
-     * (sur un même appareil). Donc :
+     * Comptages dans `transaction` (1 ligne ≈ 1 ticket dans la base locale) :
      *   - tickets  = COUNT(DISTINCT id_device, ticket_key)
-     *   - produits = COUNT(*)
+     *   - produits = COUNT(*)  (≈ tickets tant que le détail produit n'est pas
+     *                répliqué dans cette base)
      *   - CA       = SUM(total_gross_amount_after_discount)
      *
-     * La fenêtre est bornée sur la DATE MÉTIER encodée dans ticket_key
-     * (YYMMDDNNNN → on extrait MMDD), et NON sur insert_timestamp : beaucoup de
-     * lignes ont un insert_timestamp corrompu (ex. 1900) qui les ferait sortir
-     * de la fenêtre alors que leur vraie date est bien dans le mois. On ignore
-     * l'année (les données de test l'encodent différemment) — sans ambiguïté car
-     * la période « month » tient dans un seul mois calendaire.
+     * Fenêtre bornée sur insert_timestamp — seule datation cohérente sur tous
+     * les magasins (les ticket_key ont des encodages différents par magasin).
+     *
+     * NB : cette base locale peut être PARTIELLE (CA_DB < CA_API). L'appelant
+     * redresse alors les comptages au prorata du CA de l'API (cf. ShopController).
      *
      * @return array{tickets:int, products:int, ca:float}
      */
@@ -39,9 +37,9 @@ class ShopSalesRepository
         }
 
         try {
-            // MMDD (mois*100 + jour) extrait des dates de la fenêtre.
-            $fromMMDD = (int)substr(str_replace('-', '', $fromDate), 4); // '2026-07-01' → 701
-            $toMMDD   = (int)substr(str_replace('-', '', $toDate), 4);   // '2026-07-20' → 720
+            // Fenêtre semi-ouverte [from 00:00:00, (to+1j) 00:00:00).
+            $from   = $fromDate . ' 00:00:00';
+            $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
 
             $stmt = $pdo->prepare(
                 'SELECT COUNT(DISTINCT id_device, ticket_key)                 AS tickets,
@@ -49,9 +47,10 @@ class ShopSalesRepository
                         COALESCE(SUM(total_gross_amount_after_discount), 0)   AS ca
                  FROM transaction
                  WHERE id_shop = :id
-                   AND ((ticket_key DIV 10000) MOD 10000) BETWEEN :fromMMDD AND :toMMDD'
+                   AND insert_timestamp >= :from
+                   AND insert_timestamp <  :toExcl'
             );
-            $stmt->execute([':id' => $shopId, ':fromMMDD' => $fromMMDD, ':toMMDD' => $toMMDD]);
+            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
             $row = $stmt->fetch() ?: [];
 
             return [
@@ -62,6 +61,38 @@ class ShopSalesRepository
         } catch (Throwable $e) {
             error_log('[db] getShopSummary échoué: ' . $e->getMessage());
             return $empty;
+        }
+    }
+
+    /**
+     * Diagnostic : liste les tables de la base avec leur nombre de lignes
+     * (approx. information_schema). Sert à repérer une éventuelle table de
+     * LIGNES de ticket (détail produits) pour un vrai « produits / client ».
+     *
+     * @return array<string,int>  table => lignes
+     */
+    public function listTables(): array
+    {
+        $pdo = Database::pdo();
+        if ($pdo === null) {
+            return [];
+        }
+
+        try {
+            $stmt = $pdo->query(
+                'SELECT TABLE_NAME AS t, TABLE_ROWS AS r
+                 FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE()
+                 ORDER BY TABLE_NAME'
+            );
+            $out = [];
+            foreach ($stmt->fetchAll() as $row) {
+                $out[(string)$row['t']] = (int)$row['r'];
+            }
+            return $out;
+        } catch (Throwable $e) {
+            error_log('[db] listTables échoué: ' . $e->getMessage());
+            return [];
         }
     }
 
