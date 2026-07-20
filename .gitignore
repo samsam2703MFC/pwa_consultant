@@ -1,0 +1,2 @@
+# Identifiants base de données — NE JAMAIS committer
+/config/db.local.php
