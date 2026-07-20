@@ -91,8 +91,17 @@
         content: ''; width: 7px; height: 7px; border-radius: 1.5px;
         transform: rotate(45deg); background: currentColor;
     }
+    .pnl-lever-food   { color: #10b981; background: rgba(16,185,129,.12); }
     .pnl-lever-labour { color: #8b5cf6; background: rgba(139,92,246,.12); }
-    .pnl-lever-oc     { color: #8b5cf6; background: rgba(139,92,246,.12); }
+    .pnl-lever-oc     { color: #06b6d4; background: rgba(6,182,212,.14); }
+
+    /* % par rapport au TurnOver */
+    .pnl-row-pct { font-size: .72rem; font-weight: 700; min-width: 48px; text-align: right; padding-left: 6px; color: #8a8079; }
+    /* Marge brute — ligne calculée mise en avant */
+    .pnl-row-sub { background: rgba(36,26,22,.035); border-radius: 10px; }
+    .pnl-row-sub .pnl-row-label { font-weight: 800; color: #241f1c; }
+    .pnl-row-sub .pnl-row-value { color: #241f1c; }
+    .pnl-row-sub .pnl-row-pct   { color: #241f1c; }
     .pnl-row-value {
         font-size: .82rem;
         font-weight: 700;
@@ -343,51 +352,76 @@
 
         const rows = [];
 
-        // TurnOver row (expandable)
-        const { text: toDelta, cls: toDeltaCls } = fmtDelta(data.turnover.delta);
+        // Compte de résultat simplifié — tous les postes dérivés des 4 champs API
+        // (turnover, labour, overhead [proratisé], result). Identité validée :
+        //   Result = TurnOver − Food − Labour − Overhead
+        //   ⇒ Food = TurnOver − Labour − Overhead − Result
+        //   ⇒ Marge brute = TurnOver − Food
+        const T    = Number(data.turnover && data.turnover.value) || 0;
+        const L    = Number(data.labour   && data.labour.value)   || 0;
+        const OC   = Number(data.overhead && data.overhead.value) || 0; // déjà proratisé (semaine/jour)
+        const R    = Number(data.result   && data.result.value)   || 0;
+        const food = T - L - OC - R;   // Food Cost
+        const gross = T - food;        // Marge brute
+
+        // % par rapport au TurnOver de la même période/magasin, 1 décimale.
+        const pct = (x) => (T > 0 ? (Math.round((x / T) * 1000) / 10).toFixed(1) + '%' : '—');
+
+        // 1. TurnOver — sans % (toujours 100%). Reste dépliable (catégories).
         rows.push(`
             <div class="pnl-row is-expandable" id="pnl-to-row-${shopId}">
-                <span class="pnl-row-label">
-                    <i class="bi bi-chevron-right"></i>
-                    TurnOver
-                </span>
-                <span class="pnl-row-value">${fmt(data.turnover.value)}</span>
-                <span class="pnl-row-delta ${toDeltaCls}">${toDelta}</span>
+                <span class="pnl-row-label"><i class="bi bi-chevron-right"></i>TurnOver</span>
+                <span class="pnl-row-value">${fmt(T)}</span>
+                <span class="pnl-row-pct"></span>
             </div>
             <div class="pnl-categories" id="pnl-cats-${shopId}">
-                ${renderCategories(data.turnover.categories, data.turnover.value)}
+                ${renderCategories(data.turnover ? data.turnover.categories : [], T)}
             </div>
         `);
 
-        // Labour
-        const { text: labDelta, cls: labDeltaCls } = fmtDelta(data.labour.delta);
+        // 2. Food Cost
         rows.push(`
             <div class="pnl-row">
-                <span class="pnl-row-label"><span class="pnl-lever pnl-lever-labour">Masse salariale</span></span>
-                <span class="pnl-row-value">${fmt(data.labour.value)}</span>
-                <span class="pnl-row-delta ${labDeltaCls}">${labDelta}</span>
+                <span class="pnl-row-label"><span class="pnl-lever pnl-lever-food">Food Cost</span></span>
+                <span class="pnl-row-value">${fmt(food)}</span>
+                <span class="pnl-row-pct">${pct(food)}</span>
             </div>
         `);
 
-        // Overhead
-        const overhead = data.overhead ?? { value: null, delta: null, breakdown: null };
-        const { text: ocDelta, cls: ocDeltaCls } = fmtDelta(overhead.delta);
+        // 3. Marge brute (ligne calculée = TurnOver − Food Cost)
+        rows.push(`
+            <div class="pnl-row pnl-row-sub">
+                <span class="pnl-row-label">Marge brute</span>
+                <span class="pnl-row-value">${fmt(gross)}</span>
+                <span class="pnl-row-pct">${pct(gross)}</span>
+            </div>
+        `);
+
+        // 4. Labour Cost
         rows.push(`
             <div class="pnl-row">
-                <span class="pnl-row-label"><span class="pnl-lever pnl-lever-oc">Frais généraux</span></span>
-                <span class="pnl-row-value">${fmt(overhead.value)}</span>
-                <span class="pnl-row-delta ${ocDeltaCls}">${ocDelta}</span>
+                <span class="pnl-row-label"><span class="pnl-lever pnl-lever-labour">Labour Cost</span></span>
+                <span class="pnl-row-value">${fmt(L)}</span>
+                <span class="pnl-row-pct">${pct(L)}</span>
             </div>
         `);
 
-        // Result
-        const { text: resDelta, cls: resDeltaCls } = fmtDelta(data.result.delta);
-        const resultColor = data.result.value >= 0 ? '' : 'style="color:#dc3545;"';
+        // 5. Overhead Cost (OC)
+        rows.push(`
+            <div class="pnl-row">
+                <span class="pnl-row-label"><span class="pnl-lever pnl-lever-oc">Overhead Cost (OC)</span></span>
+                <span class="pnl-row-value">${fmt(OC)}</span>
+                <span class="pnl-row-pct">${pct(OC)}</span>
+            </div>
+        `);
+
+        // 6. Result (= Marge brute − Labour − Overhead)
+        const resultColor = R >= 0 ? '' : 'style="color:#dc3545;"';
         rows.push(`
             <div class="pnl-row result-row" ${resultColor}>
                 <span class="pnl-row-label" ${resultColor}>Result</span>
-                <span class="pnl-row-value" ${resultColor}>${fmt(data.result.value)}</span>
-                <span class="pnl-row-delta ${resDeltaCls}">${resDelta}</span>
+                <span class="pnl-row-value" ${resultColor}>${fmt(R)}</span>
+                <span class="pnl-row-pct" ${resultColor}>${pct(R)}</span>
             </div>
         `);
 
