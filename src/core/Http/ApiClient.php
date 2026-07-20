@@ -10,22 +10,23 @@ use App\Consultant\core\Support\UserHeaderProvider;
  */
 class ApiClient
 {
-    private ?string $jwtToken;
-
     public function __construct(
         private string $baseUrl,
-        CookieManager $cookieManager,
+        private CookieManager $cookieManager,
         private UserHeaderProvider $userHeaderProvider
     ) {
-        $this->jwtToken = $cookieManager->getAccessToken();
     }
 
     private function getHeaders(): array
     {
         $headers = [];
 
-        if ($this->jwtToken) {
-            $headers[] = 'Authorization: Bearer ' . $this->jwtToken;
+        // Odczytuj token PRZY KAŻDYM wywołaniu — middleware auth może odświeżyć
+        // token (nowy cookie) już po skonstruowaniu ApiClienta; buforowanie w
+        // konstruktorze wysyłałoby wtedy stary/wygasły token → 401.
+        $token = $this->cookieManager->getAccessToken();
+        if ($token) {
+            $headers[] = 'Authorization: Bearer ' . $token;
         }
 
         $language = $this->userHeaderProvider->getLanguage();

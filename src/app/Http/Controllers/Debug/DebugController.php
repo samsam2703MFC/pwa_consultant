@@ -2,6 +2,7 @@
 namespace App\Consultant\app\Http\Controllers\Debug;
 
 use App\Consultant\app\Http\Controllers\Controller;
+use App\Consultant\core\Cookie\CookieManager;
 use App\Consultant\core\Http\ApiClient;
 use App\Consultant\core\Support\Route;
 
@@ -14,7 +15,10 @@ use App\Consultant\core\Support\Route;
  */
 class DebugController extends Controller
 {
-    public function __construct(private ApiClient $apiClient) {}
+    public function __construct(
+        private ApiClient $apiClient,
+        private CookieManager $cookieManager,
+    ) {}
 
     #[Route('GET', '/pnl-debug')]
     public function pnl(): void
@@ -27,6 +31,17 @@ class DebugController extends Controller
             echo 'Not found';
             return;
         }
+
+        // Session / token
+        $access   = $this->cookieManager->getAccessToken();
+        $accExp   = $this->cookieManager->getAccessTokenExpiryTime();
+        $refExp   = $this->cookieManager->getRefreshTokenExpiryTime();
+        $accExpired = $accExp ? (strtotime($accExp) < time()) : null;
+        echo '<h3 style="font-family:sans-serif">Session</h3><ul>';
+        echo '<li>Access token présent : ' . ($access ? '✅ (' . strlen($access) . ' car.)' : '❌') . '</li>';
+        echo '<li>Access expiry : ' . $esc($accExp ?: '—') . ($accExpired === true ? ' ⚠️ EXPIRÉ' : ($accExpired === false ? ' ✅ valide' : '')) . '</li>';
+        echo '<li>Refresh expiry : ' . $esc($refExp ?: '—') . '</li>';
+        echo '</ul>';
 
         $shop   = (int)($_GET['shop'] ?? 0);
         $period = $_GET['period'] ?? 'month';
