@@ -82,11 +82,60 @@ class ApiClient
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, array_merge($this->getHeaders(), ['Content-Type: application/json']));
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 12);
 
         $response = curl_exec($ch);
+        $status   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
         curl_close($ch);
 
-        return json_decode($response, true);
+        // Błąd połączenia (backend nieosiągalny, timeout, DNS/SSL) — nie mylić
+        // z błędnymi danymi logowania. Logujemy powód po stronie serwera.
+        if ($response === false || $curlErr !== '') {
+            error_log("[auth] POST {$url} — connection error: {$curlErr}");
+            return ['error_code' => 'CONNECTION_ERROR'];
+        }
+
+        $decoded = json_decode($response, true);
+
+        // Niepowodzenie HTTP (np. 404 = zły endpoint, 500 = błąd backendu,
+        // 401/422 = złe dane). Logujemy status i skrócone ciało do diagnozy.
+        if (!in_array($status, [200, 201], true)) {
+            error_log("[auth] POST {$url} — HTTP {$status} body=" . substr((string)$response, 0, 300));
+        }
+
+        return is_array($decoded) ? $decoded : ['error_code' => 'BAD_RESPONSE'];
+    }
+
+    /**
+     * Wariant diagnostyczny logowania: zwraca surowy status HTTP, treść i błąd
+     * curl (bez ukrywania) — do ekranu diagnostycznego /auth?diag=1.
+     * NIE używać w normalnym przepływie.
+     */
+    public function loginDebug(string $endpoint, array $data): array
+    {
+        $url = $this->baseUrl . $endpoint;
+        $ch  = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array_merge($this->getHeaders(), ['Content-Type: application/json']));
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+
+        $body   = curl_exec($ch);
+        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err    = curl_error($ch);
+        curl_close($ch);
+
+        return [
+            'url'        => $url,
+            'status'     => $status,
+            'curl_error' => $err,
+            'body'       => $body === false ? '' : (string)$body,
+            'json'       => is_string($body) ? json_decode($body, true) : null,
+        ];
     }
 
     public function post(string $endpoint, array $data): array
