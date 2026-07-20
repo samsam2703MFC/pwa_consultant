@@ -20,8 +20,9 @@ class ShopSalesRepository
      *   - tickets  = COUNT(DISTINCT id_device, ticket_key)
      *   - produits = COUNT(*)
      *   - CA       = SUM(total_gross_amount_after_discount)
-     * La fenêtre est bornée sur ticket_key (YYMMDDNNNN → date métier fiable),
-     * plus robuste que insert_timestamp (parfois bruité). Index idx_transaction_ticket_key.
+     * La fenêtre est bornée sur insert_timestamp (index (id_shop, insert_timestamp)) :
+     * c'est la seule datation cohérente avec les données courantes (ticket_key
+     * encode parfois une autre année dans les données de test).
      *
      * @return array{tickets:int, products:int, ca:float}
      */
@@ -34,9 +35,9 @@ class ShopSalesRepository
         }
 
         try {
-            // Bornes ticket_key : YYMMDD * 10000 (+9999 pour toute la journée de fin).
-            $fromKey = (int)substr(str_replace('-', '', $fromDate), 2) * 10000;
-            $toKey   = (int)substr(str_replace('-', '', $toDate), 2) * 10000 + 9999;
+            // Fenêtre semi-ouverte [from 00:00:00, (to+1j) 00:00:00).
+            $from   = $fromDate . ' 00:00:00';
+            $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
 
             $stmt = $pdo->prepare(
                 'SELECT COUNT(DISTINCT id_device, ticket_key)                 AS tickets,
@@ -44,9 +45,10 @@ class ShopSalesRepository
                         COALESCE(SUM(total_gross_amount_after_discount), 0)   AS ca
                  FROM transaction
                  WHERE id_shop = :id
-                   AND ticket_key BETWEEN :fromKey AND :toKey'
+                   AND insert_timestamp >= :from
+                   AND insert_timestamp <  :toExcl'
             );
-            $stmt->execute([':id' => $shopId, ':fromKey' => $fromKey, ':toKey' => $toKey]);
+            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
             $row = $stmt->fetch() ?: [];
 
             return [
