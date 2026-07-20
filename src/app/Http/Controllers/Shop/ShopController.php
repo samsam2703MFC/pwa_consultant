@@ -33,24 +33,59 @@ class ShopController extends Controller
     /**
      * Enrichit chaque magasin avec : CA du mois, tickets/jour, panier moyen ;
      * trie par CA décroissant et attribue le rang (1 = plus gros CA).
-     * Les indicateurs viennent de atelierby_db.transaction (mois en cours).
+     *
+     * Le CA du mois provient de la MÊME source que le split « TurnOver » du P&L
+     * (endpoint /consultant/shops/{id}/pnl?period=month, champ turnover.value),
+     * pour que la ligne de synthèse et le P&L déplié affichent le même chiffre.
+     * Le nombre de tickets est lu dans atelierby_db.transaction sur la fenêtre
+     * exacte rapportée par le P&L (date_from/date_to) → panier moyen cohérent.
+     * Repli sur le mois calendaire courant (DB) si le P&L est indisponible.
      */
     private function withSalesIndicators(array $shops): array
     {
-        $from = date('Y-m-01 00:00:00');
-        $to   = date('Y-m-01 00:00:00', strtotime('first day of next month'));
-        $daysElapsed = max(1, (int)date('j'));
-
-        $summaries = $this->shopSales->getSummaries($from, $to); // [id_shop => [tickets, ca]]
+        $today  = new \DateTimeImmutable('today');
+        $capEnd = $today->modify('+1 day'); // borne haute = fin de la journée en cours
 
         foreach ($shops as &$shop) {
-            $id      = (int)($shop['id'] ?? 0);
-            $tickets = (int)($summaries[$id]['tickets'] ?? 0);
-            $ca      = (float)($summaries[$id]['ca'] ?? 0);
+            $id = (int)($shop['id'] ?? 0);
+
+            $ca = 0.0;
+            $tickets = 0;
+            $days = 1;
+
+            $pnl      = $id > 0 ? $this->shopService->getPnl($id, 'month') : [];
+            $turnover = isset($pnl['turnover']['value']) ? (float)$pnl['turnover']['value'] : null;
+            $fromDate = isset($pnl['date_from']) ? substr((string)$pnl['date_from'], 0, 10) : '';
+            $toDate   = isset($pnl['date_to'])   ? substr((string)$pnl['date_to'], 0, 10)   : '';
+
+            if ($turnover !== null && $this->isDate($fromDate) && $this->isDate($toDate)) {
+                // Aligné sur le P&L : même CA, même fenêtre.
+                $ca = $turnover;
+
+                $fromDt = $fromDate . ' 00:00:00';
+                // date_to du P&L = dernier jour inclus → borne exclusive = +1 jour.
+                $toExclObj = (new \DateTimeImmutable($toDate))->modify('+1 day');
+                $toExcl    = $toExclObj->format('Y-m-d 00:00:00');
+
+                $tickets = $this->shopSales->getShopSummary($id, $fromDt, $toExcl)['tickets'];
+
+                // Jours écoulés dans la fenêtre (borné à aujourd'hui pour ne pas
+                // diviser un mois partiel par sa longueur totale).
+                $effEnd = $toExclObj < $capEnd ? $toExclObj : $capEnd;
+                $days   = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($effEnd)->days);
+            } else {
+                // Repli : mois calendaire courant, lu en base.
+                $fromDt = date('Y-m-01 00:00:00');
+                $toDt   = date('Y-m-01 00:00:00', strtotime('first day of next month'));
+                $sum    = $this->shopSales->getShopSummary($id, $fromDt, $toDt);
+                $ca      = (float)$sum['ca'];
+                $tickets = (int)$sum['tickets'];
+                $days    = max(1, (int)date('j'));
+            }
 
             $shop['ca_month']        = $ca;
             $shop['tickets_count']   = $tickets;
-            $shop['tickets_per_day'] = $tickets > 0 ? $tickets / $daysElapsed : 0.0;
+            $shop['tickets_per_day'] = $tickets > 0 ? $tickets / $days : 0.0;
             $shop['avg_basket']      = $tickets > 0 ? $ca / $tickets : 0.0;
         }
         unset($shop);
@@ -64,6 +99,13 @@ class ShopController extends Controller
         unset($shop);
 
         return $shops;
+    }
+
+    /** Valide une date au format Y-m-d (et qu'elle existe réellement). */
+    private function isDate(string $value): bool
+    {
+        $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        return $d !== false && $d->format('Y-m-d') === $value;
     }
 
     /**

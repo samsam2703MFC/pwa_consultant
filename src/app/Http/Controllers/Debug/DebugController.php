@@ -2,6 +2,7 @@
 namespace App\Consultant\app\Http\Controllers\Debug;
 
 use App\Consultant\app\Http\Controllers\Controller;
+use App\Consultant\app\Repositories\Shop\ShopSalesRepository;
 use App\Consultant\core\Cookie\CookieManager;
 use App\Consultant\core\Http\ApiClient;
 use App\Consultant\core\Support\Route;
@@ -18,6 +19,7 @@ class DebugController extends Controller
     public function __construct(
         private ApiClient $apiClient,
         private CookieManager $cookieManager,
+        private ShopSalesRepository $shopSales,
     ) {}
 
     /**
@@ -131,6 +133,36 @@ class DebugController extends Controller
         echo '<li>Overhead = ' . $esc($OC) . '</li>';
         echo '<li>Result = ' . $esc($R) . '</li>';
         echo '<li><b>Food (dérivé = T−L−OC−R)</b> = ' . $esc($T - $L - $OC - $R) . '</li>';
+        echo '</ul>';
+
+        // ── Comparaison API (P&L) vs base (transaction) : origine de l'écart
+        //    entre le split TurnOver et la ligne « CA du mois » des Boutiques. ──
+        $fromDate = isset($data['date_from']) ? substr((string)$data['date_from'], 0, 10) : '';
+        $toDate   = isset($data['date_to'])   ? substr((string)$data['date_to'], 0, 10)   : '';
+        echo '<h3 style="font-family:sans-serif">API vs Base (transaction)</h3><ul>';
+        echo '<li>Fenêtre P&L : <code>' . $esc($fromDate ?: '?') . '</code> → <code>' . $esc($toDate ?: '?') . '</code></li>';
+        echo '<li>TurnOver (API) = <b>' . $esc(number_format($T, 2, ',', ' ')) . '</b></li>';
+
+        $valid = fn($v) => (bool)\DateTimeImmutable::createFromFormat('!Y-m-d', $v);
+        if ($valid($fromDate) && $valid($toDate)) {
+            $fromDt = $fromDate . ' 00:00:00';
+            $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
+            $win    = $this->shopSales->getShopSummary($shop, $fromDt, $toExcl);
+            echo '<li>DB sur la fenêtre P&L [' . $esc($fromDate) . ' → ' . $esc($toDate) . '] : '
+               . '<b>CA=' . $esc(number_format($win['ca'], 2, ',', ' ')) . '</b>, tickets=' . $esc($win['tickets']) . '</li>';
+            $diff = $T - $win['ca'];
+            echo '<li>Écart API − DB (même fenêtre) = <b>' . $esc(number_format($diff, 2, ',', ' ')) . '</b>'
+               . ($win['ca'] > 0 ? ' (ratio ' . $esc(number_format($T / $win['ca'], 3, ',', ' ')) . ')' : '') . '</li>';
+        } else {
+            echo '<li>⚠️ date_from / date_to absents ou invalides dans la réponse P&L.</li>';
+        }
+
+        // Mois calendaire courant (ancienne source de la ligne « CA du mois »).
+        $cmFrom = date('Y-m-01 00:00:00');
+        $cmTo   = date('Y-m-01 00:00:00', strtotime('first day of next month'));
+        $cm     = $this->shopSales->getShopSummary($shop, $cmFrom, $cmTo);
+        echo '<li>DB mois calendaire courant [' . $esc(date('Y-m-01')) . ' → ' . $esc(date('Y-m-01', strtotime('first day of next month'))) . '] : '
+           . '<b>CA=' . $esc(number_format($cm['ca'], 2, ',', ' ')) . '</b>, tickets=' . $esc($cm['tickets']) . '</li>';
         echo '</ul>';
 
         echo '<h3 style="font-family:sans-serif">Réponse brute</h3>';
