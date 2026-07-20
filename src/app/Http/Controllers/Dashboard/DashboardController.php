@@ -17,11 +17,8 @@ class DashboardController extends Controller
             $date = date('Y-m-d');
         }
 
-        // Dane demonstracyjne — używane dopóki backend nie zwróci realnych
-        // danych (tryb DEV_NO_AUTH / brak API). Gdy API odpowie, poniższe
-        // klucze zostaną nadpisane przez DashboardService::getDashboard().
-        $demo = $this->demoData();
-
+        // Realne dane agregowane z istniejących endpointów (ranking + zadania).
+        // Gdy API jest nieosiągalne / brak danych → [] i używamy demo.
         $dashboard = $this->safeFetch(
             [$this->dashboardService, 'getDashboard'],
             $this->errors,
@@ -29,13 +26,20 @@ class DashboardController extends Controller
             []
         );
 
-        // Nadpisujemy tylko te sekcje, które API faktycznie dostarczyło.
-        $kpis       = !empty($dashboard['kpis'])
-            ? array_merge($demo['kpis'], array_filter($dashboard['kpis'], fn($v) => $v !== null))
-            : $demo['kpis'];
-        $todayTasks = !empty($dashboard['today_tasks']) ? $dashboard['today_tasks'] : $demo['today_tasks'];
-        $alerts     = !empty($dashboard['alerts'])      ? $dashboard['alerts']      : $demo['alerts'];
-        $shops      = !empty($dashboard['shops'])       ? $dashboard['shops']       : $demo['shops'];
+        // Tryb realny: wszystkie sekcje z API (puste sekcje szablon ukrywa).
+        // Tryb demo: pełna zawartość poglądowa (makieta).
+        if (!empty($dashboard)) {
+            $kpis       = $dashboard['kpis'];
+            $todayTasks = $dashboard['today_tasks'];
+            $alerts     = $dashboard['alerts'];
+            $shops      = $dashboard['shops'];
+        } else {
+            $demo       = $this->demoData();
+            $kpis       = $demo['kpis'];
+            $todayTasks = $demo['today_tasks'];
+            $alerts     = $demo['alerts'];
+            $shops      = $demo['shops'];
+        }
 
         $this->view('dashboard/dashboard', [
             'date'        => $date,

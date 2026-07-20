@@ -1,94 +1,170 @@
 <?php
 namespace App\Consultant\app\Services\Dashboard;
 
-use App\Consultant\app\Repositories\Dashboard\DashboardRepository;
+use App\Consultant\app\Services\Checklist\ChecklistService;
+use App\Consultant\app\Services\Task\TaskService;
 
 /**
- * Normalizuje surową odpowiedź API pulpitu do kontraktu oczekiwanego
- * przez szablon dashboard.twig:
+ * Agreguje pulpit konsultanta z ISTNIEJĄCYCH endpointów API (bez potrzeby
+ * dedykowanego /consultant/dashboard):
  *
- *   [
- *     'kpis'        => ['ca_today','ca_delta','ca_delta_up','checklist_pct',
- *                       'checklist_ratio','tasks_done','tasks_total','alerts_count'],
- *     'today_tasks' => [ ['title','shop','time','done'], ... ],
- *     'alerts'      => [ ['type','title','subtitle','href'], ... ],
- *     'shops'       => [ ['name','city','pct'], ... ],
- *   ]
+ *   - /consultant/network/tasks/ranking?date=…  → KPI checklist + alerty + sklepy
+ *   - /consultant/tasks                          → zadania konsultanta na dziś
  *
- * Zwraca [] gdy API nie dostarczyło danych — wtedy kontroler zostawia
- * dane demonstracyjne (tryb DEV_NO_AUTH / brak backendu).
+ * Zwraca kontrakt oczekiwany przez dashboard.twig:
+ *   ['kpis','today_tasks','alerts','shops']
+ *
+ * Gdy oba źródła są puste (API nieosiągalne / brak danych) zwraca [],
+ * a kontroler pozostaje przy danych demonstracyjnych.
+ *
+ * Uwaga: „CA du jour" (przychód) nie ma źródła w tych endpointach — dane
+ * P&L pobierane są per-sklep osobnym zapytaniem. Dlatego ca_today = null
+ * (szablon pokaże „—" w trybie realnym).
  */
 class DashboardService
 {
-    public function __construct(private DashboardRepository $dashboardRepository) {}
+    /** Maks. liczba pozycji pokazywanych w sekcjach listowych. */
+    private const MAX_TASKS  = 6;
+    private const MAX_ALERTS = 4;
+
+    public function __construct(
+        private ChecklistService $checklistService,
+        private TaskService $taskService,
+    ) {}
 
     public function getDashboard(string $date): array
     {
-        $raw = $this->dashboardRepository->getSummary($date);
-        if (empty($raw)) {
+        $ranking = $this->checklistService->getNetworkTasksRanking($date);
+        $net     = $ranking['network'] ?? [];
+        $shops   = $ranking['shops'] ?? [];
+
+        $tasksData = $this->taskService->getConsultantTasks();
+        $tasks     = $tasksData['tasks'] ?? [];
+
+        // Brak jakichkolwiek danych → tryb demonstracyjny (fallback w kontrolerze).
+        if (empty($net) && empty($shops) && empty($tasks)) {
             return [];
         }
 
+        $alerts = $this->buildAlerts($shops);
+
         return [
-            'kpis'        => $this->normalizeKpis($raw['kpis'] ?? $raw),
-            'today_tasks' => $this->normalizeTasks($raw['today_tasks'] ?? $raw['tasks'] ?? []),
-            'alerts'      => $this->normalizeAlerts($raw['alerts'] ?? []),
-            'shops'       => $this->normalizeShops($raw['shops'] ?? []),
+            'kpis'        => $this->buildKpis($net, $tasks, $alerts['total']),
+            'today_tasks' => $this->buildTasks($tasks),
+            'alerts'      => $alerts['items'],
+            'shops'       => $this->buildShops($shops),
         ];
     }
 
-    private function normalizeKpis(array $k): array
+    private function buildKpis(array $net, array $tasks, int $alertsTotal): array
     {
+        $done  = 0;
+        foreach ($tasks as $t) {
+            if (!empty($t['is_done'])) {
+                $done++;
+            }
+        }
+        $total = count($tasks);
+
+        $rate         = $net['completion_rate'] ?? null;
+        $checklistDone = $net['tasks_done']  ?? null;
+        $checklistAll  = $net['tasks_total'] ?? null;
+
         return [
-            'ca_today'        => $k['ca_today']        ?? $k['revenue_today'] ?? null,
-            'ca_delta'        => $k['ca_delta']        ?? $k['revenue_delta'] ?? null,
-            'ca_delta_up'     => (bool)($k['ca_delta_up'] ?? (($k['revenue_delta_value'] ?? 0) >= 0)),
-            'checklist_pct'   => $k['checklist_pct']   ?? null,
-            'checklist_ratio' => $k['checklist_ratio'] ?? null,
-            'tasks_done'      => $k['tasks_done']      ?? null,
-            'tasks_total'     => $k['tasks_total']     ?? null,
-            'alerts_count'    => $k['alerts_count']    ?? null,
+            // Brak endpointu przychodu — pozostaje puste w trybie realnym.
+            'ca_today'        => null,
+            'ca_delta'        => null,
+            'ca_delta_up'     => true,
+            'checklist_pct'   => $rate !== null ? round($rate) . '%' : null,
+            'checklist_ratio' => ($checklistAll !== null) ? ($checklistDone ?? 0) . '/' . $checklistAll : null,
+            'tasks_done'      => $done,
+            'tasks_total'     => $total,
+            'alerts_count'    => $alertsTotal,
         ];
     }
 
-    private function normalizeTasks(array $tasks): array
+    private function buildTasks(array $tasks): array
     {
         $out = [];
         foreach ($tasks as $t) {
             $out[] = [
-                'title' => $t['title'] ?? $t['name'] ?? '',
-                'shop'  => $t['shop']  ?? $t['shop_name'] ?? $t['representative_name'] ?? '',
-                'time'  => $t['time']  ?? $t['due_time'] ?? '',
-                'done'  => (bool)($t['done'] ?? ($t['status'] ?? '') === 'done'),
+                'title' => $t['name'] ?? '',
+                'shop'  => $t['section_name'] ?? $t['category_name'] ?? '',
+                'time'  => $t['execution_time'] ?? '',
+                'done'  => (bool)($t['is_done'] ?? false),
             ];
+            if (count($out) >= self::MAX_TASKS) {
+                break;
+            }
         }
         return $out;
     }
 
-    private function normalizeAlerts(array $alerts): array
+    /**
+     * Wyprowadza alerty z rankingu sklepów: brak obowiązkowych zadań,
+     * niska realizacja checklisty, zadania nieudane. Jeden (najpoważniejszy)
+     * alert na sklep. Zwraca również łączną liczbę wykrytych problemów.
+     */
+    private function buildAlerts(array $shops): array
     {
-        $out = [];
-        foreach ($alerts as $a) {
-            $out[] = [
-                'type'     => $a['type']     ?? 'warning',
-                'title'    => $a['title']    ?? '',
-                'subtitle' => $a['subtitle'] ?? $a['detail'] ?? '',
-                'href'     => $a['href']     ?? $a['link'] ?? null,
-            ];
+        $items = [];
+        $total = 0;
+
+        foreach ($shops as $s) {
+            $name    = $s['shop_name'] ?? '';
+            $city    = $s['shop_city'] ?? '';
+            $rate    = $s['completion_rate'] ?? null;
+            $missed  = (int)($s['mandatory_missed'] ?? 0);
+            $failed  = (int)($s['tasks_failed'] ?? 0);
+            $closed  = !empty($s['day_closed']);
+
+            $alert = null;
+            if ($missed > 0) {
+                $alert = [
+                    'type'     => 'warning',
+                    'title'    => 'Tâches obligatoires manquées — ' . $name,
+                    'subtitle' => $missed . ' obligatoire' . ($missed > 1 ? 's' : '') . ($city ? ' · ' . $city : ''),
+                    'href'     => '/checklists',
+                ];
+            } elseif ($rate !== null && $rate < 60 && !$closed) {
+                $alert = [
+                    'type'     => 'warning',
+                    'title'    => 'Checklist ' . $name . ' en retard',
+                    'subtitle' => round($rate) . '% complété' . ($city ? ' · ' . $city : ''),
+                    'href'     => '/checklists',
+                ];
+            } elseif ($failed > 0) {
+                $alert = [
+                    'type'     => 'margin',
+                    'title'    => 'Tâches échouées — ' . $name,
+                    'subtitle' => $failed . ' échec' . ($failed > 1 ? 's' : '') . ($city ? ' · ' . $city : ''),
+                    'href'     => '/checklists',
+                ];
+            }
+
+            if ($alert !== null) {
+                $total++;
+                if (count($items) < self::MAX_ALERTS) {
+                    $items[] = $alert;
+                }
+            }
         }
-        return $out;
+
+        return ['items' => $items, 'total' => $total];
     }
 
-    private function normalizeShops(array $shops): array
+    private function buildShops(array $shops): array
     {
         $out = [];
         foreach ($shops as $s) {
             $out[] = [
-                'name' => $s['name'] ?? $s['representative_name'] ?? '',
-                'city' => $s['city'] ?? '',
-                'pct'  => (int)($s['pct'] ?? $s['score'] ?? $s['margin_pct'] ?? 0),
+                'name' => $s['shop_name'] ?? '',
+                'city' => $s['shop_city'] ?? '',
+                'pct'  => (int)round($s['completion_rate'] ?? 0),
             ];
         }
+        // Najsłabsze sklepy na górze — najbardziej wymagające uwagi.
+        usort($out, fn($a, $b) => $a['pct'] <=> $b['pct']);
         return $out;
     }
 }
