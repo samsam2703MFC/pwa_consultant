@@ -6,11 +6,17 @@ define('ROOT',
         ? 'https://'
         : 'http://') . $_SERVER['SERVER_NAME'] . '/pwa_consultant');
 
+// API konsultanta jest hostowane osobno (inny host niż frontend).
+// Nadpisz przez env CONSULTANT_API_BASE (np. w .htaccess: SetEnv), inaczej
+// domyślnie ten sam origin + /api/v1.
+$__consultantApiBase = $_SERVER['CONSULTANT_API_BASE'] ?? $_ENV['CONSULTANT_API_BASE'] ?? getenv('CONSULTANT_API_BASE') ?: '';
 define('API_BASE_URL',
-    (((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||
-        (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https'))
-        ? 'https://'
-        : 'http://') . $_SERVER['SERVER_NAME'] . '/api/v1');
+    $__consultantApiBase !== ''
+        ? rtrim($__consultantApiBase, '/')
+        : ((((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||
+            (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https'))
+            ? 'https://'
+            : 'http://') . $_SERVER['SERVER_NAME'] . '/api/v1'));
 
 define('SHARED_FILES_URL',
     (((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||
