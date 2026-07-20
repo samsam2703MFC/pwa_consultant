@@ -18,12 +18,44 @@ class NoteController extends Controller
      */
     public function index(): void
     {
-        $shops = $this->shopService->getAllShops();
+        $shops    = $this->shopService->getAllShops();
+        $overview = $this->safeFetch(
+            [$this->noteService, 'getNotesOverview'],
+            $this->errors,
+            [$shops],
+            ['recent' => [], 'by_shop' => []]
+        );
+
+        // Zawartość poglądowa gdy backend nie zwrócił danych (DEV_NO_AUTH / brak API).
+        if (empty($overview['recent']) && empty($overview['by_shop'])) {
+            $overview = $this->demoNotes();
+        }
 
         $this->view('note/index', [
             'shops'      => $shops,
+            'recent'     => $overview['recent'],
+            'by_shop'    => $overview['by_shop'],
             'active_nav' => 'notes',
         ]);
+    }
+
+    /**
+     * Zawartość poglądowa odwzorowująca makietę „Notes".
+     */
+    private function demoNotes(): array
+    {
+        return [
+            'recent' => [
+                ['id' => 1, 'shop_id' => 1, 'shop_name' => 'Châtelain', 'created_at' => '2026-07-20 09:42:00', 'content' => 'Vitrine à réagencer avant le week-end — mettre les tartes en avant.', 'author' => 'Camille Dubois', 'type_name' => null],
+                ['id' => 2, 'shop_id' => 3, 'shop_name' => 'Sablon',    'created_at' => '2026-07-19 16:10:00', 'content' => 'Rupture de stock levure — commande passée au fournisseur, livraison mardi.', 'author' => 'Camille Dubois', 'type_name' => null],
+                ['id' => 3, 'shop_id' => 2, 'shop_name' => 'Flagey',    'created_at' => '2026-07-18 11:25:00', 'content' => "Nouveau membre d'équipe formé sur la caisse — RAS.", 'author' => 'Camille Dubois', 'type_name' => null],
+            ],
+            'by_shop' => [
+                ['id' => 1, 'name' => 'Châtelain', 'address' => 'Rue du Bailli 2', 'count' => 8],
+                ['id' => 2, 'name' => 'Flagey',    'address' => 'Place Flagey 12', 'count' => 5],
+                ['id' => 3, 'name' => 'Sablon',    'address' => 'Grand Sablon 8',  'count' => 12],
+            ],
+        ];
     }
 
     /**

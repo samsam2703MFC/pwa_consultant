@@ -69,7 +69,7 @@
             border: none;
             padding: 6px 8px;
             border-radius: 10px;
-            color: #435ebe;
+            color: #8D1D2C;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -77,7 +77,7 @@
             transition: background .15s;
             -webkit-tap-highlight-color: transparent;
         }
-        .app-hamburger:active { background: rgba(67,94,190,.1); }
+        .app-hamburger:active { background: rgba(141,29,44,.1); }
         .app-hamburger i { font-size: 1.5rem; line-height: 1; }
         /* BACKDROP */
         .app-nav-backdrop {
@@ -170,8 +170,8 @@
             -webkit-tap-highlight-color: transparent;
             color: #212529;
         }
-        .app-nav-card:active { background: rgba(67,94,190,.07); }
-        .app-nav-card.is-active { background: rgba(67,94,190,.08); }
+        .app-nav-card:active { background: rgba(141,29,44,.07); }
+        .app-nav-card.is-active { background: rgba(141,29,44,.08); }
         .app-nav-card-icon {
             width: 38px; height: 38px;
             border-radius: 11px;
@@ -184,7 +184,7 @@
             font-size: .9rem;
             flex: 1;
         }
-        .app-nav-card.is-active .app-nav-card-label { color: #435ebe; }
+        .app-nav-card.is-active .app-nav-card-label { color: #8D1D2C; }
     </style>
 
     {% block head %}{% endblock %}
@@ -290,11 +290,11 @@
         z-index: 2000;
         background: #fff;
         border-radius: 18px;
-        box-shadow: 0 8px 32px rgba(67,94,190,.18), 0 2px 8px rgba(0,0,0,.08);
+        box-shadow: 0 8px 32px rgba(141,29,44,.18), 0 2px 8px rgba(0,0,0,.08);
         padding: 14px 16px 14px 14px;
         display: flex; align-items: center; gap: 12px;
         animation: pwa-slide-up .35s cubic-bezier(.34,1.56,.64,1) both;
-        border: 1.5px solid rgba(67,94,190,.12);
+        border: 1.5px solid rgba(141,29,44,.12);
     }
     @keyframes pwa-slide-up {
         from { opacity: 0; transform: translateY(24px) scale(.97); }
@@ -305,7 +305,7 @@
     #pwa-banner .pwa-title { font-weight: 800; font-size: .9rem; color: #212529; line-height: 1.2; }
     #pwa-banner .pwa-sub   { font-size: .72rem; color: #6c757d; margin-top: 2px; }
     #pwa-banner .pwa-btn-install {
-        background: linear-gradient(135deg,#435ebe,#6b7ff5);
+        background: linear-gradient(135deg,#8D1D2C,#6b7ff5);
         color: #fff; border: none; padding: 7px 14px; border-radius: 20px;
         font-size: .78rem; font-weight: 700; white-space: nowrap; cursor: pointer; flex-shrink: 0;
     }

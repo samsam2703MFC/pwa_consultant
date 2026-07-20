@@ -19,11 +19,31 @@ class TaskController extends Controller
             ['position' => null, 'tasks' => []]
         );
 
+        // Zawartość poglądowa gdy backend nie zwrócił danych (DEV_NO_AUTH / brak API).
+        if (empty($data['tasks'])) {
+            $data = $this->demoTasks();
+        }
+
         $this->view('task/index', [
             'position'   => $data['position'] ?? null,
             'tasks'      => $data['tasks'] ?? [],
             'active_nav' => 'tasks',
         ]);
+    }
+
+    /**
+     * Zawartość poglądowa odwzorowująca makietę „Tâches".
+     */
+    private function demoTasks(): array
+    {
+        return [
+            'position' => ['position_name' => 'Poste consultant', 'level_name' => 'Quotidien'],
+            'tasks' => [
+                ['id' => 1, 'name' => 'Contrôle vitrine du matin', 'section_name' => 'Ouverture', 'subcategory_name' => 'Châtelain', 'description' => 'Vérifier la présentation et la propreté de la vitrine.', 'execution_time' => '09:30', 'is_done' => true, 'is_mandatory' => true, 'requires_photo' => true, 'priority' => 1, 'completion_id' => 101],
+                ['id' => 2, 'name' => 'Brief équipe', 'section_name' => 'Management', 'subcategory_name' => 'Sablon', 'description' => "Réunion courte avec l'équipe du matin.", 'execution_time' => '11:00', 'is_done' => false, 'is_mandatory' => true, 'requires_photo' => false, 'priority' => 2, 'completion_id' => null],
+                ['id' => 3, 'name' => 'Inventaire matières premières', 'section_name' => 'Stock', 'subcategory_name' => 'Flagey', 'description' => 'Compter farine, beurre et levure avant la commande.', 'execution_time' => '14:00', 'is_done' => false, 'is_mandatory' => true, 'requires_photo' => false, 'priority' => 1, 'completion_id' => null],
+            ],
+        ];
     }
 
     public function taskOverview(int $id): void

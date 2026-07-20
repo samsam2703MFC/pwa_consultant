@@ -360,3 +360,127 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
   .page-content-loaded .row.g-3 > .col-12, .page-content-loaded > .d-flex { opacity:1 !important; transform:none !important; }
   .dash { opacity:1 !important; transform:none !important; }
 }
+
+/* ============================================================
+   Screen headers (Boutiques / Checklists / Tâches / Notes)
+   ============================================================ */
+.scr-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.scr-title { font-family:'Vank','Gotham',serif; font-size:22px; color:var(--c-ink); line-height:1.1; }
+.scr-sub { font-size:12px; color:var(--c-muted); margin-top:2px; }
+
+/* ============================================================
+   Checklists screen
+   ============================================================ */
+.cl-datenav { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+.cl-datenav-arrow { width:34px; height:34px; border-radius:50%; background:#fff; border:1px solid var(--c-line);
+  display:flex; align-items:center; justify-content:center; color:var(--c-muted); text-decoration:none; }
+.cl-datenav-cur { font-size:13px; font-weight:600; color:var(--c-ink); background:#fff; border:1px solid var(--c-line);
+  border-radius:999px; padding:7px 16px; display:inline-flex; align-items:center; gap:7px; cursor:pointer; }
+.cl-datenav-today { font-size:12px; font-weight:600; color:#fff; background:var(--c-primary); border-radius:999px;
+  padding:7px 14px; text-decoration:none; }
+
+.cl-hero { position:relative; overflow:hidden; border-radius:22px; padding:20px; color:#fff;
+  background:radial-gradient(90% 120% at 92% -10%,rgba(242,201,160,.28) 0%,rgba(242,201,160,0) 55%),
+             linear-gradient(150deg,#9a2233 0%,#7c1824 55%,#5f1320 100%);
+  box-shadow:0 18px 40px -20px rgba(120,25,40,.6); }
+.cl-hero-main { display:flex; align-items:center; gap:16px; position:relative; z-index:1; }
+.cl-ring { position:relative; width:74px; height:74px; flex-shrink:0; }
+.cl-ring svg { transform:rotate(-90deg); }
+.cl-ring-txt { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'Vank','Gotham',serif; font-size:19px; }
+.cl-hero-eyebrow { font-size:11px; letter-spacing:.08em; text-transform:uppercase; opacity:.72; }
+.cl-hero-big { font-family:'Vank','Gotham',serif; font-size:30px; line-height:1; margin-top:3px; }
+.cl-hero-big span { opacity:.6; font-size:20px; }
+.cl-hero-note { font-size:12px; opacity:.78; margin-top:4px; }
+.cl-hero-pills { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; position:relative; z-index:1; }
+.cl-pill { font-size:11px; font-weight:600; border-radius:999px; padding:4px 11px; background:rgba(255,255,255,.12);
+  display:inline-flex; align-items:center; gap:5px; }
+.cl-pill-done { background:rgba(242,201,160,.26); color:#f8e6d2; }
+
+.cl-eyebrow { font-size:11px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; color:var(--c-primary); margin:22px 2px 10px; }
+.cl-ranklist { display:flex; flex-direction:column; gap:10px; }
+.cl-rank { display:block; background:#fff; border:1px solid var(--c-line); border-radius:16px; padding:14px 16px;
+  box-shadow:0 10px 24px -18px rgba(70,40,25,.25); text-decoration:none; color:inherit; }
+.cl-rank:active { transform:scale(.99); }
+.cl-rank-head { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.cl-rank-badge { width:32px; height:32px; border-radius:10px; background:#f2f7ff; color:#435ebe;
+  display:flex; align-items:center; justify-content:center; font-family:'Vank','Gotham',serif; font-size:15px; flex-shrink:0; }
+.cl-rank-badge.gold { background:#f6e3c4; color:#8a6d1f; }
+.cl-rank-badge.silver { background:#ececec; color:#6b6b6b; }
+.cl-rank-badge.bronze { background:#f2ddc9; color:#9c5a26; }
+.cl-rank-id { flex:1; min-width:0; }
+.cl-rank-name-row { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.cl-rank-name { font-size:14px; font-weight:700; color:var(--c-ink); }
+.cl-rank-city { font-size:11px; color:var(--c-muted); }
+.cl-rank-pct { font-family:'Vank','Gotham',serif; font-size:18px; flex-shrink:0; }
+.cl-chip { font-size:10px; font-weight:600; border-radius:8px; padding:2px 7px; }
+.cl-chip-closed { background:#d1fae5; color:#065f46; }
+.cl-chip-open { background:#fef3c7; color:#92400e; }
+.cl-chip-late { background:#fee2e2; color:#991b1b; }
+.cl-rank-bar { height:7px; border-radius:4px; background:#e6ded3; overflow:hidden; margin-bottom:9px; }
+.cl-rank-bar > span { display:block; height:100%; }
+.cl-rank-stats { display:flex; gap:7px; }
+.cl-stat { flex:1; background:var(--c-bg-2); border-radius:9px; padding:6px 8px; }
+.cl-stat-v { font-size:14px; font-weight:700; }
+.cl-stat-l { font-size:9.5px; color:var(--c-muted); }
+.cl-empty { text-align:center; padding:40px 20px; color:#adb5bd; }
+.cl-empty > div { margin-top:8px; }
+
+/* ============================================================
+   Tâches screen
+   ============================================================ */
+.tk { display:flex; flex-direction:column; gap:11px; }
+.tk-summary { background:#fff; border:1px solid var(--c-line); border-radius:18px; padding:15px 16px;
+  box-shadow:0 10px 24px -18px rgba(70,40,25,.25); }
+.tk-summary-eyebrow { font-size:10.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--c-primary); margin-bottom:5px; }
+.tk-summary-big { font-family:'Vank','Gotham',serif; font-size:18px; color:var(--c-ink); }
+.tk-summary-chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
+.tk-chip { font-size:11px; font-weight:600; color:var(--c-muted); background:var(--c-bg-2); border:1px solid var(--c-line);
+  border-radius:999px; padding:5px 10px; display:inline-flex; align-items:center; gap:5px; }
+
+.tk-card { background:#fff; border:1px solid var(--c-line); border-left:3px solid #8D1D2C; border-radius:16px;
+  padding:14px 16px; box-shadow:0 10px 24px -18px rgba(70,40,25,.25); }
+.tk-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.tk-card-id { min-width:0; }
+.tk-card-name { font-size:14.5px; font-weight:700; color:var(--c-ink); }
+.tk-card-path { font-size:12px; color:var(--c-muted); margin-top:2px; }
+.tk-badge { font-size:11px; font-weight:600; border-radius:999px; padding:4px 10px; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:4px; flex-shrink:0; }
+.tk-badge-done { color:#2D7A3E; background:rgba(45,122,62,.12); }
+.tk-badge-prio { color:#1F4F6B; background:rgba(31,79,107,.1); }
+.tk-card-desc { font-size:12.5px; color:#5b524a; line-height:1.5; margin:9px 0 0; }
+.tk-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:11px; }
+.tk-metachip { font-size:10.5px; font-weight:600; color:var(--c-muted); background:var(--c-bg-2); border:1px solid var(--c-line);
+  border-radius:999px; padding:4px 9px; display:inline-flex; align-items:center; gap:4px; }
+.tk-btn { width:100%; margin-top:13px; border-radius:11px; padding:11px; font-size:13px; font-weight:600;
+  font-family:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; text-decoration:none; }
+.tk-btn-primary { border:none; background:var(--c-primary); color:#fff; box-shadow:0 6px 16px -8px rgba(141,29,44,.55); }
+.tk-btn-primary:active { background:var(--c-primary-hover); }
+.tk-btn-ghost { border:1px solid var(--c-line); background:#fff; color:#5b524a; }
+
+/* ============================================================
+   Notes screen
+   ============================================================ */
+.nt-composer { display:flex; align-items:center; gap:10px; background:#fff; border:1px solid var(--c-line);
+  border-radius:18px; padding:14px 16px; box-shadow:0 10px 24px -18px rgba(70,40,25,.25); text-decoration:none; }
+.nt-avatar { width:36px; height:36px; border-radius:50%; background:var(--c-primary); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-family:'Vank','Gotham',serif; font-size:14px; flex-shrink:0; }
+.nt-composer-ph { flex:1; font-size:13px; color:#a89e93; }
+.nt-composer-btn { border:none; background:var(--c-primary); color:#fff; width:38px; height:38px; border-radius:12px;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.nt-eyebrow { font-size:11px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; color:var(--c-primary); margin:22px 2px 10px; }
+.nt-list { display:flex; flex-direction:column; gap:10px; }
+.nt-note { display:block; background:#fff; border:1px solid var(--c-line); border-radius:16px; padding:14px 16px;
+  box-shadow:0 10px 24px -18px rgba(70,40,25,.25); text-decoration:none; color:inherit; }
+.nt-note-head { display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+.nt-shopchip { font-size:10.5px; font-weight:600; border-radius:8px; padding:2px 8px; }
+.nt-date { font-size:11px; color:#a89e93; margin-left:auto; }
+.nt-note-body { font-size:13.5px; color:var(--c-ink); line-height:1.5; margin:0; }
+.nt-note-author { font-size:11px; color:var(--c-muted); margin-top:8px; }
+.nt-shopcard { background:#fff; border:1px solid var(--c-line); border-radius:16px; overflow:hidden;
+  box-shadow:0 10px 24px -18px rgba(70,40,25,.25); }
+.nt-shoprow { display:flex; align-items:center; gap:12px; padding:13px 16px; border-bottom:1px solid rgba(36,26,22,.06);
+  text-decoration:none; color:inherit; }
+.nt-shoprow.is-last { border-bottom:none; }
+.nt-shoprow-id { flex:1; min-width:0; }
+.nt-shoprow-name { font-size:13.5px; font-weight:600; color:var(--c-ink); }
+.nt-shoprow-meta { font-size:11px; color:var(--c-muted); }

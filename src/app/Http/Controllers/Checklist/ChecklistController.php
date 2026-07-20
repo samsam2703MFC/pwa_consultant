@@ -18,6 +18,11 @@ class ChecklistController extends Controller
             ['network' => [], 'shops' => []]
         );
 
+        // Zawartość poglądowa gdy backend nie zwrócił danych (DEV_NO_AUTH / brak API).
+        if (empty($data['network']) && empty($data['shops'])) {
+            $data = $this->demoRanking();
+        }
+
         $this->view('checklist/index', [
             'data'          => $data,
             'selected_date' => $date,
@@ -88,5 +93,28 @@ class ChecklistController extends Controller
         }
 
         return $date;
+    }
+
+    /**
+     * Zawartość poglądowa odwzorowująca makietę „Checklists".
+     */
+    private function demoRanking(): array
+    {
+        return [
+            'network' => [
+                'completion_rate' => 78,
+                'tasks_done'      => 124,
+                'tasks_total'     => 159,
+                'tasks_skipped'   => 7,
+                'tasks_failed'    => 10,
+                'shops_closed'    => 1,
+                'shops_total'     => 3,
+            ],
+            'shops' => [
+                ['shop_id' => 1, 'shop_name' => 'Châtelain', 'shop_city' => 'Bruxelles', 'completion_rate' => 92, 'tasks_done' => 37, 'tasks_total' => 40, 'tasks_skipped' => 1, 'tasks_failed' => 2, 'mandatory_missed' => 0, 'day_closed' => true],
+                ['shop_id' => 2, 'shop_name' => 'Flagey',    'shop_city' => 'Ixelles',   'completion_rate' => 80, 'tasks_done' => 32, 'tasks_total' => 42, 'tasks_skipped' => 2, 'tasks_failed' => 3, 'mandatory_missed' => 0, 'day_closed' => false],
+                ['shop_id' => 3, 'shop_name' => 'Sablon',    'shop_city' => 'Bruxelles', 'completion_rate' => 64, 'tasks_done' => 25, 'tasks_total' => 39, 'tasks_skipped' => 6, 'tasks_failed' => 8, 'mandatory_missed' => 2, 'day_closed' => false],
+            ],
+        ];
     }
 }
