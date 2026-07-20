@@ -20,12 +20,6 @@ class ClaimController extends Controller
     {
         $shops = $this->shopService->getAllShops();
         $selectedShop = $_GET['shop_id'] ?? null;
-        $status = strtoupper((string)($_GET['status'] ?? 'NEW'));
-        $allowedStatuses = ['NEW', 'IN_REVIEW', 'ACCEPTED', 'REJECTED', 'ALL'];
-
-        if (!in_array($status, $allowedStatuses, true)) {
-            $status = 'NEW';
-        }
 
         if (!$selectedShop && !empty($shops)) {
             $selectedShop = (string)($shops[0]['id'] ?? '');
@@ -38,13 +32,23 @@ class ClaimController extends Controller
             $claims = $this->claimService->getClaimsForShop($shopId);
         }
 
-        $claims = $this->claimService->filterByStatus($claims, $status);
+        // Compteurs par statut sur l'ensemble (le filtrage se fait côté client
+        // via les badges), calculés sur les données réelles.
+        $statusCounts = $this->claimService->countByStatus($claims);
+
+        // Filtre initial optionnel via ?status= (badge pré-activé côté client).
+        $activeStatus = strtoupper((string)($_GET['status'] ?? ''));
+        if (!array_key_exists($activeStatus, $statusCounts)) {
+            $activeStatus = '';
+        }
 
         $this->view('claim/index', [
             'shops' => $shops,
             'claims' => $claims,
             'selected_shop_id' => $selectedShop,
-            'selected_status' => $status,
+            'status_counts' => $statusCounts,
+            'status_order' => array_keys($statusCounts),
+            'active_status' => $activeStatus,
             'active_nav' => 'claims',
         ]);
     }
