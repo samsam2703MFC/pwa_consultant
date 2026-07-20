@@ -92,6 +92,68 @@
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+
+    /* Zdjęcia w załączniku — siatka 2 na wiersz, wyśrodkowane */
+    .claim-photos {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 4px;
+    }
+    .claim-photo {
+        flex: 0 0 calc(50% - 4px);
+        max-width: calc(50% - 4px);
+        min-width: 0;
+        aspect-ratio: 4 / 3;
+        padding: 0;
+        border: 0;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #f1f3f5;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .claim-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    /* Lightbox / podgląd pełnoekranowy */
+    .claim-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 1080;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,.9);
+        padding: 20px;
+    }
+    .claim-lightbox.open { display: flex; }
+    .claim-lightbox img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
+    }
+    .claim-lightbox-close {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 40px;
+        height: 40px;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(255,255,255,.15);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
 </style>
 {% endblock %}
 
@@ -206,10 +268,20 @@
                                 <div class="claim-description mb-2">{{ claim.description }}</div>
                             {% endif %}
 
-                            {% if claim.attachments is defined and claim.attachments|length > 0 %}
+                            {# Podział załączników: zdjęcia (miniatury na dole) vs pozostałe pliki (linki) #}
+                            {% set claim_photos = (claim.attachments ?? [])|filter(a =>
+                                ((a.mime_type ?? a.content_type ?? a.mime ?? '')|lower starts with 'image/')
+                                or ((a.original_name ?? '')|lower matches '/\\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/')
+                            ) %}
+                            {% set claim_files = (claim.attachments ?? [])|filter(a =>
+                                not ((a.mime_type ?? a.content_type ?? a.mime ?? '')|lower starts with 'image/')
+                                and not ((a.original_name ?? '')|lower matches '/\\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/')
+                            ) %}
+
+                            {% if claim_files|length > 0 %}
                                 <div class="claim-section-label">Załączniki sklepu</div>
                                 <div class="d-flex flex-wrap gap-2 mb-2">
-                                    {% for attachment in claim.attachments %}
+                                    {% for attachment in claim_files %}
                                         {% set attachment_name = attachment.original_name ?? 'Załącznik #' ~ attachment.id %}
                                         <a href="{{ ROOT }}/claims/attachments/{{ attachment.id }}/preview"
                                            class="claim-attachment-link"
@@ -228,6 +300,24 @@
                                     {{ claim.production_response }}
                                 </div>
                             {% endif %}
+
+                            {# ── Zdjęcia w załączniku (dolna część kafelka) ── #}
+                            {% if claim_photos|length > 0 %}
+                                <div class="claim-section-label mt-2">Zdjęcia</div>
+                                <div class="claim-photos">
+                                    {% for photo in claim_photos %}
+                                        {% set photo_url = ROOT ~ '/claims/attachments/' ~ photo.id ~ '/preview' %}
+                                        <button type="button"
+                                                class="claim-photo"
+                                                data-full="{{ photo_url }}"
+                                                aria-label="{{ photo.original_name ?? 'Zdjęcie' }}">
+                                            <img src="{{ photo_url }}"
+                                                 alt="{{ photo.original_name ?? '' }}"
+                                                 loading="lazy">
+                                        </button>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                 {% endfor %}
@@ -236,4 +326,52 @@
     {% endif %}
 
 </div>
+
+{# Lightbox współdzielony przez wszystkie kafelki #}
+<div id="claim-lightbox" class="claim-lightbox" role="dialog" aria-modal="true" aria-hidden="true">
+    <button type="button" class="claim-lightbox-close" aria-label="Zamknij">{{ icons.svg('x') }}</button>
+    <img id="claim-lightbox-img" src="" alt="">
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var lb = document.getElementById('claim-lightbox');
+    if (!lb) return;
+    var lbImg = document.getElementById('claim-lightbox-img');
+
+    function openLightbox(src, alt) {
+        lbImg.setAttribute('src', src);
+        lbImg.setAttribute('alt', alt || '');
+        lb.classList.add('open');
+        lb.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeLightbox() {
+        lb.classList.remove('open');
+        lb.setAttribute('aria-hidden', 'true');
+        lbImg.setAttribute('src', '');
+        document.body.style.overflow = '';
+    }
+
+    document.addEventListener('click', function (e) {
+        var thumb = e.target.closest('.claim-photo');
+        if (thumb) {
+            e.preventDefault();
+            var img = thumb.querySelector('img');
+            openLightbox(thumb.getAttribute('data-full'), img ? img.getAttribute('alt') : '');
+            return;
+        }
+        // Klik w tło lub przycisk zamknięcia
+        if (e.target === lb || e.target.closest('.claim-lightbox-close')) {
+            closeLightbox();
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && lb.classList.contains('open')) closeLightbox();
+    });
+})();
+</script>
 {% endblock %}
