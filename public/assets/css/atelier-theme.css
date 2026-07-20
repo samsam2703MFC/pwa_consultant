@@ -223,6 +223,42 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
 /* Empty states */
 .empty-state,.tasks-empty-card { color:var(--c-muted); text-align:center; }
 
+/* =========================================================================
+   Dashboard tiles — dynamic & fluid
+   ========================================================================= */
+.page-content-loaded .row.g-3 { --bs-gutter-y:.8rem; }
+
+/* depth: soft gradient on each icon tile (keeps the earthy accent) */
+.dash-tile { transition:transform .34s cubic-bezier(.34,1.56,.64,1), box-shadow .3s var(--ease); }
+.row.g-3 > .col-12:nth-child(1) .dash-tile { background:linear-gradient(145deg, rgba(141,29,44,.17), rgba(141,29,44,.05)); }
+.row.g-3 > .col-12:nth-child(2) .dash-tile { background:linear-gradient(145deg, rgba(31,79,107,.17), rgba(31,79,107,.05)); }
+.row.g-3 > .col-12:nth-child(3) .dash-tile { background:linear-gradient(145deg, rgba(193,122,42,.2), rgba(193,122,42,.06)); }
+.row.g-3 > .col-12:nth-child(4) .dash-tile { background:linear-gradient(145deg, rgba(138,74,36,.18), rgba(138,74,36,.05)); }
+.row.g-3 > .col-12:nth-child(5) .dash-tile { background:linear-gradient(145deg, rgba(92,74,138,.18), rgba(92,74,138,.05)); }
+
+/* fluid interaction */
+.page-content-loaded .row.g-3 .card { transition:transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s var(--ease); will-change:transform; }
+.dash-chevron { transition:transform .28s var(--ease); }
+@media (hover:hover) {
+  .page-content-loaded .row.g-3 a:hover .card { transform:translateY(-3px); box-shadow:var(--sh-3) !important; }
+  .page-content-loaded .row.g-3 a:hover .dash-tile { transform:scale(1.08) rotate(-3deg); }
+  .page-content-loaded .row.g-3 a:hover .dash-chevron { transform:translateX(4px); color:var(--c-primary); }
+}
+.page-content-loaded .row.g-3 a:active .card { transform:scale(.975); box-shadow:var(--sh-1) !important; }
+.page-content-loaded .row.g-3 a:active .dash-tile { transform:scale(.92); }
+
+/* staggered entrance */
+@keyframes dashIn { from { opacity:0; transform:translateY(18px) scale(.96); } to { opacity:1; transform:none; } }
+.page-content-loaded > .d-flex,
+.page-content-loaded .row.g-3 > .col-12 { animation:dashIn .6s cubic-bezier(.22,1,.36,1) both; }
+.page-content-loaded > .d-flex { animation-duration:.5s; }
+.page-content-loaded .row.g-3 > .col-12:nth-child(1) { animation-delay:.06s; }
+.page-content-loaded .row.g-3 > .col-12:nth-child(2) { animation-delay:.13s; }
+.page-content-loaded .row.g-3 > .col-12:nth-child(3) { animation-delay:.20s; }
+.page-content-loaded .row.g-3 > .col-12:nth-child(4) { animation-delay:.27s; }
+.page-content-loaded .row.g-3 > .col-12:nth-child(5) { animation-delay:.34s; }
+
 @media (prefers-reduced-motion: reduce) {
   * { transition:none !important; animation:none !important; }
+  .page-content-loaded .row.g-3 > .col-12, .page-content-loaded > .d-flex { opacity:1 !important; transform:none !important; }
 }
