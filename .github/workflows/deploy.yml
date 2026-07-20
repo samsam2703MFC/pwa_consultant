@@ -71,6 +71,34 @@ jobs:
              ln -sfn '$APP_DIR/public' '$WEB_ROOT/$URL_PATH'; \
              command -v rsync >/dev/null || { echo 'rsync missing on server — apt-get install -y rsync'; exit 1; }"
 
+      # Génère config/db.local.php (hors Git) à partir des secrets, juste avant
+      # le rsync qui l'emporte sur le serveur. Identifiants jamais committés.
+      # Sans les secrets CONSULTANT_DB_*, l'étape est ignorée et les indicateurs
+      # de vente restent à 0 (dégradation propre).
+      - name: Write DB credentials → config/db.local.php (from secrets)
+        env:
+          DB_HOST: ${{ vars.CONSULTANT_DB_HOST || '127.0.0.1' }}
+          DB_PORT: ${{ vars.CONSULTANT_DB_PORT || '3306' }}
+          DB_NAME: ${{ vars.CONSULTANT_DB_NAME || 'atelierby_db' }}
+          DB_USER: ${{ secrets.CONSULTANT_DB_USER }}
+          DB_PASS: ${{ secrets.CONSULTANT_DB_PASS }}
+        run: |
+          if [ -z "$DB_USER" ] || [ -z "$DB_PASS" ]; then
+            echo "WARN: secrets CONSULTANT_DB_USER / CONSULTANT_DB_PASS absents —"
+            echo "      config/db.local.php non généré, indicateurs de vente à 0."
+            exit 0
+          fi
+          mkdir -p config
+          php -r '$c = [
+            "host" => getenv("DB_HOST"),
+            "port" => (int) getenv("DB_PORT"),
+            "name" => getenv("DB_NAME"),
+            "user" => getenv("DB_USER"),
+            "pass" => getenv("DB_PASS"),
+          ];
+          file_put_contents("config/db.local.php", "<?php\nreturn " . var_export($c, true) . ";\n");'
+          echo "config/db.local.php généré ($DB_NAME @ $DB_HOST:$DB_PORT, user $DB_USER)."
+
       - name: Deploy app → APP_DIR (rsync)
         env:
           SSHPASS: ${{ secrets.SSH_PASSWORD }}
