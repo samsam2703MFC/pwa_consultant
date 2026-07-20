@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>{{ translations.consultant_login ?? 'Panel consultant — Connexion' }}</title>
+    <title>Panel consultant — Connexion</title>
 
     <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/compiled/css/app.css">
     <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/extensions/bootstrap-icons/font/bootstrap-icons.css">
@@ -23,12 +23,7 @@
             background:radial-gradient(120% 60% at 50% 0%,#f2ece3 0%,rgba(242,236,227,0) 55%),#F4EFE8;
         }
         .auth-wrap { width:100%; max-width:420px; margin:0 auto; }
-        .auth-badge {
-            width:66px; height:66px; border-radius:20px; background:#8D1D2C; color:#F2C9A0;
-            display:flex; align-items:center; justify-content:center; margin:0 auto 16px;
-            box-shadow:0 14px 30px -12px rgba(141,29,44,.55); font-family:'Vank','Gotham',serif; font-size:30px;
-        }
-        .auth-logo { height:24px; width:auto; display:block; margin:0 auto; }
+        .auth-logo { height:34px; width:auto; display:block; margin:0 auto; }
         .auth-title { font-family:'Vank','Gotham',serif; font-size:27px; color:#241f1c; margin-top:8px; }
         .auth-sub { font-size:13px; color:#7a7168; margin-top:5px; }
         .auth-field { position:relative; }
@@ -57,17 +52,16 @@
 <div class="auth-screen">
     <div class="auth-wrap">
         <div style="text-align:center;margin-bottom:26px">
-            <div class="auth-badge">L</div>
             <img src="{{ ROOT }}/assets/brand/logo.png" alt="L'Atelier" class="auth-logo">
-            <div class="auth-title">{{ translations.consultant_panel ?? 'Panel consultant' }}</div>
-            <div class="auth-sub">{{ translations.sign_in_to_continue ?? 'Connectez-vous pour continuer' }}</div>
+            <div class="auth-title">Panel consultant</div>
+            <div class="auth-sub">Connectez-vous pour continuer</div>
         </div>
 
         <form method="POST" autocomplete="on" style="display:flex;flex-direction:column;gap:12px">
             <div class="auth-field">
                 <span class="auth-field-ic">{{ icons.svg('phone', 18) }}</span>
                 <input type="tel" name="phone" value="{{ old('phone') }}"
-                       placeholder="{{ translations.phone ?? 'Numéro de téléphone' }}"
+                       placeholder="Numéro de téléphone"
                        inputmode="tel" autocomplete="tel" autocapitalize="none" spellcheck="false"
                        class="auth-input {{ errors.phone is not empty ? 'is-invalid' : '' }}">
                 {% if errors.phone is not empty %}<div class="invalid-feedback mt-1">{{ errors.phone }}</div>{% endif %}
@@ -76,7 +70,7 @@
             <div class="auth-field">
                 <span class="auth-field-ic">{{ icons.svg('shield', 18) }}</span>
                 <input type="password" name="password" value="{{ old('password') }}"
-                       placeholder="{{ translations.password ?? 'Mot de passe' }}" autocomplete="current-password"
+                       placeholder="Mot de passe" autocomplete="current-password"
                        class="auth-input {{ errors.password is not empty ? 'is-invalid' : '' }}">
                 {% if errors.password is not empty %}<div class="invalid-feedback mt-1">{{ errors.password }}</div>{% endif %}
             </div>
@@ -87,31 +81,31 @@
                     <div class="alert alert-warning d-flex align-items-start gap-2 mb-0 py-2 px-3" role="alert" style="border-radius:12px;">
                         <span class="mt-1 flex-shrink-0" style="font-size:1.1rem;">{{ icons.svg('lock') }}</span>
                         <div>
-                            <div class="fw-semibold" style="font-size:.92rem;">{{ translations.no_consultant_access ?? "Pas d'accès à l'application" }}</div>
-                            <div style="font-size:.85rem; margin-top:2px;">{{ translations.contact_admin_to_restore ?? "Votre compte n'est pas actif. Contactez l'administrateur du réseau pour rétablir l'accès." }}</div>
+                            <div class="fw-semibold" style="font-size:.92rem;">Pas d'accès à l'application</div>
+                            <div style="font-size:.85rem; margin-top:2px;">Votre compte n'est pas actif. Contactez l'administrateur du réseau pour rétablir l'accès.</div>
                         </div>
                     </div>
                 {% elseif errCode == 'ACCOUNT_DISABLED' %}
                     <div class="alert alert-danger d-flex align-items-start gap-2 mb-0 py-2 px-3" role="alert" style="border-radius:12px;">
                         <span class="mt-1 flex-shrink-0" style="font-size:1.1rem;">{{ icons.svg('user-x') }}</span>
                         <div>
-                            <div class="fw-semibold" style="font-size:.92rem;">{{ translations.account_disabled ?? 'Compte bloqué' }}</div>
-                            <div style="font-size:.85rem; margin-top:2px;">{{ translations.contact_admin_account_disabled ?? "Votre compte a été bloqué. Contactez l'administrateur du réseau." }}</div>
+                            <div class="fw-semibold" style="font-size:.92rem;">Compte bloqué</div>
+                            <div style="font-size:.85rem; margin-top:2px;">Votre compte a été bloqué. Contactez l'administrateur du réseau.</div>
                         </div>
                     </div>
                 {% else %}
                     <div class="invalid-feedback" style="display:block;">
-                        {{ translations.invalid_credentials ?? 'Numéro de téléphone ou mot de passe invalide.' }}
+                        Numéro de téléphone ou mot de passe invalide.
                     </div>
                 {% endif %}
             {% endif %}
 
             <button type="submit" class="auth-btn">
-                {{ icons.svg('log-in', 17) }} {{ translations.log_in ?? 'Se connecter' }}
+                {{ icons.svg('log-in', 17) }} Se connecter
             </button>
 
             <div class="auth-help">
-                {{ translations.login_help_contact_manager ?? "Problème de connexion ? Contactez votre administrateur." }}
+                Problème de connexion ? Contactez votre administrateur.
             </div>
         </form>
     </div>
