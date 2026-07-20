@@ -1,0 +1,172 @@
+{# components/bottom_nav.twig #}
+{#
+  Top-sheet navigation — otwierana przyciskiem hamburger w topbarze.
+  Wysuwa się z góry ekranu. Zawiera siatkę 2-kolumnową z kartami sekcji.
+  Parametry:
+    active_nav  — klucz aktywnej pozycji (string, np. 'shops')
+    items       — opcjonalna tablica pozycji (nadpisuje domyślne)
+#}
+{% set items = items ?? [
+    {
+        key: 'dashboard',
+        label: translations.home    ?? 'Home',
+        sub:   translations.nav_sub_dashboard ?? 'Przegląd dnia',
+        icon:  'bi-house-fill',
+        color: '#435ebe',
+        bg:    'rgba(67,94,190,.12)',
+        href:  ROOT ~ '/dashboard',
+        full:  true
+    },
+    {
+        key: 'shops',
+        label: translations.shops   ?? 'Sklepy',
+        sub:   translations.nav_sub_shops ?? 'Przychody i podsumowanie',
+        icon:  'bi-shop',
+        color: '#435ebe',
+        bg:    'rgba(67,94,190,.12)',
+        href:  ROOT ~ '/shops'
+    },
+    {
+        key: 'reports',
+        label: translations.reports ?? 'Raporty',
+        sub:   translations.nav_sub_reports ?? 'Przesyłanie raportów PDF',
+        icon:  'bi-file-earmark-pdf',
+        color: '#28a745',
+        bg:    'rgba(40,167,69,.12)',
+        href:  ROOT ~ '/reports'
+    },
+    {
+        key: 'helpdesk',
+        label: translations.helpdesk ?? 'Zgłoszenia',
+        sub:   translations.nav_sub_helpdesk ?? 'Zgłoszenia Helpdesk',
+        icon:  'bi-life-preserver',
+        color: '#e0a000',
+        bg:    'rgba(255,193,7,.18)',
+        href:  ROOT ~ '/helpdesk'
+    },
+    {
+        key: 'tasks',
+        label: translations.tasks ?? 'Zadania',
+        sub:   translations.nav_sub_tasks ?? 'Zadania konsultanta',
+        icon:  'bi-check2-square',
+        color: '#0d6efd',
+        bg:    'rgba(13,110,253,.12)',
+        href:  ROOT ~ '/tasks'
+    },
+    {
+        key: 'claims',
+        label: translations.claims  ?? 'Reklamacje',
+        sub:   translations.nav_sub_claims ?? 'Reklamacje CENTRAL',
+        icon:  'bi-exclamation-circle',
+        color: '#dc3545',
+        bg:    'rgba(220,53,69,.12)',
+        href:  ROOT ~ '/claims'
+    },
+    {
+        key: 'notes',
+        label: translations.notes   ?? 'Notatki',
+        sub:   translations.nav_sub_notes ?? 'Komentarze do placówek',
+        icon:  'bi-journal-text',
+        color: '#6c757d',
+        bg:    'rgba(108,117,125,.12)',
+        href:  ROOT ~ '/notes'
+    },
+    {
+        key: 'checklists',
+        label: translations.checklists ?? 'Checklisty',
+        sub:   translations.nav_sub_checklists ?? 'Realizacja zadań w sklepie',
+        icon:  'bi-clipboard2-check',
+        color: '#0d6efd',
+        bg:    'rgba(13,110,253,.12)',
+        href:  ROOT ~ '/checklists'
+    },
+    {
+        key: 'targets',
+        label: translations.targets ?? 'Targety',
+        sub:   translations.nav_sub_targets ?? 'Progi oceny sklepów',
+        icon:  'bi-bullseye',
+        color: '#fd7e14',
+        bg:    'rgba(253,126,20,.12)',
+        href:  ROOT ~ '/targets'
+    },
+    {
+        key: 'profile',
+        label: translations.profile ?? 'Profil',
+        sub:   translations.nav_sub_profile ?? 'Moje konto i ustawienia',
+        icon:  'bi-person-circle',
+        color: '#6f42c1',
+        bg:    'rgba(111,66,193,.12)',
+        href:  ROOT ~ '/me'
+    },
+] %}
+{# Backdrop #}
+<div class="app-nav-backdrop" id="appNavBackdrop" aria-hidden="true"></div>
+{# Top Sheet #}
+<div class="app-nav-sheet"
+     id="appNavSheet"
+     role="dialog"
+     aria-modal="true"
+     aria-label="{{ translations.primary_navigation ?? 'Nawigacja główna' }}">
+    <div class="app-nav-sheet-header">
+        <p class="app-nav-sheet-title">{{ translations.menu ?? 'Menu' }}</p>
+        <button class="app-nav-sheet-close" id="appNavClose" aria-label="{{ translations.close ?? 'Zamknij' }}">
+            <i class="bi bi-x"></i>
+        </button>
+    </div>
+    <div class="app-nav-grid">
+        {% for it in items %}
+            {% set is_active = (active_nav ?? '') == it.key %}
+            <a href="{{ it.href }}"
+               class="app-nav-card {{ is_active ? 'is-active' : '' }}"
+               aria-current="{{ is_active ? 'page' : 'false' }}">
+                <span class="app-nav-card-icon"
+                      style="background:{{ it.bg }}"
+                      aria-hidden="true">
+                    <i class="bi {{ it.icon }}" style="color:{{ it.color }}"></i>
+                </span>
+                <span class="app-nav-card-label">{{ it.label }}</span>
+            </a>
+        {% endfor %}
+    </div>
+    <div class="app-nav-sheet-handle"></div>
+</div>
+<script>
+(function () {
+    const btn      = document.getElementById('appHamburger');
+    const sheet    = document.getElementById('appNavSheet');
+    const backdrop = document.getElementById('appNavBackdrop');
+    const closeBtn = document.getElementById('appNavClose');
+    if (!btn || !sheet || !backdrop) return;
+    function openMenu() {
+        sheet.classList.add('is-open');
+        backdrop.classList.add('is-open');
+        btn.setAttribute('aria-expanded', 'true');
+        btn.querySelector('i').className = 'bi bi-x-lg';
+        document.body.style.overflow = 'hidden';
+        closeBtn && closeBtn.focus();
+    }
+    function closeMenu() {
+        sheet.classList.remove('is-open');
+        backdrop.classList.remove('is-open');
+        btn.setAttribute('aria-expanded', 'false');
+        btn.querySelector('i').className = 'bi bi-list';
+        document.body.style.overflow = '';
+    }
+    btn.addEventListener('click', function () {
+        sheet.classList.contains('is-open') ? closeMenu() : openMenu();
+    });
+    backdrop.addEventListener('click', closeMenu);
+    closeBtn && closeBtn.addEventListener('click', closeMenu);
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && sheet.classList.contains('is-open')) closeMenu();
+    });
+    // Swipe up to close (top sheet swipe)
+    let startY = 0;
+    sheet.addEventListener('touchstart', function (e) {
+        startY = e.touches[0].clientY;
+    }, { passive: true });
+    sheet.addEventListener('touchend', function (e) {
+        if (startY - e.changedTouches[0].clientY > 60) closeMenu();
+    }, { passive: true });
+})();
+</script>

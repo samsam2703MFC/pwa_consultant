@@ -1,0 +1,134 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% set active_nav = 'checklists' %}
+{% set summary = data.summary ?? {} %}
+{% set tasks = data.tasks ?? [] %}
+{% set trend = data.trend ?? [] %}
+{% set today_date = today ?? ('now' | date('Y-m-d')) %}
+{% set id_shop = id_shop ?? shop_id %}
+
+{% block title %}Zadania sklepu — Consultant Panel{% endblock %}
+{% block page_title %}Zadania sklepu{% endblock %}
+{% block page_subtitle %}{{ date | date('d.m.Y') }}{% endblock %}
+
+{% block topbar_actions %}
+<div class="d-flex align-items-center gap-1">
+    {% set prev_date = date | date_modify('-1 day') | date('Y-m-d') %}
+    <a href="{{ ROOT }}/checklists/shops/{{ id_shop }}/tasks?date={{ prev_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;"><i class="bi bi-chevron-left" style="font-size:.8rem;"></i></a>
+    <button type="button" class="btn btn-sm btn-light rounded-pill px-2" style="font-size:.75rem;font-weight:700;min-width:80px;" onclick="document.getElementById('stDatePicker').showPicker()"><i class="bi bi-calendar3 me-1"></i>{{ date | date('d.m.Y') }}</button>
+    <input type="date" id="stDatePicker" value="{{ date }}" max="{{ today_date }}" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="window.location.href='{{ ROOT }}/checklists/shops/{{ id_shop }}/tasks?date='+this.value">
+    {% set next_date = date | date_modify('+1 day') | date('Y-m-d') %}
+    {% if next_date <= today_date %}<a href="{{ ROOT }}/checklists/shops/{{ id_shop }}/tasks?date={{ next_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;"><i class="bi bi-chevron-right" style="font-size:.8rem;"></i></a>{% endif %}
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    .back-link { display:inline-flex; align-items:center; gap:6px; font-size:.78rem; font-weight:700; color:#435ebe; text-decoration:none; margin-bottom:10px; }
+    .rate-card { background:#fff; border-radius:16px; padding:14px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+    .rate-num { font-size:2rem; font-weight:900; line-height:1; }
+    .rate-track { height:8px; border-radius:4px; background:#eef0f5; overflow:hidden; margin:8px 0; }
+    .rate-fill { height:100%; border-radius:4px; }
+    .rate-fill.ex { background:linear-gradient(90deg,#27ae60,#2ecc71); }
+    .rate-fill.ok { background:linear-gradient(90deg,#f39c12,#f1c40f); }
+    .rate-fill.no { background:linear-gradient(90deg,#e74c3c,#c0392b); }
+    .summary-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px; }
+    .sum-cell { background:#fff; border-radius:12px; padding:10px 6px; text-align:center; box-shadow:0 1px 6px rgba(0,0,0,.05); }
+    .sum-val { font-size:1.2rem; font-weight:900; line-height:1; }
+    .sum-lbl { font-size:.6rem; color:#6c757d; margin-top:3px; }
+    .trend-card { background:#fff; border-radius:16px; padding:14px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+    .trend-bars { display:flex; gap:6px; align-items:flex-end; height:56px; }
+    .trend-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .trend-bar { width:100%; border-radius:4px 4px 0 0; min-height:4px; background:#e9ecef; }
+    .trend-bar.ex { background:#2ecc71; } .trend-bar.ok { background:#f1c40f; } .trend-bar.no { background:#e74c3c; }
+    .trend-dot { width:6px; height:6px; border-radius:50%; background:#ffc107; } .trend-dot.closed { background:#27ae60; }
+    .trend-label { font-size:.56rem; color:#adb5bd; text-transform:uppercase; }
+    .section-title { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#6c757d; padding:8px 4px 6px; }
+    .task-card { background:#fff; border-radius:14px; padding:12px; margin-bottom:8px; box-shadow:0 1px 5px rgba(0,0,0,.05); display:flex; align-items:flex-start; gap:12px; }
+    .task-status-icon { width:34px; height:34px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1rem; }
+    .status-done { background:#d1fae5; color:#065f46; } .status-skipped { background:#fef3c7; color:#92400e; } .status-failed { background:#fee2e2; color:#991b1b; } .status-pending { background:#f0f0f5; color:#6c757d; }
+    .task-name { font-size:.88rem; font-weight:800; color:#212529; }
+    .task-meta { font-size:.7rem; color:#adb5bd; margin-top:3px; }
+    .task-badge { display:inline-flex; align-items:center; gap:3px; padding:1px 6px; border-radius:8px; font-size:.62rem; font-weight:700; margin-right:4px; }
+    .badge-mandatory { background:#fee2e2; color:#991b1b; } .badge-photo { background:#e0e7ff; color:#3730a3; } .badge-time { background:#f0fdf4; color:#166534; }
+    .task-by { font-size:.68rem; color:#6c757d; margin-top:4px; }
+    .task-note { font-size:.72rem; color:#6c757d; background:#f8f9fa; border-radius:6px; padding:4px 8px; margin-top:4px; font-style:italic; }
+    .empty-state { text-align:center; padding:32px 20px; color:#adb5bd; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="shop-checklists-skeleton" aria-hidden="true">
+    <div class="skeleton-hero" style="min-height:90px;border-radius:16px;"></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+        <div class="skeleton-card" style="padding:12px;min-height:70px;"></div>
+        <div class="skeleton-card" style="padding:12px;min-height:70px;"></div>
+        <div class="skeleton-card" style="padding:12px;min-height:70px;"></div>
+        <div class="skeleton-card" style="padding:12px;min-height:70px;"></div>
+    </div>
+    <div class="skeleton-card" style="min-height:70px;margin-bottom:8px;"></div>
+    <div class="skeleton-card"><div class="skeleton-line"></div><div class="skeleton-line" style="width:80%;"></div><div class="skeleton-line" style="width:60%;"></div></div>
+</div>
+
+<div id="shop-checklists-content" style="display:none;" class="page-content-loaded">
+    <a href="{{ ROOT }}/checklists?date={{ date }}" class="back-link"><i class="bi bi-arrow-left-circle-fill"></i>Powrót do rankingu</a>
+
+    {% set cr = summary.completion_rate ?? null %}
+    {% set rate_class = cr is not null ? (cr >= 80 ? 'ex' : (cr >= 50 ? 'ok' : 'no')) : 'no' %}
+    <div class="rate-card">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <div style="font-size:.7rem;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;">Realizacja</div>
+                <div class="rate-num" style="color:{{ cr is not null ? (cr >= 80 ? '#27ae60' : (cr >= 50 ? '#e67e22' : '#e74c3c')) : '#adb5bd' }}">{{ cr is not null ? cr ~ '%' : '—' }}</div>
+            </div>
+            <div style="text-align:right;font-size:.78rem;color:#6c757d;">{{ summary.tasks_done ?? 0 }} / {{ summary.tasks_total ?? 0 }}<br>zadań wykonanych</div>
+        </div>
+        <div class="rate-track"><div class="rate-fill {{ rate_class }}" style="width:{{ cr ?? 0 }}%"></div></div>
+        <div style="font-size:.7rem;color:#adb5bd;">{{ summary.tasks_pending ?? 0 }} oczekuje{% if (summary.tasks_skipped ?? 0) > 0 %} · {{ summary.tasks_skipped }} pominięte{% endif %}{% if (summary.tasks_failed ?? 0) > 0 %} · {{ summary.tasks_failed }} nieudane{% endif %}</div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="sum-cell"><div class="sum-val" style="color:#27ae60;">{{ summary.tasks_done ?? 0 }}</div><div class="sum-lbl">wykonane</div></div>
+        <div class="sum-cell"><div class="sum-val" style="color:#435ebe;">{{ summary.tasks_pending ?? 0 }}</div><div class="sum-lbl">oczekuje</div></div>
+        <div class="sum-cell"><div class="sum-val" style="color:#e67e22;">{{ summary.tasks_skipped ?? 0 }}</div><div class="sum-lbl">pominięte</div></div>
+        <div class="sum-cell"><div class="sum-val" style="color:#e74c3c;">{{ summary.tasks_failed ?? 0 }}</div><div class="sum-lbl">nieudane</div></div>
+    </div>
+
+    {% if trend | length > 0 %}
+        <div class="trend-card">
+            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6c757d;margin-bottom:10px;"><i class="bi bi-bar-chart-line me-1"></i>Ostatnie 7 dni</div>
+            <div class="trend-bars">
+                {% for tr in trend %}
+                    {% set tr_class = tr.completion_rate >= 80 ? 'ex' : (tr.completion_rate >= 50 ? 'ok' : (tr.completion_rate > 0 ? 'no' : '')) %}
+                    {% set bar_h = (tr.completion_rate * 0.56) | round %}
+                    <div class="trend-col"><div class="trend-bar {{ tr_class }}" style="height:{{ bar_h }}px;"></div><div class="trend-dot {{ tr.day_closed ? 'closed' : '' }}"></div><div class="trend-label">{{ tr.day | date('D') | slice(0,1) }}</div></div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+
+    {% if tasks | length > 0 %}
+        {% set mandatory_tasks = tasks | filter(t => t.is_mandatory) %}
+        {% set optional_tasks = tasks | filter(t => not t.is_mandatory) %}
+        {% if mandatory_tasks | length > 0 %}
+            <div class="section-title"><i class="bi bi-exclamation-circle-fill text-danger me-1"></i>Zadania obowiązkowe</div>
+            {% for t in mandatory_tasks %}{% include 'checklist/_task_item.twig' %}{% endfor %}
+        {% endif %}
+        {% if optional_tasks | length > 0 %}
+            <div class="section-title"><i class="bi bi-list-task me-1"></i>Pozostałe zadania</div>
+            {% for t in optional_tasks %}{% include 'checklist/_task_item.twig' %}{% endfor %}
+        {% endif %}
+    {% else %}
+        <div class="empty-state"><i class="bi bi-check2-all" style="font-size:2rem;"></i><p class="mt-2 mb-0">Brak zadań dla tego dnia.</p></div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const shopChecklistSkeleton = document.getElementById('shop-checklists-skeleton');
+const shopChecklistContent = document.getElementById('shop-checklists-content');
+if (shopChecklistSkeleton) shopChecklistSkeleton.style.display = 'none';
+if (shopChecklistContent) shopChecklistContent.style.display = '';
+</script>
+{% endblock %}

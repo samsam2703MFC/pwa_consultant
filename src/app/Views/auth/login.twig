@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="{{ lang_code ?? 'pl' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{{ translations.consultant_login ?? 'Logowanie konsultanta' }}</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/compiled/css/app.css">
+    <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/extensions/bootstrap-icons/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/compiled/css/pages/auth.css">
+
+    <link rel="manifest" href="{{ ROOT }}/manifest.webmanifest">
+    <meta name="theme-color" content="#435ebe">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="apple-touch-icon" href="{{ ROOT }}/assets/pwa/icon-192.png">
+
+    <style>
+        #auth { min-height: 100vh; }
+
+        .app-auth-wrap {
+            min-height: 100vh;
+            padding-top: calc(env(safe-area-inset-top, 0px) + 18px);
+            padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+            display: flex;
+            align-items: center;
+        }
+
+        .app-auth-card {
+            width: 100%;
+            max-width: 430px;
+            margin: 0 auto;
+            border-radius: 18px;
+            overflow: hidden;
+        }
+
+        .app-auth-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 18px 18px 10px;
+        }
+
+        .app-auth-title {
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin: 0;
+            font-size: 1.35rem;
+        }
+
+        .app-auth-subtitle {
+            margin: 6px 0 0;
+            color: #6c757d;
+            font-size: .95rem;
+        }
+
+        .app-auth-body { padding: 14px 18px 18px; }
+
+        .form-control-xl {
+            padding-top: .95rem;
+            padding-bottom: .95rem;
+            border-radius: 14px;
+        }
+
+        .app-auth-actions {
+            position: sticky;
+            bottom: 0;
+            padding: 12px 0 0;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1) 35%);
+        }
+
+        .app-auth-actions .btn {
+            border-radius: 14px;
+            padding: .95rem 1rem;
+        }
+
+        .app-auth-help {
+            margin-top: 12px;
+            font-size: .9rem;
+            color: #6c757d;
+        }
+
+        .invalid-feedback { display: block; }
+
+        @media (min-width: 992px) {
+            .app-auth-wrap { padding-top: 48px; padding-bottom: 48px; }
+        }
+    </style>
+</head>
+
+<body>
+<div id="auth">
+    <div class="container app-auth-wrap">
+        <div class="card border border-light-secondary shadow app-auth-card">
+            <div class="app-auth-header">
+                <div>
+                    <h1 class="app-auth-title">{{ translations.log_in ?? 'Zaloguj się' }}</h1>
+                    <p class="app-auth-subtitle">{{ translations.sign_in_to_consultant_panel ?? 'Zaloguj się do panelu konsultanta' }}</p>
+                </div>
+            </div>
+
+            <div class="app-auth-body">
+                <form method="POST" autocomplete="on">
+                    <div class="form-group position-relative has-icon-left mb-3">
+                        <input
+                            type="tel"
+                            class="form-control form-control-xl {{ errors.phone is not empty ? 'is-invalid' : '' }}"
+                            name="phone"
+                            placeholder="{{ translations.phone ?? 'Numer telefonu' }}"
+                            inputmode="tel"
+                            autocomplete="tel"
+                            autocapitalize="none"
+                            spellcheck="false"
+                            value="{{ old('phone') }}"
+                        >
+                        <div class="form-control-icon">
+                            <i class="bi bi-telephone"></i>
+                        </div>
+
+                        {% if errors.phone is not empty %}
+                            <div class="invalid-feedback mt-1">
+                                {{ errors.phone }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group position-relative has-icon-left mb-2">
+                        <input
+                            type="password"
+                            class="form-control form-control-xl {{ errors.password is not empty ? 'is-invalid' : '' }}"
+                            name="password"
+                            placeholder="{{ translations.password ?? 'Hasło' }}"
+                            autocomplete="current-password"
+                            value="{{ old('password') }}"
+                        >
+                        <div class="form-control-icon">
+                            <i class="bi bi-shield-lock"></i>
+                        </div>
+
+                        {% if errors.password is not empty %}
+                            <div class="invalid-feedback mt-1">
+                                {{ errors.password }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    {% if errors.login_error is not empty %}
+                        {% set errCode = errors.login_error %}
+                        {% if errCode == 'MEMBERSHIP_INACTIVE' %}
+                            <div class="alert alert-warning d-flex align-items-start gap-2 mt-2 mb-0 py-2 px-3" role="alert" style="border-radius:12px;">
+                                <i class="bi bi-lock-fill mt-1 flex-shrink-0" style="font-size:1.1rem;"></i>
+                                <div>
+                                    <div class="fw-semibold" style="font-size:.92rem;">{{ translations.no_consultant_access ?? 'Brak dostępu do aplikacji' }}</div>
+                                    <div style="font-size:.85rem; margin-top:2px;">{{ translations.contact_admin_to_restore ?? 'Twoje konto nie jest aktywne w systemie. Skontaktuj się z administratorem sieci w celu przywrócenia dostępu.' }}</div>
+                                </div>
+                            </div>
+                        {% elseif errCode == 'ACCOUNT_DISABLED' %}
+                            <div class="alert alert-danger d-flex align-items-start gap-2 mt-2 mb-0 py-2 px-3" role="alert" style="border-radius:12px;">
+                                <i class="bi bi-person-x-fill mt-1 flex-shrink-0" style="font-size:1.1rem;"></i>
+                                <div>
+                                    <div class="fw-semibold" style="font-size:.92rem;">{{ translations.account_disabled ?? 'Konto zablokowane' }}</div>
+                                    <div style="font-size:.85rem; margin-top:2px;">{{ translations.contact_admin_account_disabled ?? 'Twoje konto zostało zablokowane. Skontaktuj się z administratorem sieci.' }}</div>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="invalid-feedback mt-1" style="display:block;">
+                                {{ translations.invalid_credentials ?? 'Nieprawidłowy numer telefonu lub hasło.' }}
+                            </div>
+                        {% endif %}
+                    {% endif %}
+
+                    <div class="app-auth-actions">
+                        <button class="btn btn-dark btn-lg w-100 shadow-sm">
+                            <i class="bi bi-box-arrow-in-right me-1"></i>
+                            {{ translations.log_in ?? 'Zaloguj się' }}
+                        </button>
+
+                        <div class="app-auth-help text-center">
+                            {{ translations.login_help_contact_manager ?? 'Masz problem z logowaniem? Skontaktuj się z administratorem.' }}
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        if (!("serviceWorker" in navigator)) return;
+        window.addEventListener("load", async () => {
+            try {
+                await navigator.serviceWorker.register("/consultant/sw.js", { scope: "/consultant/" });
+            } catch (e) {
+                console.warn("SW register failed", e);
+            }
+        });
+    })();
+</script>
+
+{# ── PWA INSTALL BANNER (na stronie logowania) ── #}
+<style>
+    #pwa-banner {
+        position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+        left: 12px; right: 12px; z-index: 2000;
+        background: #fff; border-radius: 18px;
+        box-shadow: 0 8px 32px rgba(67,94,190,.18), 0 2px 8px rgba(0,0,0,.08);
+        padding: 14px 16px 14px 14px;
+        display: flex; align-items: center; gap: 12px;
+        animation: pwa-slide-up .35s cubic-bezier(.34,1.56,.64,1) both;
+        border: 1.5px solid rgba(67,94,190,.12);
+    }
+    @keyframes pwa-slide-up {
+        from { opacity: 0; transform: translateY(24px) scale(.97); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    #pwa-banner .pwa-icon { width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0; object-fit: cover; }
+    #pwa-banner .pwa-body { flex: 1; min-width: 0; }
+    #pwa-banner .pwa-title { font-weight: 800; font-size: .9rem; color: #212529; line-height: 1.2; }
+    #pwa-banner .pwa-sub   { font-size: .72rem; color: #6c757d; margin-top: 2px; }
+    #pwa-banner .pwa-btn-install {
+        background: linear-gradient(135deg,#435ebe,#6b7ff5);
+        color: #fff; border: none; padding: 7px 14px; border-radius: 20px;
+        font-size: .78rem; font-weight: 700; white-space: nowrap; cursor: pointer; flex-shrink: 0;
+    }
+    #pwa-banner .pwa-btn-close {
+        background: none; border: none; color: #adb5bd; font-size: 1.1rem;
+        cursor: pointer; padding: 0 0 0 6px; line-height: 1; flex-shrink: 0;
+    }
+</style>
+
+<script>
+(function () {
+    const SNOOZE_KEY  = 'pwa_banner_snoozed';
+    const SNOOZE_DAYS = 30;
+    function isSnoozed() {
+        try { const ts = localStorage.getItem(SNOOZE_KEY); return ts && (Date.now() - parseInt(ts, 10)) < SNOOZE_DAYS * 86400_000; }
+        catch { return false; }
+    }
+    function snooze() { try { localStorage.setItem(SNOOZE_KEY, Date.now()); } catch {} }
+
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (isStandalone || isSnoozed()) return;
+
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+
+        const banner = document.createElement('div');
+        banner.id = 'pwa-banner';
+        banner.innerHTML = `
+            <img class="pwa-icon" src="/consultant/assets/pwa/icon-192.png" alt="icon">
+            <div class="pwa-body">
+                <div class="pwa-title">Zainstaluj aplikację</div>
+                <div class="pwa-sub">Dodaj do ekranu głównego</div>
+            </div>
+            <button class="pwa-btn-install">Instaluj</button>
+            <button class="pwa-btn-close" aria-label="Zamknij">✕</button>`;
+        document.body.appendChild(banner);
+
+        banner.querySelector('.pwa-btn-install').onclick = async () => {
+            banner.remove(); deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') snooze();
+            deferredPrompt = null;
+        };
+        banner.querySelector('.pwa-btn-close').onclick = () => { snooze(); banner.remove(); };
+    });
+    window.addEventListener('appinstalled', () => { snooze(); const b = document.getElementById('pwa-banner'); if (b) b.remove(); });
+})();
+</script>
+
+</body>
+</html>
+

@@ -1,0 +1,258 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% block title %}Targety — {{ shop.representative_name ?? shop.name ?? 'Sklep' }}{% endblock %}
+{% block page_title %}Targety{% endblock %}
+{% block page_subtitle %}{{ shop.representative_name ?? shop.name ?? '' }}{% endblock %}
+
+{% block content %}
+<div class="page-content-loaded px-3 pb-5">
+
+    {# ── FILTR OKRESU ───────────────────────────────────────────────────── #}
+    <form method="GET" action="{{ ROOT }}/targets/{{ shop.id }}"
+          class="card border-0 shadow-sm mb-3 p-3" style="border-radius:14px;">
+        <div class="d-flex gap-2 align-items-end flex-wrap">
+            <div>
+                <label class="form-label small mb-1">Rok</label>
+                <select name="year" class="form-select form-select-sm">
+                    {% for y in range(year - 1, year + 1) %}
+                        <option value="{{ y }}" {{ y == year ? 'selected' : '' }}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label small mb-1">Miesiąc</label>
+                <select name="month" class="form-select form-select-sm">
+                    {% for num, name in months %}
+                        <option value="{{ num }}" {{ num == month ? 'selected' : '' }}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-sm btn-secondary">Wczytaj</button>
+        </div>
+    </form>
+
+    {# ── KOPIOWANIE ─────────────────────────────────────────────────────── #}
+    <div class="mb-3">
+        <button id="btn-copy" class="btn btn-outline-secondary btn-sm w-100">
+            <i class="bi bi-clipboard-arrow-down"></i>
+            Kopiuj z poprzedniego miesiąca
+        </button>
+    </div>
+
+    {# ── TABELA TARGETÓW ────────────────────────────────────────────────── #}
+    <div class="card border-0 shadow-sm mb-3" style="border-radius:14px;">
+        <div class="card-body p-0">
+
+            {# Makro wiersza metryki #}
+            {% macro metricRow(key, metric, consultantTarget, adminTarget, currency_symbol) %}
+                {% set col1 = consultantTarget ? consultantTarget.t1 : '' %}
+                {% set col2 = consultantTarget ? consultantTarget.t2 : '' %}
+                {% set col3 = consultantTarget ? consultantTarget.t3 : '' %}
+                <tr data-metric="{{ key }}" data-lower="{{ metric.lower_is_better ? '1' : '0' }}">
+                    <td class="ps-3 align-middle">
+                        <small class="fw-semibold">{{ metric.label }}</small>
+                        <br>
+                        <small class="text-muted" style="font-size:.7em">
+                            {% if metric.unit == 'pct' %}%
+                            {% elseif metric.unit == 'amount' %}{{ currency_symbol }}
+                            {% else %}szt.{% endif %}
+                        </small>
+                        {% if metric.description is defined and metric.description %}
+                        <br><small class="text-muted" style="font-size:.68em">
+                            {{ metric.description }}
+                        </small>
+                        {% endif %}
+                        {% if adminTarget %}
+                        <br><small class="text-muted" style="font-size:.7em">
+                            <i class="bi bi-shield-check text-primary"></i>
+                            Admin: {{ adminTarget.t1 }}/{{ adminTarget.t2 }}/{{ adminTarget.t3 }}
+                        </small>
+                        {% endif %}
+                    </td>
+                    <td class="text-center align-middle" style="background:#f8fdf9">
+                        <input type="number" step="0.01"
+                               class="form-control form-control-sm text-center threshold-input"
+                               data-metric="{{ key }}" data-field="t1"
+                               value="{{ col1 }}" placeholder="—"
+                               style="max-width:70px;margin:auto;font-size:.8rem">
+                    </td>
+                    <td class="text-center align-middle" style="background:#fffef5">
+                        <input type="number" step="0.01"
+                               class="form-control form-control-sm text-center threshold-input"
+                               data-metric="{{ key }}" data-field="t2"
+                               value="{{ col2 }}" placeholder="—"
+                               style="max-width:70px;margin:auto;font-size:.8rem">
+                    </td>
+                    <td class="text-center align-middle" style="background:#fff8f2">
+                        <input type="number" step="0.01"
+                               class="form-control form-control-sm text-center threshold-input"
+                               data-metric="{{ key }}" data-field="t3"
+                               value="{{ col3 }}" placeholder="—"
+                               style="max-width:70px;margin:auto;font-size:.8rem">
+                    </td>
+                </tr>
+            {% endmacro %}
+
+            {# 6 Leviers de Pilotage #}
+            <table class="table mb-0 table-sm" id="targets-table">
+                <thead>
+                    <tr>
+                        <th colspan="4" class="ps-3 py-2" style="background:#f8f9fa;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;">
+                            <i class="bi bi-bullseye text-primary me-1"></i> 6 Leviers de Pilotage
+                        </th>
+                    </tr>
+                    <tr>
+                        <th class="ps-3" style="width:35%">Levier</th>
+                        <th class="text-center" style="background:#d4edda">🟢</th>
+                        <th class="text-center" style="background:#fff3cd">🟡</th>
+                        <th class="text-center" style="background:#fde4c8">🟠</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for key, metric in metrics %}
+                    {{ _self.metricRow(key, metric, targets[key].consultant ?? null, targets[key].admin ?? null, currency_symbol) }}
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <button id="btn-save" class="btn btn-primary w-100 mb-3">Zapisz targety</button>
+    <a href="{{ ROOT }}/targets" class="btn btn-outline-secondary w-100">Powrót</a>
+</div>
+
+{# ── MODAL KOPIOWANIA ────────────────────────────────────────────────────── #}
+<div class="modal fade" id="copyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:18px;">
+            <div class="modal-header border-0">
+                <h5 class="modal-title">Kopiuj targety</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Zostaną załadowane Twoje targety z <strong id="prev-month-label"></strong>.
+                Istniejące wartości zostaną nadpisane.
+            </div>
+            <div class="modal-footer border-0">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button id="btn-copy-confirm" class="btn btn-primary">Skopiuj</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── TOAST ───────────────────────────────────────────────────────────────── #}
+<div id="targets-toast" class="position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index:9999;display:none;width:90%;">
+    <div class="alert mb-0 text-center" id="toast-alert" role="alert">
+        <span id="toast-body"></span>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SHOP_ID = {{ shop.id }};
+const YEAR    = {{ year }};
+const MONTH   = {{ month }};
+const ROOT    = '{{ ROOT }}';
+const MONTHS_PL = {
+    1:'Styczeń',2:'Luty',3:'Marzec',4:'Kwiecień',5:'Maj',6:'Czerwiec',
+    7:'Lipiec',8:'Sierpień',9:'Wrzesień',10:'Październik',11:'Listopad',12:'Grudzień'
+};
+
+// lower_is_better: col1 < col2 < col3  (np. 30 < 40 < 50)
+// higher_is_better: col1 > col2 > col3  (np. 18 > 16 > 12)
+function validateRow(row) {
+    const isLowerBetter = row.dataset.lower === '1';
+    const col1 = parseFloat(row.querySelector('[data-field="t1"]').value);
+    const col2 = parseFloat(row.querySelector('[data-field="t2"]').value);
+    const col3 = parseFloat(row.querySelector('[data-field="t3"]').value);
+    if (!isNaN(col1) && !isNaN(col2)) {
+        if (isLowerBetter ? col1 >= col2 : col1 <= col2) return false;
+    }
+    if (!isNaN(col2) && !isNaN(col3)) {
+        if (isLowerBetter ? col2 >= col3 : col2 <= col3) return false;
+    }
+    if (!isNaN(col1) && !isNaN(col3)) {
+        if (isLowerBetter ? col1 >= col3 : col1 <= col3) return false;
+    }
+    return true;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.threshold-input').forEach(input => {
+        input.addEventListener('input', () => {
+            const row = input.closest('tr');
+            const valid = validateRow(row);
+            row.querySelectorAll('.threshold-input').forEach(i =>
+                i.classList.toggle('is-invalid', !valid)
+            );
+        });
+    });
+});
+
+function showToast(msg, ok) {
+    const el = document.getElementById('targets-toast');
+    const al = document.getElementById('toast-alert');
+    document.getElementById('toast-body').textContent = msg;
+    al.className = 'alert mb-0 text-center ' + (ok ? 'alert-success' : 'alert-danger');
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 3500);
+}
+
+function collectTargets() {
+    const targets = [];
+    document.querySelectorAll('#targets-table tbody tr').forEach(row => {
+        const key = row.dataset.metric;
+        const col1 = parseFloat(row.querySelector('[data-field="t1"]').value);
+        const col2 = parseFloat(row.querySelector('[data-field="t2"]').value);
+        const col3 = parseFloat(row.querySelector('[data-field="t3"]').value);
+        if (!isNaN(col1) && !isNaN(col2) && !isNaN(col3)) {
+            // Mapowanie UI → API: col1=t3, col2=t2, col3=t1
+            targets.push({ metric_key: key, threshold_1: col3, threshold_2: col2, threshold_3: col1 });
+        }
+    });
+    return targets;
+}
+
+document.getElementById('btn-save').addEventListener('click', async () => {
+    const targets = collectTargets();
+    if (!targets.length) {
+        showToast('Brak kompletnych progów.', false);
+        return;
+    }
+    const res = await fetch(`${ROOT}/targets/${SHOP_ID}/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: YEAR, month: MONTH, targets }),
+    });
+    const json = await res.json();
+    showToast(res.ok ? 'Zapisano pomyślnie.' : ('Błąd: ' + (json.description ?? '')), res.ok);
+});
+
+document.getElementById('btn-copy').addEventListener('click', () => {
+    const pm = MONTH === 1 ? 12 : MONTH - 1;
+    const py = MONTH === 1 ? YEAR - 1 : YEAR;
+    document.getElementById('prev-month-label').textContent = MONTHS_PL[pm] + ' ' + py;
+    new bootstrap.Modal(document.getElementById('copyModal')).show();
+});
+
+document.getElementById('btn-copy-confirm').addEventListener('click', async () => {
+    bootstrap.Modal.getInstance(document.getElementById('copyModal')).hide();
+    const res = await fetch(`${ROOT}/targets/${SHOP_ID}/copy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: YEAR, month: MONTH }),
+    });
+    const json = await res.json();
+    if (res.ok) {
+        showToast('Skopiowano. Odświeżam...', true);
+        setTimeout(() => location.reload(), 1500);
+    } else {
+        showToast('Błąd: ' + (json.description ?? ''), false);
+    }
+});
+</script>
+{% endblock %}
+

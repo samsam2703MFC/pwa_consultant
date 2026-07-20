@@ -1,0 +1,224 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% block title %}Zadania — Consultant Panel{% endblock %}
+{% block page_title %}Zadania{% endblock %}
+{% block page_subtitle %}Zadania przypisane do poziomu stanowiska{% endblock %}
+
+{% block head %}
+<style>
+    .tasks-summary-card,
+    .task-card,
+    .tasks-empty-card {
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 2px 10px rgba(0,0,0,.06);
+    }
+    .tasks-summary-card {
+        padding: 14px;
+        margin-bottom: 14px;
+    }
+    .tasks-summary-eyebrow {
+        font-size: .68rem;
+        font-weight: 800;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        margin-bottom: 4px;
+    }
+    .tasks-summary-title {
+        font-size: .98rem;
+        font-weight: 800;
+        color: #212529;
+        line-height: 1.25;
+        margin-bottom: 4px;
+    }
+    .tasks-summary-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+    }
+    .task-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: .72rem;
+        font-weight: 700;
+        background: #f1f3f5;
+        color: #495057;
+    }
+    .task-card {
+        padding: 14px;
+        margin-bottom: 10px;
+        border-left: 4px solid #0d6efd;
+    }
+    .task-card.is-done {
+        border-left-color: #198754;
+    }
+    .task-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+    .task-title {
+        font-weight: 800;
+        font-size: .94rem;
+        color: #212529;
+        line-height: 1.25;
+    }
+    .task-subtitle {
+        font-size: .74rem;
+        color: #6c757d;
+        margin-top: 2px;
+    }
+    .task-priority {
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: .68rem;
+        font-weight: 800;
+        white-space: nowrap;
+        background: rgba(13,110,253,.12);
+        color: #0d6efd;
+    }
+    .task-status-done {
+        background: rgba(25,135,84,.12);
+        color: #198754;
+    }
+    .task-description {
+        font-size: .82rem;
+        color: #495057;
+        line-height: 1.45;
+        margin: 8px 0 0;
+    }
+    .tasks-empty-card {
+        padding: 22px 16px;
+        text-align: center;
+    }
+    .tasks-empty-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(13,110,253,.12);
+        color: #0d6efd;
+        margin-bottom: 12px;
+    }
+    .tasks-empty-title {
+        font-size: .98rem;
+        font-weight: 800;
+        color: #212529;
+        margin-bottom: 6px;
+    }
+    .tasks-empty-text {
+        font-size: .84rem;
+        color: #6c757d;
+        line-height: 1.45;
+        margin: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set frequency_labels = {
+    'DAILY': 'Codziennie',
+    'WEEKLY': 'Tygodniowo',
+    'MONTHLY': 'Miesięcznie',
+    'ONCE': 'Jednorazowo'
+} %}
+
+<div class="page-content-loaded">
+    <div class="tasks-summary-card">
+        <div class="tasks-summary-eyebrow">Zakres zadań</div>
+        <div class="tasks-summary-title">
+            {% if position %}
+                {{ position.position_name ?? 'Stanowisko konsultanta' }}{% if position.level_name %} · {{ position.level_name }}{% endif %}
+            {% else %}
+                Brak przypisanego poziomu stanowiska
+            {% endif %}
+        </div>
+        <div class="tasks-summary-meta">
+            <span class="task-chip"><i class="bi bi-list-task"></i>{{ tasks|length }} zadań</span>
+            {% if position and position.position_id %}
+                <span class="task-chip"><i class="bi bi-person-badge"></i>Position ID: {{ position.position_id }}</span>
+            {% endif %}
+            {% if position and position.level_id %}
+                <span class="task-chip"><i class="bi bi-layers"></i>Level ID: {{ position.level_id }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if tasks is empty %}
+        <div class="tasks-empty-card">
+            <div class="tasks-empty-icon">
+                <i class="bi bi-check2-square" style="font-size:1.4rem;"></i>
+            </div>
+            <div class="tasks-empty-title">Brak zadań do wyświetlenia</div>
+            <p class="tasks-empty-text">
+                Dla przypisanego poziomu stanowiska nie znaleziono aktywnych zadań w position_level_task_connection.
+            </p>
+        </div>
+    {% else %}
+        <div class="d-flex flex-column">
+            {% for task in tasks %}
+                <article class="task-card{% if task.is_done %} is-done{% endif %}">
+                    <div class="task-top">
+                        <div class="min-w-0">
+                            <div class="task-title">{{ task.name }}</div>
+                            <div class="task-subtitle">
+                                {{ task.section_name ?? task.base_section_name ?? 'Sekcja' }}
+                                {% if task.category_name or task.base_category_name %} · {{ task.category_name ?? task.base_category_name }}{% endif %}
+                                {% if task.subcategory_name or task.base_subcategory_name %} · {{ task.subcategory_name ?? task.base_subcategory_name }}{% endif %}
+                            </div>
+                        </div>
+                        {% if task.is_done %}
+                            <span class="task-priority task-status-done"><i class="bi bi-check2-circle"></i> Zrobione</span>
+                        {% else %}
+                            <span class="task-priority">P{{ task.priority ?? 5 }}</span>
+                        {% endif %}
+                    </div>
+
+                    {% if task.description %}
+                        <p class="task-description">{{ task.description }}</p>
+                    {% endif %}
+
+                    <div class="tasks-summary-meta">
+                        {% if task.execution_time %}
+                            <span class="task-chip"><i class="bi bi-clock"></i>{{ task.execution_time|slice(0,5) }}</span>
+                        {% endif %}
+                        {% if task.frequency %}
+                            <span class="task-chip"><i class="bi bi-arrow-repeat"></i>{{ frequency_labels[task.frequency] ?? task.frequency }}</span>
+                        {% endif %}
+                        {% if task.day_of_week %}
+                            <span class="task-chip"><i class="bi bi-calendar-week"></i>{{ task.day_of_week }}</span>
+                        {% endif %}
+                        {% if task.is_mandatory %}
+                            <span class="task-chip"><i class="bi bi-exclamation-circle"></i>Obowiązkowe</span>
+                        {% endif %}
+                        {% if task.requires_photo %}
+                            <span class="task-chip"><i class="bi bi-camera"></i>Wymaga zdjęcia</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-grid mt-3">
+                        {% if task.is_done and task.completion_id %}
+                            <a class="btn btn-success btn-sm fw-bold" href="{{ ROOT }}/tasks/completion/{{ task.completion_id }}">
+                                <i class="bi bi-eye"></i> Podgląd realizacji
+                            </a>
+                        {% else %}
+                            <a class="btn btn-primary btn-sm fw-bold" href="{{ ROOT }}/tasks/{{ task.id }}">
+                                <i class="bi bi-check2-square"></i> Zrealizuj
+                            </a>
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

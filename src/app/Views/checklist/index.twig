@@ -1,0 +1,176 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% set active_nav = 'checklists' %}
+{% set net = data.network ?? {} %}
+{% set shops = data.shops ?? [] %}
+{% set today_date = today ?? ('now' | date('Y-m-d')) %}
+{% set date = date ?? selected_date %}
+
+{% block title %}Checklisty — Consultant Panel{% endblock %}
+{% block page_title %}Checklisty{% endblock %}
+{% block page_subtitle %}
+    {{- date | date('d.m.Y') -}}
+    {%- if date != today_date %}&nbsp;<span class="date-badge">historia</span>{%- endif %}
+{% endblock %}
+
+{% block topbar_actions %}
+<div class="d-flex align-items-center gap-1">
+    {% set prev_date = date | date_modify('-1 day') | date('Y-m-d') %}
+    <a href="{{ ROOT }}/checklists?date={{ prev_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;">
+        <i class="bi bi-chevron-left" style="font-size:.8rem;"></i>
+    </a>
+    <button type="button" class="btn btn-sm btn-light rounded-pill px-2" style="font-size:.75rem;font-weight:700;min-width:80px;" onclick="document.getElementById('checklistDatePicker').showPicker()">
+        <i class="bi bi-calendar3 me-1"></i>{{ date | date('d.m.Y') }}
+    </button>
+    <input type="date" id="checklistDatePicker" value="{{ date }}" max="{{ today_date }}" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="window.location.href='{{ ROOT }}/checklists?date='+this.value">
+    {% set next_date = date | date_modify('+1 day') | date('Y-m-d') %}
+    {% if next_date <= today_date %}
+        <a href="{{ ROOT }}/checklists?date={{ next_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;">
+            <i class="bi bi-chevron-right" style="font-size:.8rem;"></i>
+        </a>
+    {% else %}
+        <span class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center disabled" style="width:32px;height:32px;opacity:.3;">
+            <i class="bi bi-chevron-right" style="font-size:.8rem;"></i>
+        </span>
+    {% endif %}
+    {% if date != today_date %}
+        <a href="{{ ROOT }}/checklists" class="btn btn-sm btn-primary rounded-pill px-2" style="font-size:.72rem;font-weight:700;">Dziś</a>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    .date-badge { font-size:.68rem;background:#fff3cd;color:#856404;border-radius:8px;padding:1px 6px;font-weight:700;vertical-align:middle; }
+    .checklist-hero { background:linear-gradient(135deg,#1b4332,#2d6a4f); border-radius:20px; color:#fff; padding:18px; margin-bottom:12px; position:relative; overflow:hidden; }
+    .checklist-hero::after { content:''; position:absolute; top:-48px; right:-34px; width:150px; height:150px; border-radius:50%; background:rgba(255,255,255,.08); }
+    .hero-label { font-size:.72rem; opacity:.7; text-transform:uppercase; letter-spacing:.06em; }
+    .hero-rate { font-size:2.5rem; font-weight:900; line-height:1; letter-spacing:-.04em; }
+    .hero-pills { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; position:relative; z-index:1; }
+    .hero-pill { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:20px; font-size:.72rem; font-weight:700; background:rgba(255,255,255,.13); }
+    .hero-pill.done { background:rgba(52,199,89,.25); color:#b7f5cc; }
+    .hero-pill.skipped { background:rgba(255,214,10,.2); color:#ffe68a; }
+    .hero-pill.failed { background:rgba(255,69,58,.25); color:#ffb3ae; }
+    .arc-wrap { position:relative; width:64px; height:64px; flex-shrink:0; z-index:1; }
+    .arc-wrap svg { transform:rotate(-90deg); }
+    .arc-bg { fill:none; stroke:rgba(255,255,255,.15); stroke-width:7; }
+    .arc-fill { fill:none; stroke-width:7; stroke-linecap:round; }
+    .arc-text { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:.78rem; font-weight:900; color:#fff; }
+    .section-title { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#6c757d; padding:10px 4px 6px; }
+    .shop-card { background:#fff; border-radius:16px; padding:14px 16px; margin-bottom:10px; box-shadow:0 2px 8px rgba(0,0,0,.06); display:block; text-decoration:none; color:inherit; transition:transform .12s, box-shadow .12s; }
+    .shop-card:active { transform:scale(.98); box-shadow:0 1px 4px rgba(0,0,0,.08); color:inherit; }
+    .shop-head { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+    .shop-rank { width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:.82rem; font-weight:800; flex-shrink:0; background:#f2f7ff; color:#435ebe; }
+    .shop-rank.gold { background:#fff3cd; color:#856404; }
+    .shop-rank.silver { background:#f0f0f0; color:#6c757d; }
+    .shop-rank.bronze { background:#fde6d8; color:#a0522d; }
+    .shop-name { font-size:.92rem; font-weight:800; color:#212529; }
+    .shop-city { font-size:.72rem; color:#6c757d; }
+    .status-pill { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:.68rem; font-weight:700; }
+    .status-pill.closed { background:#d1fae5; color:#065f46; }
+    .status-pill.open { background:#fef3c7; color:#92400e; }
+    .status-pill.missed { background:#fee2e2; color:#991b1b; }
+    .progress-track { height:6px; border-radius:3px; background:#eef0f5; overflow:hidden; margin:8px 0 6px; }
+    .progress-fill { height:100%; border-radius:3px; }
+    .progress-fill.excellent { background:linear-gradient(90deg,#27ae60,#2ecc71); }
+    .progress-fill.good { background:linear-gradient(90deg,#f39c12,#f1c40f); }
+    .progress-fill.bad { background:linear-gradient(90deg,#e74c3c,#c0392b); }
+    .stats-row { display:flex; gap:8px; }
+    .stat-cell { flex:1; background:#f8f9fa; border-radius:10px; padding:7px 8px; }
+    .stat-val { font-size:.86rem; font-weight:800; }
+    .stat-label { font-size:.62rem; color:#6c757d; }
+    .empty-state { text-align:center; padding:40px 20px; color:#adb5bd; }
+    .empty-state i { font-size:2.4rem; display:block; margin-bottom:8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="checklists-skeleton" aria-hidden="true">
+    <div class="skeleton-hero" style="min-height:120px;"></div>
+    <div class="skeleton-card"><div class="skeleton-line" style="width:40%;height:13px;"></div><div class="skeleton-line"></div><div class="skeleton-line" style="width:80%;"></div></div>
+    <div class="skeleton-card"><div class="skeleton-line" style="width:40%;height:13px;"></div><div class="skeleton-line"></div><div class="skeleton-line" style="width:80%;"></div></div>
+    <div class="skeleton-card"><div class="skeleton-line" style="width:40%;height:13px;"></div><div class="skeleton-line"></div><div class="skeleton-line" style="width:80%;"></div></div>
+</div>
+
+<div id="checklists-content" style="display:none;" class="page-content-loaded">
+    {% set rate = net.completion_rate ?? null %}
+    {% set rate_int = rate is not null ? rate | round : 0 %}
+    {% set circumference = 163 %}
+    {% set dash_offset = rate is not null ? (circumference - (rate / 100 * circumference)) | round(2) : circumference %}
+    {% set arc_color = rate is not null ? (rate >= 80 ? '#2ecc71' : (rate >= 50 ? '#f1c40f' : '#e74c3c')) : '#aaaaaa' %}
+
+    <div class="checklist-hero">
+        <div class="d-flex align-items-center gap-3 position-relative" style="z-index:1;">
+            <div class="arc-wrap">
+                <svg width="64" height="64" viewBox="0 0 64 64">
+                    <circle class="arc-bg" cx="32" cy="32" r="26"/>
+                    <circle class="arc-fill" cx="32" cy="32" r="26" stroke="{{ arc_color }}" stroke-dasharray="{{ circumference }}" stroke-dashoffset="{{ dash_offset }}"/>
+                </svg>
+                <div class="arc-text">{{ rate is not null ? rate_int ~ '%' : '—' }}</div>
+            </div>
+            <div>
+                <div class="hero-label">Realizacja checklist</div>
+                <div class="hero-rate">{{ rate is not null ? rate_int ~ '%' : '—' }}</div>
+                <div style="font-size:.75rem;opacity:.72;margin-top:2px;">
+                    {{ net.tasks_done ?? 0 }}/{{ net.tasks_total ?? 0 }} zadań wykonanych · {{ net.shops_closed ?? 0 }}/{{ net.shops_total ?? 0 }} sklepów zamkniętych
+                </div>
+            </div>
+        </div>
+        <div class="hero-pills">
+            <span class="hero-pill done"><i class="bi bi-check2-circle"></i>{{ net.tasks_done ?? 0 }} wykonane</span>
+            {% if (net.tasks_skipped ?? 0) > 0 %}<span class="hero-pill skipped"><i class="bi bi-skip-forward-circle"></i>{{ net.tasks_skipped }} pominięte</span>{% endif %}
+            {% if (net.tasks_failed ?? 0) > 0 %}<span class="hero-pill failed"><i class="bi bi-x-circle"></i>{{ net.tasks_failed }} nieudane</span>{% endif %}
+        </div>
+    </div>
+
+    {% if shops | length > 0 %}
+        <div class="section-title"><i class="bi bi-trophy me-1"></i>Ranking sklepów — realizacja checklist</div>
+        {% for s in shops %}
+            {% set rank = loop.index %}
+            {% set cr = s.completion_rate ?? 0 %}
+            {% set pending = s.tasks_total - s.tasks_done - s.tasks_skipped - s.tasks_failed %}
+            {% set prog_class = cr >= 80 ? 'excellent' : (cr >= 50 ? 'good' : 'bad') %}
+            <a href="{{ ROOT }}/checklists/shops/{{ s.shop_id }}/tasks?date={{ date }}" class="shop-card">
+                <div class="shop-head">
+                    <div class="shop-rank {{ rank == 1 ? 'gold' : (rank == 2 ? 'silver' : (rank == 3 ? 'bronze' : '')) }}">{{ rank }}</div>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                            <span class="shop-name">{{ s.shop_name }}</span>
+                            {% if s.day_closed %}
+                                <span class="status-pill closed"><i class="bi bi-lock-fill"></i>Zamknięty</span>
+                            {% else %}
+                                <span class="status-pill open"><i class="bi bi-unlock-fill"></i>Otwarty</span>
+                            {% endif %}
+                            {% if (s.mandatory_missed ?? 0) > 0 %}
+                                <span class="status-pill missed"><i class="bi bi-exclamation-triangle-fill"></i>{{ s.mandatory_missed }} obowiązkowe</span>
+                            {% endif %}
+                        </div>
+                        <div class="shop-city"><i class="bi bi-geo-alt me-1"></i>{{ s.shop_city }}</div>
+                    </div>
+                    <div style="text-align:right;flex-shrink:0;">
+                        <div style="font-size:1.05rem;font-weight:900;color:{{ cr >= 80 ? '#27ae60' : (cr >= 50 ? '#e67e22' : '#e74c3c') }}">{{ s.completion_rate is not null ? s.completion_rate ~ '%' : '—' }}</div>
+                    </div>
+                </div>
+                <div class="progress-track"><div class="progress-fill {{ prog_class }}" style="width:{{ cr }}%"></div></div>
+                <div class="stats-row">
+                    <div class="stat-cell"><div class="stat-val" style="color:#27ae60;">{{ s.tasks_done }}</div><div class="stat-label">wykonane</div></div>
+                    <div class="stat-cell"><div class="stat-val" style="color:#6c757d;">{{ pending }}</div><div class="stat-label">oczekuje</div></div>
+                    {% if s.tasks_skipped > 0 %}<div class="stat-cell"><div class="stat-val" style="color:#e67e22;">{{ s.tasks_skipped }}</div><div class="stat-label">pominięte</div></div>{% endif %}
+                    {% if s.tasks_failed > 0 %}<div class="stat-cell"><div class="stat-val" style="color:#e74c3c;">{{ s.tasks_failed }}</div><div class="stat-label">nieudane</div></div>{% endif %}
+                </div>
+            </a>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state"><i class="bi bi-clipboard2-check"></i>Brak danych checklist dla tego dnia.</div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const checklistSkeleton = document.getElementById('checklists-skeleton');
+const checklistContent = document.getElementById('checklists-content');
+if (checklistSkeleton) checklistSkeleton.style.display = 'none';
+if (checklistContent) checklistContent.style.display = '';
+</script>
+{% endblock %}

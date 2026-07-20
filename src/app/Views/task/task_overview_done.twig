@@ -1,0 +1,81 @@
+{% extends "layouts/mobile_base.twig" %}
+{% set active_nav = 'tasks' %}
+
+{% block title %}Realizacja zadania{% endblock %}
+{% block page_title %}Realizacja zadania{% endblock %}
+{% block page_subtitle %}Podgląd wykonania{% endblock %}
+
+{% block head %}
+<style>
+    .done-card,
+    .done-hero { background: #fff; border-radius: 16px; border: 1px solid rgba(0,0,0,.06); box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+    .done-hero { padding: 14px; border-left: 4px solid #198754; margin-bottom: 12px; }
+    .done-card { padding: 14px; margin-bottom: 12px; }
+    .done-title { margin: 0; color: #1b4332; font-weight: 900; font-size: 1.05rem; line-height: 1.25; }
+    .done-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .done-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 4px 8px; font-size: .72rem; font-weight: 800; background: #f1f3f5; color: #495057; }
+    .done-chip.ok { background: rgba(25,135,84,.12); color: #198754; }
+    .section-title { font-weight: 900; font-size: .95rem; margin-bottom: 10px; color: #212529; }
+    .done-desc, .note-box { white-space: pre-line; color: #495057; font-size: .9rem; line-height: 1.45; }
+    .note-box { border-radius: 14px; border: 1px solid rgba(0,0,0,.06); padding: 10px; background: #fff; }
+    .photo-box { overflow: hidden; border-radius: 14px; border: 1px solid rgba(0,0,0,.08); }
+    .photo-box img { width: 100%; height: auto; display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set completion = task_completion|default(null) %}
+{% set signed = presigned_url|default(null) %}
+{% set signed_url = signed.url ?? null %}
+
+{% if not completion %}
+    <div class="done-card text-center text-muted">Nie znaleziono realizacji zadania.</div>
+{% else %}
+    <div class="done-hero">
+        <h2 class="done-title">{{ completion.task_name ?? 'Zadanie zrealizowane' }}</h2>
+        <div class="done-chips">
+            <span class="done-chip ok"><i class="bi bi-check2-circle"></i>Zrobione</span>
+            {% if completion.completed_at %}<span class="done-chip"><i class="bi bi-calendar-check"></i>{{ completion.completed_at }}</span>{% endif %}
+            {% if completion.completed_by_display_name %}<span class="done-chip"><i class="bi bi-person-check"></i>{{ completion.completed_by_display_name }}</span>{% endif %}
+        </div>
+    </div>
+
+    <div class="done-card">
+        <div class="section-title">Szczegóły</div>
+        {% if completion.task_description %}
+            <div class="done-desc">{{ completion.task_description }}</div>
+        {% else %}
+            <div class="text-muted">Brak opisu.</div>
+        {% endif %}
+        <div class="done-chips">
+            <span class="done-chip"><i class="bi bi-calendar3"></i>{{ completion.scheduled_for_date ?? '-' }}</span>
+            {% if completion.scheduled_time and completion.scheduled_time != '00:00:00' %}<span class="done-chip"><i class="bi bi-clock"></i>{{ completion.scheduled_time|slice(0,5) }}</span>{% endif %}
+        </div>
+    </div>
+
+    <div class="done-card">
+        <div class="section-title">Notatka</div>
+        {% if completion.note %}
+            <div class="note-box">{{ completion.note }}</div>
+        {% else %}
+            <div class="text-muted">Brak notatki.</div>
+        {% endif %}
+    </div>
+
+    <div class="done-card">
+        <div class="section-title">Zdjęcie</div>
+        {% if signed_url %}
+            <div class="photo-box"><img src="{{ signed_url }}" alt="Zdjęcie realizacji" loading="lazy"></div>
+            <a class="btn btn-light w-100 fw-bold mt-2" href="{{ signed_url }}" target="_blank" rel="noopener">
+                <i class="bi bi-box-arrow-up-right"></i> Otwórz w nowej karcie
+            </a>
+        {% else %}
+            <div class="text-muted">Brak zdjęcia.</div>
+        {% endif %}
+    </div>
+{% endif %}
+
+<a class="btn btn-primary w-100 fw-bold mb-2" href="{{ ROOT }}/tasks">
+    <i class="bi bi-arrow-left"></i> Wróć do zadań
+</a>
+{% endblock %}

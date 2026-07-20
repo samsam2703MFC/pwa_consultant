@@ -1,0 +1,142 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% block title %}Notatka — Consultant Panel{% endblock %}
+{% block page_title %}Notatka{% endblock %}
+{% block page_subtitle %}Szczegóły i komentarze{% endblock %}
+
+{% block topbar_actions %}
+    {# Soft delete notatki #}
+    <form method="POST" action="{{ ROOT }}/notes/{{ note.id }}/delete"
+          onsubmit="return confirm('Usunąć notatkę?')" class="mb-0">
+        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">
+            <i class="bi bi-trash3"></i>
+        </button>
+    </form>
+{% endblock %}
+
+{% block content %}
+{% set is_employee_context = note.employee_id is defined and note.employee_id %}
+{% set back_url = is_employee_context ? (ROOT ~ '/shops/' ~ note.shop_id ~ '/employees/' ~ note.employee_id ~ '/notes') : (ROOT ~ '/shops/' ~ note.shop_id ~ '/notes') %}
+{% set note_employee = note.employee_name ?? ((note.employee_first_name ?? '') ~ ' ' ~ (note.employee_last_name ?? ''))|trim %}
+<div class="page-content-loaded">
+
+    {% if note.shop_id is defined %}
+        <a href="{{ back_url }}"
+           class="d-inline-flex align-items-center gap-1 text-muted mb-3"
+           style="font-size:.82rem;text-decoration:none;">
+            <i class="bi bi-chevron-left"></i> {{ is_employee_context ? 'Notatki pracownika' : 'Notatki sklepu' }}
+        </a>
+    {% endif %}
+
+    {# ── Nagłówek notatki ── #}
+    <div class="card border-0 shadow-sm mb-3" style="border-radius:16px;">
+        <div class="card-body p-3">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                {% if note.type_name %}
+                    <span class="badge rounded-pill"
+                          style="background:rgba(67,94,190,.12);color:#435ebe;font-size:.72rem;font-weight:700;">
+                        {{ note.type_name }}
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill"
+                          style="font-size:.72rem;">Bez kategorii</span>
+                {% endif %}
+                <span class="text-muted" style="font-size:.72rem;">
+                    {{ note.created_at|slice(0,16)|replace({'T': ' '}) }}
+                </span>
+            </div>
+            {% if is_employee_context %}
+                <div class="text-muted mb-2" style="font-size:.78rem;">
+                    <i class="bi bi-person me-1"></i>{{ note_employee ?: ('Pracownik #' ~ note.employee_id) }}
+                </div>
+            {% endif %}
+            <p class="mb-0" style="font-size:.92rem;line-height:1.6;white-space:pre-wrap;">{{ note.content }}</p>
+        </div>
+    </div>
+
+    {# ── Komentarze ── #}
+    <div class="mb-3">
+        <h6 class="text-muted fw-700 mb-2" style="font-size:.8rem;letter-spacing:.04em;text-transform:uppercase;">
+            Komentarze ({{ comments|length }})
+        </h6>
+
+        {% if comments is empty %}
+            <p class="text-muted" style="font-size:.84rem;">Brak komentarzy. Dodaj pierwszy poniżej.</p>
+        {% else %}
+            <div class="d-flex flex-column gap-2">
+                {% for comment in comments %}
+                    <div class="card border-0 shadow-sm" style="border-radius:12px;">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-muted" style="font-size:.72rem;">
+                                    {{ comment.created_at|slice(0,16)|replace({'T': ' '}) }}
+                                </span>
+                                {# Usuń komentarz #}
+                                <form method="POST" action="{{ ROOT }}/comments/{{ comment.id }}/delete"
+                                      onsubmit="return confirm('Usunąć komentarz?')" class="mb-0">
+                                    <input type="hidden" name="note_id" value="{{ note.id }}">
+                                    <button type="submit"
+                                            class="btn btn-sm p-0 text-danger border-0 bg-transparent"
+                                            style="font-size:.8rem;">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            <p class="mb-0" style="font-size:.88rem;line-height:1.5;white-space:pre-wrap;">{{ comment.content }}</p>
+
+                            {# Zdjęcia do komentarza #}
+                            {% if comment.photos is defined and comment.photos|length > 0 %}
+                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                    {% for photo in comment.photos %}
+                                        {% if photo.presigned_url %}
+                                            <a href="{{ photo.presigned_url }}" target="_blank">
+                                                <img src="{{ photo.presigned_url }}"
+                                                     alt="zdjęcie"
+                                                     style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
+                                            </a>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    {# ── Formularz nowego komentarza ── #}
+    <div class="card border-0 shadow-sm" style="border-radius:16px;">
+        <div class="card-body p-3">
+            <h6 class="fw-700 mb-3" style="font-size:.88rem;">Dodaj komentarz</h6>
+            <form method="POST" action="{{ ROOT }}/notes/{{ note.id }}/comments"
+                  enctype="multipart/form-data" novalidate>
+
+                <div class="mb-3">
+                    <textarea name="content" rows="3"
+                              class="form-control rounded-3"
+                              placeholder="Wpisz komentarz…"
+                              style="font-size:.88rem;" required></textarea>
+                </div>
+
+                {# Zdjęcia (max 4) #}
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:.82rem;color:#6c757d;">
+                        <i class="bi bi-camera me-1"></i>Zdjęcia
+                        <span class="text-muted">(opcjonalne, max 4 × 10 MB, jpg/png/webp)</span>
+                    </label>
+                    <input type="file" name="photos[]" accept="image/*" multiple
+                           class="form-control form-control-sm rounded-3"
+                           style="font-size:.82rem;">
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 fw-700">
+                    <i class="bi bi-send me-2"></i>Wyślij komentarz
+                </button>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+

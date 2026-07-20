@@ -1,0 +1,5 @@
+{% extends "layouts/error_mobile.twig" %}
+
+{% block error_title %}{{ translations.not_found ?? 'Nie znaleziono strony' }}{% endblock %}
+{% block error_desc %}{{ translations.not_found_desc ?? 'Strona, której szukasz, nie istnieje.' }}{% endblock %}
+

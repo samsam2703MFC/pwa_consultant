@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Offline — Consultant Panel</title>
+    <style>
+        body { font-family: 'Nunito', sans-serif; background: #f2f7ff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        .offline-card { background: #fff; border-radius: 20px; padding: 32px 24px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,.08); max-width: 340px; width: 100%; }
+        .offline-icon { font-size: 3rem; margin-bottom: 16px; }
+        h1 { font-size: 1.2rem; font-weight: 800; margin: 0 0 8px; color: #212529; }
+        p { color: #6c757d; font-size: .9rem; margin: 0 0 20px; }
+        button { background: #435ebe; color: #fff; border: none; border-radius: 14px; padding: 12px 24px; font-size: .9rem; font-weight: 700; cursor: pointer; }
+    </style>
+</head>
+<body>
+<div class="offline-card">
+    <div class="offline-icon">📡</div>
+    <h1>Brak połączenia</h1>
+    <p>Sprawdź swoje połączenie internetowe i spróbuj ponownie.</p>
+    <button onclick="location.reload()">Odśwież</button>
+</div>
+</body>
+</html>
+

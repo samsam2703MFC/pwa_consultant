@@ -1,0 +1,157 @@
+{% extends "layouts/mobile_base.twig" %}
+{% set active_nav = 'tasks' %}
+
+{% block title %}Zadanie{% endblock %}
+{% block page_title %}Zadanie{% endblock %}
+{% block page_subtitle %}Szczegóły i realizacja{% endblock %}
+
+{% block head %}
+<style>
+    .task-panel,
+    .task-hero {
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid rgba(0,0,0,.06);
+        box-shadow: 0 2px 10px rgba(0,0,0,.05);
+    }
+    .task-hero {
+        padding: 14px;
+        border-left: 4px solid #0d6efd;
+        margin-bottom: 12px;
+    }
+    .task-panel { padding: 14px; margin-bottom: 12px; }
+    .task-title { font-size: 1.05rem; font-weight: 900; color: #212529; line-height: 1.25; margin: 0; }
+    .task-desc { white-space: pre-line; color: #495057; font-size: .9rem; line-height: 1.45; margin: 8px 0 0; }
+    .task-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .task-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 4px 8px; font-size: .72rem; font-weight: 800; background: #f1f3f5; color: #495057; }
+    .task-chip.photo { background: rgba(13,202,240,.12); color: #055160; }
+    .section-title { font-weight: 900; font-size: .95rem; margin-bottom: 10px; color: #212529; }
+    .photo-preview { display: none; overflow: hidden; border-radius: 14px; border: 1px solid rgba(0,0,0,.08); background: #fff; }
+    .photo-preview img { display: block; width: 100%; height: auto; }
+    .sticky-actions { position: sticky; bottom: 0; padding-top: 12px; background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1) 35%); }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set task = task|default(null) %}
+{% if not task %}
+    <div class="task-panel text-center text-muted">Nie znaleziono zadania.</div>
+{% else %}
+    {% set scheduled_for_date = selected_date|default("now"|date("Y-m-d")) %}
+    {% set scheduled_time = task.execution_time ?: '00:00:00' %}
+    {% set requires_photo = task.requires_photo ? 1 : 0 %}
+
+    <div class="task-hero">
+        <h2 class="task-title">{{ task.name }}</h2>
+        <div class="task-chips">
+            {% if task.section_name or task.base_section_name %}<span class="task-chip"><i class="bi bi-diagram-3"></i>{{ task.section_name ?? task.base_section_name }}</span>{% endif %}
+            {% if task.category_name or task.base_category_name %}<span class="task-chip"><i class="bi bi-collection"></i>{{ task.category_name ?? task.base_category_name }}</span>{% endif %}
+            {% if task.subcategory_name or task.base_subcategory_name %}<span class="task-chip"><i class="bi bi-tag"></i>{{ task.subcategory_name ?? task.base_subcategory_name }}</span>{% endif %}
+            <span class="task-chip"><i class="bi bi-flag"></i>P{{ task.priority ?? 5 }}</span>
+            {% if task.is_mandatory %}<span class="task-chip"><i class="bi bi-exclamation-circle"></i>Obowiązkowe</span>{% endif %}
+            {% if requires_photo %}<span class="task-chip photo"><i class="bi bi-camera"></i>Wymaga zdjęcia</span>{% endif %}
+        </div>
+    </div>
+
+    <div class="task-panel">
+        <div class="section-title">Szczegóły</div>
+        {% if task.description %}
+            <div class="task-desc">{{ task.description }}</div>
+        {% else %}
+            <div class="text-muted">Brak opisu.</div>
+        {% endif %}
+        <div class="task-chips">
+            {% if task.execution_time %}<span class="task-chip"><i class="bi bi-clock"></i>{{ task.execution_time|slice(0,5) }}</span>{% endif %}
+            {% if task.frequency %}<span class="task-chip"><i class="bi bi-arrow-repeat"></i>{{ task.frequency }}</span>{% endif %}
+            {% if task.day_of_week %}<span class="task-chip"><i class="bi bi-calendar-week"></i>{{ task.day_of_week }}</span>{% endif %}
+        </div>
+    </div>
+
+    <div class="task-panel">
+        <div class="section-title">Realizacja</div>
+
+        {% if errors.photo_upload is defined %}
+            <div class="alert alert-danger">{{ errors.photo_upload }}</div>
+        {% endif %}
+        {% if errors.task_complete_failed is defined %}
+            <div class="alert alert-danger">{{ errors.task_complete_failed }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ ROOT }}/tasks/{{ task.id }}" enctype="multipart/form-data" id="completeForm">
+            <input type="hidden" name="task_id" value="{{ task.id }}">
+            <input type="hidden" name="scheduled_for_date" value="{{ scheduled_for_date }}">
+            <input type="hidden" name="scheduled_time" value="{{ scheduled_time }}">
+            <input type="hidden" name="status" value="DONE">
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Notatka</label>
+                <textarea class="form-control" name="note" rows="4" placeholder="Opcjonalna notatka">{{ old('note') }}</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Zdjęcie{% if requires_photo %} <span class="text-danger">*</span>{% endif %}</label>
+                <input type="file" class="form-control" name="photo" id="photoInput" accept="image/*" capture="environment">
+                <div class="form-text">Maksymalny rozmiar: 10MB.</div>
+                <div class="alert alert-danger mt-2" id="photoError" style="display:none;"></div>
+                <div class="photo-preview mt-2" id="photoPreview"><img id="photoPreviewImg" alt="Podgląd zdjęcia"></div>
+            </div>
+
+            <div class="sticky-actions">
+                <button class="btn btn-primary w-100 fw-bold" type="submit" id="doneBtn"{% if requires_photo %} disabled{% endif %}>
+                    <i class="bi bi-check2-circle"></i> Oznacz jako zrealizowane
+                </button>
+                <a class="btn btn-light w-100 fw-bold mt-2" href="{{ ROOT }}/tasks">
+                    <i class="bi bi-arrow-left"></i> Wróć do zadań
+                </a>
+            </div>
+        </form>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const requiresPhoto = {{ task and task.requires_photo ? 1 : 0 }};
+    const maxBytes = 10 * 1024 * 1024;
+    const input = document.getElementById('photoInput');
+    const button = document.getElementById('doneBtn');
+    const error = document.getElementById('photoError');
+    const preview = document.getElementById('photoPreview');
+    const previewImg = document.getElementById('photoPreviewImg');
+
+    if (!input || !button) return;
+
+    function setError(message) {
+        if (!error) return;
+        error.textContent = message;
+        error.style.display = message ? 'block' : 'none';
+    }
+
+    input.addEventListener('change', function () {
+        const file = input.files && input.files[0] ? input.files[0] : null;
+        setError('');
+
+        if (!file) {
+            if (preview) preview.style.display = 'none';
+            button.disabled = !!requiresPhoto;
+            return;
+        }
+
+        if (file.size > maxBytes) {
+            setError('Zdjęcie jest za duże. Maksymalny rozmiar to 10MB.');
+            input.value = '';
+            if (preview) preview.style.display = 'none';
+            button.disabled = !!requiresPhoto;
+            return;
+        }
+
+        if (preview && previewImg) {
+            previewImg.src = URL.createObjectURL(file);
+            preview.style.display = 'block';
+        }
+        button.disabled = false;
+    });
+})();
+</script>
+{% endblock %}

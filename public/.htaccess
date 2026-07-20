@@ -1,0 +1,13 @@
+RewriteEngine On
+RewriteBase /consultant/
+
+# Nie przepisywuj istniejących plików i katalogów
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Nie przepisywuj, jeśli już trafiono do index.php
+RewriteCond %{REQUEST_URI} !^/index\.php$
+
+# Przepisuj wszystko inne na index.php
+RewriteRule ^(.*)$ index.php?url=$1 [L,QSA]
+

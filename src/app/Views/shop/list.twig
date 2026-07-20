@@ -1,0 +1,535 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% block title %}Sklepy — Consultant Panel{% endblock %}
+{% block page_title %}Sklepy{% endblock %}
+{% block page_subtitle %}Przegląd finansowy placówek{% endblock %}
+
+{% block head %}
+<style>
+    /* ── P&L BLOCK ─────────────────────────────────────────── */
+    .pnl-card {
+        border-top: 1px solid rgba(0,0,0,.06);
+        padding: 12px 16px 14px;
+        display: none;
+    }
+    .pnl-card.is-open { display: block; }
+
+    /* Period badges */
+    .pnl-period-bar {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 14px;
+    }
+    .pnl-badge {
+        flex: 1;
+        text-align: center;
+        padding: 5px 0;
+        border-radius: 20px;
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .02em;
+        cursor: pointer;
+        border: 1.5px solid #dee2e6;
+        color: #6c757d;
+        background: transparent;
+        transition: all .15s;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .pnl-badge.active {
+        background: #435ebe;
+        border-color: #435ebe;
+        color: #fff;
+    }
+
+    /* P&L rows */
+    .pnl-rows { display: flex; flex-direction: column; gap: 2px; }
+    .pnl-row {
+        display: flex;
+        align-items: center;
+        padding: 7px 10px;
+        border-radius: 10px;
+        cursor: default;
+        transition: background .12s;
+    }
+    .pnl-row.is-expandable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .pnl-row.is-expandable:active { background: rgba(67,94,190,.06); }
+    .pnl-row-label {
+        flex: 1;
+        font-size: .8rem;
+        font-weight: 700;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .pnl-row-label i { font-size: .75rem; color: #adb5bd; transition: transform .2s; }
+    .pnl-row.expanded .pnl-row-label i { transform: rotate(90deg); }
+    .pnl-row-value {
+        font-size: .82rem;
+        font-weight: 700;
+        color: #212529;
+        min-width: 70px;
+        text-align: right;
+    }
+    .pnl-row-delta {
+        font-size: .7rem;
+        font-weight: 700;
+        min-width: 46px;
+        text-align: right;
+        padding-left: 6px;
+    }
+    .pnl-row-delta.pos { color: #28a745; }
+    .pnl-row-delta.neg { color: #dc3545; }
+    .pnl-row-delta.neu { color: #adb5bd; }
+
+    /* Result row highlight */
+    .pnl-row.result-row {
+        background: rgba(67,94,190,.06);
+        border-radius: 10px;
+    }
+    .pnl-row.result-row .pnl-row-label { color: #435ebe; }
+    .pnl-row.result-row .pnl-row-value { color: #435ebe; }
+
+    /* Category breakdown */
+    .pnl-categories {
+        display: none;
+        flex-direction: column;
+        gap: 1px;
+        padding: 2px 0 4px 20px;
+    }
+    .pnl-categories.is-open { display: flex; }
+    .pnl-cat-row {
+        display: flex;
+        align-items: center;
+        padding: 5px 10px;
+        border-radius: 8px;
+    }
+    .pnl-cat-name { flex: 1; font-size: .75rem; color: #6c757d; }
+    .pnl-cat-value { font-size: .75rem; font-weight: 600; color: #212529; min-width: 60px; text-align: right; }
+    .pnl-cat-delta { font-size: .68rem; font-weight: 600; min-width: 40px; text-align: right; padding-left: 4px; }
+    .pnl-cat-delta.pos { color: #28a745; }
+    .pnl-cat-delta.neg { color: #dc3545; }
+    .pnl-cat-delta.neu { color: #adb5bd; }
+
+    .oc-breakdown {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 8px;
+        margin-bottom: 2px;
+    }
+    .oc-breakdown-item {
+        background: #f8f9ff;
+        border: 1px solid rgba(67,94,190,.12);
+        border-radius: 10px;
+        padding: 8px 10px;
+        text-align: center;
+    }
+    .oc-breakdown-label {
+        display: block;
+        font-size: .68rem;
+        font-weight: 700;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 3px;
+    }
+    .oc-breakdown-value {
+        display: block;
+        font-size: .78rem;
+        font-weight: 700;
+        color: #212529;
+    }
+
+    /* Date range picker */
+    .pnl-daterange {
+        display: none;
+        gap: 8px;
+        margin-bottom: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .pnl-daterange.is-open { display: flex; }
+    .pnl-daterange input[type="date"] {
+        flex: 1;
+        min-width: 120px;
+        padding: 5px 8px;
+        border: 1.5px solid #dee2e6;
+        border-radius: 10px;
+        font-size: .75rem;
+        color: #495057;
+        background: #fff;
+        outline: none;
+    }
+    .pnl-daterange input[type="date"]:focus { border-color: #435ebe; }
+    .pnl-daterange-apply {
+        padding: 5px 14px;
+        border-radius: 20px;
+        background: #435ebe;
+        color: #fff;
+        border: none;
+        font-size: .75rem;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Loading skeleton */
+    .pnl-skeleton { padding: 4px 0; }
+    .pnl-skel-line {
+        height: 14px; border-radius: 7px; margin-bottom: 8px;
+        background: linear-gradient(90deg,#f0f0f0 25%,#e4e4e4 50%,#f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.4s infinite;
+    }
+
+    /* Shop header row toggle */
+    .shop-toggle-btn {
+        background: none;
+        border: none;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        width: 100%;
+        text-align: left;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .shop-toggle-chevron { transition: transform .2s; }
+    .shop-toggle-btn.open .shop-toggle-chevron { transform: rotate(90deg); }
+
+    /* Divider between shops */
+    .shop-pnl-divider {
+        height: 1px;
+        background: rgba(0,0,0,.06);
+        margin: 0 16px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-content-loaded">
+
+    {% if shops is empty %}
+        <div class="text-center text-muted py-5">
+            <i class="bi bi-shop" style="font-size:2.5rem;opacity:.3;"></i>
+            <p class="mt-3">Brak dostępnych sklepów.</p>
+        </div>
+    {% else %}
+        <div class="d-flex flex-column gap-2">
+            {% for shop in shops %}
+                <div class="card border-0 shadow-sm" style="border-radius:14px;overflow:hidden;">
+
+                    {# ── Shop header (tap to open notes / long-press / chevron to expand P&L) ── #}
+                    <div class="card-body py-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                 style="width:42px;height:42px;background:rgba(67,94,190,.12);">
+                                <i class="bi bi-shop" style="font-size:1.1rem;color:#435ebe;"></i>
+                            </div>
+                            <div class="flex-grow-1 min-w-0">
+                                <a href="{{ ROOT }}/shops/{{ shop.id }}/notes" class="text-decoration-none">
+                                    <div class="fw-700 text-truncate" style="font-size:.95rem;color:#212529;">{{ shop.representative_name ?? shop.name }}</div>
+                                    <div class="text-muted text-truncate" style="font-size:.78rem;">{{ shop.city ?? '' }}</div>
+                                </a>
+                            </div>
+                            {# P&L toggle button #}
+                            <button class="btn btn-sm border-0 pnl-toggle-btn flex-shrink-0"
+                                    data-shop-id="{{ shop.id }}"
+                                    style="background:rgba(67,94,190,.08);color:#435ebe;border-radius:10px;padding:5px 9px;"
+                                    aria-label="P&L"
+                                    aria-expanded="false">
+                                <i class="bi bi-bar-chart-line-fill" style="font-size:.9rem;"></i>
+                                <i class="bi bi-chevron-down ms-1 shop-toggle-chevron" style="font-size:.7rem;"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    {# ── P&L Block (hidden by default) ── #}
+                    <div class="pnl-card" id="pnl-{{ shop.id }}" data-shop-id="{{ shop.id }}" data-loaded="">
+
+                        {# Period selector #}
+                        <div class="pnl-period-bar">
+                            <button class="pnl-badge active" data-period="day">Dziś</button>
+                            <button class="pnl-badge" data-period="week">Tydzień</button>
+                            <button class="pnl-badge" data-period="month">Miesiąc</button>
+                            <button class="pnl-badge" data-period="custom">Zakres</button>
+                        </div>
+
+                        {# Custom date range picker #}
+                        <div class="pnl-daterange" id="pnl-dr-{{ shop.id }}">
+                            <input type="date" id="pnl-dr-from-{{ shop.id }}" aria-label="Od">
+                            <input type="date" id="pnl-dr-to-{{ shop.id }}"   aria-label="Do">
+                            <button class="pnl-daterange-apply" data-shop-id="{{ shop.id }}">Zastosuj</button>
+                        </div>
+
+                        {# Skeleton (shown while loading) #}
+                        <div class="pnl-skeleton" id="pnl-skel-{{ shop.id }}">
+                            <div class="pnl-skel-line" style="width:80%;"></div>
+                            <div class="pnl-skel-line" style="width:65%;"></div>
+                            <div class="pnl-skel-line" style="width:72%;"></div>
+                            <div class="pnl-skel-line" style="width:60%;"></div>
+                        </div>
+
+                        {# Data area (filled by JS) #}
+                        <div class="pnl-rows" id="pnl-data-{{ shop.id }}" style="display:none;"></div>
+
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    const ROOT = window.__consultantRoot || '';
+
+    // ── FORMAT HELPERS ──────────────────────────────────────────────────────
+
+    function fmt(val) {
+        if (val == null) return '—';
+        return new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val) + ' eur';
+    }
+
+    function fmtDelta(delta) {
+        if (delta == null) return { text: '—', cls: 'neu' };
+        const sign = delta > 0 ? '+' : '';
+        const cls  = delta > 0 ? 'pos' : (delta < 0 ? 'neg' : 'neu');
+        return { text: sign + delta.toFixed(1) + '%', cls };
+    }
+
+    // ── RENDER ──────────────────────────────────────────────────────────────
+
+    function renderPnl(shopId, data) {
+        const container = document.getElementById('pnl-data-' + shopId);
+        if (!container) return;
+
+        const rows = [];
+
+        // TurnOver row (expandable)
+        const { text: toDelta, cls: toDeltaCls } = fmtDelta(data.turnover.delta);
+        rows.push(`
+            <div class="pnl-row is-expandable" id="pnl-to-row-${shopId}">
+                <span class="pnl-row-label">
+                    <i class="bi bi-chevron-right"></i>
+                    TurnOver
+                </span>
+                <span class="pnl-row-value">${fmt(data.turnover.value)}</span>
+                <span class="pnl-row-delta ${toDeltaCls}">${toDelta}</span>
+            </div>
+            <div class="pnl-categories" id="pnl-cats-${shopId}">
+                ${renderCategories(data.turnover.categories, data.turnover.value)}
+            </div>
+        `);
+
+        // Labour
+        const { text: labDelta, cls: labDeltaCls } = fmtDelta(data.labour.delta);
+        rows.push(`
+            <div class="pnl-row">
+                <span class="pnl-row-label">Labour</span>
+                <span class="pnl-row-value">${fmt(data.labour.value)}</span>
+                <span class="pnl-row-delta ${labDeltaCls}">${labDelta}</span>
+            </div>
+        `);
+
+        // Overhead
+        const overhead = data.overhead ?? { value: null, delta: null, breakdown: null };
+        const { text: ocDelta, cls: ocDeltaCls } = fmtDelta(overhead.delta);
+        rows.push(`
+            <div class="pnl-row">
+                <span class="pnl-row-label">Overhead (OC)</span>
+                <span class="pnl-row-value">${fmt(overhead.value)}</span>
+                <span class="pnl-row-delta ${ocDeltaCls}">${ocDelta}</span>
+            </div>
+            ${renderOverheadBreakdown(overhead.breakdown)}
+        `);
+
+        // Result
+        const { text: resDelta, cls: resDeltaCls } = fmtDelta(data.result.delta);
+        const resultColor = data.result.value >= 0 ? '' : 'style="color:#dc3545;"';
+        rows.push(`
+            <div class="pnl-row result-row" ${resultColor}>
+                <span class="pnl-row-label" ${resultColor}>Result</span>
+                <span class="pnl-row-value" ${resultColor}>${fmt(data.result.value)}</span>
+                <span class="pnl-row-delta ${resDeltaCls}">${resDelta}</span>
+            </div>
+        `);
+
+        container.innerHTML = rows.join('');
+
+        // Bind TurnOver expand
+        const toRow = document.getElementById('pnl-to-row-' + shopId);
+        const cats  = document.getElementById('pnl-cats-' + shopId);
+        if (toRow && cats) {
+            toRow.addEventListener('click', () => {
+                const open = cats.classList.toggle('is-open');
+                toRow.classList.toggle('expanded', open);
+            });
+        }
+    }
+
+    function renderOverheadBreakdown(breakdown) {
+        if (!breakdown) return '';
+
+        const periods = ['day', 'week', 'month'];
+        const items = periods
+            .filter(period => breakdown[period])
+            .map(period => {
+                const item = breakdown[period];
+                return `
+                    <div class="oc-breakdown-item">
+                        <span class="oc-breakdown-label">${escHtml(item.label ?? period)}</span>
+                        <span class="oc-breakdown-value">${fmt(item.value)}</span>
+                    </div>
+                `;
+            })
+            .join('');
+
+        if (!items) return '';
+        return `<div class="oc-breakdown">${items}</div>`;
+    }
+
+    function renderCategories(categories, turnoverTotal) {
+        if (!categories || categories.length === 0) {
+            return '<div class="pnl-cat-row"><span class="pnl-cat-name" style="font-style:italic;">Brak danych</span></div>';
+        }
+        const sorted = [...categories].sort((a, b) => b.value - a.value);
+        return sorted.map(cat => {
+            const pct = (turnoverTotal > 0) ? (cat.value / turnoverTotal * 100) : 0;
+            const { text, cls } = fmtDelta(cat.delta);
+            return `
+                <div class="pnl-cat-row">
+                    <span class="pnl-cat-name">${escHtml(cat.name)}</span>
+                    <span class="pnl-cat-value">${pct.toFixed(1)}%</span>
+                    <span class="pnl-cat-delta ${cls}">${text}</span>
+                </div>`;
+        }).join('');
+    }
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function showError(shopId, msg) {
+        const skel = document.getElementById('pnl-skel-' + shopId);
+        if (skel) {
+            skel.innerHTML = `<div style="color:#c0392b;font-size:.78rem;text-align:center;padding:8px 0;">
+                <i class="bi bi-exclamation-triangle-fill"></i> Błąd ładowania<br>
+                <small style="opacity:.7;">${escHtml(msg)}</small>
+            </div>`;
+        }
+    }
+
+    // ── LOAD DATA ───────────────────────────────────────────────────────────
+
+    function loadPnl(shopId, period, dateFrom, dateTo) {
+        const skel = document.getElementById('pnl-skel-' + shopId);
+        const data = document.getElementById('pnl-data-' + shopId);
+
+        if (skel) skel.style.display = '';
+        if (data) data.style.display = 'none';
+
+        const params = { period };
+        if (period === 'custom' && dateFrom && dateTo) {
+            params.date_from = dateFrom;
+            params.date_to   = dateTo;
+        }
+
+        ConsultantAjax.load({
+            endpoint: '/consultant/shops/' + shopId + '/pnl',
+            params,
+            onSuccess: (responseData) => {
+                if (skel) skel.style.display = 'none';
+                if (data) data.style.display = '';
+                renderPnl(shopId, responseData);
+            },
+            onError: (msg) => {
+                showError(shopId, msg);
+            },
+        });
+    }
+
+    // ── TOGGLE & PERIOD ─────────────────────────────────────────────────────
+
+    document.querySelectorAll('.pnl-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const shopId   = this.dataset.shopId;
+            const pnlCard  = document.getElementById('pnl-' + shopId);
+            const isOpen   = pnlCard.classList.toggle('is-open');
+
+            this.setAttribute('aria-expanded', isOpen);
+            this.classList.toggle('open', isOpen);
+
+            if (isOpen && !pnlCard.dataset.loaded) {
+                pnlCard.dataset.loaded = 'day';
+                loadPnl(shopId, 'day');
+            }
+        });
+    });
+
+    // Period badge switching — delegated to each pnl-card
+    document.querySelectorAll('.pnl-card').forEach(card => {
+        const shopId  = card.dataset.shopId;
+        const drPanel = document.getElementById('pnl-dr-' + shopId);
+
+        card.querySelectorAll('.pnl-badge').forEach(badge => {
+            badge.addEventListener('click', function () {
+                const period = this.dataset.period;
+
+                // Update active badge
+                card.querySelectorAll('.pnl-badge').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+
+                // Show/hide date range picker
+                if (drPanel) drPanel.classList.toggle('is-open', period === 'custom');
+
+                // For custom, wait for Zastosuj — do not load yet
+                if (period === 'custom') return;
+
+                card.dataset.loaded = period;
+                loadPnl(shopId, period);
+            });
+        });
+
+        // Zastosuj button
+        if (drPanel) {
+            drPanel.querySelector('.pnl-daterange-apply').addEventListener('click', function () {
+                const fromInput = document.getElementById('pnl-dr-from-' + shopId);
+                const toInput   = document.getElementById('pnl-dr-to-'   + shopId);
+                const dateFrom  = fromInput ? fromInput.value : '';
+                const dateTo    = toInput   ? toInput.value   : '';
+
+                if (!dateFrom || !dateTo) {
+                    if (fromInput && !fromInput.value) fromInput.reportValidity();
+                    if (toInput   && !toInput.value)   toInput.reportValidity();
+                    return;
+                }
+                if (dateTo < dateFrom) {
+                    toInput.setCustomValidity('Data „Do” nie może być wcześniejsza niż „Od”');
+                    toInput.reportValidity();
+                    toInput.setCustomValidity('');
+                    return;
+                }
+
+                card.dataset.loaded = 'custom';
+                loadPnl(shopId, 'custom', dateFrom, dateTo);
+            });
+        }
+    });
+
+})();
+</script>
+{% endblock %}
+

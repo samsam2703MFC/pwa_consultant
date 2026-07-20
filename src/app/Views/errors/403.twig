@@ -1,0 +1,5 @@
+{% extends "layouts/error_mobile.twig" %}
+
+{% block error_title %}{{ translations.forbidden ?? 'Brak dostępu' }}{% endblock %}
+{% block error_desc %}{{ translations.forbidden_desc ?? 'Nie masz uprawnień do tej strony.' }}{% endblock %}
+

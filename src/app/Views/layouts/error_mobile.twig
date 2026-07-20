@@ -1,0 +1,49 @@
+{# layouts/error_mobile.twig #}
+<!DOCTYPE html>
+<html lang="{{ lang_code ?? 'pl' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{{ translations.error ?? 'Błąd' }} — {{ translations.consultant_panel ?? 'Consultant Panel' }}</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/compiled/css/app.css">
+    <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/extensions/bootstrap-icons/font/bootstrap-icons.css">
+
+    <style>
+        body {
+            background: #f2f7ff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .error-card {
+            background: #fff;
+            border-radius: 20px;
+            padding: 32px 24px;
+            text-align: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,.08);
+            max-width: 360px;
+            width: 100%;
+            margin: 16px;
+        }
+        .error-icon { font-size: 2.5rem; margin-bottom: 16px; color: #435ebe; }
+        h1 { font-size: 1.15rem; font-weight: 800; margin: 0 0 8px; color: #212529; }
+        p  { color: #6c757d; font-size: .9rem; margin: 0 0 20px; }
+    </style>
+</head>
+<body>
+<div class="error-card">
+    <div class="error-icon">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+    </div>
+    <h1>{% block error_title %}{{ translations.something_went_wrong ?? 'Coś poszło nie tak' }}{% endblock %}</h1>
+    <p>{% block error_desc %}{{ translations.try_again_or_go_back ?? 'Spróbuj ponownie lub wróć.' }}{% endblock %}</p>
+    <a href="{{ ROOT }}/dashboard" class="btn btn-dark rounded-pill px-4">
+        <i class="bi bi-arrow-left me-1"></i> {{ translations.back ?? 'Wróć' }}
+    </a>
+</div>
+</body>
+</html>
+

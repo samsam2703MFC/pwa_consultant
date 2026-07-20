@@ -1,0 +1,18 @@
+{% set status = t.status ?? 'PENDING' %}
+<div class="task-card">
+    <div class="task-status-icon {{ status == 'DONE' ? 'status-done' : (status == 'SKIPPED' ? 'status-skipped' : (status == 'FAILED' ? 'status-failed' : 'status-pending')) }}">
+        {% if status == 'DONE' %}<i class="bi bi-check2-circle"></i>{% elseif status == 'SKIPPED' %}<i class="bi bi-skip-forward-circle"></i>{% elseif status == 'FAILED' %}<i class="bi bi-x-circle"></i>{% else %}<i class="bi bi-hourglass-split"></i>{% endif %}
+    </div>
+    <div class="flex-grow-1">
+        <div class="task-name">{{ t.task_name }}</div>{% if t.checklist_name %}<div class="task-meta"><i class="bi bi-clipboard-check me-1"></i>{{ t.checklist_name }}</div>{% endif %}
+        <div class="task-meta">
+            {% if t.is_mandatory %}<span class="task-badge badge-mandatory"><i class="bi bi-exclamation-triangle-fill"></i>obowiązkowe</span>{% endif %}
+            {% if t.requires_photo %}<span class="task-badge badge-photo"><i class="bi bi-camera-fill"></i>zdjęcie</span>{% endif %}
+            {% if t.execution_time %}<span class="task-badge badge-time"><i class="bi bi-clock"></i>{{ t.execution_time | slice(0, 5) }}</span>{% endif %}
+        </div>
+        {% if t.completed_by and status == 'DONE' %}
+            <div class="task-by"><i class="bi bi-person-check me-1"></i>{{ t.completed_by }}{% if t.completed_at %} · {{ t.completed_at | date('H:i') }}{% endif %}</div>
+        {% endif %}
+        {% if t.note %}<div class="task-note"><i class="bi bi-chat-left-text me-1"></i>{{ t.note }}</div>{% endif %}
+    </div>
+</div>

@@ -1,0 +1,398 @@
+{# layouts/mobile_base.twig #}
+<!DOCTYPE html>
+<html lang="{{ lang_code ?? 'pl' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{% block title %}{{ translations.consultant_panel ?? 'Consultant Panel' }}{% endblock %}</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/extensions/bootstrap-icons/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/compiled/css/app.css">
+
+    <link rel="manifest" href="{{ ROOT }}/manifest.webmanifest">
+    <meta name="theme-color" content="#435ebe">
+
+    {# iOS PWA #}
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="apple-touch-icon" href="{{ ROOT }}/assets/pwa/icon-192.png">
+
+    <style>
+        :root {
+            --app-tabbar-h: 72px;
+        }
+
+        body {
+            background: #f2f7ff;
+        }
+
+        /* CONTENT */
+        .app-content {
+            padding-bottom: 24px;
+        }
+        /* TOP BAR */
+        .app-topbar {
+            position: sticky;
+            top: 0;
+            z-index: 1020;
+            padding-top: env(safe-area-inset-top, 0px);
+            background: rgba(242, 247, 255, .92);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 0, 0, .05);
+        }
+        .app-topbar-inner {
+            min-height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 8px 0;
+        }
+        .app-title {
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin: 0;
+            font-size: 1.05rem;
+        }
+        .app-subtitle {
+            margin: 0;
+            font-size: .85rem;
+            color: #6c757d;
+        }
+        /* HAMBURGER BUTTON */
+        .app-hamburger {
+            background: none;
+            border: none;
+            padding: 6px 8px;
+            border-radius: 10px;
+            color: #435ebe;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background .15s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .app-hamburger:active { background: rgba(67,94,190,.1); }
+        .app-hamburger i { font-size: 1.5rem; line-height: 1; }
+        /* BACKDROP */
+        .app-nav-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1040;
+            background: rgba(0,0,0,.4);
+            opacity: 0;
+            transition: opacity .25s;
+        }
+        .app-nav-backdrop.is-open {
+            display: block;
+            opacity: 1;
+        }
+        /* TOP SHEET */
+        .app-nav-sheet {
+            position: fixed;
+            left: 0;
+            right: 0;
+            top: 0;
+            z-index: 1050;
+            background: #fff;
+            border-radius: 0 0 28px 28px;
+            box-shadow: 0 12px 48px rgba(0,0,0,.16);
+            padding-top: env(safe-area-inset-top, 0px);
+            transform: translateY(-100%);
+            transition: transform .32s cubic-bezier(.32,1.08,.64,1);
+            will-change: transform;
+            max-height: 92dvh;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        .app-nav-sheet.is-open {
+            transform: translateY(0);
+        }
+        .app-nav-sheet-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px 12px;
+            border-bottom: 1px solid rgba(0,0,0,.06);
+            position: sticky;
+            top: 0;
+            background: #fff;
+            z-index: 1;
+        }
+        .app-nav-sheet-title {
+            font-weight: 800;
+            font-size: .95rem;
+            color: #212529;
+            margin: 0;
+            letter-spacing: -.01em;
+        }
+        .app-nav-sheet-close {
+            background: rgba(0,0,0,.06);
+            border: none;
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            font-size: .95rem;
+            color: #6c757d;
+            transition: background .15s;
+            flex-shrink: 0;
+        }
+        .app-nav-sheet-close:active { background: rgba(0,0,0,.12); }
+        .app-nav-sheet-handle {
+            width: 40px; height: 4px;
+            background: #dee2e6;
+            border-radius: 2px;
+            margin: 6px auto 0;
+        }
+        /* NAV LIST */
+        .app-nav-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 8px 12px 16px;
+        }
+        .app-nav-card {
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 11px 12px;
+            border-radius: 14px;
+            background: transparent;
+            transition: background .15s;
+            -webkit-tap-highlight-color: transparent;
+            color: #212529;
+        }
+        .app-nav-card:active { background: rgba(67,94,190,.07); }
+        .app-nav-card.is-active { background: rgba(67,94,190,.08); }
+        .app-nav-card-icon {
+            width: 38px; height: 38px;
+            border-radius: 11px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .app-nav-card-icon i { font-size: 1.1rem; }
+        .app-nav-card-label {
+            font-weight: 700;
+            font-size: .9rem;
+            flex: 1;
+        }
+        .app-nav-card.is-active .app-nav-card-label { color: #435ebe; }
+    </style>
+
+    {% block head %}{% endblock %}
+
+    <style>
+        @keyframes shimmer {
+            0%   { background-position: -200% 0; }
+            100% { background-position:  200% 0; }
+        }
+        .skeleton-line {
+            height: 16px; border-radius: 8px; margin-bottom: 10px;
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+        }
+        .skeleton-card {
+            background: #fff; border-radius: 16px; padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 12px;
+        }
+        .skeleton-hero {
+            border-radius: 20px; padding: 22px; margin-bottom: 12px;
+            background: linear-gradient(90deg, #e8e8e8 25%, #d8d8d8 50%, #e8e8e8 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+            min-height: 110px;
+        }
+        .page-content-loaded { animation: fadeIn .3s ease; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+{% block topbar %}
+    <div class="app-topbar">
+        <div class="container">
+            <div class="app-topbar-inner">
+                <div>
+                    <p class="app-title">{% block page_title %}{{ translations.consultant ?? 'Consultant' }}{% endblock %}</p>
+                    <p class="app-subtitle">{% block page_subtitle %}{% endblock %}</p>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    {% block topbar_actions %}{% endblock %}
+                    <button class="app-hamburger" id="appHamburger" aria-label="{{ translations.menu ?? 'Menu' }}" aria-expanded="false" aria-controls="appNavSheet">
+                        <i class="bi bi-list"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+<main class="app-content">
+    <div class="container py-3">
+        {% block content %}{% endblock %}
+    </div>
+</main>
+
+{% include "components/bottom_nav.twig" with { active_nav: active_nav ?? '' } %}
+
+<script>window.__consultantRoot = '{{ ROOT }}';</script>
+<script src="{{ ROOT }}/assets/mazer/compiled/js/app.js"></script>
+<script src="{{ ROOT }}/assets/js/consultant-ajax.js"></script>
+{% block scripts %}{% endblock %}
+
+<script>
+    (function () {
+        if (!("serviceWorker" in navigator)) return;
+        window.addEventListener("load", async () => {
+            try {
+                const reg = await navigator.serviceWorker.register("/consultant/sw.js", { scope: "/consultant/" });
+                console.log("SW registered", reg);
+            } catch (e) {
+                console.warn("SW register failed", e);
+            }
+        });
+    })();
+</script>
+
+{# ── PWA INSTALL BANNER ── #}
+<style>
+    #pwa-banner {
+        position: fixed;
+        bottom: calc(var(--app-tabbar-h, 72px) + env(safe-area-inset-bottom, 0px) + 10px);
+        left: 12px; right: 12px;
+        z-index: 2000;
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: 0 8px 32px rgba(67,94,190,.18), 0 2px 8px rgba(0,0,0,.08);
+        padding: 14px 16px 14px 14px;
+        display: flex; align-items: center; gap: 12px;
+        animation: pwa-slide-up .35s cubic-bezier(.34,1.56,.64,1) both;
+        border: 1.5px solid rgba(67,94,190,.12);
+    }
+    @keyframes pwa-slide-up {
+        from { opacity: 0; transform: translateY(24px) scale(.97); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    #pwa-banner .pwa-icon { width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0; object-fit: cover; }
+    #pwa-banner .pwa-body { flex: 1; min-width: 0; }
+    #pwa-banner .pwa-title { font-weight: 800; font-size: .9rem; color: #212529; line-height: 1.2; }
+    #pwa-banner .pwa-sub   { font-size: .72rem; color: #6c757d; margin-top: 2px; }
+    #pwa-banner .pwa-btn-install {
+        background: linear-gradient(135deg,#435ebe,#6b7ff5);
+        color: #fff; border: none; padding: 7px 14px; border-radius: 20px;
+        font-size: .78rem; font-weight: 700; white-space: nowrap; cursor: pointer; flex-shrink: 0;
+    }
+    #pwa-banner .pwa-btn-close {
+        background: none; border: none; color: #adb5bd;
+        font-size: 1.1rem; cursor: pointer; padding: 0 0 0 6px; line-height: 1; flex-shrink: 0;
+    }
+    #pwa-ios-tip {
+        position: fixed;
+        bottom: calc(var(--app-tabbar-h, 72px) + env(safe-area-inset-bottom, 0px) + 10px);
+        left: 12px; right: 12px; z-index: 2000;
+        background: #1c1c1e; color: #fff; border-radius: 16px;
+        padding: 14px 16px; font-size: .82rem; line-height: 1.5;
+        box-shadow: 0 8px 32px rgba(0,0,0,.25);
+        animation: pwa-slide-up .35s cubic-bezier(.34,1.56,.64,1) both;
+        display: flex; align-items: flex-start; gap: 12px;
+    }
+    #pwa-ios-tip .pwa-ios-icon { font-size: 1.5rem; flex-shrink: 0; margin-top: 2px; }
+    #pwa-ios-tip .pwa-ios-body { flex: 1; }
+    #pwa-ios-tip .pwa-ios-close { background: none; border: none; color: #ffffffaa; font-size: 1.1rem; cursor: pointer; padding: 0; flex-shrink: 0; }
+    #pwa-ios-tip strong { color: #fff; }
+    #pwa-ios-tip .ios-share-icon {
+        display: inline-block; background: #0a84ff; color: #fff;
+        border-radius: 6px; padding: 1px 5px; font-size: .7rem; vertical-align: middle; margin: 0 2px;
+    }
+</style>
+
+<script>
+(function () {
+    const SNOOZE_KEY  = 'pwa_banner_snoozed';
+    const SNOOZE_DAYS = 30;
+
+    function isSnoozed() {
+        try {
+            const ts = localStorage.getItem(SNOOZE_KEY);
+            if (!ts) return false;
+            return (Date.now() - parseInt(ts, 10)) < SNOOZE_DAYS * 86400_000;
+        } catch { return false; }
+    }
+    function snooze() {
+        try { localStorage.setItem(SNOOZE_KEY, Date.now()); } catch {}
+    }
+
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+    if (isStandalone || isSnoozed()) return;
+
+    const isIos    = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+    if (isIos && isSafari) {
+        window.addEventListener('load', () => {
+            const tip = document.createElement('div');
+            tip.id = 'pwa-ios-tip';
+            tip.innerHTML = `
+                <span class="pwa-ios-icon">📲</span>
+                <div class="pwa-ios-body">
+                    <strong>Zainstaluj aplikację</strong><br>
+                    Dotknij <span class="ios-share-icon">⬆ Udostępnij</span> a następnie
+                    <strong>„Dodaj do ekranu głównego"</strong>, aby korzystać jak z natywnej.
+                </div>
+                <button class="pwa-ios-close" aria-label="Zamknij">✕</button>`;
+            document.body.appendChild(tip);
+            tip.querySelector('.pwa-ios-close').onclick = () => { snooze(); tip.remove(); };
+        });
+        return;
+    }
+
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+
+        const banner = document.createElement('div');
+        banner.id = 'pwa-banner';
+        banner.innerHTML = `
+            <img class="pwa-icon" src="/consultant/assets/pwa/icon-192.png" alt="icon">
+            <div class="pwa-body">
+                <div class="pwa-title">Zainstaluj aplikację</div>
+                <div class="pwa-sub">Dodaj do ekranu głównego — działa offline</div>
+            </div>
+            <button class="pwa-btn-install">Instaluj</button>
+            <button class="pwa-btn-close" aria-label="Zamknij">✕</button>`;
+        document.body.appendChild(banner);
+
+        banner.querySelector('.pwa-btn-install').onclick = async () => {
+            banner.remove();
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') snooze();
+            deferredPrompt = null;
+        };
+        banner.querySelector('.pwa-btn-close').onclick = () => { snooze(); banner.remove(); };
+    });
+
+    window.addEventListener('appinstalled', () => {
+        snooze();
+        const b = document.getElementById('pwa-banner');
+        if (b) b.remove();
+    });
+})();
+</script>
+
+</body>
+</html>
+

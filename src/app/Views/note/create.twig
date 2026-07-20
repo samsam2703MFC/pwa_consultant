@@ -1,0 +1,63 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% set is_employee_context = employee_id is defined and employee_id %}
+{% set list_url = is_employee_context ? (ROOT ~ '/shops/' ~ shop_id ~ '/employees/' ~ employee_id ~ '/notes') : (ROOT ~ '/shops/' ~ shop_id ~ '/notes') %}
+{% set create_url = list_url ~ '/new' %}
+{% set employee_label = employee.display_name ?? employee.employee_name ?? ((employee.name ?? '') ~ ' ' ~ (employee.surname ?? ''))|trim %}
+
+{% block title %}Nowa notatka — Consultant Panel{% endblock %}
+{% block page_title %}Nowa notatka{% endblock %}
+{% block page_subtitle %}{{ is_employee_context ? ('Dodaj notatke dla pracownika: ' ~ (employee_label ?: ('#' ~ employee_id))) : 'Dodaj notatke do placowki' }}{% endblock %}
+
+{% block content %}
+<div class="page-content-loaded">
+
+    <a href="{{ list_url }}"
+       class="d-inline-flex align-items-center gap-1 text-muted mb-3"
+       style="font-size:.82rem;text-decoration:none;">
+        <i class="bi bi-chevron-left"></i> Notatki
+    </a>
+
+    {% if errors.save is defined %}
+        <div class="alert alert-danger rounded-3 mb-3" role="alert">
+            <i class="bi bi-exclamation-circle me-2"></i>{{ errors.save }}
+        </div>
+    {% endif %}
+
+    <form method="POST" action="{{ create_url }}"
+          enctype="multipart/form-data" novalidate>
+
+        <div class="mb-3">
+            <label class="form-label fw-600" style="font-size:.88rem;">Kategoria
+                <span class="text-muted fw-400">(opcjonalna)</span>
+            </label>
+            <select name="note_type_id" class="form-select form-select-sm rounded-3">
+                <option value="">- bez kategorii -</option>
+                {% for type in note_types %}
+                    <option value="{{ type.id }}"
+                        {{ old('note_type_id') == type.id ? 'selected' : '' }}>
+                        {{ type.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-600" style="font-size:.88rem;">
+                Tresc notatki <span class="text-danger">*</span>
+            </label>
+            <textarea name="content" rows="5"
+                      class="form-control rounded-3 {{ errors.content is defined ? 'is-invalid' : '' }}"
+                      placeholder="Opisz obserwacje lub problem..." style="font-size:.9rem;">{{ old('content') }}</textarea>
+            {% if errors.content is defined %}
+                <div class="invalid-feedback">{{ errors.content }}</div>
+            {% endif %}
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 fw-700">
+            <i class="bi bi-check-lg me-2"></i>Zapisz notatke
+        </button>
+    </form>
+
+</div>
+{% endblock %}

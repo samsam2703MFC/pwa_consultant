@@ -1,0 +1,5 @@
+{% extends "layouts/error_mobile.twig" %}
+
+{% block error_title %}{{ translations.server_error ?? 'Błąd serwera' }}{% endblock %}
+{% block error_desc %}{{ translations.server_error_desc ?? 'Wystąpił nieoczekiwany błąd. Spróbuj ponownie.' }}{% endblock %}
+
