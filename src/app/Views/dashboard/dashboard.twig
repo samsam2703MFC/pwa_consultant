@@ -1,107 +1,130 @@
 {% extends "layouts/mobile_base.twig" %}
 {% import "components/_icons.twig" as icons %}
 
-{% block title %}{{ translations.dashboard ?? 'Panel główny' }} — {{ translations.consultant_panel ?? 'Consultant Panel' }}{% endblock %}
+{% block title %}{{ translations.dashboard ?? 'Panel consultant' }} — {{ translations.consultant_panel ?? 'Consultant' }}{% endblock %}
 
-{% block page_title %}{{ translations.welcome_back ?? 'Witaj ponownie' }}{% endblock %}
-{% block page_subtitle %}{{ translations.quick_overview_of_your_day ?? 'Szybki przegląd Twojego dnia' }}{% endblock %}
+{% set jn = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'] %}
+{% set mn = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'] %}
+{% set frenchdate = (jn[date|date('w')]|capitalize) ~ ' ' ~ date|date('j') ~ ' ' ~ mn[date|date('n') - 1] ~ ' ' ~ date|date('Y') %}
 
-{% block topbar_actions %}
-    <a href="{{ ROOT }}/logout" class="btn btn-sm btn-outline-secondary rounded-pill d-inline-flex align-items-center">
-        {{ icons.svg('log-out', 16) }}
-    </a>
+{# ── Custom header: logo + date + menu ── #}
+{% block topbar %}
+<div class="app-topbar">
+    <div class="container">
+        <div class="dash-head">
+            <div>
+                <img src="{{ ROOT }}/assets/brand/logo.png" alt="L'Atelier" class="dash-logo">
+                <div class="dash-date">{{ frenchdate }}</div>
+            </div>
+            <button class="app-hamburger dash-menu-btn" id="appHamburger" aria-label="{{ translations.menu ?? 'Menu' }}" aria-expanded="false" aria-controls="appNavSheet">
+                {{ icons.svg('menu', 22) }}
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block content %}
-<div class="page-content-loaded">
+<div class="page-content-loaded dash">
 
-    {# ── Nagłówek z datą ── #}
-    <div class="d-flex align-items-center justify-content-between mb-3">
-        <span class="fw-bold text-muted" style="font-size:.85rem;">
-            <span class="dash-date-ic">{{ icons.svg('calendar', 15) }}</span> {{ date }}
-        </span>
+    {# ── KPI grid ── #}
+    <div class="dash-kpis">
+        <div class="dash-kpi">
+            <span class="dash-kpi-ic" style="--tint:141,29,44;color:#8D1D2C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+            <div class="dash-kpi-val">{{ kpi_ca ?? '4 820 €' }}</div>
+            <div class="dash-kpi-lbl">{{ translations.revenue_today ?? "CA du jour" }} · <span style="color:#2D7A3E;font-weight:600">+8%</span></div>
+        </div>
+        <div class="dash-kpi">
+            <span class="dash-kpi-ic" style="--tint:45,122,62;color:#2D7A3E"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg></span>
+            <div class="dash-kpi-val">{{ kpi_check ?? '78%' }}</div>
+            <div class="dash-kpi-lbl">Checklists · 124/159</div>
+        </div>
+        <div class="dash-kpi">
+            <span class="dash-kpi-ic" style="--tint:31,79,107;color:#1F4F6B"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg></span>
+            <div class="dash-kpi-val">2<span style="font-size:15px;color:#7a7168">/5</span></div>
+            <div class="dash-kpi-lbl">Tâches faites</div>
+        </div>
+        <div class="dash-kpi">
+            <span class="dash-kpi-ic" style="--tint:138,74,36;color:#8a4a24"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M21 15.5V11a9 9 0 0 0-18 0v4.5L1.5 18h21z"/></svg></span>
+            <div class="dash-kpi-val">3</div>
+            <div class="dash-kpi-lbl">{{ translations.alerts_todo ?? 'Alertes à traiter' }}</div>
+        </div>
     </div>
 
-    {# ── Karty sekcji (placeholder — dane ładowane iteracyjnie) ── #}
-    <div class="row g-3">
+    {# ── Tâches du jour ── #}
+    <div class="dash-secthead">
+        <div class="dash-eyebrow">{{ translations.today_tasks ?? "Tâches du jour" }}</div>
+        <a href="{{ ROOT }}/tasks" class="dash-seelink">Tout voir</a>
+    </div>
+    <div class="dash-card dash-list">
+        <a href="{{ ROOT }}/tasks" class="dash-row">
+            <span class="dash-row-ic" style="background:rgba(45,122,62,.12);color:#2D7A3E"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <div class="dash-row-txt"><div class="dash-row-t" style="text-decoration:line-through;text-decoration-color:rgba(36,26,22,.35)">Contrôle vitrine du matin</div><div class="dash-row-s">Châtelain · 09:30</div></div>
+            <span style="font-size:11px;font-weight:600;color:#2D7A3E">Fait</span>
+        </a>
+        <a href="{{ ROOT }}/tasks" class="dash-row">
+            <span class="dash-row-ic" style="background:rgba(31,79,107,.1);color:#1F4F6B"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 2v4"/><path d="M8 2v4"/><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18"/></svg></span>
+            <div class="dash-row-txt"><div class="dash-row-t">Brief équipe</div><div class="dash-row-s">Sablon · 11:00</div></div>
+            <span class="dash-pill">À faire</span>
+        </a>
+        <a href="{{ ROOT }}/tasks" class="dash-row">
+            <span class="dash-row-ic" style="background:rgba(193,122,42,.14);color:#C17A2A"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg></span>
+            <div class="dash-row-txt"><div class="dash-row-t">Inventaire matières</div><div class="dash-row-s">Flagey · 14:00</div></div>
+            <span class="dash-pill">À faire</span>
+        </a>
+    </div>
 
-        <div class="col-12">
-            <a href="{{ ROOT }}/shops" class="text-decoration-none">
-                <div class="card border-0 shadow-sm" style="border-radius:16px;">
-                    <div class="card-body d-flex align-items-center gap-3 py-3">
-                        <div class="dash-tile">{{ icons.svg('store') }}</div>
-                        <div>
-                            <div class="fw-700" style="font-size:.95rem;">{{ translations.shops ?? 'Sklepy' }}</div>
-                            <div class="text-muted" style="font-size:.8rem;">Przychody i podsumowanie</div>
-                        </div>
-                        <span class="ms-auto dash-chevron">{{ icons.svg('chevron-right', 18) }}</span>
-                    </div>
-                </div>
-            </a>
-        </div>
+    {# ── Alertes ── #}
+    <div class="dash-eyebrow" style="margin:22px 2px 10px">{{ translations.alerts ?? 'Alertes' }}</div>
+    <div class="dash-alerts">
+        <a href="{{ ROOT }}/checklists" class="dash-alert" style="border-left-color:#C17A2A">
+            <span style="color:#C17A2A;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+            <div class="dash-row-txt"><div class="dash-alert-t">Checklist Sablon en retard</div><div class="dash-row-s">64% à 11h — clôture à 18h</div></div>
+            {{ icons.svg('chevron-right', 18) }}
+        </a>
+        <a href="{{ ROOT }}/claims" class="dash-alert" style="border-left-color:#8D1D2C">
+            <span style="color:#8D1D2C;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg></span>
+            <div class="dash-row-txt"><div class="dash-alert-t">Réclamation ouverte #2043</div><div class="dash-row-s">Châtelain — depuis 2 jours</div></div>
+            {{ icons.svg('chevron-right', 18) }}
+        </a>
+        <a href="{{ ROOT }}/shops" class="dash-alert" style="border-left-color:#8a4a24">
+            <span style="color:#8a4a24;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 17l5-5-5-5"/><path d="M21 12H3"/><path d="M3 5v14"/></svg></span>
+            <div class="dash-row-txt"><div class="dash-alert-t">Marge Flagey en baisse</div><div class="dash-row-s">−3 pts sur la semaine</div></div>
+            {{ icons.svg('chevron-right', 18) }}
+        </a>
+    </div>
 
-        <div class="col-12">
-            <a href="{{ ROOT }}/reports" class="text-decoration-none">
-                <div class="card border-0 shadow-sm" style="border-radius:16px;">
-                    <div class="card-body d-flex align-items-center gap-3 py-3">
-                        <div class="dash-tile">{{ icons.svg('file-text') }}</div>
-                        <div>
-                            <div class="fw-700" style="font-size:.95rem;">{{ translations.reports ?? 'Raporty' }}</div>
-                            <div class="text-muted" style="font-size:.8rem;">Przesyłanie raportów PDF</div>
-                        </div>
-                        <span class="ms-auto dash-chevron">{{ icons.svg('chevron-right', 18) }}</span>
-                    </div>
-                </div>
-            </a>
-        </div>
+    {# ── Vos boutiques ── #}
+    <div class="dash-secthead">
+        <div class="dash-eyebrow">{{ translations.your_shops ?? 'Vos boutiques' }}</div>
+        <a href="{{ ROOT }}/shops" class="dash-seelink">Détail P&amp;L</a>
+    </div>
+    <div class="dash-card dash-list">
+        <a href="{{ ROOT }}/shops" class="dash-row">
+            <div class="dash-row-txt"><div class="dash-row-t">Châtelain</div><div class="dash-row-s">Bruxelles</div></div>
+            <div class="dash-bar"><span style="width:92%;background:linear-gradient(90deg,#2D7A3E,#4bb264)"></span></div>
+            <span class="dash-pct" style="color:#2D7A3E">92%</span>
+        </a>
+        <a href="{{ ROOT }}/shops" class="dash-row">
+            <div class="dash-row-txt"><div class="dash-row-t">Flagey</div><div class="dash-row-s">Ixelles</div></div>
+            <div class="dash-bar"><span style="width:80%;background:linear-gradient(90deg,#C17A2A,#e3a856)"></span></div>
+            <span class="dash-pct" style="color:#C17A2A">80%</span>
+        </a>
+        <a href="{{ ROOT }}/shops" class="dash-row">
+            <div class="dash-row-txt"><div class="dash-row-t">Sablon</div><div class="dash-row-s">Bruxelles</div></div>
+            <div class="dash-bar"><span style="width:64%;background:linear-gradient(90deg,#8D1D2C,#c2465a)"></span></div>
+            <span class="dash-pct" style="color:#8D1D2C">64%</span>
+        </a>
+    </div>
 
-        <div class="col-12">
-            <a href="{{ ROOT }}/helpdesk" class="text-decoration-none">
-                <div class="card border-0 shadow-sm" style="border-radius:16px;">
-                    <div class="card-body d-flex align-items-center gap-3 py-3">
-                        <div class="dash-tile">{{ icons.svg('life-buoy') }}</div>
-                        <div>
-                            <div class="fw-700" style="font-size:.95rem;">{{ translations.helpdesk ?? 'Zgłoszenia' }}</div>
-                            <div class="text-muted" style="font-size:.8rem;">Zgłoszenia Helpdesk przypisane do Ciebie</div>
-                        </div>
-                        <span class="ms-auto dash-chevron">{{ icons.svg('chevron-right', 18) }}</span>
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-12">
-            <a href="{{ ROOT }}/claims" class="text-decoration-none">
-                <div class="card border-0 shadow-sm" style="border-radius:16px;">
-                    <div class="card-body d-flex align-items-center gap-3 py-3">
-                        <div class="dash-tile">{{ icons.svg('circle-alert') }}</div>
-                        <div>
-                            <div class="fw-700" style="font-size:.95rem;">{{ translations.claims ?? 'Reklamacje' }}</div>
-                            <div class="text-muted" style="font-size:.8rem;">Reklamacje CENTRAL</div>
-                        </div>
-                        <span class="ms-auto dash-chevron">{{ icons.svg('chevron-right', 18) }}</span>
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-12">
-            <a href="{{ ROOT }}/shops" class="text-decoration-none">
-                <div class="card border-0 shadow-sm" style="border-radius:16px;">
-                    <div class="card-body d-flex align-items-center gap-3 py-3">
-                        <div class="dash-tile">{{ icons.svg('square-pen') }}</div>
-                        <div>
-                            <div class="fw-700" style="font-size:.95rem;">Notatki</div>
-                            <div class="text-muted" style="font-size:.8rem;">Notatki i komentarze do placówek</div>
-                        </div>
-                        <span class="ms-auto dash-chevron">{{ icons.svg('chevron-right', 18) }}</span>
-                    </div>
-                </div>
-            </a>
-        </div>
-
+    {# ── Raccourcis ── #}
+    <div class="dash-eyebrow" style="margin:22px 2px 10px">{{ translations.shortcuts ?? 'Raccourcis' }}</div>
+    <div class="dash-shortcuts">
+        <a href="{{ ROOT }}/reports" class="dash-sc"><span style="color:#1F4F6B">{{ icons.svg('file-text', 21) }}</span><div>Rapports</div></a>
+        <a href="{{ ROOT }}/claims" class="dash-sc"><span style="color:#8D1D2C">{{ icons.svg('circle-alert', 21) }}</span><div>Réclam.</div></a>
+        <a href="{{ ROOT }}/notes" class="dash-sc"><span style="color:#5C4A8A">{{ icons.svg('square-pen', 21) }}</span><div>Notes</div></a>
+        <a href="{{ ROOT }}/targets" class="dash-sc"><span style="color:#C17A2A">{{ icons.svg('target', 21) }}</span><div>Targets</div></a>
     </div>
 
 </div>
 {% endblock %}
-
