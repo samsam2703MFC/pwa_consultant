@@ -448,6 +448,49 @@
         }
     }
 
+    // ── OVERHEAD (frais généraux) — proratisation semaine/jour ───────────────
+    // Les frais généraux sont saisis au MOIS. Le backend ne les renvoie que
+    // pour la vue mensuelle ; en semaine/jour ils arrivent à 0. On récupère le
+    // montant mensuel et on le proratise :
+    //   • semaine → mensuel / 4,3
+    //   • jour    → mensuel / (nombre de jours du mois courant)
+    // Puis on recalcule le Result (marge) avec cette valeur.
+    const WEEKS_PER_MONTH = 4.3;
+    const _monthlyOcCache = {};
+
+    function daysInCurrentMonth() {
+        const d = new Date();
+        return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    }
+
+    function overheadOf(data) {
+        const oc = data && data.overhead;
+        if (!oc) return null;
+        if (oc.value != null) return Number(oc.value);
+        if (oc.breakdown && oc.breakdown.month && oc.breakdown.month.value != null) {
+            return Number(oc.breakdown.month.value);
+        }
+        return null;
+    }
+
+    // Applique la proratisation à `data` (mutée) pour period ∈ {day, week}.
+    function prorateOverhead(period, data, monthlyOc) {
+        if (monthlyOc == null || !isFinite(monthlyOc)) return;
+        const divisor = period === 'week' ? WEEKS_PER_MONTH : daysInCurrentMonth();
+        const prorated = monthlyOc / divisor;
+
+        const prev = overheadOf(data) || 0;
+        data.overhead = Object.assign({}, data.overhead, { value: prorated, delta: null });
+
+        // Le Result n'incluait pas (ou peu) les frais généraux → on retire le
+        // complément proratisé pour que la marge soit correcte.
+        if (data.result && data.result.value != null) {
+            data.result = Object.assign({}, data.result, {
+                value: Number(data.result.value) - (prorated - prev),
+            });
+        }
+    }
+
     // ── LOAD DATA ───────────────────────────────────────────────────────────
 
     function loadPnl(shopId, period, dateFrom, dateTo) {
@@ -463,13 +506,38 @@
             params.date_to   = dateTo;
         }
 
+        const finish = (responseData) => {
+            if (skel) skel.style.display = 'none';
+            if (data) data.style.display = '';
+            renderPnl(shopId, responseData);
+        };
+
         ConsultantAjax.load({
             endpoint: '/consultant/shops/' + shopId + '/pnl',
             params,
             onSuccess: (responseData) => {
-                if (skel) skel.style.display = 'none';
-                if (data) data.style.display = '';
-                renderPnl(shopId, responseData);
+                // Vues mois/custom : inchangées.
+                if (period !== 'week' && period !== 'day') { finish(responseData); return; }
+
+                // Overhead mensuel déjà connu → proratise tout de suite.
+                if (_monthlyOcCache[shopId] != null) {
+                    prorateOverhead(period, responseData, _monthlyOcCache[shopId]);
+                    finish(responseData);
+                    return;
+                }
+
+                // Sinon on va chercher le montant mensuel une fois, puis on met en cache.
+                ConsultantAjax.load({
+                    endpoint: '/consultant/shops/' + shopId + '/pnl',
+                    params: { period: 'month' },
+                    onSuccess: (monthData) => {
+                        const monthlyOc = overheadOf(monthData);
+                        if (monthlyOc != null) _monthlyOcCache[shopId] = monthlyOc;
+                        prorateOverhead(period, responseData, monthlyOc);
+                        finish(responseData);
+                    },
+                    onError: () => { finish(responseData); }, // repli : affichage brut
+                });
             },
             onError: (msg) => {
                 showError(shopId, msg);
