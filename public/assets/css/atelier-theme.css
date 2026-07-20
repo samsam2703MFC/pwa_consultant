@@ -1,0 +1,186 @@
+/* =========================================================================
+   L'Atelier By — Consultant PWA brand theme
+   Overrides the default Mazer (Bootstrap 5.3) blue theme with the WebShop
+   "L'Atelier By" design system: burgundy + abricot + cream, Vank + Gotham.
+
+   Loaded AFTER mazer/compiled/css/app.css so it wins on equal specificity.
+   Tokens mirror WebShop's admin.css. Reversible: remove the <link> to revert.
+   ========================================================================= */
+
+/* ---- Brand fonts (mirrors WebShop) ------------------------------------- */
+@font-face {
+  font-family: 'Gotham';
+  src: url('../fonts/Gotham_Light.otf') format('opentype');
+  font-weight: 300; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Gotham';
+  src: url('../fonts/Gotham_Book.otf') format('opentype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Gotham';
+  src: url('../fonts/Gotham_Regular.otf') format('opentype');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Gotham';
+  src: url('../fonts/Gotham_Medium.otf') format('opentype');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Gotham';
+  src: url('../fonts/Gotham_Medium.otf') format('opentype');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Vank';
+  src: url('../fonts/GC_Vank.ttf') format('truetype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+
+/* ---- Brand tokens ------------------------------------------------------- */
+:root {
+  --color-primary:           #8D1D2C;
+  --color-primary-hover:     #731722;
+  --color-secondary:         #F2C9A0;
+  --color-bg:                #EAE4DC;
+  --color-surface:           #FFFFFF;
+  --color-text:              #222222;
+  --color-text-muted:        #666666;
+  --color-bg-secondary:      #F4EFE8;
+  --color-border-secondary:  rgba(34, 34, 34, 0.18);
+  --color-border-tertiary:   rgba(34, 34, 34, 0.10);
+  --color-collection-border: #c17a2a;
+
+  --font-display: 'Vank';
+  --font-ui: 'Gotham';
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* ---- Remap Bootstrap 5.3 (Mazer) core variables ---------------------- */
+  --bs-primary: var(--color-primary);
+  --bs-primary-rgb: 141, 29, 44;
+  --bs-primary-text-emphasis: #5c131d;
+  --bs-primary-bg-subtle: #f3dde0;
+  --bs-primary-border-subtle: #dda9b0;
+  --bs-link-color: var(--color-primary);
+  --bs-link-color-rgb: 141, 29, 44;
+  --bs-link-hover-color: var(--color-primary-hover);
+  --bs-body-font-family: 'Gotham', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --bs-body-color: var(--color-text);
+  --bs-body-bg: var(--color-bg);
+  --bs-border-radius: var(--radius-md);
+  --bs-border-radius-sm: var(--radius-sm);
+  --bs-border-radius-lg: var(--radius-lg);
+}
+
+/* ---- Base typography ---------------------------------------------------- */
+body {
+  font-family: 'Gotham', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+h1, h2, h3, h4, h5, .card-title, .app-title {
+  font-family: 'Vank', 'Gotham', serif;
+  letter-spacing: 0;
+}
+
+/* ---- Buttons ------------------------------------------------------------ */
+.btn-primary {
+  --bs-btn-bg: var(--color-primary);
+  --bs-btn-border-color: var(--color-primary);
+  --bs-btn-hover-bg: var(--color-primary-hover);
+  --bs-btn-hover-border-color: var(--color-primary-hover);
+  --bs-btn-active-bg: var(--color-primary-hover);
+  --bs-btn-active-border-color: var(--color-primary-hover);
+  --bs-btn-disabled-bg: var(--color-primary);
+  --bs-btn-disabled-border-color: var(--color-primary);
+  color: #fff;
+}
+.btn-outline-primary {
+  --bs-btn-color: var(--color-primary);
+  --bs-btn-border-color: var(--color-primary);
+  --bs-btn-hover-bg: var(--color-primary);
+  --bs-btn-hover-border-color: var(--color-primary);
+  --bs-btn-active-bg: var(--color-primary);
+  --bs-btn-active-border-color: var(--color-primary);
+}
+.btn-secondary {
+  --bs-btn-bg: var(--color-secondary);
+  --bs-btn-border-color: var(--color-secondary);
+  --bs-btn-color: var(--color-on-abricot, #6b4420);
+  --bs-btn-hover-bg: #e9b98a;
+  --bs-btn-hover-border-color: #e9b98a;
+  --bs-btn-hover-color: #6b4420;
+}
+
+/* ---- Text / background / badge utilities -------------------------------- */
+.text-primary { color: var(--color-primary) !important; }
+.bg-primary   { background-color: var(--color-primary) !important; }
+.link-primary { color: var(--color-primary) !important; }
+.badge.bg-primary { background-color: var(--color-primary) !important; }
+a { color: var(--color-primary); }
+a:hover { color: var(--color-primary-hover); }
+
+/* ---- Forms -------------------------------------------------------------- */
+.form-check-input:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 .2rem rgba(141, 29, 44, .15);
+}
+.form-switch .form-check-input:checked { background-color: var(--color-primary); }
+
+/* ---- Navs / pagination / progress -------------------------------------- */
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link { background-color: var(--color-primary); }
+.page-item.active .page-link {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.page-link { color: var(--color-primary); }
+.progress-bar { background-color: var(--color-primary); }
+.alert-primary {
+  --bs-alert-color: #5c131d;
+  --bs-alert-bg: #f3dde0;
+  --bs-alert-border-color: #dda9b0;
+}
+.spinner-border.text-primary,
+.spinner-grow.text-primary { color: var(--color-primary) !important; }
+
+/* ---- Cards -------------------------------------------------------------- */
+.card {
+  border-radius: var(--radius-lg);
+  border-color: var(--color-border-tertiary);
+}
+
+/* =========================================================================
+   App chrome (overrides the hardcoded blue in the twig inline <style>)
+   ========================================================================= */
+body { background: var(--color-bg) !important; }
+
+.app-topbar {
+  background: rgba(244, 239, 232, .92) !important;   /* --color-bg-secondary tint */
+  border-bottom: 1px solid var(--color-border-tertiary) !important;
+}
+.app-title { font-family: 'Vank', 'Gotham', serif; color: var(--color-text); }
+
+.app-hamburger { color: var(--color-primary) !important; }
+.app-hamburger:active { background: rgba(141, 29, 44, .10) !important; }
+
+.app-nav-card:active   { background: rgba(141, 29, 44, .07) !important; }
+.app-nav-card.is-active { background: rgba(141, 29, 44, .08) !important; }
+.app-nav-card.is-active .app-nav-card-label { color: var(--color-primary) !important; }
+
+/* Floating action button / tabbar accent */
+.app-tabbar .fab,
+.app-fab {
+  background: linear-gradient(135deg, var(--color-primary), #b23446) !important;
+}
