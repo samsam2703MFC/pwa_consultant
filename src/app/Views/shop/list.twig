@@ -361,8 +361,13 @@
         const L    = Number(data.labour   && data.labour.value)   || 0;
         const OC   = Number(data.overhead && data.overhead.value) || 0; // déjà proratisé (semaine/jour)
         const R    = Number(data.result   && data.result.value)   || 0;
-        const food = T - L - OC - R;   // Food Cost
+        const food = T - L - OC - R;   // Food Cost (dérivé)
         const gross = T - food;        // Marge brute
+        // Le backend n'expose pas le food cost et renvoie result = T − labour −
+        // overhead (donc food ≈ 0). On n'affiche Food Cost + Marge brute que si
+        // un vrai coût matière est dérivable ; sinon ces lignes sont masquées et
+        // réapparaîtront dès que le backend soustraira le food cost dans result.
+        const showFood = food >= 1;
 
         // % par rapport au TurnOver de la même période/magasin, arrondi à l'entier.
         const pct = (x) => (T > 0 ? Math.round((x / T) * 100) + '%' : '—');
@@ -379,23 +384,21 @@
             </div>
         `);
 
-        // 2. Food Cost
-        rows.push(`
-            <div class="pnl-row">
-                <span class="pnl-row-label"><span class="pnl-lever pnl-lever-food">Food Cost</span></span>
-                <span class="pnl-row-value">${fmt(food)}</span>
-                <span class="pnl-row-pct">${pct(food)}</span>
-            </div>
-        `);
-
-        // 3. Marge brute (ligne calculée = TurnOver − Food Cost)
-        rows.push(`
-            <div class="pnl-row pnl-row-sub">
-                <span class="pnl-row-label">Marge brute</span>
-                <span class="pnl-row-value">${fmt(gross)}</span>
-                <span class="pnl-row-pct">${pct(gross)}</span>
-            </div>
-        `);
+        // 2. Food Cost + 3. Marge brute — seulement si un food cost réel est dérivable.
+        if (showFood) {
+            rows.push(`
+                <div class="pnl-row">
+                    <span class="pnl-row-label"><span class="pnl-lever pnl-lever-food">Food Cost</span></span>
+                    <span class="pnl-row-value">${fmt(food)}</span>
+                    <span class="pnl-row-pct">${pct(food)}</span>
+                </div>
+                <div class="pnl-row pnl-row-sub">
+                    <span class="pnl-row-label">Marge brute</span>
+                    <span class="pnl-row-value">${fmt(gross)}</span>
+                    <span class="pnl-row-pct">${pct(gross)}</span>
+                </div>
+            `);
+        }
 
         // 4. Labour Cost
         rows.push(`
