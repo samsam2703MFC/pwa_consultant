@@ -93,23 +93,26 @@
         white-space: nowrap;
     }
 
-    /* Zdjęcia w załączniku — siatka 2 na wiersz, wyśrodkowane */
+    /* Zdjęcia w załączniku — siatka 2 na wiersz, wyrównane do lewej */
     .claim-photos {
         display: flex;
         flex-wrap: wrap;
-        justify-content: center;
+        justify-content: flex-start;
         gap: 8px;
         margin-top: 4px;
     }
-    .claim-photo {
+    .claim-photo,
+    .claim-photo-ph {
         flex: 0 0 calc(50% - 4px);
         max-width: calc(50% - 4px);
         min-width: 0;
         aspect-ratio: 4 / 3;
-        padding: 0;
-        border: 0;
         border-radius: 10px;
         overflow: hidden;
+    }
+    .claim-photo {
+        padding: 0;
+        border: 0;
         background: #f1f3f5;
         cursor: pointer;
         -webkit-tap-highlight-color: transparent;
@@ -119,6 +122,19 @@
         height: 100%;
         object-fit: cover;
         display: block;
+    }
+    /* Placeholder décoratif (emplacement vide quand nombre de photos impair) */
+    .claim-photo-ph {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f6f5f2;
+        color: #7a7168;
+    }
+    .claim-photo-ph svg {
+        width: 34px;
+        height: 34px;
+        opacity: .18;
     }
 
     /* Lightbox / podgląd pełnoekranowy */
@@ -316,6 +332,10 @@
                                                  loading="lazy">
                                         </button>
                                     {% endfor %}
+                                    {# Nombre impair → placeholder décoratif à droite pour garder la ligne alignée #}
+                                    {% if claim_photos|length is odd %}
+                                        <div class="claim-photo-ph" aria-hidden="true">{{ icons.svg('camera', 34) }}</div>
+                                    {% endif %}
                                 </div>
                             {% endif %}
                         </div>
