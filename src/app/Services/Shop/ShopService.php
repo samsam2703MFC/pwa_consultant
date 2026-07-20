@@ -11,5 +11,10 @@ class ShopService
     {
         return $this->shopRepository->getAllShops();
     }
+
+    public function getPnl(int $shopId, string $period = 'day'): array
+    {
+        return $this->shopRepository->getPnl($shopId, $period);
+    }
 }
 
