@@ -1,4 +1,5 @@
 {% extends "layouts/mobile_base.twig" %}
+{% import "components/_icons.twig" as icons %}
 
 {% block title %}{{ translations.dashboard ?? 'Panel główny' }} — {{ translations.consultant_panel ?? 'Consultant Panel' }}{% endblock %}
 
@@ -6,8 +7,8 @@
 {% block page_subtitle %}{{ translations.quick_overview_of_your_day ?? 'Szybki przegląd Twojego dnia' }}{% endblock %}
 
 {% block topbar_actions %}
-    <a href="{{ ROOT }}/logout" class="btn btn-sm btn-outline-secondary rounded-pill">
-        <i class="bi bi-box-arrow-right"></i>
+    <a href="{{ ROOT }}/logout" class="btn btn-sm btn-outline-secondary rounded-pill d-inline-flex align-items-center">
+        {{ icons.svg('log-out', 16) }}
     </a>
 {% endblock %}
 
@@ -17,7 +18,7 @@
     {# ── Nagłówek z datą ── #}
     <div class="d-flex align-items-center justify-content-between mb-3">
         <span class="fw-bold text-muted" style="font-size:.85rem;">
-            <i class="bi bi-calendar3 me-1"></i> {{ date }}
+            <span class="dash-date-ic">{{ icons.svg('calendar', 15) }}</span> {{ date }}
         </span>
     </div>
 
@@ -28,14 +29,12 @@
             <a href="{{ ROOT }}/shops" class="text-decoration-none">
                 <div class="card border-0 shadow-sm" style="border-radius:16px;">
                     <div class="card-body d-flex align-items-center gap-3 py-3">
-                        <div class="dash-tile">
-                            <i class="bi bi-shop"></i>
-                        </div>
+                        <div class="dash-tile">{{ icons.svg('store') }}</div>
                         <div>
                             <div class="fw-700" style="font-size:.95rem;">{{ translations.shops ?? 'Sklepy' }}</div>
                             <div class="text-muted" style="font-size:.8rem;">Przychody i podsumowanie</div>
                         </div>
-                        <i class="bi bi-chevron-right ms-auto text-muted"></i>
+                        <span class="ms-auto dash-chevron">{{ icons.svg('chevron-right', 18) }}</span>
                     </div>
                 </div>
             </a>
@@ -45,14 +44,12 @@
             <a href="{{ ROOT }}/reports" class="text-decoration-none">
                 <div class="card border-0 shadow-sm" style="border-radius:16px;">
                     <div class="card-body d-flex align-items-center gap-3 py-3">
-                        <div class="dash-tile">
-                            <i class="bi bi-file-earmark-pdf"></i>
-                        </div>
+                        <div class="dash-tile">{{ icons.svg('file-text') }}</div>
                         <div>
                             <div class="fw-700" style="font-size:.95rem;">{{ translations.reports ?? 'Raporty' }}</div>
                             <div class="text-muted" style="font-size:.8rem;">Przesyłanie raportów PDF</div>
                         </div>
-                        <i class="bi bi-chevron-right ms-auto text-muted"></i>
+                        <span class="ms-auto dash-chevron">{{ icons.svg('chevron-right', 18) }}</span>
                     </div>
                 </div>
             </a>
@@ -62,14 +59,12 @@
             <a href="{{ ROOT }}/helpdesk" class="text-decoration-none">
                 <div class="card border-0 shadow-sm" style="border-radius:16px;">
                     <div class="card-body d-flex align-items-center gap-3 py-3">
-                        <div class="dash-tile">
-                            <i class="bi bi-life-preserver"></i>
-                        </div>
+                        <div class="dash-tile">{{ icons.svg('life-buoy') }}</div>
                         <div>
                             <div class="fw-700" style="font-size:.95rem;">{{ translations.helpdesk ?? 'Zgłoszenia' }}</div>
                             <div class="text-muted" style="font-size:.8rem;">Zgłoszenia Helpdesk przypisane do Ciebie</div>
                         </div>
-                        <i class="bi bi-chevron-right ms-auto text-muted"></i>
+                        <span class="ms-auto dash-chevron">{{ icons.svg('chevron-right', 18) }}</span>
                     </div>
                 </div>
             </a>
@@ -79,14 +74,12 @@
             <a href="{{ ROOT }}/claims" class="text-decoration-none">
                 <div class="card border-0 shadow-sm" style="border-radius:16px;">
                     <div class="card-body d-flex align-items-center gap-3 py-3">
-                        <div class="dash-tile">
-                            <i class="bi bi-exclamation-circle"></i>
-                        </div>
+                        <div class="dash-tile">{{ icons.svg('circle-alert') }}</div>
                         <div>
                             <div class="fw-700" style="font-size:.95rem;">{{ translations.claims ?? 'Reklamacje' }}</div>
                             <div class="text-muted" style="font-size:.8rem;">Reklamacje CENTRAL</div>
                         </div>
-                        <i class="bi bi-chevron-right ms-auto text-muted"></i>
+                        <span class="ms-auto dash-chevron">{{ icons.svg('chevron-right', 18) }}</span>
                     </div>
                 </div>
             </a>
@@ -96,14 +89,12 @@
             <a href="{{ ROOT }}/shops" class="text-decoration-none">
                 <div class="card border-0 shadow-sm" style="border-radius:16px;">
                     <div class="card-body d-flex align-items-center gap-3 py-3">
-                        <div class="dash-tile">
-                            <i class="bi bi-journal-text"></i>
-                        </div>
+                        <div class="dash-tile">{{ icons.svg('square-pen') }}</div>
                         <div>
                             <div class="fw-700" style="font-size:.95rem;">Notatki</div>
                             <div class="text-muted" style="font-size:.8rem;">Notatki i komentarze do placówek</div>
                         </div>
-                        <i class="bi bi-chevron-right ms-auto text-muted"></i>
+                        <span class="ms-auto dash-chevron">{{ icons.svg('chevron-right', 18) }}</span>
                     </div>
                 </div>
             </a>
