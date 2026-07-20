@@ -32,16 +32,7 @@ class DebugController extends Controller
             return;
         }
 
-        // Session / token
-        $access   = $this->cookieManager->getAccessToken();
-        $accExp   = $this->cookieManager->getAccessTokenExpiryTime();
-        $refExp   = $this->cookieManager->getRefreshTokenExpiryTime();
-        $accExpired = $accExp ? (strtotime($accExp) < time()) : null;
-        echo '<h3 style="font-family:sans-serif">Session</h3><ul>';
-        echo '<li>Access token présent : ' . ($access ? '✅ (' . strlen($access) . ' car.)' : '❌') . '</li>';
-        echo '<li>Access expiry : ' . $esc($accExp ?: '—') . ($accExpired === true ? ' ⚠️ EXPIRÉ' : ($accExpired === false ? ' ✅ valide' : '')) . '</li>';
-        echo '<li>Refresh expiry : ' . $esc($refExp ?: '—') . '</li>';
-        echo '</ul>';
+        $esc = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 
         $shop   = (int)($_GET['shop'] ?? 0);
         $period = $_GET['period'] ?? 'month';
@@ -49,11 +40,20 @@ class DebugController extends Controller
             $period = 'month';
         }
 
-        $esc = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-
         echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
         echo '<body style="font-family:ui-monospace,Menlo,monospace;max-width:820px;margin:24px auto;padding:0 16px;color:#241f1c;background:#F4EFE8;line-height:1.5">';
         echo '<h2 style="font-family:sans-serif">Diagnostic P&L</h2>';
+
+        // Session / token
+        $access     = $this->cookieManager->getAccessToken();
+        $accExp     = $this->cookieManager->getAccessTokenExpiryTime();
+        $refExp     = $this->cookieManager->getRefreshTokenExpiryTime();
+        $accExpired = $accExp ? (strtotime($accExp) < time()) : null;
+        echo '<h3 style="font-family:sans-serif">Session</h3><ul>';
+        echo '<li>Access token présent : ' . ($access ? '✅ (' . strlen($access) . ' car.)' : '❌') . '</li>';
+        echo '<li>Access expiry : ' . $esc($accExp ?: '—') . ($accExpired === true ? ' ⚠️ EXPIRÉ' : ($accExpired === false ? ' ✅ valide' : '')) . '</li>';
+        echo '<li>Refresh expiry : ' . $esc($refExp ?: '—') . '</li>';
+        echo '</ul>';
 
         if ($shop === 0) {
             echo '<p>Ajoute <code>?shop=ID&period=month</code> (ou week / day) à l\'URL.</p>';
