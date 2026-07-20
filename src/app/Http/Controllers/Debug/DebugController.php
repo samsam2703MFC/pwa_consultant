@@ -102,9 +102,54 @@ class DebugController extends Controller
         echo '<li>Refresh expiry : ' . $esc($refExp ?: '—') . '</li>';
         echo '</ul>';
 
+        // ── Vue « tous les magasins » : /pnl-debug?all=1 ──
+        if (($_GET['all'] ?? '') === '1') {
+            $shopsResp = $this->apiClient->get('/consultant/shops');
+            $shops = ($shopsResp['success'] && isset($shopsResp['data'])) ? $shopsResp['data'] : [];
+            echo '<h3 style="font-family:sans-serif">Tous les magasins — indicateurs Boutiques</h3>';
+            echo '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:8px;overflow:hidden">';
+            echo '<tr style="background:#8D1D2C;color:#fff;text-align:left">'
+               . '<th style="padding:6px">id</th><th>magasin</th><th>fenêtre</th><th>j</th>'
+               . '<th>TurnOver</th><th>tickets</th><th>produits</th><th>t/j</th><th>panier</th><th>p/client</th></tr>';
+            foreach ($shops as $s) {
+                $sid  = (int)($s['id'] ?? 0);
+                $name = $s['representative_name'] ?? $s['name'] ?? ('#' . $sid);
+                $p    = $this->apiClient->get('/consultant/shops/' . $sid . '/pnl?period=month');
+                $pd   = $p['data'] ?? [];
+                $T    = isset($pd['turnover']['value']) ? (float)$pd['turnover']['value'] : 0.0;
+                $fd   = isset($pd['date_from']) ? substr((string)$pd['date_from'], 0, 10) : '';
+                $td   = isset($pd['date_to'])   ? substr((string)$pd['date_to'], 0, 10)   : '';
+                $tickets = 0; $products = 0; $days = 1;
+                if (\DateTimeImmutable::createFromFormat('!Y-m-d', $fd) && \DateTimeImmutable::createFromFormat('!Y-m-d', $td)) {
+                    $sum = $this->shopSales->getShopSummary($sid, $fd, $td);
+                    $tickets = $sum['tickets']; $products = $sum['products'];
+                    $toExcl = (new \DateTimeImmutable($td))->modify('+1 day');
+                    $days = max(1, (int)(new \DateTimeImmutable($fd))->diff($toExcl)->days);
+                }
+                $tj     = $tickets > 0 ? $tickets / $days : 0;
+                $basket = $tickets > 0 ? $T / $tickets : 0;
+                $ppc    = $tickets > 0 ? $products / $tickets : 0;
+                echo '<tr style="border-top:1px solid #eee">'
+                   . '<td style="padding:6px">' . $esc($sid) . '</td>'
+                   . '<td>' . $esc($name) . '</td>'
+                   . '<td>' . $esc($fd) . '→' . $esc($td) . '</td>'
+                   . '<td>' . $esc($days) . '</td>'
+                   . '<td>' . $esc(number_format($T, 0, ',', ' ')) . '</td>'
+                   . '<td><b>' . $esc($tickets) . '</b></td>'
+                   . '<td><b>' . $esc($products) . '</b></td>'
+                   . '<td>' . $esc(number_format($tj, 1, ',', ' ')) . '</td>'
+                   . '<td>' . $esc(number_format($basket, 2, ',', ' ')) . '</td>'
+                   . '<td>' . $esc(number_format($ppc, 2, ',', ' ')) . '</td></tr>';
+            }
+            echo '</table></div>';
+            echo '<p style="font-family:sans-serif;color:#8D1D2C">⚠️ Diagnostic temporaire — retire <code>SetEnv PNL_DIAG 1</code> après usage.</p>';
+            echo '</body>';
+            return;
+        }
+
         if ($shop === 0) {
             echo '<p>Ajoute <code>?shop=ID&period=month</code> (ou week / day) à l\'URL.</p>';
-            echo '<p>Ex : <code>/pwa_consultant/pnl-debug?shop=1&period=month</code></p>';
+            echo '<p>Ex : <code>/pwa_consultant/pnl-debug?shop=1&period=month</code> — ou <code>?all=1</code> pour tous les magasins.</p>';
             echo '</body>';
             return;
         }
