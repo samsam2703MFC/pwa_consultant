@@ -254,6 +254,14 @@
 
 {% include "components/bottom_nav.twig" with { active_nav: active_nav ?? '' } %}
 
+{# ── Bottom tab bar (primary navigation) ── #}
+<nav class="app-tabbar-bar" aria-label="{{ translations.primary_navigation ?? 'Navigation' }}">
+    <a href="{{ ROOT }}/dashboard"  class="app-tab {{ (active_nav ?? '') == 'dashboard'  ? 'is-active' : '' }}">{{ icons.svg('home', 23) }}<span>Accueil</span></a>
+    <a href="{{ ROOT }}/shops"      class="app-tab {{ (active_nav ?? '') == 'shops'      ? 'is-active' : '' }}">{{ icons.svg('store', 23) }}<span>Boutiques</span></a>
+    <a href="{{ ROOT }}/checklists" class="app-tab {{ (active_nav ?? '') == 'checklists' ? 'is-active' : '' }}">{{ icons.svg('clipboard-check', 23) }}<span>Checklists</span></a>
+    <a href="{{ ROOT }}/tasks"      class="app-tab {{ (active_nav ?? '') == 'tasks'      ? 'is-active' : '' }}">{{ icons.svg('square-check', 23) }}<span>Tâches</span></a>
+</nav>
+
 <script>window.__consultantRoot = '{{ ROOT }}';</script>
 <script src="{{ ROOT }}/assets/mazer/compiled/js/app.js"></script>
 <script src="{{ ROOT }}/assets/js/consultant-ajax.js"></script>
