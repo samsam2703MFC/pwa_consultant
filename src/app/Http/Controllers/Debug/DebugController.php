@@ -165,6 +165,34 @@ class DebugController extends Controller
            . '<b>CA=' . $esc(number_format($cm['ca'], 2, ',', ' ')) . '</b>, tickets=' . $esc($cm['tickets']) . '</li>';
         echo '</ul>';
 
+        // ── Diagnostic « tickets/jour » : comptage insert_timestamp vs ticket_key ──
+        if ($valid($fromDate) && $valid($toDate)) {
+            $dbg = $this->shopSales->getWindowDebug($shop, $fromDate, $toDate);
+
+            // Jours écoulés dans la fenêtre (même logique que ShopController).
+            $today   = new \DateTimeImmutable('today');
+            $capEnd  = $today->modify('+1 day');
+            $toExObj = (new \DateTimeImmutable($toDate))->modify('+1 day');
+            $effEnd  = $toExObj < $capEnd ? $toExObj : $capEnd;
+            $days    = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($effEnd)->days);
+
+            $perTs  = $dbg['tickets_ts']  > 0 ? $dbg['tickets_ts']  / $days : 0;
+            $perKey = $dbg['tickets_key'] > 0 ? $dbg['tickets_key'] / $days : 0;
+
+            echo '<h3 style="font-family:sans-serif">Tickets / jour</h3><ul>';
+            echo '<li>Fenêtre : <code>' . $esc($fromDate) . '</code> → <code>' . $esc($toDate) . '</code>, jours écoulés = <b>' . $esc($days) . '</b></li>';
+            echo '<li>Tickets (insert_timestamp) = <b>' . $esc($dbg['tickets_ts']) . '</b> → ' . $esc(number_format($perTs, 1, ',', ' ')) . ' / jour</li>';
+            echo '<li>Tickets (ticket_key = date métier) = <b>' . $esc($dbg['tickets_key']) . '</b> → ' . $esc(number_format($perKey, 1, ',', ' ')) . ' / jour</li>';
+            echo '<li>min / max insert_timestamp (magasin) : <code>' . $esc($dbg['min_ts'] ?? '—') . '</code> / <code>' . $esc($dbg['max_ts'] ?? '—') . '</code></li>';
+            echo '<li>lignes totales pour ce magasin : ' . $esc($dbg['total_rows']) . '</li>';
+            if ($dbg['tickets_ts'] !== $dbg['tickets_key']) {
+                echo '<li style="color:#8D1D2C"><b>⚠️ Écart insert_timestamp vs ticket_key</b> = '
+                   . $esc($dbg['tickets_key'] - $dbg['tickets_ts'])
+                   . ' → insert_timestamp est bruité, préférer ticket_key.</li>';
+            }
+            echo '</ul>';
+        }
+
         echo '<h3 style="font-family:sans-serif">Réponse brute</h3>';
         echo '<pre style="white-space:pre-wrap;background:#fff;padding:12px;border-radius:8px;font-size:12px">'
            . $esc(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
