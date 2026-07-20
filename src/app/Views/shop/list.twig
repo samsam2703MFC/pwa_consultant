@@ -363,11 +363,10 @@
         const R    = Number(data.result   && data.result.value)   || 0;
         const food = T - L - OC - R;   // Food Cost (dérivé)
         const gross = T - food;        // Marge brute
-        // Le backend n'expose pas le food cost et renvoie result = T − labour −
-        // overhead (donc food ≈ 0). On n'affiche Food Cost + Marge brute que si
-        // un vrai coût matière est dérivable ; sinon ces lignes sont masquées et
-        // réapparaîtront dès que le backend soustraira le food cost dans result.
-        const showFood = food >= 1;
+        // NOTE : le backend n'expose pas encore le food cost (result = T − labour
+        // − overhead ⇒ food ≈ 0 aujourd'hui). On affiche quand même la structure
+        // complète ; le food cost sera calculé depuis le CA par catégorie une
+        // fois les coefficients fournis.
 
         // % par rapport au TurnOver de la même période/magasin, arrondi à l'entier.
         const pct = (x) => (T > 0 ? Math.round((x / T) * 100) + '%' : '—');
@@ -384,8 +383,8 @@
             </div>
         `);
 
-        // 2. Food Cost + 3. Marge brute — seulement si un food cost réel est dérivable.
-        if (showFood) {
+        // 2. Food Cost + 3. Marge brute
+        {
             rows.push(`
                 <div class="pnl-row">
                     <span class="pnl-row-label"><span class="pnl-lever pnl-lever-food">Food Cost</span></span>
