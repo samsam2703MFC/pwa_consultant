@@ -16,6 +16,22 @@ class AuthMiddleware {
 
     public function handle(?string $requiredPerm = null): void
     {
+        // TEMPORARY test mode: skip auth entirely and run as a demo user.
+        // Enabled only when DEV_NO_AUTH is set (see config/app.php). OFF by default.
+        if (defined('DEV_NO_AUTH') && DEV_NO_AUTH) {
+            GlobalRegistry::set('user', [
+                'id'            => 0,
+                'display_name'  => 'Demo (no auth)',
+                'lang_code'     => getUserLanguage(),
+                'permissions'   => [],
+                'scope_type'    => '',
+                'scope_id'      => null,
+                'membership_id' => null,
+            ]);
+            GlobalRegistry::set('lang_code', getUserLanguage());
+            return; // grants access to every route; per-route permission checks skipped
+        }
+
         if (!$this->authService->ensureValidSession()) {
             redirect("auth");
             exit;
