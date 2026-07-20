@@ -1,4 +1,5 @@
 {% extends "layouts/mobile_base.twig" %}
+{% import "components/_icons.twig" as icons %}
 {% set active_nav = 'tasks' %}
 
 {% block title %}Zadanie{% endblock %}
@@ -44,12 +45,12 @@
     <div class="task-hero">
         <h2 class="task-title">{{ task.name }}</h2>
         <div class="task-chips">
-            {% if task.section_name or task.base_section_name %}<span class="task-chip"><i class="bi bi-diagram-3"></i>{{ task.section_name ?? task.base_section_name }}</span>{% endif %}
-            {% if task.category_name or task.base_category_name %}<span class="task-chip"><i class="bi bi-collection"></i>{{ task.category_name ?? task.base_category_name }}</span>{% endif %}
-            {% if task.subcategory_name or task.base_subcategory_name %}<span class="task-chip"><i class="bi bi-tag"></i>{{ task.subcategory_name ?? task.base_subcategory_name }}</span>{% endif %}
-            <span class="task-chip"><i class="bi bi-flag"></i>P{{ task.priority ?? 5 }}</span>
-            {% if task.is_mandatory %}<span class="task-chip"><i class="bi bi-exclamation-circle"></i>Obowiązkowe</span>{% endif %}
-            {% if requires_photo %}<span class="task-chip photo"><i class="bi bi-camera"></i>Wymaga zdjęcia</span>{% endif %}
+            {% if task.section_name or task.base_section_name %}<span class="task-chip">{{ icons.svg('network') }}{{ task.section_name ?? task.base_section_name }}</span>{% endif %}
+            {% if task.category_name or task.base_category_name %}<span class="task-chip">{{ icons.svg('layers') }}{{ task.category_name ?? task.base_category_name }}</span>{% endif %}
+            {% if task.subcategory_name or task.base_subcategory_name %}<span class="task-chip">{{ icons.svg('tag') }}{{ task.subcategory_name ?? task.base_subcategory_name }}</span>{% endif %}
+            <span class="task-chip">{{ icons.svg('flag') }}P{{ task.priority ?? 5 }}</span>
+            {% if task.is_mandatory %}<span class="task-chip">{{ icons.svg('circle-alert') }}Obowiązkowe</span>{% endif %}
+            {% if requires_photo %}<span class="task-chip photo">{{ icons.svg('camera') }}Wymaga zdjęcia</span>{% endif %}
         </div>
     </div>
 
@@ -61,9 +62,9 @@
             <div class="text-muted">Brak opisu.</div>
         {% endif %}
         <div class="task-chips">
-            {% if task.execution_time %}<span class="task-chip"><i class="bi bi-clock"></i>{{ task.execution_time|slice(0,5) }}</span>{% endif %}
-            {% if task.frequency %}<span class="task-chip"><i class="bi bi-arrow-repeat"></i>{{ task.frequency }}</span>{% endif %}
-            {% if task.day_of_week %}<span class="task-chip"><i class="bi bi-calendar-week"></i>{{ task.day_of_week }}</span>{% endif %}
+            {% if task.execution_time %}<span class="task-chip">{{ icons.svg('clock') }}{{ task.execution_time|slice(0,5) }}</span>{% endif %}
+            {% if task.frequency %}<span class="task-chip">{{ icons.svg('refresh-cw') }}{{ task.frequency }}</span>{% endif %}
+            {% if task.day_of_week %}<span class="task-chip">{{ icons.svg('calendar') }}{{ task.day_of_week }}</span>{% endif %}
         </div>
     </div>
 
@@ -98,10 +99,10 @@
 
             <div class="sticky-actions">
                 <button class="btn btn-primary w-100 fw-bold" type="submit" id="doneBtn"{% if requires_photo %} disabled{% endif %}>
-                    <i class="bi bi-check2-circle"></i> Oznacz jako zrealizowane
+                    {{ icons.svg('check-circle') }} Oznacz jako zrealizowane
                 </button>
                 <a class="btn btn-light w-100 fw-bold mt-2" href="{{ ROOT }}/tasks">
-                    <i class="bi bi-arrow-left"></i> Wróć do zadań
+                    {{ icons.svg('arrow-left') }} Wróć do zadań
                 </a>
             </div>
         </form>

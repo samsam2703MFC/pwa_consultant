@@ -1,5 +1,6 @@
 {% extends "layouts/mobile_base.twig" %}
 
+{% import "components/_icons.twig" as icons %}
 {% block title %}Targety — {{ shop.representative_name ?? shop.name ?? 'Sklep' }}{% endblock %}
 {% block page_title %}Targety{% endblock %}
 {% block page_subtitle %}{{ shop.representative_name ?? shop.name ?? '' }}{% endblock %}
@@ -34,7 +35,7 @@
     {# ── KOPIOWANIE ─────────────────────────────────────────────────────── #}
     <div class="mb-3">
         <button id="btn-copy" class="btn btn-outline-secondary btn-sm w-100">
-            <i class="bi bi-clipboard-arrow-down"></i>
+            {{ icons.svg('download') }}
             Kopiuj z poprzedniego miesiąca
         </button>
     </div>
@@ -64,7 +65,7 @@
                         {% endif %}
                         {% if adminTarget %}
                         <br><small class="text-muted" style="font-size:.7em">
-                            <i class="bi bi-shield-check text-primary"></i>
+                            <span class="text-primary">{{ icons.svg('shield-check') }}</span>
                             Admin: {{ adminTarget.t1 }}/{{ adminTarget.t2 }}/{{ adminTarget.t3 }}
                         </small>
                         {% endif %}
@@ -98,7 +99,7 @@
                 <thead>
                     <tr>
                         <th colspan="4" class="ps-3 py-2" style="background:#f8f9fa;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;">
-                            <i class="bi bi-bullseye text-primary me-1"></i> 6 Leviers de Pilotage
+                            <span class="text-primary me-1">{{ icons.svg('target') }}</span> 6 Leviers de Pilotage
                         </th>
                     </tr>
                     <tr>

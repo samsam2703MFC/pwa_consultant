@@ -1,5 +1,6 @@
 {% extends "layouts/mobile_base.twig" %}
 
+{% import "components/_icons.twig" as icons %}
 {% set active_nav = 'checklists' %}
 {% set net = data.network ?? {} %}
 {% set shops = data.shops ?? [] %}
@@ -17,20 +18,20 @@
 <div class="d-flex align-items-center gap-1">
     {% set prev_date = date | date_modify('-1 day') | date('Y-m-d') %}
     <a href="{{ ROOT }}/checklists?date={{ prev_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;">
-        <i class="bi bi-chevron-left" style="font-size:.8rem;"></i>
+        <span style="font-size:.8rem;">{{ icons.svg('chevron-left') }}</span>
     </a>
     <button type="button" class="btn btn-sm btn-light rounded-pill px-2" style="font-size:.75rem;font-weight:700;min-width:80px;" onclick="document.getElementById('checklistDatePicker').showPicker()">
-        <i class="bi bi-calendar3 me-1"></i>{{ date | date('d.m.Y') }}
+        <span class="me-1">{{ icons.svg('calendar') }}</span>{{ date | date('d.m.Y') }}
     </button>
     <input type="date" id="checklistDatePicker" value="{{ date }}" max="{{ today_date }}" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="window.location.href='{{ ROOT }}/checklists?date='+this.value">
     {% set next_date = date | date_modify('+1 day') | date('Y-m-d') %}
     {% if next_date <= today_date %}
         <a href="{{ ROOT }}/checklists?date={{ next_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;">
-            <i class="bi bi-chevron-right" style="font-size:.8rem;"></i>
+            <span style="font-size:.8rem;">{{ icons.svg('chevron-right') }}</span>
         </a>
     {% else %}
         <span class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center disabled" style="width:32px;height:32px;opacity:.3;">
-            <i class="bi bi-chevron-right" style="font-size:.8rem;"></i>
+            <span style="font-size:.8rem;">{{ icons.svg('chevron-right') }}</span>
         </span>
     {% endif %}
     {% if date != today_date %}
@@ -117,14 +118,14 @@
             </div>
         </div>
         <div class="hero-pills">
-            <span class="hero-pill done"><i class="bi bi-check2-circle"></i>{{ net.tasks_done ?? 0 }} wykonane</span>
-            {% if (net.tasks_skipped ?? 0) > 0 %}<span class="hero-pill skipped"><i class="bi bi-skip-forward-circle"></i>{{ net.tasks_skipped }} pominięte</span>{% endif %}
-            {% if (net.tasks_failed ?? 0) > 0 %}<span class="hero-pill failed"><i class="bi bi-x-circle"></i>{{ net.tasks_failed }} nieudane</span>{% endif %}
+            <span class="hero-pill done">{{ icons.svg('check-circle') }}{{ net.tasks_done ?? 0 }} wykonane</span>
+            {% if (net.tasks_skipped ?? 0) > 0 %}<span class="hero-pill skipped">{{ icons.svg('skip-forward') }}{{ net.tasks_skipped }} pominięte</span>{% endif %}
+            {% if (net.tasks_failed ?? 0) > 0 %}<span class="hero-pill failed">{{ icons.svg('circle-x') }}{{ net.tasks_failed }} nieudane</span>{% endif %}
         </div>
     </div>
 
     {% if shops | length > 0 %}
-        <div class="section-title"><i class="bi bi-trophy me-1"></i>Ranking sklepów — realizacja checklist</div>
+        <div class="section-title"><span class="me-1">{{ icons.svg('trophy') }}</span>Ranking sklepów — realizacja checklist</div>
         {% for s in shops %}
             {% set rank = loop.index %}
             {% set cr = s.completion_rate ?? 0 %}
@@ -137,15 +138,15 @@
                         <div class="d-flex align-items-center gap-1 flex-wrap">
                             <span class="shop-name">{{ s.shop_name }}</span>
                             {% if s.day_closed %}
-                                <span class="status-pill closed"><i class="bi bi-lock-fill"></i>Zamknięty</span>
+                                <span class="status-pill closed">{{ icons.svg('lock') }}Zamknięty</span>
                             {% else %}
-                                <span class="status-pill open"><i class="bi bi-unlock-fill"></i>Otwarty</span>
+                                <span class="status-pill open">{{ icons.svg('unlock') }}Otwarty</span>
                             {% endif %}
                             {% if (s.mandatory_missed ?? 0) > 0 %}
-                                <span class="status-pill missed"><i class="bi bi-exclamation-triangle-fill"></i>{{ s.mandatory_missed }} obowiązkowe</span>
+                                <span class="status-pill missed">{{ icons.svg('alert-triangle') }}{{ s.mandatory_missed }} obowiązkowe</span>
                             {% endif %}
                         </div>
-                        <div class="shop-city"><i class="bi bi-geo-alt me-1"></i>{{ s.shop_city }}</div>
+                        <div class="shop-city"><span class="me-1">{{ icons.svg('map-pin') }}</span>{{ s.shop_city }}</div>
                     </div>
                     <div style="text-align:right;flex-shrink:0;">
                         <div style="font-size:1.05rem;font-weight:900;color:{{ cr >= 80 ? '#27ae60' : (cr >= 50 ? '#e67e22' : '#e74c3c') }}">{{ s.completion_rate is not null ? s.completion_rate ~ '%' : '—' }}</div>
@@ -161,7 +162,7 @@
             </a>
         {% endfor %}
     {% else %}
-        <div class="empty-state"><i class="bi bi-clipboard2-check"></i>Brak danych checklist dla tego dnia.</div>
+        <div class="empty-state">{{ icons.svg('clipboard-check') }}Brak danych checklist dla tego dnia.</div>
     {% endif %}
 </div>
 {% endblock %}

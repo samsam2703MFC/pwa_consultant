@@ -1,3 +1,4 @@
+{% import "components/_icons.twig" as icons %}
 <!DOCTYPE html>
 <html lang="{{ lang_code ?? 'pl' }}">
 <head>
@@ -117,7 +118,7 @@
                             value="{{ old('phone') }}"
                         >
                         <div class="form-control-icon">
-                            <i class="bi bi-telephone"></i>
+                            {{ icons.svg('phone') }}
                         </div>
 
                         {% if errors.phone is not empty %}
@@ -137,7 +138,7 @@
                             value="{{ old('password') }}"
                         >
                         <div class="form-control-icon">
-                            <i class="bi bi-shield-lock"></i>
+                            {{ icons.svg('shield') }}
                         </div>
 
                         {% if errors.password is not empty %}
@@ -151,7 +152,7 @@
                         {% set errCode = errors.login_error %}
                         {% if errCode == 'MEMBERSHIP_INACTIVE' %}
                             <div class="alert alert-warning d-flex align-items-start gap-2 mt-2 mb-0 py-2 px-3" role="alert" style="border-radius:12px;">
-                                <i class="bi bi-lock-fill mt-1 flex-shrink-0" style="font-size:1.1rem;"></i>
+                                <span class="mt-1 flex-shrink-0" style="font-size:1.1rem;">{{ icons.svg('lock') }}</span>
                                 <div>
                                     <div class="fw-semibold" style="font-size:.92rem;">{{ translations.no_consultant_access ?? 'Brak dostępu do aplikacji' }}</div>
                                     <div style="font-size:.85rem; margin-top:2px;">{{ translations.contact_admin_to_restore ?? 'Twoje konto nie jest aktywne w systemie. Skontaktuj się z administratorem sieci w celu przywrócenia dostępu.' }}</div>
@@ -159,7 +160,7 @@
                             </div>
                         {% elseif errCode == 'ACCOUNT_DISABLED' %}
                             <div class="alert alert-danger d-flex align-items-start gap-2 mt-2 mb-0 py-2 px-3" role="alert" style="border-radius:12px;">
-                                <i class="bi bi-person-x-fill mt-1 flex-shrink-0" style="font-size:1.1rem;"></i>
+                                <span class="mt-1 flex-shrink-0" style="font-size:1.1rem;">{{ icons.svg('user-x') }}</span>
                                 <div>
                                     <div class="fw-semibold" style="font-size:.92rem;">{{ translations.account_disabled ?? 'Konto zablokowane' }}</div>
                                     <div style="font-size:.85rem; margin-top:2px;">{{ translations.contact_admin_account_disabled ?? 'Twoje konto zostało zablokowane. Skontaktuj się z administratorem sieci.' }}</div>
@@ -174,7 +175,7 @@
 
                     <div class="app-auth-actions">
                         <button class="btn btn-dark btn-lg w-100 shadow-sm">
-                            <i class="bi bi-box-arrow-in-right me-1"></i>
+                            <span class="me-1">{{ icons.svg('log-in') }}</span>
                             {{ translations.log_in ?? 'Zaloguj się' }}
                         </button>
 

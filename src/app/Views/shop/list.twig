@@ -1,5 +1,6 @@
 {% extends "layouts/mobile_base.twig" %}
 
+{% import "components/_icons.twig" as icons %}
 {% block title %}Sklepy — Consultant Panel{% endblock %}
 {% block page_title %}Sklepy{% endblock %}
 {% block page_subtitle %}Przegląd finansowy placówek{% endblock %}
@@ -214,7 +215,7 @@
 
     {% if shops is empty %}
         <div class="text-center text-muted py-5">
-            <i class="bi bi-shop" style="font-size:2.5rem;opacity:.3;"></i>
+            <span style="font-size:2.5rem;opacity:.3;">{{ icons.svg('store') }}</span>
             <p class="mt-3">Brak dostępnych sklepów.</p>
         </div>
     {% else %}
@@ -227,7 +228,7 @@
                         <div class="d-flex align-items-center gap-3">
                             <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
                                  style="width:42px;height:42px;background:rgba(67,94,190,.12);">
-                                <i class="bi bi-shop" style="font-size:1.1rem;color:#435ebe;"></i>
+                                <span style="font-size:1.1rem;color:#435ebe;">{{ icons.svg('store') }}</span>
                             </div>
                             <div class="flex-grow-1 min-w-0">
                                 <a href="{{ ROOT }}/shops/{{ shop.id }}/notes" class="text-decoration-none">
@@ -241,8 +242,8 @@
                                     style="background:rgba(67,94,190,.08);color:#435ebe;border-radius:10px;padding:5px 9px;"
                                     aria-label="P&L"
                                     aria-expanded="false">
-                                <i class="bi bi-bar-chart-line-fill" style="font-size:.9rem;"></i>
-                                <i class="bi bi-chevron-down ms-1 shop-toggle-chevron" style="font-size:.7rem;"></i>
+                                <span style="font-size:.9rem;">{{ icons.svg('bar-chart') }}</span>
+                                <span class="ms-1 shop-toggle-chevron" style="font-size:.7rem;">{{ icons.svg('chevron-down') }}</span>
                             </button>
                         </div>
                     </div>

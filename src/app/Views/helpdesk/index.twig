@@ -1,5 +1,6 @@
 {% extends "layouts/mobile_base.twig" %}
 
+{% import "components/_icons.twig" as icons %}
 {% block title %}Zgłoszenia — Consultant Panel{% endblock %}
 {% block page_title %}Zgłoszenia{% endblock %}
 {% block page_subtitle %}Helpdesk z Twoich obszarów odpowiedzialności{% endblock %}
@@ -260,7 +261,7 @@
 
     {% if cases is empty %}
         <div class="text-center text-muted py-5">
-            <i class="bi bi-inbox" style="font-size:2.5rem;opacity:.35;"></i>
+            <span style="font-size:2.5rem;opacity:.35;">{{ icons.svg('inbox') }}</span>
             <p class="mt-3 mb-0">Brak zgłoszeń Helpdesk przypisanych do Twoich obszarów.</p>
         </div>
     {% else %}
@@ -290,15 +291,15 @@
                     {% endif %}
 
                     <div class="task-case-meta">
-                        <span class="task-chip"><i class="bi bi-diagram-3"></i>{{ case.area_label ?? case.area_key }}</span>
+                        <span class="task-chip">{{ icons.svg('network') }}{{ case.area_label ?? case.area_key }}</span>
                         {% if case.shop_name %}
-                            <span class="task-chip"><i class="bi bi-shop"></i>{{ case.shop_name }}</span>
+                            <span class="task-chip">{{ icons.svg('store') }}{{ case.shop_name }}</span>
                         {% endif %}
                         {% if case.requester_name %}
-                            <span class="task-chip"><i class="bi bi-person"></i>{{ case.requester_name }}</span>
+                            <span class="task-chip">{{ icons.svg('user') }}{{ case.requester_name }}</span>
                         {% endif %}
                         {% if case.meeting_title %}
-                            <span class="task-chip"><i class="bi bi-calendar-event"></i>{{ case.meeting_title }}</span>
+                            <span class="task-chip">{{ icons.svg('calendar-days') }}{{ case.meeting_title }}</span>
                         {% endif %}
                     </div>
                 </article>

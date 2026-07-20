@@ -1,5 +1,6 @@
 {% extends "layouts/mobile_base.twig" %}
 
+{% import "components/_icons.twig" as icons %}
 {% set active_nav = 'checklists' %}
 {% set summary = data.summary ?? {} %}
 {% set tasks = data.tasks ?? [] %}
@@ -14,11 +15,11 @@
 {% block topbar_actions %}
 <div class="d-flex align-items-center gap-1">
     {% set prev_date = date | date_modify('-1 day') | date('Y-m-d') %}
-    <a href="{{ ROOT }}/checklists/shops/{{ id_shop }}/tasks?date={{ prev_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;"><i class="bi bi-chevron-left" style="font-size:.8rem;"></i></a>
-    <button type="button" class="btn btn-sm btn-light rounded-pill px-2" style="font-size:.75rem;font-weight:700;min-width:80px;" onclick="document.getElementById('stDatePicker').showPicker()"><i class="bi bi-calendar3 me-1"></i>{{ date | date('d.m.Y') }}</button>
+    <a href="{{ ROOT }}/checklists/shops/{{ id_shop }}/tasks?date={{ prev_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;"><span style="font-size:.8rem;">{{ icons.svg('chevron-left') }}</span></a>
+    <button type="button" class="btn btn-sm btn-light rounded-pill px-2" style="font-size:.75rem;font-weight:700;min-width:80px;" onclick="document.getElementById('stDatePicker').showPicker()"><span class="me-1">{{ icons.svg('calendar') }}</span>{{ date | date('d.m.Y') }}</button>
     <input type="date" id="stDatePicker" value="{{ date }}" max="{{ today_date }}" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="window.location.href='{{ ROOT }}/checklists/shops/{{ id_shop }}/tasks?date='+this.value">
     {% set next_date = date | date_modify('+1 day') | date('Y-m-d') %}
-    {% if next_date <= today_date %}<a href="{{ ROOT }}/checklists/shops/{{ id_shop }}/tasks?date={{ next_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;"><i class="bi bi-chevron-right" style="font-size:.8rem;"></i></a>{% endif %}
+    {% if next_date <= today_date %}<a href="{{ ROOT }}/checklists/shops/{{ id_shop }}/tasks?date={{ next_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;"><span style="font-size:.8rem;">{{ icons.svg('chevron-right') }}</span></a>{% endif %}
 </div>
 {% endblock %}
 
@@ -71,7 +72,7 @@
 </div>
 
 <div id="shop-checklists-content" style="display:none;" class="page-content-loaded">
-    <a href="{{ ROOT }}/checklists?date={{ date }}" class="back-link"><i class="bi bi-arrow-left-circle-fill"></i>Powrót do rankingu</a>
+    <a href="{{ ROOT }}/checklists?date={{ date }}" class="back-link">{{ icons.svg('arrow-left-circle') }}Powrót do rankingu</a>
 
     {% set cr = summary.completion_rate ?? null %}
     {% set rate_class = cr is not null ? (cr >= 80 ? 'ex' : (cr >= 50 ? 'ok' : 'no')) : 'no' %}
@@ -96,7 +97,7 @@
 
     {% if trend | length > 0 %}
         <div class="trend-card">
-            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6c757d;margin-bottom:10px;"><i class="bi bi-bar-chart-line me-1"></i>Ostatnie 7 dni</div>
+            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6c757d;margin-bottom:10px;"><span class="me-1">{{ icons.svg('bar-chart') }}</span>Ostatnie 7 dni</div>
             <div class="trend-bars">
                 {% for tr in trend %}
                     {% set tr_class = tr.completion_rate >= 80 ? 'ex' : (tr.completion_rate >= 50 ? 'ok' : (tr.completion_rate > 0 ? 'no' : '')) %}
@@ -111,15 +112,15 @@
         {% set mandatory_tasks = tasks | filter(t => t.is_mandatory) %}
         {% set optional_tasks = tasks | filter(t => not t.is_mandatory) %}
         {% if mandatory_tasks | length > 0 %}
-            <div class="section-title"><i class="bi bi-exclamation-circle-fill text-danger me-1"></i>Zadania obowiązkowe</div>
+            <div class="section-title"><span class="text-danger me-1">{{ icons.svg('circle-alert') }}</span>Zadania obowiązkowe</div>
             {% for t in mandatory_tasks %}{% include 'checklist/_task_item.twig' %}{% endfor %}
         {% endif %}
         {% if optional_tasks | length > 0 %}
-            <div class="section-title"><i class="bi bi-list-task me-1"></i>Pozostałe zadania</div>
+            <div class="section-title"><span class="me-1">{{ icons.svg('list-checks') }}</span>Pozostałe zadania</div>
             {% for t in optional_tasks %}{% include 'checklist/_task_item.twig' %}{% endfor %}
         {% endif %}
     {% else %}
-        <div class="empty-state"><i class="bi bi-check2-all" style="font-size:2rem;"></i><p class="mt-2 mb-0">Brak zadań dla tego dnia.</p></div>
+        <div class="empty-state"><span style="font-size:2rem;">{{ icons.svg('check-check') }}</span><p class="mt-2 mb-0">Brak zadań dla tego dnia.</p></div>
     {% endif %}
 </div>
 {% endblock %}
