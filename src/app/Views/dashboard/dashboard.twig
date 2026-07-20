@@ -7,17 +7,18 @@
 {% set mn = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'] %}
 {% set frenchdate = (jn[date|date('w')]|capitalize) ~ ' ' ~ date|date('j') ~ ' ' ~ mn[date|date('n') - 1] ~ ' ' ~ date|date('Y') %}
 
-{# ── Custom header: logo + date + menu ── #}
+{# ── Custom header: logo (left) · date (center) · avatar (right) ── #}
+{% set uname = current_user.display_name ?? '' %}
+{% set uparts = uname|trim|split(' ')|filter(p => p is not empty) %}
+{% set uinit = (uparts|first|default('')|slice(0,1)) ~ (uparts|length > 1 ? uparts[1]|slice(0,1) : '') %}
 {% block topbar %}
 <div class="app-topbar">
     <div class="container">
-        <div class="dash-head">
-            <div>
-                <img src="{{ ROOT }}/assets/brand/logo.png" alt="L'Atelier" class="dash-logo">
-                <div class="dash-date">{{ frenchdate }}</div>
-            </div>
-            <button class="app-hamburger dash-menu-btn" id="appHamburger" aria-label="Menu" aria-expanded="false" aria-controls="appNavSheet">
-                {{ icons.svg('menu', 22) }}
+        <div class="dash-head3">
+            <img src="{{ ROOT }}/assets/brand/logo.png" alt="L'Atelier" class="dash-logo">
+            <div class="dash-date3">{{ frenchdate }}</div>
+            <button class="dash-avatar" id="appHamburger" aria-label="{{ uname ?: 'Menu' }}" aria-expanded="false" aria-controls="appNavSheet">
+                {% if uinit|trim %}{{ uinit|upper }}{% else %}{{ icons.svg('user', 18) }}{% endif %}
             </button>
         </div>
     </div>
