@@ -14,25 +14,30 @@ class LoginRepository {
      */
     public function login(array $data): array
     {
-        $response = $this->apiClient->login('/consultant/auth/login', $data);
+        $response = $this->apiClient->login('/consultant/auth/login', $data) ?? [];
 
-        if (isset($response['access_token'])) {
-            return ['success' => true, 'jwt' => new JWTModel($response), 'error_code' => null];
+        // Toleruj zarówno płaską odpowiedź {access_token}, jak i opakowaną
+        // {data: {access_token}} / {tokens: {access_token}} — zależnie od backendu.
+        $payload = $response['data'] ?? $response['tokens'] ?? $response;
+
+        if (isset($payload['access_token']) && $payload['access_token'] !== '') {
+            return ['success' => true, 'jwt' => new JWTModel($payload), 'error_code' => null];
         }
 
         return [
             'success'    => false,
             'jwt'        => null,
-            'error_code' => $response['error_code'] ?? null,
+            'error_code' => $response['error_code'] ?? $payload['error_code'] ?? null,
         ];
     }
 
     public function refresh(string $refreshToken): ?JWTModel
     {
-        $response = $this->apiClient->login('/consultant/auth/refresh', ['refresh_token' => $refreshToken]);
+        $response = $this->apiClient->login('/consultant/auth/refresh', ['refresh_token' => $refreshToken]) ?? [];
+        $payload  = $response['data'] ?? $response['tokens'] ?? $response;
 
-        if (isset($response['access_token'])) {
-            return new JWTModel($response);
+        if (isset($payload['access_token']) && $payload['access_token'] !== '') {
+            return new JWTModel($payload);
         }
 
         return null;

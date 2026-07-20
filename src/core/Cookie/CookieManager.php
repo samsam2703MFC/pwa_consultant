@@ -5,12 +5,30 @@ use App\Consultant\app\Models\Auth\JWTModel;
 
 class CookieManager {
 
+    /**
+     * Czy bieżące połączenie jest HTTPS. Cookie z flagą Secure NIE są
+     * zapisywane przez przeglądarkę na zwykłym HTTP — na serwerze HTTP
+     * (np. http://185.180.206.46) powodowałoby to pętlę logowania.
+     */
+    private function isSecure(): bool
+    {
+        if (isset($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off' && $_SERVER['HTTPS'] !== '') {
+            return true;
+        }
+        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
+            return true;
+        }
+        return isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443;
+    }
+
     public function setAuthCookie(JWTModel $jwtObj, string $expiry_token_date): bool
     {
+        $secure = $this->isSecure();
+
         $res_access = setcookie('consultant_access_token', $jwtObj->getToken(), [
             'expires'  => strtotime($expiry_token_date),
             'path'     => '/',
-            'secure'   => true,
+            'secure'   => $secure,
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -25,7 +43,7 @@ class CookieManager {
         $res_expiry = setcookie('consultant_access_token_expiry', $expiry_token_date, [
             'expires'  => strtotime($expiry_token_date),
             'path'     => '/',
-            'secure'   => true,
+            'secure'   => $secure,
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -37,10 +55,11 @@ class CookieManager {
 
     public function setRefreshCookie(JWTModel $jwtObj, string $expiry_token_date): bool
     {
+        $secure = $this->isSecure();
         $res_access = setcookie('consultant_refresh_token', $jwtObj->getRefreshToken(), [
             'expires'  => strtotime($expiry_token_date),
             'path'     => '/',
-            'secure'   => true,
+            'secure'   => $secure,
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -55,7 +74,7 @@ class CookieManager {
         $res_expiry = setcookie('consultant_refresh_token_expiry', $expiry_token_date, [
             'expires'  => strtotime($expiry_token_date),
             'path'     => '/',
-            'secure'   => true,
+            'secure'   => $secure,
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -67,7 +86,7 @@ class CookieManager {
 
     public function unsetCookies(): void
     {
-        $expired = ['expires' => time() - 3600, 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax'];
+        $expired = ['expires' => time() - 3600, 'path' => '/', 'secure' => $this->isSecure(), 'httponly' => true, 'samesite' => 'Lax'];
 
         setcookie('consultant_refresh_token',          '', $expired);
         setcookie('consultant_refresh_token_expiry',   '', $expired);
