@@ -80,6 +80,19 @@
     }
     .pnl-row-label i { font-size: .75rem; color: #adb5bd; transition: transform .2s; }
     .pnl-row.expanded .pnl-row-label i { transform: rotate(90deg); }
+
+    /* Levier de gestion — tags colorés (Masse salariale / Frais généraux) */
+    .pnl-lever {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: .74rem; font-weight: 700; letter-spacing: .01em;
+        padding: 3px 10px 3px 8px; border-radius: 999px; line-height: 1;
+    }
+    .pnl-lever::before {
+        content: ''; width: 7px; height: 7px; border-radius: 1.5px;
+        transform: rotate(45deg); background: currentColor;
+    }
+    .pnl-lever-labour { color: #1F4F6B; background: rgba(31,79,107,.10); }
+    .pnl-lever-oc     { color: #C17A2A; background: rgba(193,122,42,.14); }
     .pnl-row-value {
         font-size: .82rem;
         font-weight: 700;
@@ -350,7 +363,7 @@
         const { text: labDelta, cls: labDeltaCls } = fmtDelta(data.labour.delta);
         rows.push(`
             <div class="pnl-row">
-                <span class="pnl-row-label">Labour</span>
+                <span class="pnl-row-label"><span class="pnl-lever pnl-lever-labour">Masse salariale</span></span>
                 <span class="pnl-row-value">${fmt(data.labour.value)}</span>
                 <span class="pnl-row-delta ${labDeltaCls}">${labDelta}</span>
             </div>
@@ -361,7 +374,7 @@
         const { text: ocDelta, cls: ocDeltaCls } = fmtDelta(overhead.delta);
         rows.push(`
             <div class="pnl-row">
-                <span class="pnl-row-label">Overhead (OC)</span>
+                <span class="pnl-row-label"><span class="pnl-lever pnl-lever-oc">Frais généraux</span></span>
                 <span class="pnl-row-value">${fmt(overhead.value)}</span>
                 <span class="pnl-row-delta ${ocDeltaCls}">${ocDelta}</span>
             </div>
