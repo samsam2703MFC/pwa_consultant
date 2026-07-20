@@ -63,6 +63,7 @@ class Controller
         $data['warnings']           = $this->warnings;
         $data['successes']          = $this->successes;
         $data['ROOT']               = ROOT;
+        $data['dev_no_auth']        = defined('DEV_NO_AUTH') && DEV_NO_AUTH;
         $data['api_base_url']       = API_BASE_URL;
         $data['shared_files_url']   = SHARED_FILES_URL;
         $data['currency_symbol']    = APP_CURRENCY_SYMBOL;

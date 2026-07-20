@@ -219,6 +219,12 @@
 </head>
 <body>
 
+{% if dev_no_auth %}
+<div style="position:sticky;top:0;z-index:2000;background:#8D1D2C;color:#fff;font-family:'Gotham',sans-serif;font-size:.72rem;font-weight:600;text-align:center;padding:4px 8px;letter-spacing:.04em;">
+    ⚠ MODE TEST — sans authentification (DEV_NO_AUTH). À désactiver avant mise en production.
+</div>
+{% endif %}
+
 {% block topbar %}
     <div class="app-topbar">
         <div class="container">
