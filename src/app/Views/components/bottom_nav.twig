@@ -6,12 +6,13 @@
     active_nav  — klucz aktywnej pozycji (string, np. 'shops')
     items       — opcjonalna tablica pozycji (nadpisuje domyślne)
 #}
+{% import "components/_icons.twig" as icons %}
 {% set items = items ?? [
     {
         key: 'dashboard',
         label: translations.home    ?? 'Home',
         sub:   translations.nav_sub_dashboard ?? 'Przegląd dnia',
-        icon:  'bi-house-fill',
+        icon:  'home',
         color: '#435ebe',
         bg:    'rgba(67,94,190,.12)',
         href:  ROOT ~ '/dashboard',
@@ -21,7 +22,7 @@
         key: 'shops',
         label: translations.shops   ?? 'Sklepy',
         sub:   translations.nav_sub_shops ?? 'Przychody i podsumowanie',
-        icon:  'bi-shop',
+        icon:  'store',
         color: '#435ebe',
         bg:    'rgba(67,94,190,.12)',
         href:  ROOT ~ '/shops'
@@ -30,7 +31,7 @@
         key: 'reports',
         label: translations.reports ?? 'Raporty',
         sub:   translations.nav_sub_reports ?? 'Przesyłanie raportów PDF',
-        icon:  'bi-file-earmark-pdf',
+        icon:  'file-text',
         color: '#28a745',
         bg:    'rgba(40,167,69,.12)',
         href:  ROOT ~ '/reports'
@@ -39,7 +40,7 @@
         key: 'helpdesk',
         label: translations.helpdesk ?? 'Zgłoszenia',
         sub:   translations.nav_sub_helpdesk ?? 'Zgłoszenia Helpdesk',
-        icon:  'bi-life-preserver',
+        icon:  'life-buoy',
         color: '#e0a000',
         bg:    'rgba(255,193,7,.18)',
         href:  ROOT ~ '/helpdesk'
@@ -48,7 +49,7 @@
         key: 'tasks',
         label: translations.tasks ?? 'Zadania',
         sub:   translations.nav_sub_tasks ?? 'Zadania konsultanta',
-        icon:  'bi-check2-square',
+        icon:  'square-check',
         color: '#0d6efd',
         bg:    'rgba(13,110,253,.12)',
         href:  ROOT ~ '/tasks'
@@ -57,7 +58,7 @@
         key: 'claims',
         label: translations.claims  ?? 'Reklamacje',
         sub:   translations.nav_sub_claims ?? 'Reklamacje CENTRAL',
-        icon:  'bi-exclamation-circle',
+        icon:  'circle-alert',
         color: '#dc3545',
         bg:    'rgba(220,53,69,.12)',
         href:  ROOT ~ '/claims'
@@ -66,7 +67,7 @@
         key: 'notes',
         label: translations.notes   ?? 'Notatki',
         sub:   translations.nav_sub_notes ?? 'Komentarze do placówek',
-        icon:  'bi-journal-text',
+        icon:  'square-pen',
         color: '#6c757d',
         bg:    'rgba(108,117,125,.12)',
         href:  ROOT ~ '/notes'
@@ -75,7 +76,7 @@
         key: 'checklists',
         label: translations.checklists ?? 'Checklisty',
         sub:   translations.nav_sub_checklists ?? 'Realizacja zadań w sklepie',
-        icon:  'bi-clipboard2-check',
+        icon:  'clipboard-check',
         color: '#0d6efd',
         bg:    'rgba(13,110,253,.12)',
         href:  ROOT ~ '/checklists'
@@ -84,7 +85,7 @@
         key: 'targets',
         label: translations.targets ?? 'Targety',
         sub:   translations.nav_sub_targets ?? 'Progi oceny sklepów',
-        icon:  'bi-bullseye',
+        icon:  'target',
         color: '#fd7e14',
         bg:    'rgba(253,126,20,.12)',
         href:  ROOT ~ '/targets'
@@ -93,7 +94,7 @@
         key: 'profile',
         label: translations.profile ?? 'Profil',
         sub:   translations.nav_sub_profile ?? 'Moje konto i ustawienia',
-        icon:  'bi-person-circle',
+        icon:  'user',
         color: '#6f42c1',
         bg:    'rgba(111,66,193,.12)',
         href:  ROOT ~ '/me'
@@ -110,7 +111,7 @@
     <div class="app-nav-sheet-header">
         <p class="app-nav-sheet-title">{{ translations.menu ?? 'Menu' }}</p>
         <button class="app-nav-sheet-close" id="appNavClose" aria-label="{{ translations.close ?? 'Zamknij' }}">
-            <i class="bi bi-x"></i>
+            {{ icons.svg('x', 20) }}
         </button>
     </div>
     <div class="app-nav-grid">
@@ -119,10 +120,8 @@
             <a href="{{ it.href }}"
                class="app-nav-card {{ is_active ? 'is-active' : '' }}"
                aria-current="{{ is_active ? 'page' : 'false' }}">
-                <span class="app-nav-card-icon"
-                      style="background:{{ it.bg }}"
-                      aria-hidden="true">
-                    <i class="bi {{ it.icon }}" style="color:{{ it.color }}"></i>
+                <span class="app-nav-card-icon" aria-hidden="true">
+                    {{ icons.svg(it.icon, 20) }}
                 </span>
                 <span class="app-nav-card-label">{{ it.label }}</span>
             </a>

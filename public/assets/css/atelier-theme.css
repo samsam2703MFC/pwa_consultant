@@ -112,6 +112,14 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
 .app-nav-card.is-active .app-nav-card-label { color:var(--c-primary) !important; }
 .app-nav-card-icon { border-radius:12px !important; background:var(--c-secondary-soft) !important; }
 .app-nav-card-icon i { color:var(--c-primary) !important; }
+.app-nav-card-icon svg { color:var(--c-primary); display:block; }
+.app-nav-card.is-active .app-nav-card-icon { background:rgba(141,29,44,.14) !important; }
+
+/* ---- Line-icon set (Lucide) — global sizing/alignment ------------------- */
+.lc-icon { display:inline-block; vertical-align:-2px; flex:none; }
+.dash-chevron { display:inline-flex; align-items:center; }
+.dash-chevron svg { color:var(--c-muted); opacity:.5; }
+.dash-date-ic svg { color:var(--c-muted); vertical-align:-3px; }
 
 /* Bottom tabbar + FAB */
 .app-tabbar, .tabbar { background:var(--c-surface) !important; border-top:1px solid var(--c-line) !important; }
@@ -132,18 +140,18 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
   display:flex; align-items:center; justify-content:center;
   background:var(--c-secondary-soft); box-shadow:inset 0 0 0 1px rgba(36,26,22,.04);
 }
-.dash-tile i { font-size:1.24rem; color:var(--c-primary); }
+.dash-tile svg { width:22px; height:22px; display:block; color:var(--c-primary); }
 /* per-item accent — order: Shops, Reports, Helpdesk, Claims, Notes */
 .row.g-3 > .col-12:nth-child(1) .dash-tile { background:rgba(141,29,44,.11); }
-.row.g-3 > .col-12:nth-child(1) .dash-tile i { color:var(--c-ruby); }
+.row.g-3 > .col-12:nth-child(1) .dash-tile svg { color:var(--c-ruby); }
 .row.g-3 > .col-12:nth-child(2) .dash-tile { background:rgba(31,79,107,.11); }
-.row.g-3 > .col-12:nth-child(2) .dash-tile i { color:var(--c-encre); }
+.row.g-3 > .col-12:nth-child(2) .dash-tile svg { color:var(--c-encre); }
 .row.g-3 > .col-12:nth-child(3) .dash-tile { background:rgba(193,122,42,.14); }
-.row.g-3 > .col-12:nth-child(3) .dash-tile i { color:var(--c-ambre); }
+.row.g-3 > .col-12:nth-child(3) .dash-tile svg { color:var(--c-ambre); }
 .row.g-3 > .col-12:nth-child(4) .dash-tile { background:rgba(138,74,36,.12); }
-.row.g-3 > .col-12:nth-child(4) .dash-tile i { color:var(--c-brun); }
+.row.g-3 > .col-12:nth-child(4) .dash-tile svg { color:var(--c-brun); }
 .row.g-3 > .col-12:nth-child(5) .dash-tile { background:rgba(92,74,138,.12); }
-.row.g-3 > .col-12:nth-child(5) .dash-tile i { color:var(--c-aubergine); }
+.row.g-3 > .col-12:nth-child(5) .dash-tile svg { color:var(--c-aubergine); }
 /* dashboard card feel */
 .row.g-3 > .col-12 .card .card-body { gap:14px !important; }
 .row.g-3 > .col-12 .card .fw-700 { font-size:1rem; letter-spacing:-.01em; }
