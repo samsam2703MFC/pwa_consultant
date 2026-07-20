@@ -2,6 +2,7 @@
 namespace App\Consultant\app\Services\Dashboard;
 
 use App\Consultant\app\Services\Checklist\ChecklistService;
+use App\Consultant\app\Services\Shop\ShopService;
 use App\Consultant\app\Services\Task\TaskService;
 
 /**
@@ -30,6 +31,7 @@ class DashboardService
     public function __construct(
         private ChecklistService $checklistService,
         private TaskService $taskService,
+        private ShopService $shopService,
     ) {}
 
     public function getDashboard(string $date): array
@@ -47,13 +49,76 @@ class DashboardService
         }
 
         $alerts = $this->buildAlerts($shops);
+        $kpis   = $this->buildKpis($net, $tasks, $alerts['total']);
+
+        // „CA du jour" — agregacja P&L wszystkich sklepów (turnover.value).
+        $ca = $this->computeCaToday();
+        if ($ca['value'] !== null) {
+            $kpis['ca_today']    = $ca['value'];
+            $kpis['ca_delta']    = $ca['delta'];
+            $kpis['ca_delta_up'] = $ca['up'];
+        }
 
         return [
-            'kpis'        => $this->buildKpis($net, $tasks, $alerts['total']),
+            'kpis'        => $kpis,
             'today_tasks' => $this->buildTasks($tasks),
             'alerts'      => $alerts['items'],
             'shops'       => $this->buildShops($shops),
         ];
+    }
+
+    /**
+     * Sumuje dzienny obrót (turnover.value) po wszystkich sklepach konsultanta
+     * i wyznacza łączną zmianę procentową odtwarzając poprzedni okres z delty
+     * każdego sklepu: prev = value / (1 + delta/100).
+     * Endpoint: /consultant/shops/{id}/pnl?period=day (po jednym na sklep).
+     */
+    private function computeCaToday(): array
+    {
+        $shops    = $this->shopService->getAllShops();
+        $totalCA  = 0.0;
+        $totalPrev = 0.0;
+        $hasValue = false;
+        $hasDelta = false;
+
+        foreach ($shops as $shop) {
+            $shopId = (int)($shop['id'] ?? 0);
+            if ($shopId === 0) {
+                continue;
+            }
+
+            $pnl = $this->shopService->getPnl($shopId, 'day');
+            $val = $pnl['turnover']['value'] ?? null;
+            if ($val === null) {
+                continue;
+            }
+
+            $hasValue = true;
+            $totalCA += (float)$val;
+
+            $delta = $pnl['turnover']['delta'] ?? null;
+            if ($delta !== null && (1 + $delta / 100) != 0.0) {
+                $totalPrev += (float)$val / (1 + $delta / 100);
+                $hasDelta = true;
+            } else {
+                $totalPrev += (float)$val;
+            }
+        }
+
+        if (!$hasValue) {
+            return ['value' => null, 'delta' => null, 'up' => true];
+        }
+
+        $value = number_format($totalCA, 0, ',', ' ') . ' €';
+        $delta = null;
+        $up    = true;
+        if ($hasDelta && $totalPrev > 0) {
+            $pct   = ($totalCA - $totalPrev) / $totalPrev * 100;
+            $delta = sprintf('%+d%%', (int)round($pct));
+            $up    = $pct >= 0;
+        }
+
+        return ['value' => $value, 'delta' => $delta, 'up' => $up];
     }
 
     private function buildKpis(array $net, array $tasks, int $alertsTotal): array
