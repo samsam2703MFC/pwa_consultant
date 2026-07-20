@@ -1,5 +1,6 @@
 {% extends "layouts/mobile_base.twig" %}
 
+{% import "components/_icons.twig" as icons %}
 {% block title %}Notatka — Consultant Panel{% endblock %}
 {% block page_title %}Notatka{% endblock %}
 {% block page_subtitle %}Szczegóły i komentarze{% endblock %}
@@ -9,7 +10,7 @@
     <form method="POST" action="{{ ROOT }}/notes/{{ note.id }}/delete"
           onsubmit="return confirm('Usunąć notatkę?')" class="mb-0">
         <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">
-            <i class="bi bi-trash3"></i>
+            {{ icons.svg('trash') }}
         </button>
     </form>
 {% endblock %}
@@ -24,7 +25,7 @@
         <a href="{{ back_url }}"
            class="d-inline-flex align-items-center gap-1 text-muted mb-3"
            style="font-size:.82rem;text-decoration:none;">
-            <i class="bi bi-chevron-left"></i> {{ is_employee_context ? 'Notatki pracownika' : 'Notatki sklepu' }}
+            {{ icons.svg('chevron-left') }} {{ is_employee_context ? 'Notatki pracownika' : 'Notatki sklepu' }}
         </a>
     {% endif %}
 
@@ -47,7 +48,7 @@
             </div>
             {% if is_employee_context %}
                 <div class="text-muted mb-2" style="font-size:.78rem;">
-                    <i class="bi bi-person me-1"></i>{{ note_employee ?: ('Pracownik #' ~ note.employee_id) }}
+                    <span class="me-1">{{ icons.svg('user') }}</span>{{ note_employee ?: ('Pracownik #' ~ note.employee_id) }}
                 </div>
             {% endif %}
             <p class="mb-0" style="font-size:.92rem;line-height:1.6;white-space:pre-wrap;">{{ note.content }}</p>
@@ -78,7 +79,7 @@
                                     <button type="submit"
                                             class="btn btn-sm p-0 text-danger border-0 bg-transparent"
                                             style="font-size:.8rem;">
-                                        <i class="bi bi-x-circle"></i>
+                                        {{ icons.svg('circle-x') }}
                                     </button>
                                 </form>
                             </div>
@@ -122,7 +123,7 @@
                 {# Zdjęcia (max 4) #}
                 <div class="mb-3">
                     <label class="form-label" style="font-size:.82rem;color:#6c757d;">
-                        <i class="bi bi-camera me-1"></i>Zdjęcia
+                        <span class="me-1">{{ icons.svg('camera') }}</span>Zdjęcia
                         <span class="text-muted">(opcjonalne, max 4 × 10 MB, jpg/png/webp)</span>
                     </label>
                     <input type="file" name="photos[]" accept="image/*" multiple
@@ -131,7 +132,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 fw-700">
-                    <i class="bi bi-send me-2"></i>Wyślij komentarz
+                    <span class="me-2">{{ icons.svg('send') }}</span>Wyślij komentarz
                 </button>
             </form>
         </div>

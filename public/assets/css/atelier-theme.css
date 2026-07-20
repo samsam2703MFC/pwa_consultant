@@ -116,10 +116,25 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
 .app-nav-card.is-active .app-nav-card-icon { background:rgba(141,29,44,.14) !important; }
 
 /* ---- Line-icon set (Lucide) — global sizing/alignment ------------------- */
-.lc-icon { display:inline-block; vertical-align:-2px; flex:none; }
+/* SVGs default to 1em (width/height attr), so they scale with font-size like
+   the old icon font. .lc-icon just fixes vertical rhythm + flex behaviour. */
+.lc-icon { display:inline-block; vertical-align:-.14em; flex:none; }
 .dash-chevron { display:inline-flex; align-items:center; }
 .dash-chevron svg { color:var(--c-muted); opacity:.5; }
-.dash-date-ic svg { color:var(--c-muted); vertical-align:-3px; }
+.dash-date-ic svg { color:var(--c-muted); vertical-align:-.2em; }
+
+/* hamburger + sheet close: give the button an icon-sized font */
+.app-hamburger { font-size:1.55rem; }
+.app-hamburger .lc-icon { vertical-align:middle; }
+.app-nav-sheet-close { font-size:1.15rem; color:var(--c-muted); }
+
+/* login input icons + error-page glyph pick up brand colour */
+.form-control-icon .lc-icon { color:var(--c-muted); vertical-align:middle; }
+.error-icon { color:var(--c-primary) !important; }
+.error-icon .lc-icon { vertical-align:middle; }
+
+/* buttons: nudge the icon to sit tight before a text label */
+.btn .lc-icon { vertical-align:-.14em; }
 
 /* Bottom tabbar + FAB */
 .app-tabbar, .tabbar { background:var(--c-surface) !important; border-top:1px solid var(--c-line) !important; }

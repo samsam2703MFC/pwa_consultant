@@ -1,4 +1,5 @@
 {% extends "layouts/mobile_base.twig" %}
+{% import "components/_icons.twig" as icons %}
 {% set active_nav = 'tasks' %}
 
 {% block title %}Realizacja zadania{% endblock %}
@@ -34,9 +35,9 @@
     <div class="done-hero">
         <h2 class="done-title">{{ completion.task_name ?? 'Zadanie zrealizowane' }}</h2>
         <div class="done-chips">
-            <span class="done-chip ok"><i class="bi bi-check2-circle"></i>Zrobione</span>
-            {% if completion.completed_at %}<span class="done-chip"><i class="bi bi-calendar-check"></i>{{ completion.completed_at }}</span>{% endif %}
-            {% if completion.completed_by_display_name %}<span class="done-chip"><i class="bi bi-person-check"></i>{{ completion.completed_by_display_name }}</span>{% endif %}
+            <span class="done-chip ok">{{ icons.svg('check-circle') }}Zrobione</span>
+            {% if completion.completed_at %}<span class="done-chip">{{ icons.svg('calendar-check') }}{{ completion.completed_at }}</span>{% endif %}
+            {% if completion.completed_by_display_name %}<span class="done-chip">{{ icons.svg('user-check') }}{{ completion.completed_by_display_name }}</span>{% endif %}
         </div>
     </div>
 
@@ -48,8 +49,8 @@
             <div class="text-muted">Brak opisu.</div>
         {% endif %}
         <div class="done-chips">
-            <span class="done-chip"><i class="bi bi-calendar3"></i>{{ completion.scheduled_for_date ?? '-' }}</span>
-            {% if completion.scheduled_time and completion.scheduled_time != '00:00:00' %}<span class="done-chip"><i class="bi bi-clock"></i>{{ completion.scheduled_time|slice(0,5) }}</span>{% endif %}
+            <span class="done-chip">{{ icons.svg('calendar') }}{{ completion.scheduled_for_date ?? '-' }}</span>
+            {% if completion.scheduled_time and completion.scheduled_time != '00:00:00' %}<span class="done-chip">{{ icons.svg('clock') }}{{ completion.scheduled_time|slice(0,5) }}</span>{% endif %}
         </div>
     </div>
 
@@ -67,7 +68,7 @@
         {% if signed_url %}
             <div class="photo-box"><img src="{{ signed_url }}" alt="Zdjęcie realizacji" loading="lazy"></div>
             <a class="btn btn-light w-100 fw-bold mt-2" href="{{ signed_url }}" target="_blank" rel="noopener">
-                <i class="bi bi-box-arrow-up-right"></i> Otwórz w nowej karcie
+                {{ icons.svg('external-link') }} Otwórz w nowej karcie
             </a>
         {% else %}
             <div class="text-muted">Brak zdjęcia.</div>
@@ -76,6 +77,6 @@
 {% endif %}
 
 <a class="btn btn-primary w-100 fw-bold mb-2" href="{{ ROOT }}/tasks">
-    <i class="bi bi-arrow-left"></i> Wróć do zadań
+    {{ icons.svg('arrow-left') }} Wróć do zadań
 </a>
 {% endblock %}

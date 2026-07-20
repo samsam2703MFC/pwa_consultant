@@ -1,5 +1,6 @@
 {% extends "layouts/mobile_base.twig" %}
 
+{% import "components/_icons.twig" as icons %}
 {% block title %}Zadania — Consultant Panel{% endblock %}
 {% block page_title %}Zadania{% endblock %}
 {% block page_subtitle %}Zadania przypisane do poziomu stanowiska{% endblock %}
@@ -143,12 +144,12 @@
             {% endif %}
         </div>
         <div class="tasks-summary-meta">
-            <span class="task-chip"><i class="bi bi-list-task"></i>{{ tasks|length }} zadań</span>
+            <span class="task-chip">{{ icons.svg('list-checks') }}{{ tasks|length }} zadań</span>
             {% if position and position.position_id %}
-                <span class="task-chip"><i class="bi bi-person-badge"></i>Position ID: {{ position.position_id }}</span>
+                <span class="task-chip">{{ icons.svg('id-card') }}Position ID: {{ position.position_id }}</span>
             {% endif %}
             {% if position and position.level_id %}
-                <span class="task-chip"><i class="bi bi-layers"></i>Level ID: {{ position.level_id }}</span>
+                <span class="task-chip">{{ icons.svg('layers') }}Level ID: {{ position.level_id }}</span>
             {% endif %}
         </div>
     </div>
@@ -156,7 +157,7 @@
     {% if tasks is empty %}
         <div class="tasks-empty-card">
             <div class="tasks-empty-icon">
-                <i class="bi bi-check2-square" style="font-size:1.4rem;"></i>
+                <span style="font-size:1.4rem;">{{ icons.svg('circle-alert') }}</span>
             </div>
             <div class="tasks-empty-title">Brak zadań do wyświetlenia</div>
             <p class="tasks-empty-text">
@@ -177,7 +178,7 @@
                             </div>
                         </div>
                         {% if task.is_done %}
-                            <span class="task-priority task-status-done"><i class="bi bi-check2-circle"></i> Zrobione</span>
+                            <span class="task-priority task-status-done">{{ icons.svg('check-circle') }} Zrobione</span>
                         {% else %}
                             <span class="task-priority">P{{ task.priority ?? 5 }}</span>
                         {% endif %}
@@ -189,30 +190,30 @@
 
                     <div class="tasks-summary-meta">
                         {% if task.execution_time %}
-                            <span class="task-chip"><i class="bi bi-clock"></i>{{ task.execution_time|slice(0,5) }}</span>
+                            <span class="task-chip">{{ icons.svg('clock') }}{{ task.execution_time|slice(0,5) }}</span>
                         {% endif %}
                         {% if task.frequency %}
-                            <span class="task-chip"><i class="bi bi-arrow-repeat"></i>{{ frequency_labels[task.frequency] ?? task.frequency }}</span>
+                            <span class="task-chip">{{ icons.svg('refresh-cw') }}{{ frequency_labels[task.frequency] ?? task.frequency }}</span>
                         {% endif %}
                         {% if task.day_of_week %}
-                            <span class="task-chip"><i class="bi bi-calendar-week"></i>{{ task.day_of_week }}</span>
+                            <span class="task-chip">{{ icons.svg('calendar') }}{{ task.day_of_week }}</span>
                         {% endif %}
                         {% if task.is_mandatory %}
-                            <span class="task-chip"><i class="bi bi-exclamation-circle"></i>Obowiązkowe</span>
+                            <span class="task-chip">{{ icons.svg('circle-alert') }}Obowiązkowe</span>
                         {% endif %}
                         {% if task.requires_photo %}
-                            <span class="task-chip"><i class="bi bi-camera"></i>Wymaga zdjęcia</span>
+                            <span class="task-chip">{{ icons.svg('camera') }}Wymaga zdjęcia</span>
                         {% endif %}
                     </div>
 
                     <div class="d-grid mt-3">
                         {% if task.is_done and task.completion_id %}
                             <a class="btn btn-success btn-sm fw-bold" href="{{ ROOT }}/tasks/completion/{{ task.completion_id }}">
-                                <i class="bi bi-eye"></i> Podgląd realizacji
+                                {{ icons.svg('eye') }} Podgląd realizacji
                             </a>
                         {% else %}
                             <a class="btn btn-primary btn-sm fw-bold" href="{{ ROOT }}/tasks/{{ task.id }}">
-                                <i class="bi bi-check2-square"></i> Zrealizuj
+                                {{ icons.svg('circle-alert') }} Zrealizuj
                             </a>
                         {% endif %}
                     </div>

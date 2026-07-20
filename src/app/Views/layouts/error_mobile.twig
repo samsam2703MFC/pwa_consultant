@@ -1,4 +1,5 @@
 {# layouts/error_mobile.twig #}
+{% import "components/_icons.twig" as icons %}
 <!DOCTYPE html>
 <html lang="{{ lang_code ?? 'pl' }}">
 <head>
@@ -37,12 +38,12 @@
 <body>
 <div class="error-card">
     <div class="error-icon">
-        <i class="bi bi-exclamation-triangle-fill"></i>
+        {{ icons.svg('alert-triangle') }}
     </div>
     <h1>{% block error_title %}{{ translations.something_went_wrong ?? 'Coś poszło nie tak' }}{% endblock %}</h1>
     <p>{% block error_desc %}{{ translations.try_again_or_go_back ?? 'Spróbuj ponownie lub wróć.' }}{% endblock %}</p>
     <a href="{{ ROOT }}/dashboard" class="btn btn-dark rounded-pill px-4">
-        <i class="bi bi-arrow-left me-1"></i> {{ translations.back ?? 'Wróć' }}
+        <span class="me-1">{{ icons.svg('arrow-left') }}</span> {{ translations.back ?? 'Wróć' }}
     </a>
 </div>
 </body>

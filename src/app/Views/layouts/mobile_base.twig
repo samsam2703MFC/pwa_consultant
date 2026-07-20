@@ -1,4 +1,5 @@
 {# layouts/mobile_base.twig #}
+{% import "components/_icons.twig" as icons %}
 <!DOCTYPE html>
 <html lang="{{ lang_code ?? 'pl' }}">
 <head>
@@ -237,7 +238,7 @@
                 <div class="d-flex align-items-center gap-2">
                     {% block topbar_actions %}{% endblock %}
                     <button class="app-hamburger" id="appHamburger" aria-label="{{ translations.menu ?? 'Menu' }}" aria-expanded="false" aria-controls="appNavSheet">
-                        <i class="bi bi-list"></i>
+                        {{ icons.svg('menu') }}
                     </button>
                 </div>
             </div>

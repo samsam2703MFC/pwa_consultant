@@ -1,5 +1,6 @@
 {% extends "layouts/mobile_base.twig" %}
 
+{% import "components/_icons.twig" as icons %}
 {% block title %}Notatki — Consultant Panel{% endblock %}
 {% block page_title %}Notatki{% endblock %}
 {% block page_subtitle %}Wybierz sklep, aby zobaczyc notatki{% endblock %}
@@ -8,7 +9,7 @@
 <div class="page-content-loaded">
     {% if shops is empty %}
         <div class="text-center text-muted py-5">
-            <i class="bi bi-journal-x" style="font-size:2.5rem;opacity:.3;"></i>
+            <span style="font-size:2.5rem;opacity:.3;">{{ icons.svg('notebook') }}</span>
             <p class="mt-3 mb-0">Brak sklepow przypisanych do konsultanta.</p>
         </div>
     {% else %}
@@ -28,7 +29,7 @@
                                 {% endif %}
                             </div>
                             <span class="btn btn-sm btn-light rounded-pill text-muted">
-                                <i class="bi bi-chevron-right"></i>
+                                {{ icons.svg('chevron-right') }}
                             </span>
                         </div>
                     </div>
