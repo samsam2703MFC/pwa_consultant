@@ -20,9 +20,13 @@ class ShopSalesRepository
      *   - tickets  = COUNT(DISTINCT id_device, ticket_key)
      *   - produits = COUNT(*)
      *   - CA       = SUM(total_gross_amount_after_discount)
-     * La fenêtre est bornée sur insert_timestamp (index (id_shop, insert_timestamp)) :
-     * c'est la seule datation cohérente avec les données courantes (ticket_key
-     * encode parfois une autre année dans les données de test).
+     *
+     * La fenêtre est bornée sur la DATE MÉTIER encodée dans ticket_key
+     * (YYMMDDNNNN → on extrait MMDD), et NON sur insert_timestamp : beaucoup de
+     * lignes ont un insert_timestamp corrompu (ex. 1900) qui les ferait sortir
+     * de la fenêtre alors que leur vraie date est bien dans le mois. On ignore
+     * l'année (les données de test l'encodent différemment) — sans ambiguïté car
+     * la période « month » tient dans un seul mois calendaire.
      *
      * @return array{tickets:int, products:int, ca:float}
      */
@@ -35,9 +39,9 @@ class ShopSalesRepository
         }
 
         try {
-            // Fenêtre semi-ouverte [from 00:00:00, (to+1j) 00:00:00).
-            $from   = $fromDate . ' 00:00:00';
-            $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
+            // MMDD (mois*100 + jour) extrait des dates de la fenêtre.
+            $fromMMDD = (int)substr(str_replace('-', '', $fromDate), 4); // '2026-07-01' → 701
+            $toMMDD   = (int)substr(str_replace('-', '', $toDate), 4);   // '2026-07-20' → 720
 
             $stmt = $pdo->prepare(
                 'SELECT COUNT(DISTINCT id_device, ticket_key)                 AS tickets,
@@ -45,10 +49,9 @@ class ShopSalesRepository
                         COALESCE(SUM(total_gross_amount_after_discount), 0)   AS ca
                  FROM transaction
                  WHERE id_shop = :id
-                   AND insert_timestamp >= :from
-                   AND insert_timestamp <  :toExcl'
+                   AND ((ticket_key DIV 10000) MOD 10000) BETWEEN :fromMMDD AND :toMMDD'
             );
-            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
+            $stmt->execute([':id' => $shopId, ':fromMMDD' => $fromMMDD, ':toMMDD' => $toMMDD]);
             $row = $stmt->fetch() ?: [];
 
             return [
