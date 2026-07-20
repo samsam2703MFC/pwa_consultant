@@ -1,11 +1,11 @@
 RewriteEngine On
 RewriteBase /pwa_consultant/
 
-# ⚠ TEMPORARY TEST MODE — bypasses login so every page is reachable without auth.
-# This exposes the whole app publicly. To DISABLE, comment out or delete the line
-# below (put a '#' in front) and redeploy. Requires Apache "AllowOverride" to permit
-# SetEnv (mod_env). See config/app.php > DEV_NO_AUTH.
-SetEnv DEV_NO_AUTH 1
+# TEST MODE (DEV_NO_AUTH) disabled — real authentication is now required.
+# To temporarily re-enable the no-auth bypass, uncomment the line below and
+# redeploy (requires Apache "AllowOverride" to permit SetEnv / mod_env).
+# See config/app.php > DEV_NO_AUTH.
+# SetEnv DEV_NO_AUTH 1
 
 # Nie przepisywuj istniejących plików i katalogów
 RewriteCond %{REQUEST_FILENAME} !-f
