@@ -11,37 +11,52 @@ use Throwable;
 class ShopSalesRepository
 {
     /**
-     * CA et nombre de tickets d'UN magasin sur une fenêtre [from, to).
-     * Borne semi-ouverte sur insert_timestamp → exploite l'index (id_shop, insert_timestamp).
+     * Indicateurs de vente d'UN magasin sur une fenêtre de dates métier
+     * [fromDate, toDate] (inclusives, format Y-m-d).
      *
-     * @return array{tickets:int, ca:float}
+     * IMPORTANT : dans `transaction`, 1 ligne = 1 PRODUIT vendu. Un ticket
+     * (= un client) regroupe plusieurs lignes partageant le même ticket_key
+     * (sur un même appareil). Donc :
+     *   - tickets  = COUNT(DISTINCT id_device, ticket_key)
+     *   - produits = COUNT(*)
+     *   - CA       = SUM(total_gross_amount_after_discount)
+     * La fenêtre est bornée sur ticket_key (YYMMDDNNNN → date métier fiable),
+     * plus robuste que insert_timestamp (parfois bruité). Index idx_transaction_ticket_key.
+     *
+     * @return array{tickets:int, products:int, ca:float}
      */
-    public function getShopSummary(int $shopId, string $from, string $to): array
+    public function getShopSummary(int $shopId, string $fromDate, string $toDate): array
     {
+        $empty = ['tickets' => 0, 'products' => 0, 'ca' => 0.0];
         $pdo = Database::pdo();
         if ($pdo === null) {
-            return ['tickets' => 0, 'ca' => 0.0];
+            return $empty;
         }
 
         try {
+            // Bornes ticket_key : YYMMDD * 10000 (+9999 pour toute la journée de fin).
+            $fromKey = (int)substr(str_replace('-', '', $fromDate), 2) * 10000;
+            $toKey   = (int)substr(str_replace('-', '', $toDate), 2) * 10000 + 9999;
+
             $stmt = $pdo->prepare(
-                'SELECT COUNT(*) AS tickets,
-                        COALESCE(SUM(total_gross_amount_after_discount), 0) AS ca
+                'SELECT COUNT(DISTINCT id_device, ticket_key)                 AS tickets,
+                        COUNT(*)                                              AS products,
+                        COALESCE(SUM(total_gross_amount_after_discount), 0)   AS ca
                  FROM transaction
                  WHERE id_shop = :id
-                   AND insert_timestamp >= :from
-                   AND insert_timestamp <  :to'
+                   AND ticket_key BETWEEN :fromKey AND :toKey'
             );
-            $stmt->execute([':id' => $shopId, ':from' => $from, ':to' => $to]);
+            $stmt->execute([':id' => $shopId, ':fromKey' => $fromKey, ':toKey' => $toKey]);
             $row = $stmt->fetch() ?: [];
 
             return [
-                'tickets' => (int)($row['tickets'] ?? 0),
-                'ca'      => (float)($row['ca'] ?? 0),
+                'tickets'  => (int)($row['tickets'] ?? 0),
+                'products' => (int)($row['products'] ?? 0),
+                'ca'       => (float)($row['ca'] ?? 0),
             ];
         } catch (Throwable $e) {
             error_log('[db] getShopSummary échoué: ' . $e->getMessage());
-            return ['tickets' => 0, 'ca' => 0.0];
+            return $empty;
         }
     }
 

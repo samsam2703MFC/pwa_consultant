@@ -48,6 +48,7 @@ class ShopController extends Controller
 
             $ca = 0.0;
             $tickets = 0;
+            $products = 0;
             $days = 1;
 
             $pnl      = $id > 0 ? $this->shopService->getPnl($id, 'month') : [];
@@ -57,33 +58,30 @@ class ShopController extends Controller
 
             if ($turnover !== null && $this->isDate($fromDate) && $this->isDate($toDate)) {
                 // Aligné sur le P&L : même CA, même fenêtre.
-                $ca = $turnover;
-
-                $fromDt = $fromDate . ' 00:00:00';
-                // date_to du P&L = dernier jour inclus → borne exclusive = +1 jour.
-                $toExclObj = (new \DateTimeImmutable($toDate))->modify('+1 day');
-                $toExcl    = $toExclObj->format('Y-m-d 00:00:00');
-
-                $tickets = $this->shopSales->getShopSummary($id, $fromDt, $toExcl)['tickets'];
+                $ca  = $turnover;
+                $sum = $this->shopSales->getShopSummary($id, $fromDate, $toDate);
+                $tickets  = $sum['tickets'];
+                $products = $sum['products'];
 
                 // Tickets et CA couvrent toute la fenêtre du P&L → la moyenne
                 // par jour se divise par le NOMBRE DE JOURS DE LA FENÊTRE
                 // (date_from → date_to inclus), pas par les jours écoulés.
+                $toExclObj = (new \DateTimeImmutable($toDate))->modify('+1 day');
                 $days = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($toExclObj)->days);
             } else {
                 // Repli : mois calendaire courant, lu en base.
-                $fromDt = date('Y-m-01 00:00:00');
-                $toDt   = date('Y-m-01 00:00:00', strtotime('first day of next month'));
-                $sum    = $this->shopSales->getShopSummary($id, $fromDt, $toDt);
-                $ca      = (float)$sum['ca'];
-                $tickets = (int)$sum['tickets'];
-                $days    = max(1, (int)date('t')); // nombre de jours du mois
+                $sum      = $this->shopSales->getShopSummary($id, date('Y-m-01'), date('Y-m-t'));
+                $ca       = (float)$sum['ca'];
+                $tickets  = (int)$sum['tickets'];
+                $products = (int)$sum['products'];
+                $days     = max(1, (int)date('t')); // nombre de jours du mois
             }
 
-            $shop['ca_month']        = $ca;
-            $shop['tickets_count']   = $tickets;
-            $shop['tickets_per_day'] = $tickets > 0 ? $tickets / $days : 0.0;
-            $shop['avg_basket']      = $tickets > 0 ? $ca / $tickets : 0.0;
+            $shop['ca_month']           = $ca;
+            $shop['tickets_count']      = $tickets;
+            $shop['tickets_per_day']    = $tickets > 0 ? $tickets / $days : 0.0;
+            $shop['avg_basket']         = $tickets > 0 ? $ca / $tickets : 0.0;
+            $shop['products_per_client'] = $tickets > 0 ? $products / $tickets : 0.0;
         }
         unset($shop);
 
