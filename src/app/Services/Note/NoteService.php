@@ -23,6 +23,60 @@ class NoteService
         return $this->noteRepository->getNotesForShop($shopId);
     }
 
+    /**
+     * Agreguje notatki wszystkich sklepów konsultanta:
+     *   - 'recent'  : najnowsze notatki (z nazwą sklepu), posortowane malejąco
+     *   - 'by_shop' : sklepy z liczbą notatek
+     * Wykorzystuje istniejący endpoint /consultant/shops/{id}/notes (po jednym
+     * zapytaniu na sklep).
+     */
+    public function getNotesOverview(array $shops, int $recentLimit = 6): array
+    {
+        $recent = [];
+        $byShop = [];
+
+        foreach ($shops as $shop) {
+            $shopId = (int)($shop['id'] ?? 0);
+            if ($shopId === 0) {
+                continue;
+            }
+
+            $shopName = $shop['representative_name'] ?? $shop['name'] ?? '';
+            $notes    = $this->noteRepository->getNotesForShop($shopId);
+            $count    = 0;
+
+            foreach ($notes as $n) {
+                if (!empty($n['deleted_at'])) {
+                    continue;
+                }
+                $count++;
+                $recent[] = [
+                    'id'         => $n['id'] ?? null,
+                    'content'    => $n['content'] ?? '',
+                    'created_at' => $n['created_at'] ?? null,
+                    'type_name'  => $n['type_name'] ?? null,
+                    'author'     => $n['employee_name'] ?? trim(($n['employee_first_name'] ?? '') . ' ' . ($n['employee_last_name'] ?? '')),
+                    'shop_id'    => $shopId,
+                    'shop_name'  => $shopName,
+                ];
+            }
+
+            $byShop[] = [
+                'id'      => $shopId,
+                'name'    => $shopName,
+                'address' => $shop['address'] ?? $shop['city'] ?? '',
+                'count'   => $count,
+            ];
+        }
+
+        usort($recent, fn($a, $b) => strcmp((string)($b['created_at'] ?? ''), (string)($a['created_at'] ?? '')));
+
+        return [
+            'recent'  => array_slice($recent, 0, $recentLimit),
+            'by_shop' => $byShop,
+        ];
+    }
+
     public function createNote(int $shopId, array $postData): array
     {
         $data = $this->buildNotePayload($postData);

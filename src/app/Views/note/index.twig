@@ -1,41 +1,78 @@
 {% extends "layouts/mobile_base.twig" %}
-
 {% import "components/_icons.twig" as icons %}
-{% block title %}Notatki — Consultant Panel{% endblock %}
-{% block page_title %}Notatki{% endblock %}
-{% block page_subtitle %}Wybierz sklep, aby zobaczyc notatki{% endblock %}
+{% set active_nav = 'notes' %}
+
+{% block title %}Notes — Panel consultant{% endblock %}
+
+{% set mn = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'] %}
+{% set chip_colors = [
+    {c:'#8D1D2C', bg:'rgba(141,29,44,.1)'},
+    {c:'#C17A2A', bg:'rgba(193,122,42,.14)'},
+    {c:'#1F4F6B', bg:'rgba(31,79,107,.11)'},
+    {c:'#5C4A8A', bg:'rgba(92,74,138,.12)'}
+] %}
+{% set first_shop = (by_shop is not empty) ? by_shop[0].id : ((shops is not empty) ? shops[0].id : null) %}
+
+{% block topbar %}
+<div class="app-topbar">
+    <div class="container">
+        <div class="scr-head">
+            <div>
+                <div class="scr-title">Notes</div>
+                <div class="scr-sub">Commentaires par boutique</div>
+            </div>
+            <button class="app-hamburger" id="appHamburger" aria-label="Menu" aria-expanded="false" aria-controls="appNavSheet">
+                {{ icons.svg('menu', 22) }}
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
 {% block content %}
-<div class="page-content-loaded">
-    {% if shops is empty %}
-        <div class="text-center text-muted py-5">
-            <span style="font-size:2.5rem;opacity:.3;">{{ icons.svg('notebook') }}</span>
-            <p class="mt-3 mb-0">Brak sklepow przypisanych do konsultanta.</p>
-        </div>
-    {% else %}
-        <div class="d-flex flex-column gap-2">
-            {% for shop in shops %}
-                <a href="{{ ROOT }}/shops/{{ shop.id }}/notes" class="text-decoration-none">
-                    <div class="card border-0 shadow-sm" style="border-radius:14px;">
-                        <div class="card-body py-3 px-3 d-flex align-items-center justify-content-between gap-3">
-                            <div>
-                                <div class="fw-700 text-dark" style="font-size:.95rem;">
-                                    {{ shop.representative_name ?? shop.name ?? ('Sklep #' ~ shop.id) }}
-                                </div>
-                                {% if shop.city is defined or shop.address is defined %}
-                                    <div class="text-muted mt-1" style="font-size:.78rem;">
-                                        {{ shop.city ?? '' }}{% if shop.city is defined and shop.address is defined %}, {% endif %}{{ shop.address ?? '' }}
-                                    </div>
-                                {% endif %}
-                            </div>
-                            <span class="btn btn-sm btn-light rounded-pill text-muted">
-                                {{ icons.svg('chevron-right') }}
-                            </span>
-                        </div>
-                    </div>
-                </a>
-            {% endfor %}
-        </div>
+<div class="page-content-loaded nt">
+
+    {# ── Composer ── #}
+    {% set uinit = (current_user.first_name ?? '')|slice(0,1) ~ (current_user.last_name ?? '')|slice(0,1) %}
+    <a href="{% if first_shop %}{{ ROOT }}/shops/{{ first_shop }}/notes/new{% else %}#nt-shops{% endif %}" class="nt-composer">
+        <span class="nt-avatar">{{ uinit|upper|default('•') }}</span>
+        <span class="nt-composer-ph">Ajouter une note…</span>
+        <span class="nt-composer-btn">{{ icons.svg('plus', 18) }}</span>
+    </a>
+
+    {# ── Récentes ── #}
+    {% if recent is not empty %}
+    <div class="nt-eyebrow">Récentes</div>
+    <div class="nt-list">
+        {% for n in recent %}
+        {% set col = chip_colors[loop.index0 % 4] %}
+        <a href="{{ ROOT }}/notes/{{ n.id }}" class="nt-note">
+            <div class="nt-note-head">
+                <span class="nt-shopchip" style="color:{{ col.c }};background:{{ col.bg }}">{{ n.shop_name }}</span>
+                {% if n.created_at %}<span class="nt-date">{{ n.created_at|date('j') }} {{ mn[n.created_at|date('n') - 1] }} · {{ n.created_at|date('H:i') }}</span>{% endif %}
+            </div>
+            <p class="nt-note-body">{{ n.content }}</p>
+            {% if n.author %}<div class="nt-note-author">{{ n.author }}</div>{% endif %}
+        </a>
+        {% endfor %}
+    </div>
     {% endif %}
+
+    {# ── Par boutique ── #}
+    {% if by_shop is not empty %}
+    <div class="nt-eyebrow" id="nt-shops">Par boutique</div>
+    <div class="nt-shopcard">
+        {% for s in by_shop %}
+        <a href="{{ ROOT }}/shops/{{ s.id }}/notes" class="nt-shoprow{{ loop.last ? ' is-last' : '' }}">
+            <div class="nt-shoprow-id">
+                <div class="nt-shoprow-name">{{ s.name }}</div>
+                <div class="nt-shoprow-meta">{{ s.address }}{% if s.count is defined %} · {{ s.count }} notes{% endif %}</div>
+            </div>
+            {{ icons.svg('chevron-right', 17) }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
 </div>
 {% endblock %}
