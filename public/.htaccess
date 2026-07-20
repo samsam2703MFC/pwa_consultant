@@ -7,6 +7,10 @@ RewriteBase /pwa_consultant/
 # See config/app.php > DEV_NO_AUTH.
 # SetEnv DEV_NO_AUTH 1
 
+# TEMPORARY login diagnostic — enables /auth?diag=1 (see AuthController).
+# Remove this line once login is verified.
+SetEnv AUTH_DIAG 1
+
 # Nie przepisywuj istniejących plików i katalogów
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
