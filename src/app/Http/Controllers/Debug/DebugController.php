@@ -145,11 +145,10 @@ class DebugController extends Controller
 
         $valid = fn($v) => (bool)\DateTimeImmutable::createFromFormat('!Y-m-d', $v);
         if ($valid($fromDate) && $valid($toDate)) {
-            $fromDt = $fromDate . ' 00:00:00';
-            $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
-            $win    = $this->shopSales->getShopSummary($shop, $fromDt, $toExcl);
+            $win = $this->shopSales->getShopSummary($shop, $fromDate, $toDate);
             echo '<li>DB sur la fenêtre P&L [' . $esc($fromDate) . ' → ' . $esc($toDate) . '] : '
-               . '<b>CA=' . $esc(number_format($win['ca'], 2, ',', ' ')) . '</b>, tickets=' . $esc($win['tickets']) . '</li>';
+               . '<b>CA=' . $esc(number_format($win['ca'], 2, ',', ' ')) . '</b>, tickets=' . $esc($win['tickets'])
+               . ', produits=' . $esc($win['products']) . '</li>';
             $diff = $T - $win['ca'];
             echo '<li>Écart API − DB (même fenêtre) = <b>' . $esc(number_format($diff, 2, ',', ' ')) . '</b>'
                . ($win['ca'] > 0 ? ' (ratio ' . $esc(number_format($T / $win['ca'], 3, ',', ' ')) . ')' : '') . '</li>';
@@ -157,37 +156,36 @@ class DebugController extends Controller
             echo '<li>⚠️ date_from / date_to absents ou invalides dans la réponse P&L.</li>';
         }
 
-        // Mois calendaire courant (ancienne source de la ligne « CA du mois »).
-        $cmFrom = date('Y-m-01 00:00:00');
-        $cmTo   = date('Y-m-01 00:00:00', strtotime('first day of next month'));
-        $cm     = $this->shopSales->getShopSummary($shop, $cmFrom, $cmTo);
-        echo '<li>DB mois calendaire courant [' . $esc(date('Y-m-01')) . ' → ' . $esc(date('Y-m-01', strtotime('first day of next month'))) . '] : '
-           . '<b>CA=' . $esc(number_format($cm['ca'], 2, ',', ' ')) . '</b>, tickets=' . $esc($cm['tickets']) . '</li>';
+        // Mois calendaire courant (repli).
+        $cm = $this->shopSales->getShopSummary($shop, date('Y-m-01'), date('Y-m-t'));
+        echo '<li>DB mois calendaire courant [' . $esc(date('Y-m-01')) . ' → ' . $esc(date('Y-m-t')) . '] : '
+           . '<b>CA=' . $esc(number_format($cm['ca'], 2, ',', ' ')) . '</b>, tickets=' . $esc($cm['tickets'])
+           . ', produits=' . $esc($cm['products']) . '</li>';
         echo '</ul>';
 
-        // ── Diagnostic « tickets/jour » : comptage insert_timestamp vs ticket_key ──
+        // ── Indicateurs Boutiques recalculés (1 ligne transaction = 1 produit) ──
         if ($valid($fromDate) && $valid($toDate)) {
-            $dbg = $this->shopSales->getWindowDebug($shop, $fromDate, $toDate);
+            $s = $this->shopSales->getShopSummary($shop, $fromDate, $toDate);
 
-            // Nombre de jours de la fenêtre P&L (date_from → date_to inclus),
-            // même logique que ShopController.
+            // Nombre de jours de la fenêtre (date_from → date_to inclus).
             $toExObj = (new \DateTimeImmutable($toDate))->modify('+1 day');
             $days    = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($toExObj)->days);
 
-            $perTs  = $dbg['tickets_ts']  > 0 ? $dbg['tickets_ts']  / $days : 0;
-            $perKey = $dbg['tickets_key'] > 0 ? $dbg['tickets_key'] / $days : 0;
+            $perDay = $s['tickets'] > 0 ? $s['tickets'] / $days : 0;
+            $basket = $s['tickets'] > 0 ? $T / $s['tickets'] : 0;
+            $ppc    = $s['tickets'] > 0 ? $s['products'] / $s['tickets'] : 0;
 
-            echo '<h3 style="font-family:sans-serif">Tickets / jour</h3><ul>';
-            echo '<li>Fenêtre : <code>' . $esc($fromDate) . '</code> → <code>' . $esc($toDate) . '</code>, jours de la fenêtre = <b>' . $esc($days) . '</b></li>';
-            echo '<li>Tickets (insert_timestamp) = <b>' . $esc($dbg['tickets_ts']) . '</b> → ' . $esc(number_format($perTs, 1, ',', ' ')) . ' / jour</li>';
-            echo '<li>Tickets (ticket_key = date métier) = <b>' . $esc($dbg['tickets_key']) . '</b> → ' . $esc(number_format($perKey, 1, ',', ' ')) . ' / jour</li>';
-            echo '<li>min / max insert_timestamp (magasin) : <code>' . $esc($dbg['min_ts'] ?? '—') . '</code> / <code>' . $esc($dbg['max_ts'] ?? '—') . '</code></li>';
-            echo '<li>lignes totales pour ce magasin : ' . $esc($dbg['total_rows']) . '</li>';
-            if ($dbg['tickets_ts'] !== $dbg['tickets_key']) {
-                echo '<li style="color:#8D1D2C"><b>⚠️ Écart insert_timestamp vs ticket_key</b> = '
-                   . $esc($dbg['tickets_key'] - $dbg['tickets_ts'])
-                   . ' → insert_timestamp est bruité, préférer ticket_key.</li>';
-            }
+            echo '<h3 style="font-family:sans-serif">Indicateurs Boutiques</h3><ul>';
+            echo '<li>Fenêtre : <code>' . $esc($fromDate) . '</code> → <code>' . $esc($toDate) . '</code>, jours = <b>' . $esc($days) . '</b></li>';
+            echo '<li>Tickets (DISTINCT id_device, ticket_key) = <b>' . $esc($s['tickets']) . '</b></li>';
+            echo '<li>Produits (COUNT lignes) = <b>' . $esc($s['products']) . '</b></li>';
+            echo '<li>Tickets / jour = <b>' . $esc(number_format($perDay, 1, ',', ' ')) . '</b></li>';
+            echo '<li>Panier moyen (TurnOver / tickets) = <b>' . $esc(number_format($basket, 2, ',', ' ')) . ' €</b></li>';
+            echo '<li>Produits / client = <b>' . $esc(number_format($ppc, 1, ',', ' ')) . '</b></li>';
+
+            // Repère sur la qualité des insert_timestamp.
+            $dbg = $this->shopSales->getWindowDebug($shop, $fromDate, $toDate);
+            echo '<li style="color:#7a7168">min / max insert_timestamp : <code>' . $esc($dbg['min_ts'] ?? '—') . '</code> / <code>' . $esc($dbg['max_ts'] ?? '—') . '</code> — lignes filtrées par ticket_key.</li>';
             echo '</ul>';
         }
 

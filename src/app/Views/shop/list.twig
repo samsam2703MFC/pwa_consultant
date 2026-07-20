@@ -260,14 +260,15 @@
         line-height: 1;
     }
 
-    /* Synthèse magasin (CA / tickets / panier) */
+    /* Synthèse magasin (CA / tickets / panier / produits) — grille 2×2 */
     .shop-synthese {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
         margin-top: 12px;
     }
     .shop-kpi {
-        flex: 1 1 0;
+        flex: 1 1 calc(50% - 4px);
         min-width: 0;
         display: flex;
         flex-direction: column;
@@ -345,6 +346,10 @@
                             <div class="shop-kpi">
                                 <span class="shop-kpi-val">{{ shop.avg_basket|number_format(2, ',', ' ') }} €</span>
                                 <span class="shop-kpi-lbl">panier moyen</span>
+                            </div>
+                            <div class="shop-kpi">
+                                <span class="shop-kpi-val">{{ shop.products_per_client|number_format(1, ',', ' ') }}</span>
+                                <span class="shop-kpi-lbl">produits / client</span>
                             </div>
                         </div>
                         {% endif %}
