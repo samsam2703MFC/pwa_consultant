@@ -5,7 +5,28 @@ use App\Consultant\app\Repositories\Claim\ClaimRepository;
 
 class ClaimService
 {
+    /** Statuts de réclamation gérés par le module (ordre d'affichage). */
+    public const STATUSES = ['NEW', 'IN_REVIEW', 'ACCEPTED', 'REJECTED'];
+
     public function __construct(private ClaimRepository $claimRepository) {}
+
+    /**
+     * Nombre de réclamations par statut, calculé sur les données réelles.
+     * Les statuts connus apparaissent toujours (0 si absents) ; tout statut
+     * présent dans les données mais non listé est ajouté à la fin.
+     *
+     * @return array<string,int>  statut => nombre
+     */
+    public function countByStatus(array $claims): array
+    {
+        $counts = array_fill_keys(self::STATUSES, 0);
+        foreach ($claims as $claim) {
+            $status = strtoupper((string)($claim['status'] ?? 'NEW'));
+            $counts[$status] = ($counts[$status] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
 
     public function getClaimsForShop(?int $shopId): array
     {

@@ -170,6 +170,64 @@
         justify-content: center;
         cursor: pointer;
     }
+
+    /* ── Badges de statut (filtre) ── */
+    .claim-status-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+    .claim-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: .78rem;
+        font-weight: 700;
+        cursor: pointer;
+        background: #fff;
+        -webkit-tap-highlight-color: transparent;
+        transition: background .15s, color .15s, border-color .15s;
+    }
+    .claim-status-badge-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 999px;
+        font-size: .68rem;
+        font-weight: 800;
+        background: rgba(0,0,0,.10);
+        color: inherit;
+    }
+    /* Couleurs par statut (reprises du module) — état inactif : teinte claire */
+    .claim-status-badge.s-new      { color:#0d6efd; border-color:rgba(13,110,253,.28);  background:rgba(13,110,253,.08); }
+    .claim-status-badge.s-review   { color:#9a7100; border-color:rgba(255,193,7,.45);   background:rgba(255,193,7,.16); }
+    .claim-status-badge.s-accepted { color:#198754; border-color:rgba(25,135,84,.28);   background:rgba(25,135,84,.10); }
+    .claim-status-badge.s-rejected { color:#dc3545; border-color:rgba(220,53,69,.26);   background:rgba(220,53,69,.09); }
+    .claim-status-badge.s-new      .claim-status-badge-count { background:rgba(13,110,253,.18); }
+    .claim-status-badge.s-review   .claim-status-badge-count { background:rgba(154,113,0,.20); }
+    .claim-status-badge.s-accepted .claim-status-badge-count { background:rgba(25,135,84,.18); }
+    .claim-status-badge.s-rejected .claim-status-badge-count { background:rgba(220,53,69,.18); }
+    /* État actif : fond plein, texte blanc */
+    .claim-status-badge.is-active { color:#fff; border-color:transparent; }
+    .claim-status-badge.s-new.is-active      { background:#0d6efd; }
+    .claim-status-badge.s-review.is-active   { background:#9a7100; }
+    .claim-status-badge.s-accepted.is-active { background:#198754; }
+    .claim-status-badge.s-rejected.is-active { background:#dc3545; }
+    .claim-status-badge.is-active .claim-status-badge-count { background:rgba(255,255,255,.28); color:#fff; }
+    /* Statut à 0 : grisé */
+    .claim-status-badge.is-zero {
+        color:#adb5bd;
+        background:#f1f3f5;
+        border-color:#e9ecef;
+    }
+    .claim-status-badge.is-zero .claim-status-badge-count { background:rgba(0,0,0,.06); color:#adb5bd; }
 </style>
 {% endblock %}
 
@@ -195,18 +253,34 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div>
-                    <label class="form-label small fw-700 text-muted mb-1">Status</label>
-                    <select name="status" class="claim-select" onchange="this.form.submit()">
-                        <option value="NEW" {{ selected_status == 'NEW' ? 'selected' : '' }}>NEW</option>
-                        <option value="IN_REVIEW" {{ selected_status == 'IN_REVIEW' ? 'selected' : '' }}>IN_REVIEW</option>
-                        <option value="ACCEPTED" {{ selected_status == 'ACCEPTED' ? 'selected' : '' }}>ACCEPTED</option>
-                        <option value="REJECTED" {{ selected_status == 'REJECTED' ? 'selected' : '' }}>REJECTED</option>
-                        <option value="ALL" {{ selected_status == 'ALL' ? 'selected' : '' }}>Wszystkie statusy</option>
-                    </select>
-                </div>
             </div>
         </form>
+
+        {# ── Badges de statut (filtre) — comptes réels, un badge par statut ── #}
+        {% set status_css = {
+            'NEW': 'new', 'IN_REVIEW': 'review', 'ACCEPTED': 'accepted', 'REJECTED': 'rejected'
+        } %}
+        {% set status_labels = {
+            'NEW': 'Nouvelle', 'IN_REVIEW': 'En cours', 'ACCEPTED': 'Résolue', 'REJECTED': 'Rejetée'
+        } %}
+        <div class="claim-status-bar" data-active="{{ active_status }}">
+            {% for st in status_order %}
+                {% set cnt = status_counts[st] ?? 0 %}
+                <button type="button"
+                        class="claim-status-badge s-{{ status_css[st] ?? 'new' }}{{ cnt == 0 ? ' is-zero' : '' }}"
+                        data-status="{{ st }}"
+                        aria-pressed="false">
+                    <span class="claim-status-badge-lbl">{{ status_labels[st] ?? st }}</span>
+                    <span class="claim-status-badge-count">{{ cnt }}</span>
+                </button>
+            {% endfor %}
+        </div>
+
+        {# Message quand un filtre statut ne renvoie aucune réclamation (client-side) #}
+        <div class="text-center text-muted py-5" id="claim-empty-filter" style="display:none;">
+            <span style="font-size:2.5rem;opacity:.3;">{{ icons.svg('inbox') }}</span>
+            <p class="mt-3">Brak reklamacji dla wybranego statusu.</p>
+        </div>
 
         {% if claims is empty %}
             <div class="text-center text-muted py-5">
@@ -224,7 +298,7 @@
                         'REJECTED': 'claim-status-rejected'
                     }[status] ?? 'claim-status-new' %}
 
-                    <div class="card claim-card">
+                    <div class="card claim-card" data-claim-card data-status="{{ status }}">
                         <div class="card-body p-3">
                             <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
                                 <div class="min-w-0">
@@ -392,6 +466,43 @@
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && lb.classList.contains('open')) closeLightbox();
     });
+})();
+
+// ── Filtre par badges de statut (client-side, un seul actif à la fois) ──
+(function () {
+    var bar = document.querySelector('.claim-status-bar');
+    if (!bar) return;
+    var badges = Array.prototype.slice.call(bar.querySelectorAll('.claim-status-badge'));
+    var cards  = Array.prototype.slice.call(document.querySelectorAll('[data-claim-card]'));
+    var emptyMsg = document.getElementById('claim-empty-filter');
+    var active = null;
+
+    function apply(status) {
+        cards.forEach(function (c) {
+            c.style.display = (!status || c.getAttribute('data-status') === status) ? '' : 'none';
+        });
+        badges.forEach(function (b) {
+            var on = !!status && b.getAttribute('data-status') === status;
+            b.classList.toggle('is-active', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        if (emptyMsg) {
+            var anyVisible = cards.some(function (c) { return c.style.display !== 'none'; });
+            emptyMsg.style.display = (status && !anyVisible) ? '' : 'none';
+        }
+    }
+
+    badges.forEach(function (b) {
+        b.addEventListener('click', function () {
+            var st = b.getAttribute('data-status');
+            active = (active === st) ? null : st; // re-clic → retire le filtre
+            apply(active);
+        });
+    });
+
+    // Pré-activation éventuelle via ?status=
+    var pre = bar.getAttribute('data-active');
+    if (pre) { active = pre; apply(active); }
 })();
 </script>
 {% endblock %}
