@@ -7,6 +7,9 @@ RewriteBase /pwa_consultant/
 # See config/app.php > DEV_NO_AUTH.
 # SetEnv DEV_NO_AUTH 1
 
+# Consultant backend API base (hosted on a separate host).
+SetEnv CONSULTANT_API_BASE https://atelierby.tfbuddy.com/api/v1
+
 # TEMPORARY login diagnostic — enables /auth?diag=1 (see AuthController).
 # Remove this line once login is verified.
 SetEnv AUTH_DIAG 1
