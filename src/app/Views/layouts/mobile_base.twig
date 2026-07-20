@@ -256,7 +256,7 @@
         if (!("serviceWorker" in navigator)) return;
         window.addEventListener("load", async () => {
             try {
-                const reg = await navigator.serviceWorker.register("/consultant/sw.js", { scope: "/consultant/" });
+                const reg = await navigator.serviceWorker.register("/pwa_consultant/sw.js", { scope: "/pwa_consultant/" });
                 console.log("SW registered", reg);
             } catch (e) {
                 console.warn("SW register failed", e);
@@ -366,7 +366,7 @@
         const banner = document.createElement('div');
         banner.id = 'pwa-banner';
         banner.innerHTML = `
-            <img class="pwa-icon" src="/consultant/assets/pwa/icon-192.png" alt="icon">
+            <img class="pwa-icon" src="/pwa_consultant/assets/pwa/icon-192.png" alt="icon">
             <div class="pwa-body">
                 <div class="pwa-title">Zainstaluj aplikację</div>
                 <div class="pwa-sub">Dodaj do ekranu głównego — działa offline</div>

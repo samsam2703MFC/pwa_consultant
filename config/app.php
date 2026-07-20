@@ -4,7 +4,7 @@ define('ROOT',
     (((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||
         (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https'))
         ? 'https://'
-        : 'http://') . $_SERVER['SERVER_NAME'] . '/consultant');
+        : 'http://') . $_SERVER['SERVER_NAME'] . '/pwa_consultant');
 
 define('API_BASE_URL',
     (((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||

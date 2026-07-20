@@ -1,11 +1,11 @@
-/* /consultant/sw.js */
+/* /pwa_consultant/sw.js */
 const VERSION = "v1.0.0";
 const STATIC_CACHE = `static-${VERSION}`;
 const RUNTIME_CACHE = `runtime-${VERSION}`;
 
 const PRECACHE_URLS = [
-    "/consultant/",
-    "/consultant/assets/mazer/vendors/bootstrap-icons/bootstrap-icons.css",
+    "/pwa_consultant/",
+    "/pwa_consultant/assets/mazer/vendors/bootstrap-icons/bootstrap-icons.css",
 ];
 
 self.addEventListener("install", (event) => {
@@ -33,7 +33,7 @@ function isGET(req) {
 
 function isStaticAsset(url) {
     return (
-        url.pathname.startsWith("/consultant/assets/") ||
+        url.pathname.startsWith("/pwa_consultant/assets/") ||
         url.pathname.endsWith(".css") ||
         url.pathname.endsWith(".js") ||
         url.pathname.endsWith(".png") ||
@@ -49,7 +49,7 @@ function isStaticAsset(url) {
 
 function isApiGET(url) {
     return (
-        url.pathname.startsWith("/consultant/api-proxy") ||
+        url.pathname.startsWith("/pwa_consultant/api-proxy") ||
         url.pathname.startsWith("/api/")
     );
 }
@@ -118,7 +118,7 @@ self.addEventListener("fetch", (event) => {
             if (cached) return cached;
 
             if (req.mode === "navigate") {
-                return Response.redirect("/consultant/offline.html", 302);
+                return Response.redirect("/pwa_consultant/offline.html", 302);
             }
             throw e;
         }

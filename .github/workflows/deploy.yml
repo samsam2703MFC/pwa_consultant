@@ -1,0 +1,106 @@
+name: Deploy to server (SSH / rsync)
+
+# Deploys the Consultant PWA (PHP app) to the client's server over SSH (rsync),
+# using the SAME secrets/pattern as the WebShop and back_office_ws_franchisee
+# repos. GitHub-hosted runners can reach the server on port 22 (the Claude web
+# sandbox cannot — that's why this runs in Actions, not from the chat session).
+#
+# This app has a front controller in public/ (public/index.php). The URL
+#   http://<host>/pwa_consultant
+# must therefore map to the app's public/ directory, while config/ src/ vendor/
+# live one level up, outside the web-served folder.
+#
+# Layout created on the server:
+#   APP_DIR   = /var/www/app/pwa_consultant   (full app: config src vendor public …)
+#   WEB_ROOT  = /var/www/html                 (Apache docroot)
+#   symlink   /var/www/html/pwa_consultant -> /var/www/app/pwa_consultant/public
+#
+# ─── One-time setup (GitHub → Settings → Secrets and variables → Actions) ─────
+#   Secrets (same names as WebShop / back_office_ws_franchisee):
+#     SSH_HOST       server IP/host, e.g. 185.180.206.46
+#     SSH_USER       ssh user (dedicated deploy user recommended)
+#     SSH_PASSWORD   that user's password
+#   Optional repo Variables (override the defaults below):
+#     SSH_PORT       ssh port (default 22)
+#     APP_DIR        full-app dir on server (default /var/www/app/pwa_consultant)
+#     WEB_ROOT       Apache docroot        (default /var/www/html)
+#     URL_PATH       url path segment      (default pwa_consultant)
+#
+#   Apache requirements for the symlink + .htaccess to work:
+#     • Options +FollowSymLinks (or +SymLinksIfOwnerMatch) on the docroot
+#     • AllowOverride All   (so public/.htaccess "RewriteBase /pwa_consultant/" applies)
+#     • mod_rewrite enabled
+#
+#   Notes:
+#   • vendor/ is committed, so there is NO composer/build step.
+#   • rsync runs WITHOUT --delete, so other files in APP_DIR are never wiped.
+#   • This app reads env vars ($_ENV: JWT_SECRET, APP_NAME, …) and calls a backend
+#     API at http://<host>/api/v1. The page will render, but login/data need that
+#     API + env config to exist on the server (out of scope of this deploy).
+#   • SECURITY: prefer a dedicated non-root deploy user + SSH key over the root
+#     password (swap the sshpass lines for an ssh-agent key, drop SSH_PASSWORD).
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Prepare remote dir + symlink (validates SSH login)
+        env:
+          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          APP_DIR='${{ vars.APP_DIR || '/var/www/app/pwa_consultant' }}'
+          WEB_ROOT='${{ vars.WEB_ROOT || '/var/www/html' }}'
+          URL_PATH='${{ vars.URL_PATH || 'pwa_consultant' }}'
+          sshpass -e ssh -p ${{ vars.SSH_PORT || '22' }} \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "set -e; \
+             mkdir -p '$APP_DIR'; \
+             mkdir -p '$WEB_ROOT'; \
+             ln -sfn '$APP_DIR/public' '$WEB_ROOT/$URL_PATH'; \
+             command -v rsync >/dev/null || { echo 'rsync missing on server — apt-get install -y rsync'; exit 1; }"
+
+      - name: Deploy app → APP_DIR (rsync)
+        env:
+          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          APP_DIR='${{ vars.APP_DIR || '/var/www/app/pwa_consultant' }}'
+          sshpass -e rsync -rltDz --omit-dir-times \
+            --exclude '.git' --exclude '.github' --exclude '.idea' \
+            -e "ssh -p ${{ vars.SSH_PORT || '22' }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            ./ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:$APP_DIR/"
+
+      - name: Verify served page + assets on the server
+        env:
+          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          sshpass -e ssh -p ${{ vars.SSH_PORT || '22' }} \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" bash -s << 'REMOTE'
+          BASE="http://localhost/${{ vars.URL_PATH || 'pwa_consultant' }}"
+          echo "== app page: $BASE/ =="
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/")
+          echo "  HTTP $code  $BASE/"
+          echo "== manifest + service worker =="
+          for f in manifest.webmanifest sw.js; do
+            out=$(curl -s -o /dev/null -w "%{http_code} %{size_download}" "$BASE/$f")
+            echo "  $out  $f"
+          done
+          case "$code" in
+            200|301|302) echo "OK — app is being served at $BASE/";;
+            403) echo "WARN: 403 — check Options +FollowSymLinks and AllowOverride All on the docroot";;
+            404) echo "WARN: 404 — symlink or Alias not resolving; check $BASE maps to APP_DIR/public";;
+            *)   echo "WARN: unexpected status $code — check Apache config + mod_rewrite";;
+          esac
+          REMOTE

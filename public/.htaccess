@@ -1,5 +1,5 @@
 RewriteEngine On
-RewriteBase /consultant/
+RewriteBase /pwa_consultant/
 
 # Nie przepisywuj istniejących plików i katalogów
 RewriteCond %{REQUEST_FILENAME} !-f
