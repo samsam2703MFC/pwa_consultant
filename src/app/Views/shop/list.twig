@@ -364,8 +364,8 @@
         const food = T - L - OC - R;   // Food Cost
         const gross = T - food;        // Marge brute
 
-        // % par rapport au TurnOver de la même période/magasin, 1 décimale.
-        const pct = (x) => (T > 0 ? (Math.round((x / T) * 1000) / 10).toFixed(1) + '%' : '—');
+        // % par rapport au TurnOver de la même période/magasin, arrondi à l'entier.
+        const pct = (x) => (T > 0 ? Math.round((x / T) * 100) + '%' : '—');
 
         // 1. TurnOver — sans % (toujours 100%). Reste dépliable (catégories).
         rows.push(`
