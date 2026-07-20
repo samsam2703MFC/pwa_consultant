@@ -10,4 +10,9 @@ return function(RouteCollector $r) {
         'method'     => 'pnl'
     ]);
 
+    $r->addRoute('GET', '/api-debug', [
+        'controller' => DebugController::class,
+        'method'     => 'probe'
+    ]);
+
 };

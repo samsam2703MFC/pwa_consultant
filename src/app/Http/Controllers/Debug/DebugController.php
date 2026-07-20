@@ -20,6 +20,51 @@ class DebugController extends Controller
         private CookieManager $cookieManager,
     ) {}
 
+    /**
+     * Sonde générique : /api-debug?endpoint=/consultant/shops/summary
+     * Affiche la réponse brute de n'importe quel endpoint /consultant/*.
+     */
+    #[Route('GET', '/api-debug')]
+    public function probe(): void
+    {
+        header('Content-Type: text/html; charset=utf-8');
+        $flag = $_SERVER['PNL_DIAG'] ?? $_ENV['PNL_DIAG'] ?? getenv('PNL_DIAG') ?: '0';
+        if ($flag !== '1') { http_response_code(404); echo 'Not found'; return; }
+
+        $esc = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $endpoint = $_GET['endpoint'] ?? '';
+
+        echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
+        echo '<body style="font-family:ui-monospace,Menlo,monospace;max-width:900px;margin:24px auto;padding:0 16px;color:#241f1c;background:#F4EFE8;line-height:1.5">';
+        echo '<h2 style="font-family:sans-serif">Sonde API</h2>';
+
+        if (!str_starts_with($endpoint, '/consultant/')) {
+            echo '<p>Ajoute <code>?endpoint=/consultant/…</code> (préfixe /consultant/ requis).</p>';
+            echo '<p>Ex : <code>/pwa_consultant/api-debug?endpoint=/consultant/shops/summary</code></p>';
+            echo '</body>';
+            return;
+        }
+
+        $resp = $this->apiClient->get($endpoint);
+        $data = $resp['data'] ?? [];
+        echo '<p><b>Endpoint</b> : ' . $esc(API_BASE_URL . $endpoint) . '</p>';
+        echo '<p><b>success</b> : ' . ($resp['success'] ? '✅' : '❌ (HTTP ' . $esc($resp['error'] ?? '?') . ')') . '</p>';
+        if (is_array($data)) {
+            $keys = array_keys($data);
+            echo '<p><b>Clés racine</b> : ' . $esc(implode(', ', array_map('strval', $keys))) . '</p>';
+            // Si tableau de sklepów, montre les clés du 1er élément.
+            if (isset($data[0]) && is_array($data[0])) {
+                echo '<p><b>Clés du 1er élément</b> : ' . $esc(implode(', ', array_keys($data[0]))) . '</p>';
+            }
+        }
+        echo '<h3 style="font-family:sans-serif">Réponse brute</h3>';
+        echo '<pre style="white-space:pre-wrap;background:#fff;padding:12px;border-radius:8px;font-size:12px">'
+           . $esc(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
+           . '</pre>';
+        echo '<p style="font-family:sans-serif;color:#8D1D2C">⚠️ Diagnostic temporaire — retire <code>SetEnv PNL_DIAG 1</code> après usage.</p>';
+        echo '</body>';
+    }
+
     #[Route('GET', '/pnl-debug')]
     public function pnl(): void
     {
