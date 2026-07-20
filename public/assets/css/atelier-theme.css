@@ -48,6 +48,7 @@ h1,h2,h3,h4,h5,.card-title { font-family:var(--font-display); font-weight:400; l
 a { color:var(--c-primary); text-decoration:none; }
 a:hover { color:var(--c-primary-hover); }
 .app-content .container { max-width:520px; }
+.app-content .container, .app-topbar .container { padding-inline:24px; }
 
 /* ---- Buttons ------------------------------------------------------------ */
 .btn { border-radius:var(--r-sm); font-weight:600; letter-spacing:.01em; transition:transform .12s var(--ease), box-shadow .18s var(--ease), background-color .18s var(--ease); }
@@ -241,7 +242,12 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
 /* =========================================================================
    Dashboard tiles — dynamic & fluid
    ========================================================================= */
-.page-content-loaded .row.g-3 { --bs-gutter-y:.8rem; }
+/* narrower, slightly taller tiles — container padding does the narrowing */
+.page-content-loaded .row.g-3 { --bs-gutter-y:.7rem; --bs-gutter-x:0; }
+.page-content-loaded .row.g-3 .card-body { padding:19px 20px !important; }
+.page-content-loaded .dash-tile { width:52px; height:52px; border-radius:15px; }
+.page-content-loaded .dash-tile svg { width:25px; height:25px; }
+.page-content-loaded .row.g-3 .card .fw-700 { font-size:1.05rem; }
 
 /* depth: soft gradient on each icon tile (keeps the earthy accent) */
 .dash-tile { transition:transform .34s cubic-bezier(.34,1.56,.64,1), box-shadow .3s var(--ease); }
