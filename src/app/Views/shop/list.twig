@@ -365,7 +365,6 @@
                 <span class="pnl-row-value">${fmt(overhead.value)}</span>
                 <span class="pnl-row-delta ${ocDeltaCls}">${ocDelta}</span>
             </div>
-            ${renderOverheadBreakdown(overhead.breakdown)}
         `);
 
         // Result
@@ -390,27 +389,6 @@
                 toRow.classList.toggle('expanded', open);
             });
         }
-    }
-
-    function renderOverheadBreakdown(breakdown) {
-        if (!breakdown) return '';
-
-        const periods = ['day', 'week', 'month'];
-        const items = periods
-            .filter(period => breakdown[period])
-            .map(period => {
-                const item = breakdown[period];
-                return `
-                    <div class="oc-breakdown-item">
-                        <span class="oc-breakdown-label">${escHtml(item.label ?? period)}</span>
-                        <span class="oc-breakdown-value">${fmt(item.value)}</span>
-                    </div>
-                `;
-            })
-            .join('');
-
-        if (!items) return '';
-        return `<div class="oc-breakdown">${items}</div>`;
     }
 
     function renderCategories(categories, turnoverTotal) {
