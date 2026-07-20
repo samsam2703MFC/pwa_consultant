@@ -1,0 +1,11 @@
+<?php
+// Copier ce fichier en `config/db.local.php` SUR LE SERVEUR (hors Git) et
+// renseigner les identifiants MySQL de la base consultant (atelierby_db).
+// Le rsync de déploiement ne supprime pas ce fichier (pas de --delete).
+return [
+    'host' => '127.0.0.1',   // localhost si la base est sur le serveur frontend
+    'port' => 3306,
+    'name' => 'atelierby_db',
+    'user' => 'REMPLACER_USER',
+    'pass' => 'REMPLACER_PASS',
+];

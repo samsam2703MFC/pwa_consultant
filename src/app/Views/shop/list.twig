@@ -244,6 +244,50 @@
         background: rgba(0,0,0,.06);
         margin: 0 16px;
     }
+
+    /* Rang du magasin (1 = plus gros CA) */
+    .shop-rank {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #8D1D2C;
+        color: #fff;
+        font-size: .78rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+    }
+
+    /* Synthèse magasin (CA / tickets / panier) */
+    .shop-synthese {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    .shop-kpi {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 8px 4px;
+        border-radius: 10px;
+        background: #F4EFE8;
+    }
+    .shop-kpi-val {
+        font-size: .9rem;
+        font-weight: 700;
+        color: #241f1c;
+        white-space: nowrap;
+    }
+    .shop-kpi-lbl {
+        font-size: .66rem;
+        color: #7a7168;
+        margin-top: 2px;
+    }
 </style>
 {% endblock %}
 
@@ -263,6 +307,9 @@
                     {# ── Shop header (tap to open notes / long-press / chevron to expand P&L) ── #}
                     <div class="card-body py-3">
                         <div class="d-flex align-items-center gap-3">
+                            {% if shop.rank is defined %}
+                            <div class="shop-rank flex-shrink-0" aria-label="Rang {{ shop.rank }}">{{ shop.rank }}</div>
+                            {% endif %}
                             <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
                                  style="width:42px;height:42px;background:rgba(141,29,44,.12);">
                                 <span style="font-size:1.1rem;color:#8D1D2C;">{{ icons.svg('store') }}</span>
@@ -283,6 +330,24 @@
                                 <span class="ms-1 shop-toggle-chevron" style="font-size:.7rem;">{{ icons.svg('chevron-down') }}</span>
                             </button>
                         </div>
+
+                        {# ── Synthèse magasin : CA du mois, tickets/jour, panier moyen ── #}
+                        {% if shop.ca_month is defined %}
+                        <div class="shop-synthese">
+                            <div class="shop-kpi">
+                                <span class="shop-kpi-val">{{ shop.ca_month|number_format(0, ',', ' ') }} €</span>
+                                <span class="shop-kpi-lbl">CA du mois</span>
+                            </div>
+                            <div class="shop-kpi">
+                                <span class="shop-kpi-val">{{ shop.tickets_per_day|round }}</span>
+                                <span class="shop-kpi-lbl">tickets / jour</span>
+                            </div>
+                            <div class="shop-kpi">
+                                <span class="shop-kpi-val">{{ shop.avg_basket|number_format(2, ',', ' ') }} €</span>
+                                <span class="shop-kpi-lbl">panier moyen</span>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
 
                     {# ── P&L Block (hidden by default) ── #}
