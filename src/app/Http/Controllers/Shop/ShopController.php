@@ -43,9 +43,6 @@ class ShopController extends Controller
      */
     private function withSalesIndicators(array $shops): array
     {
-        $today  = new \DateTimeImmutable('today');
-        $capEnd = $today->modify('+1 day'); // borne haute = fin de la journée en cours
-
         foreach ($shops as &$shop) {
             $id = (int)($shop['id'] ?? 0);
 
@@ -69,10 +66,10 @@ class ShopController extends Controller
 
                 $tickets = $this->shopSales->getShopSummary($id, $fromDt, $toExcl)['tickets'];
 
-                // Jours écoulés dans la fenêtre (borné à aujourd'hui pour ne pas
-                // diviser un mois partiel par sa longueur totale).
-                $effEnd = $toExclObj < $capEnd ? $toExclObj : $capEnd;
-                $days   = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($effEnd)->days);
+                // Tickets et CA couvrent toute la fenêtre du P&L → la moyenne
+                // par jour se divise par le NOMBRE DE JOURS DE LA FENÊTRE
+                // (date_from → date_to inclus), pas par les jours écoulés.
+                $days = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($toExclObj)->days);
             } else {
                 // Repli : mois calendaire courant, lu en base.
                 $fromDt = date('Y-m-01 00:00:00');
@@ -80,7 +77,7 @@ class ShopController extends Controller
                 $sum    = $this->shopSales->getShopSummary($id, $fromDt, $toDt);
                 $ca      = (float)$sum['ca'];
                 $tickets = (int)$sum['tickets'];
-                $days    = max(1, (int)date('j'));
+                $days    = max(1, (int)date('t')); // nombre de jours du mois
             }
 
             $shop['ca_month']        = $ca;
