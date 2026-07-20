@@ -169,18 +169,16 @@ class DebugController extends Controller
         if ($valid($fromDate) && $valid($toDate)) {
             $dbg = $this->shopSales->getWindowDebug($shop, $fromDate, $toDate);
 
-            // Jours écoulés dans la fenêtre (même logique que ShopController).
-            $today   = new \DateTimeImmutable('today');
-            $capEnd  = $today->modify('+1 day');
+            // Nombre de jours de la fenêtre P&L (date_from → date_to inclus),
+            // même logique que ShopController.
             $toExObj = (new \DateTimeImmutable($toDate))->modify('+1 day');
-            $effEnd  = $toExObj < $capEnd ? $toExObj : $capEnd;
-            $days    = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($effEnd)->days);
+            $days    = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($toExObj)->days);
 
             $perTs  = $dbg['tickets_ts']  > 0 ? $dbg['tickets_ts']  / $days : 0;
             $perKey = $dbg['tickets_key'] > 0 ? $dbg['tickets_key'] / $days : 0;
 
             echo '<h3 style="font-family:sans-serif">Tickets / jour</h3><ul>';
-            echo '<li>Fenêtre : <code>' . $esc($fromDate) . '</code> → <code>' . $esc($toDate) . '</code>, jours écoulés = <b>' . $esc($days) . '</b></li>';
+            echo '<li>Fenêtre : <code>' . $esc($fromDate) . '</code> → <code>' . $esc($toDate) . '</code>, jours de la fenêtre = <b>' . $esc($days) . '</b></li>';
             echo '<li>Tickets (insert_timestamp) = <b>' . $esc($dbg['tickets_ts']) . '</b> → ' . $esc(number_format($perTs, 1, ',', ' ')) . ' / jour</li>';
             echo '<li>Tickets (ticket_key = date métier) = <b>' . $esc($dbg['tickets_key']) . '</b> → ' . $esc(number_format($perKey, 1, ',', ' ')) . ' / jour</li>';
             echo '<li>min / max insert_timestamp (magasin) : <code>' . $esc($dbg['min_ts'] ?? '—') . '</code> / <code>' . $esc($dbg['max_ts'] ?? '—') . '</code></li>';
