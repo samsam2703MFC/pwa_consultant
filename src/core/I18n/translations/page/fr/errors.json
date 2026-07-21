@@ -1,0 +1,9 @@
+{
+  "forbidden": "Accès refusé",
+  "forbidden_desc": "Vous n'avez pas les droits pour voir cette page.",
+  "go_back": "Retour",
+  "not_found": "Page introuvable",
+  "not_found_desc": "La page que vous cherchez n'existe pas.",
+  "server_error": "Erreur serveur",
+  "server_error_desc": "Une erreur inattendue est survenue. Réessayez."
+}

@@ -1,8 +1,8 @@
 {% extends "layouts/mobile_base.twig" %}
 
 {% import "components/_icons.twig" as icons %}
-{% block title %}Targety — {{ shop.representative_name ?? shop.name ?? 'Sklep' }}{% endblock %}
-{% block page_title %}Targety{% endblock %}
+{% block title %}Targets — {{ shop.representative_name ?? shop.name ?? (translations.shop_fallback ?? 'Boutique') }}{% endblock %}
+{% block page_title %}{{ translations.title ?? 'Targets' }}{% endblock %}
 {% block page_subtitle %}{{ shop.representative_name ?? shop.name ?? '' }}{% endblock %}
 
 {% block content %}
@@ -13,7 +13,7 @@
           class="card border-0 shadow-sm mb-3 p-3" style="border-radius:14px;">
         <div class="d-flex gap-2 align-items-end flex-wrap">
             <div>
-                <label class="form-label small mb-1">Rok</label>
+                <label class="form-label small mb-1">{{ translations.year ?? 'Année' }}</label>
                 <select name="year" class="form-select form-select-sm">
                     {% for y in range(year - 1, year + 1) %}
                         <option value="{{ y }}" {{ y == year ? 'selected' : '' }}>{{ y }}</option>
@@ -21,14 +21,14 @@
                 </select>
             </div>
             <div>
-                <label class="form-label small mb-1">Miesiąc</label>
+                <label class="form-label small mb-1">{{ translations.month ?? 'Mois' }}</label>
                 <select name="month" class="form-select form-select-sm">
                     {% for num, name in months %}
                         <option value="{{ num }}" {{ num == month ? 'selected' : '' }}>{{ name }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn btn-sm btn-secondary">Wczytaj</button>
+            <button type="submit" class="btn btn-sm btn-secondary">{{ translations.load ?? 'Charger' }}</button>
         </div>
     </form>
 
@@ -36,7 +36,7 @@
     <div class="mb-3">
         <button id="btn-copy" class="btn btn-outline-secondary btn-sm w-100">
             {{ icons.svg('download') }}
-            Kopiuj z poprzedniego miesiąca
+            {{ translations.copy_prev_month ?? 'Copier depuis le mois précédent' }}
         </button>
     </div>
 
@@ -103,7 +103,7 @@
                         </th>
                     </tr>
                     <tr>
-                        <th class="ps-3" style="width:35%">Levier</th>
+                        <th class="ps-3" style="width:35%">{{ translations.lever ?? 'Levier' }}</th>
                         <th class="text-center" style="background:#d4edda">🟢</th>
                         <th class="text-center" style="background:#fff3cd">🟡</th>
                         <th class="text-center" style="background:#fde4c8">🟠</th>
@@ -118,8 +118,8 @@
         </div>
     </div>
 
-    <button id="btn-save" class="btn btn-primary w-100 mb-3">Zapisz targety</button>
-    <a href="{{ ROOT }}/targets" class="btn btn-outline-secondary w-100">Powrót</a>
+    <button id="btn-save" class="btn btn-primary w-100 mb-3">{{ translations.save ?? 'Enregistrer les targets' }}</button>
+    <a href="{{ ROOT }}/targets" class="btn btn-outline-secondary w-100">{{ translations.back ?? 'Retour' }}</a>
 </div>
 
 {# ── MODAL KOPIOWANIA ────────────────────────────────────────────────────── #}
@@ -127,16 +127,16 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius:18px;">
             <div class="modal-header border-0">
-                <h5 class="modal-title">Kopiuj targety</h5>
+                <h5 class="modal-title">{{ translations.copy ?? 'Copier les targets' }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                Zostaną załadowane Twoje targety z <strong id="prev-month-label"></strong>.
+                {{ translations.copy_modal_body ?? 'Vos targets de' }} <strong id="prev-month-label"></strong> {{ translations.copy_modal_body2 ?? 'seront chargés.' }}
                 Istniejące wartości zostaną nadpisane.
             </div>
             <div class="modal-footer border-0">
-                <button class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-                <button id="btn-copy-confirm" class="btn btn-primary">Skopiuj</button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">{{ translations.cancel ?? 'Annuler' }}</button>
+                <button id="btn-copy-confirm" class="btn btn-primary">{{ translations.copy_btn ?? 'Copier' }}</button>
             </div>
         </div>
     </div>
@@ -220,7 +220,7 @@ function collectTargets() {
 document.getElementById('btn-save').addEventListener('click', async () => {
     const targets = collectTargets();
     if (!targets.length) {
-        showToast('Brak kompletnych progów.', false);
+        showToast('{{ translations.incomplete_thresholds ?? 'Seuils incomplets.' }}', false);
         return;
     }
     const res = await fetch(`${ROOT}/targets/${SHOP_ID}/save`, {

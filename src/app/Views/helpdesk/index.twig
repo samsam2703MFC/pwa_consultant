@@ -1,9 +1,9 @@
 {% extends "layouts/mobile_base.twig" %}
 
 {% import "components/_icons.twig" as icons %}
-{% block title %}Zgłoszenia — Consultant Panel{% endblock %}
-{% block page_title %}Zgłoszenia{% endblock %}
-{% block page_subtitle %}Helpdesk z Twoich obszarów odpowiedzialności{% endblock %}
+{% block title %}{{ translations.title ?? 'Demandes' }} — Consultant Panel{% endblock %}
+{% block page_title %}{{ translations.title ?? 'Demandes' }}{% endblock %}
+{% block page_subtitle %}{{ translations.subtitle2 ?? 'Helpdesk de vos zones de responsabilité' }}{% endblock %}
 
 {% block head %}
 <style>
@@ -233,36 +233,36 @@
 <div class="page-content-loaded">
     <form method="GET" action="{{ ROOT }}/helpdesk" class="task-filter-card">
         <div class="mb-2">
-            <label class="task-filter-label">Szukaj</label>
-            <input class="task-filter-input" type="search" name="q" value="{{ filters.q }}" placeholder="Ref, tytuł lub sklep">
+            <label class="task-filter-label">{{ translations.search ?? 'Rechercher' }}</label>
+            <input class="task-filter-input" type="search" name="q" value="{{ filters.q }}" placeholder="{{ translations.search_ph ?? 'Réf, titre ou boutique' }}">
         </div>
         <div class="row g-2">
             <div class="col-6">
-                <label class="task-filter-label">Obszar</label>
+                <label class="task-filter-label">{{ translations.area ?? 'Zone' }}</label>
                 <select class="task-filter-select" name="area_key">
-                    <option value="">Wszystkie</option>
+                    <option value="">{{ translations.all ?? 'Toutes' }}</option>
                     {% for area in areas %}
                         <option value="{{ area.key }}" {{ filters.area_key == area.key ? 'selected' : '' }}>{{ area.label }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="col-6">
-                <label class="task-filter-label">Status</label>
+                <label class="task-filter-label">{{ translations.status ?? 'Statut' }}</label>
                 <select class="task-filter-select" name="status">
-                    <option value="">Wszystkie</option>
+                    <option value="">{{ translations.all ?? 'Toutes' }}</option>
                     {% for key, label in statuses %}
                         <option value="{{ key }}" {{ filters.status == key ? 'selected' : '' }}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
         </div>
-        <button type="submit" class="btn btn-primary btn-sm w-100 mt-3 rounded-pill">Filtruj</button>
+        <button type="submit" class="btn btn-primary btn-sm w-100 mt-3 rounded-pill">{{ translations.filter ?? 'Filtrer' }}</button>
     </form>
 
     {% if cases is empty %}
         <div class="text-center text-muted py-5">
             <span style="font-size:2.5rem;opacity:.35;">{{ icons.svg('inbox') }}</span>
-            <p class="mt-3 mb-0">Brak zgłoszeń Helpdesk przypisanych do Twoich obszarów.</p>
+            <p class="mt-3 mb-0">{{ translations.none ?? 'Aucun ticket Helpdesk assigné à vos zones.' }}</p>
         </div>
     {% else %}
         <div class="d-flex flex-column">
@@ -287,7 +287,7 @@
                         <p class="task-case-description">{{ case.description }}</p>
                     {% endif %}
                     {% if case.admin_reply %}
-                        <p class="task-case-reply"><strong>Odpowiedź:</strong> {{ case.admin_reply }}</p>
+                        <p class="task-case-reply"><strong>{{ translations.response_colon ?? 'Réponse :' }}</strong> {{ case.admin_reply }}</p>
                     {% endif %}
 
                     <div class="task-case-meta">
@@ -312,12 +312,12 @@
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Szczegóły zgłoszenia</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+                <h5 class="modal-title">{{ translations.details ?? 'Détails du ticket' }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ translations.close ?? 'Fermer' }}"></button>
             </div>
             <div class="modal-body p-0" id="helpdeskDetailsContent">
                 <div class="modal-loader">
-                    <div class="spinner-border spinner-border-sm me-2"></div>Ładowanie…
+                    <div class="spinner-border spinner-border-sm me-2"></div>{{ translations.loading ?? 'Chargement…' }}
                 </div>
             </div>
         </div>
@@ -371,7 +371,7 @@
 
     async function openCase(id) {
         currentCaseId = id;
-        modalBody.innerHTML = '<div class="modal-loader"><div class="spinner-border spinner-border-sm me-2"></div>Ładowanie…</div>';
+        modalBody.innerHTML = '<div class="modal-loader"><div class="spinner-border spinner-border-sm me-2"></div>{{ translations.loading ?? 'Chargement…' }}</div>';
         modal.show();
 
         try {
@@ -387,9 +387,9 @@
     }
 
     function renderCase(data, meetings) {
-        const meetingOptions = ['<option value="">— odepnij spotkanie —</option>']
+        const meetingOptions = ['<option value="">{{ translations.unpin_meeting ?? '— retirer le rendez-vous —' }}</option>']
             .concat(meetings.map(item => {
-                const title = `${item.title || 'Spotkanie'} · ${item.meeting_date || ''} ${item.meeting_time || ''}`.trim();
+                const title = `${item.title || '{{ translations.meeting_fallback ?? 'Rendez-vous' }}'} · ${item.meeting_date || ''} ${item.meeting_time || ''}`.trim();
                 const selected = String(item.id) === String(data.id_meeting || '') ? 'selected' : '';
                 return `<option value="${item.id}" ${selected}>${escHtml(title)}</option>`;
             }))
@@ -425,54 +425,54 @@
             </div>
 
             <div class="case-section">
-                <div class="case-section-title">Opis zgłoszenia</div>
+                <div class="case-section-title">{{ translations.description ?? 'Description du ticket' }}</div>
                 <div class="case-description-full">${escHtml(data.description || '')}</div>
-                ${data.context ? `<div class="case-section-title mt-3">Kontekst</div><div class="case-description-full">${escHtml(data.context)}</div>` : ''}
+                ${data.context ? `<div class="case-section-title mt-3">{{ translations.context ?? 'Contexte' }}</div><div class="case-description-full">${escHtml(data.context)}</div>` : ''}
             </div>
 
             <div class="case-section">
-                <div class="case-section-title">Informacje</div>
-                <div class="case-info-row"><div class="case-info-label">Zgłaszający</div><div class="case-info-value">${maybe(data.requester_name)}</div></div>
-                <div class="case-info-row"><div class="case-info-label">Email</div><div class="case-info-value">${maybe(data.requester_email)}</div></div>
-                <div class="case-info-row"><div class="case-info-label">Sklep</div><div class="case-info-value">${maybe(data.shop_name)}</div></div>
-                <div class="case-info-row"><div class="case-info-label">Konsultant</div><div class="case-info-value">${maybe(data.consultant_name)}</div></div>
-                <div class="case-info-row"><div class="case-info-label">Spotkanie</div><div class="case-info-value">${maybe(data.meeting_title)}</div></div>
-                <div class="case-info-row"><div class="case-info-label">Utworzono</div><div class="case-info-value">${maybe(data.created_at)}</div></div>
-                <div class="case-info-row"><div class="case-info-label">Aktualizacja</div><div class="case-info-value">${maybe(data.updated_at)}</div></div>
+                <div class="case-section-title">{{ translations.info ?? 'Informations' }}</div>
+                <div class="case-info-row"><div class="case-info-label">{{ translations.reporter ?? 'Demandeur' }}</div><div class="case-info-value">${maybe(data.requester_name)}</div></div>
+                <div class="case-info-row"><div class="case-info-label">{{ translations.email ?? 'Email' }}</div><div class="case-info-value">${maybe(data.requester_email)}</div></div>
+                <div class="case-info-row"><div class="case-info-label">{{ translations.shop ?? 'Boutique' }}</div><div class="case-info-value">${maybe(data.shop_name)}</div></div>
+                <div class="case-info-row"><div class="case-info-label">{{ translations.consultant ?? 'Consultant' }}</div><div class="case-info-value">${maybe(data.consultant_name)}</div></div>
+                <div class="case-info-row"><div class="case-info-label">{{ translations.meeting ?? 'Rendez-vous' }}</div><div class="case-info-value">${maybe(data.meeting_title)}</div></div>
+                <div class="case-info-row"><div class="case-info-label">{{ translations.created ?? 'Créé le' }}</div><div class="case-info-value">${maybe(data.created_at)}</div></div>
+                <div class="case-info-row"><div class="case-info-label">{{ translations.updated ?? 'Mise à jour' }}</div><div class="case-info-value">${maybe(data.updated_at)}</div></div>
             </div>
 
             <div class="case-section">
-                <div class="case-section-title">Odpowiedź</div>
-                <div class="case-reply-view">${data.admin_reply ? escHtml(data.admin_reply) : 'Brak odpowiedzi.'}</div>
+                <div class="case-section-title">{{ translations.response ?? 'Réponse' }}</div>
+                <div class="case-reply-view">${data.admin_reply ? escHtml(data.admin_reply) : '{{ translations.no_reply ?? 'Pas encore de réponse.' }}'}</div>
             </div>
 
             ${(data.attachments || []).length ? `
             <div class="case-section">
-                <div class="case-section-title">Załączniki</div>
+                <div class="case-section-title">{{ translations.attachments ?? 'Pièces jointes' }}</div>
                 <div class="attachments-grid">${attachments}</div>
             </div>` : ''}
 
             <div class="case-section">
-                <div class="case-section-title">Akcje</div>
+                <div class="case-section-title">{{ translations.actions ?? 'Actions' }}</div>
                 <div class="case-actions">
                     <div class="case-action-row">
-                        <div class="case-action-label">Status</div>
+                        <div class="case-action-label">{{ translations.status ?? 'Statut' }}</div>
                         <select class="case-action-select" id="case-status-select">${statusOptions}</select>
-                        <button class="case-action-button" data-action="status">Zapisz status</button>
+                        <button class="case-action-button" data-action="status">{{ translations.save_status ?? 'Enregistrer le statut' }}</button>
                         <div class="case-feedback" id="feedback-status"></div>
                     </div>
 
                     <div class="case-action-row">
-                        <div class="case-action-label">Spotkanie</div>
+                        <div class="case-action-label">{{ translations.meeting ?? 'Rendez-vous' }}</div>
                         <select class="case-action-select" id="case-meeting-select">${meetingOptions}</select>
-                        <button class="case-action-button" data-action="meeting">Zapisz spotkanie</button>
+                        <button class="case-action-button" data-action="meeting">{{ translations.save_meeting ?? 'Enregistrer le rendez-vous' }}</button>
                         <div class="case-feedback" id="feedback-meeting"></div>
                     </div>
 
                     <div class="case-action-row">
-                        <div class="case-action-label">Odpowiedź</div>
-                        <textarea class="case-action-textarea" id="case-reply-input" placeholder="Wpisz odpowiedź…">${escHtml(data.admin_reply || '')}</textarea>
-                        <button class="case-action-button" data-action="reply">Zapisz odpowiedź</button>
+                        <div class="case-action-label">{{ translations.response ?? 'Réponse' }}</div>
+                        <textarea class="case-action-textarea" id="case-reply-input" placeholder="{{ translations.response_ph ?? 'Écrire une réponse…' }}">${escHtml(data.admin_reply || '')}</textarea>
+                        <button class="case-action-button" data-action="reply">{{ translations.save_response ?? 'Enregistrer la réponse' }}</button>
                         <div class="case-feedback" id="feedback-reply"></div>
                     </div>
                 </div>
@@ -496,7 +496,7 @@
                     method: 'POST',
                     body: JSON.stringify({ status })
                 });
-                setFeedback('status', json.message || 'Status zapisany.', true);
+                setFeedback('status', json.message || '{{ translations.status_saved ?? 'Statut enregistré.' }}', true);
             }
             if (action === 'meeting') {
                 const id_meeting = document.getElementById('case-meeting-select').value || null;
@@ -504,7 +504,7 @@
                     method: 'POST',
                     body: JSON.stringify({ id_meeting })
                 });
-                setFeedback('meeting', json.message || 'Spotkanie zapisane.', true);
+                setFeedback('meeting', json.message || '{{ translations.meeting_saved ?? 'Rendez-vous enregistré.' }}', true);
             }
             if (action === 'reply') {
                 const admin_reply = document.getElementById('case-reply-input').value;
@@ -512,7 +512,7 @@
                     method: 'POST',
                     body: JSON.stringify({ admin_reply })
                 });
-                setFeedback('reply', json.message || 'Odpowiedź zapisana.', true);
+                setFeedback('reply', json.message || '{{ translations.reply_saved ?? 'Réponse enregistrée.' }}', true);
             }
             setTimeout(() => window.location.reload(), 700);
         } catch (err) {

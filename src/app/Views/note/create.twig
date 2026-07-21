@@ -6,9 +6,9 @@
 {% set create_url = list_url ~ '/new' %}
 {% set employee_label = employee.display_name ?? employee.employee_name ?? ((employee.name ?? '') ~ ' ' ~ (employee.surname ?? ''))|trim %}
 
-{% block title %}Nowa notatka — Consultant Panel{% endblock %}
-{% block page_title %}Nowa notatka{% endblock %}
-{% block page_subtitle %}{{ is_employee_context ? ('Dodaj notatke dla pracownika: ' ~ (employee_label ?: ('#' ~ employee_id))) : 'Dodaj notatke do placowki' }}{% endblock %}
+{% block title %}{{ translations.new_note ?? 'Nouvelle note' }} — Consultant Panel{% endblock %}
+{% block page_title %}{{ translations.new_note ?? 'Nouvelle note' }}{% endblock %}
+{% block page_subtitle %}{{ is_employee_context ? ((translations.add_note_for_employee ?? "Ajouter une note pour l'employé : ") ~ (employee_label ?: ('#' ~ employee_id))) : (translations.add_note_to_shop ?? 'Ajouter une note à la boutique') }}{% endblock %}
 
 {% block content %}
 <div class="page-content-loaded">
@@ -16,7 +16,7 @@
     <a href="{{ list_url }}"
        class="d-inline-flex align-items-center gap-1 text-muted mb-3"
        style="font-size:.82rem;text-decoration:none;">
-        {{ icons.svg('chevron-left') }} Notatki
+        {{ icons.svg('chevron-left') }} {{ translations.notes_back ?? 'Notes' }}
     </a>
 
     {% if errors.save is defined %}
@@ -30,10 +30,10 @@
 
         <div class="mb-3">
             <label class="form-label fw-600" style="font-size:.88rem;">Kategoria
-                <span class="text-muted fw-400">(opcjonalna)</span>
+                <span class="text-muted fw-400">{{ translations.optional ?? '(optionnelle)' }}</span>
             </label>
             <select name="note_type_id" class="form-select form-select-sm rounded-3">
-                <option value="">- bez kategorii -</option>
+                <option value="">{{ translations.no_category_option ?? '- sans catégorie -' }}</option>
                 {% for type in note_types %}
                     <option value="{{ type.id }}"
                         {{ old('note_type_id') == type.id ? 'selected' : '' }}>
@@ -49,14 +49,14 @@
             </label>
             <textarea name="content" rows="5"
                       class="form-control rounded-3 {{ errors.content is defined ? 'is-invalid' : '' }}"
-                      placeholder="Opisz obserwacje lub problem..." style="font-size:.9rem;">{{ old('content') }}</textarea>
+                      placeholder="{{ translations.describe_ph ?? "Décrivez l'observation ou le problème..." }}" style="font-size:.9rem;">{{ old('content') }}</textarea>
             {% if errors.content is defined %}
                 <div class="invalid-feedback">{{ errors.content }}</div>
             {% endif %}
         </div>
 
         <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 fw-700">
-            <span class="me-2">{{ icons.svg('check') }}</span>Zapisz notatke
+            <span class="me-2">{{ icons.svg('check') }}</span>{{ translations.save_note ?? 'Enregistrer la note' }}
         </button>
     </form>
 

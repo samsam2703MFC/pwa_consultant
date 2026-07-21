@@ -259,12 +259,12 @@
 {% set _uparts = _uname|trim|split(' ')|filter(p => p is not empty) %}
 {% set _uinit = (_uparts|first|default('')|slice(0,1)) ~ (_uparts|length > 1 ? _uparts[1]|slice(0,1) : '') %}
 <nav class="app-tabbar-bar" aria-label="{{ translations.primary_navigation ?? 'Navigation' }}">
-    <a href="{{ ROOT }}/dashboard"  class="app-tab {{ (active_nav ?? '') == 'dashboard'  ? 'is-active' : '' }}">{{ icons.svg('home', 23) }}<span>Accueil</span></a>
-    <a href="{{ ROOT }}/shops"      class="app-tab {{ (active_nav ?? '') == 'shops'      ? 'is-active' : '' }}">{{ icons.svg('store', 23) }}<span>Boutiques</span></a>
-    <a href="{{ ROOT }}/checklists" class="app-tab {{ (active_nav ?? '') == 'checklists' ? 'is-active' : '' }}">{{ icons.svg('clipboard-check', 23) }}<span>Checklists</span></a>
-    <a href="{{ ROOT }}/tasks"      class="app-tab {{ (active_nav ?? '') == 'tasks'      ? 'is-active' : '' }}">{{ icons.svg('square-check', 23) }}<span>Tâches</span></a>
-    <a href="{{ ROOT }}/me"         class="app-tab app-tab-profile {{ (active_nav ?? '') == 'profile' ? 'is-active' : '' }}" aria-label="{{ _uname ?: 'Profil' }}">
-        <span class="app-tab-avatar">{% if _uinit|trim %}{{ _uinit|upper }}{% else %}{{ icons.svg('user', 15) }}{% endif %}</span><span>Profil</span>
+    <a href="{{ ROOT }}/dashboard"  class="app-tab {{ (active_nav ?? '') == 'dashboard'  ? 'is-active' : '' }}">{{ icons.svg('home', 23) }}<span>{{ translations.nav_home ?? 'Accueil' }}</span></a>
+    <a href="{{ ROOT }}/shops"      class="app-tab {{ (active_nav ?? '') == 'shops'      ? 'is-active' : '' }}">{{ icons.svg('store', 23) }}<span>{{ translations.nav_shops ?? 'Boutiques' }}</span></a>
+    <a href="{{ ROOT }}/checklists" class="app-tab {{ (active_nav ?? '') == 'checklists' ? 'is-active' : '' }}">{{ icons.svg('clipboard-check', 23) }}<span>{{ translations.nav_checklists ?? 'Checklists' }}</span></a>
+    <a href="{{ ROOT }}/tasks"      class="app-tab {{ (active_nav ?? '') == 'tasks'      ? 'is-active' : '' }}">{{ icons.svg('square-check', 23) }}<span>{{ translations.nav_tasks ?? 'Tâches' }}</span></a>
+    <a href="{{ ROOT }}/me"         class="app-tab app-tab-profile {{ (active_nav ?? '') == 'profile' ? 'is-active' : '' }}" aria-label="{{ _uname ?: (translations.nav_profile ?? 'Profil') }}">
+        <span class="app-tab-avatar">{% if _uinit|trim %}{{ _uinit|upper }}{% else %}{{ icons.svg('user', 15) }}{% endif %}</span><span>{{ translations.nav_profile ?? 'Profil' }}</span>
     </a>
 </nav>
 
@@ -369,11 +369,10 @@
             tip.innerHTML = `
                 <span class="pwa-ios-icon">📲</span>
                 <div class="pwa-ios-body">
-                    <strong>Zainstaluj aplikację</strong><br>
-                    Dotknij <span class="ios-share-icon">⬆ Udostępnij</span> a następnie
-                    <strong>„Dodaj do ekranu głównego"</strong>, aby korzystać jak z natywnej.
+                    <strong>{{ translations.install_app ?? "Installer l'application" }}</strong><br>
+                    {{ translations.ios_share_hint ?? '⬆ Partager puis « Sur l’écran d’accueil »' }}
                 </div>
-                <button class="pwa-ios-close" aria-label="Zamknij">✕</button>`;
+                <button class="pwa-ios-close" aria-label="{{ translations.close ?? 'Fermer' }}">✕</button>`;
             document.body.appendChild(tip);
             tip.querySelector('.pwa-ios-close').onclick = () => { snooze(); tip.remove(); };
         });
@@ -390,11 +389,11 @@
         banner.innerHTML = `
             <img class="pwa-icon" src="/pwa_consultant/assets/pwa/icon-192.png" alt="icon">
             <div class="pwa-body">
-                <div class="pwa-title">Zainstaluj aplikację</div>
-                <div class="pwa-sub">Dodaj do ekranu głównego — działa offline</div>
+                <div class="pwa-title">{{ translations.install_app ?? "Installer l'application" }}</div>
+                <div class="pwa-sub">{{ translations.install_offline_hint ?? "Ajouter à l'écran d'accueil — fonctionne hors ligne" }}</div>
             </div>
-            <button class="pwa-btn-install">Instaluj</button>
-            <button class="pwa-btn-close" aria-label="Zamknij">✕</button>`;
+            <button class="pwa-btn-install">{{ translations.install ?? 'Installer' }}</button>
+            <button class="pwa-btn-close" aria-label="{{ translations.close ?? 'Fermer' }}">✕</button>`;
         document.body.appendChild(banner);
 
         banner.querySelector('.pwa-btn-install').onclick = async () => {

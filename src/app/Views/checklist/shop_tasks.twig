@@ -8,8 +8,8 @@
 {% set today_date = today ?? ('now' | date('Y-m-d')) %}
 {% set id_shop = id_shop ?? shop_id %}
 
-{% block title %}Zadania sklepu — Consultant Panel{% endblock %}
-{% block page_title %}Zadania sklepu{% endblock %}
+{% block title %}{{ translations.shop_tasks_title ?? 'Tâches de la boutique' }} — Consultant Panel{% endblock %}
+{% block page_title %}{{ translations.shop_tasks_title ?? 'Tâches de la boutique' }}{% endblock %}
 {% block page_subtitle %}{{ date | date('d.m.Y') }}{% endblock %}
 
 {% block topbar_actions %}
@@ -79,25 +79,25 @@
     <div class="rate-card">
         <div class="d-flex justify-content-between align-items-center">
             <div>
-                <div style="font-size:.7rem;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;">Realizacja</div>
+                <div style="font-size:.7rem;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;">{{ translations.realization ?? 'Réalisation' }}</div>
                 <div class="rate-num" style="color:{{ cr is not null ? (cr >= 80 ? '#27ae60' : (cr >= 50 ? '#e67e22' : '#e74c3c')) : '#adb5bd' }}">{{ cr is not null ? cr ~ '%' : '—' }}</div>
             </div>
-            <div style="text-align:right;font-size:.78rem;color:#6c757d;">{{ summary.tasks_done ?? 0 }} / {{ summary.tasks_total ?? 0 }}<br>zadań wykonanych</div>
+            <div style="text-align:right;font-size:.78rem;color:#6c757d;">{{ summary.tasks_done ?? 0 }} / {{ summary.tasks_total ?? 0 }}<br>{{ translations.tasks_done_suffix ?? 'tâches faites' }}</div>
         </div>
         <div class="rate-track"><div class="rate-fill {{ rate_class }}" style="width:{{ cr ?? 0 }}%"></div></div>
-        <div style="font-size:.7rem;color:#adb5bd;">{{ summary.tasks_pending ?? 0 }} oczekuje{% if (summary.tasks_skipped ?? 0) > 0 %} · {{ summary.tasks_skipped }} pominięte{% endif %}{% if (summary.tasks_failed ?? 0) > 0 %} · {{ summary.tasks_failed }} nieudane{% endif %}</div>
+        <div style="font-size:.7rem;color:#adb5bd;">{{ summary.tasks_pending ?? 0 }} {{ translations.pending ?? 'attente' }}{% if (summary.tasks_skipped ?? 0) > 0 %} · {{ summary.tasks_skipped }} {{ translations.skipped_pl ?? 'ignorées' }}{% endif %}{% if (summary.tasks_failed ?? 0) > 0 %} · {{ summary.tasks_failed }} {{ translations.failed_pl ?? 'échecs' }}{% endif %}</div>
     </div>
 
     <div class="summary-grid">
-        <div class="sum-cell"><div class="sum-val" style="color:#27ae60;">{{ summary.tasks_done ?? 0 }}</div><div class="sum-lbl">wykonane</div></div>
-        <div class="sum-cell"><div class="sum-val" style="color:#435ebe;">{{ summary.tasks_pending ?? 0 }}</div><div class="sum-lbl">oczekuje</div></div>
-        <div class="sum-cell"><div class="sum-val" style="color:#e67e22;">{{ summary.tasks_skipped ?? 0 }}</div><div class="sum-lbl">pominięte</div></div>
-        <div class="sum-cell"><div class="sum-val" style="color:#e74c3c;">{{ summary.tasks_failed ?? 0 }}</div><div class="sum-lbl">nieudane</div></div>
+        <div class="sum-cell"><div class="sum-val" style="color:#27ae60;">{{ summary.tasks_done ?? 0 }}</div><div class="sum-lbl">{{ translations.state_done ?? 'faites' }}</div></div>
+        <div class="sum-cell"><div class="sum-val" style="color:#435ebe;">{{ summary.tasks_pending ?? 0 }}</div><div class="sum-lbl">{{ translations.state_pending ?? 'attente' }}</div></div>
+        <div class="sum-cell"><div class="sum-val" style="color:#e67e22;">{{ summary.tasks_skipped ?? 0 }}</div><div class="sum-lbl">{{ translations.state_skipped ?? 'ignorée' }}</div></div>
+        <div class="sum-cell"><div class="sum-val" style="color:#e74c3c;">{{ summary.tasks_failed ?? 0 }}</div><div class="sum-lbl">{{ translations.state_failed ?? 'échec' }}</div></div>
     </div>
 
     {% if trend | length > 0 %}
         <div class="trend-card">
-            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6c757d;margin-bottom:10px;"><span class="me-1">{{ icons.svg('bar-chart') }}</span>Ostatnie 7 dni</div>
+            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6c757d;margin-bottom:10px;"><span class="me-1">{{ icons.svg('bar-chart') }}</span>{{ translations.last_7_days ?? '7 derniers jours' }}</div>
             <div class="trend-bars">
                 {% for tr in trend %}
                     {% set tr_class = tr.completion_rate >= 80 ? 'ex' : (tr.completion_rate >= 50 ? 'ok' : (tr.completion_rate > 0 ? 'no' : '')) %}
@@ -112,15 +112,15 @@
         {% set mandatory_tasks = tasks | filter(t => t.is_mandatory) %}
         {% set optional_tasks = tasks | filter(t => not t.is_mandatory) %}
         {% if mandatory_tasks | length > 0 %}
-            <div class="section-title"><span class="text-danger me-1">{{ icons.svg('circle-alert') }}</span>Zadania obowiązkowe</div>
+            <div class="section-title"><span class="text-danger me-1">{{ icons.svg('circle-alert') }}</span>{{ translations.mandatory_tasks ?? 'Tâches obligatoires' }}</div>
             {% for t in mandatory_tasks %}{% include 'checklist/_task_item.twig' %}{% endfor %}
         {% endif %}
         {% if optional_tasks | length > 0 %}
-            <div class="section-title"><span class="me-1">{{ icons.svg('list-checks') }}</span>Pozostałe zadania</div>
+            <div class="section-title"><span class="me-1">{{ icons.svg('list-checks') }}</span>{{ translations.other_tasks ?? 'Autres tâches' }}</div>
             {% for t in optional_tasks %}{% include 'checklist/_task_item.twig' %}{% endfor %}
         {% endif %}
     {% else %}
-        <div class="empty-state"><span style="font-size:2rem;">{{ icons.svg('check-check') }}</span><p class="mt-2 mb-0">Brak zadań dla tego dnia.</p></div>
+        <div class="empty-state"><span style="font-size:2rem;">{{ icons.svg('check-check') }}</span><p class="mt-2 mb-0">{{ translations.none_for_day ?? 'Aucune tâche pour ce jour.' }}</p></div>
     {% endif %}
 </div>
 {% endblock %}

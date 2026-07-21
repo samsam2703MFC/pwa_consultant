@@ -11,15 +11,15 @@
 {% set mn = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'] %}
 {% set day_label = date|date('j') ~ ' ' ~ mn[date|date('n') - 1] %}
 
-{% block title %}Checklists — Panel consultant{% endblock %}
+{% block title %}{{ translations.title ?? 'Checklists' }} — Panel consultant{% endblock %}
 
 {% block topbar %}
 <div class="app-topbar">
     <div class="container">
         <div class="scr-head">
             <div>
-                <div class="scr-title">Checklists</div>
-                <div class="scr-sub">{{ date|date('d.m.Y') }} · réalisation du jour</div>
+                <div class="scr-title">{{ translations.title ?? 'Checklists' }}</div>
+                <div class="scr-sub">{{ date|date('d.m.Y') }} · {{ translations.day_realization ?? 'réalisation du jour' }}</div>
             </div>
             <button class="app-hamburger" id="appHamburger" aria-label="Menu" aria-expanded="false" aria-controls="appNavSheet">
                 {{ icons.svg('menu', 22) }}
@@ -36,16 +36,16 @@
     {% set prev_date = date | date_modify('-1 day') | date('Y-m-d') %}
     {% set next_date = date | date_modify('+1 day') | date('Y-m-d') %}
     <div class="cl-datenav">
-        <a href="{{ ROOT }}/checklists?date={{ prev_date }}" class="cl-datenav-arrow" aria-label="Jour précédent">{{ icons.svg('chevron-left', 16) }}</a>
+        <a href="{{ ROOT }}/checklists?date={{ prev_date }}" class="cl-datenav-arrow" aria-label="{{ translations.prev_day ?? 'Jour précédent' }}">{{ icons.svg('chevron-left', 16) }}</a>
         <button type="button" class="cl-datenav-cur" onclick="document.getElementById('clDatePicker').showPicker()">
             {{ icons.svg('calendar', 15) }} {{ day_label }}
         </button>
         <input type="date" id="clDatePicker" value="{{ date }}" max="{{ today_date }}" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="window.location.href='{{ ROOT }}/checklists?date='+this.value">
         {% if next_date <= today_date %}
-            <a href="{{ ROOT }}/checklists?date={{ next_date }}" class="cl-datenav-arrow" aria-label="Jour suivant">{{ icons.svg('chevron-right', 16) }}</a>
+            <a href="{{ ROOT }}/checklists?date={{ next_date }}" class="cl-datenav-arrow" aria-label="{{ translations.next_day ?? 'Jour suivant' }}">{{ icons.svg('chevron-right', 16) }}</a>
         {% endif %}
         {% if date != today_date %}
-            <a href="{{ ROOT }}/checklists" class="cl-datenav-today">Aujourd'hui</a>
+            <a href="{{ ROOT }}/checklists" class="cl-datenav-today">{{ translations.today ?? "Aujourd'hui" }}</a>
         {% endif %}
     </div>
 
@@ -64,21 +64,21 @@
                 <div class="cl-ring-txt">{{ rate is not null ? rate_int ~ '%' : '—' }}</div>
             </div>
             <div>
-                <div class="cl-hero-eyebrow">Réalisation checklists</div>
+                <div class="cl-hero-eyebrow">{{ translations.subtitle ?? 'Réalisation checklists' }}</div>
                 <div class="cl-hero-big">{{ net.tasks_done ?? 0 }}<span>/{{ net.tasks_total ?? 0 }}</span></div>
-                <div class="cl-hero-note">tâches faites · {{ net.shops_closed ?? 0 }}/{{ net.shops_total ?? 0 }} boutiques clôturées</div>
+                <div class="cl-hero-note">{{ translations.tasks_done_suffix ?? 'tâches faites' }} · {{ net.shops_closed ?? 0 }}/{{ net.shops_total ?? 0 }} {{ translations.shops_closed_note ?? 'boutiques clôturées' }}</div>
             </div>
         </div>
         <div class="cl-hero-pills">
-            <span class="cl-pill cl-pill-done">{{ icons.svg('check', 13) }}{{ net.tasks_done ?? 0 }} faites</span>
-            <span class="cl-pill">{{ net.tasks_skipped ?? 0 }} ignorées</span>
-            <span class="cl-pill">{{ net.tasks_failed ?? 0 }} échecs</span>
+            <span class="cl-pill cl-pill-done">{{ icons.svg('check', 13) }}{{ net.tasks_done ?? 0 }} {{ translations.done_pl ?? 'faites' }}</span>
+            <span class="cl-pill">{{ net.tasks_skipped ?? 0 }} {{ translations.skipped_pl ?? 'ignorées' }}</span>
+            <span class="cl-pill">{{ net.tasks_failed ?? 0 }} {{ translations.failed_pl ?? 'échecs' }}</span>
         </div>
     </div>
 
     {# ── Classement boutiques ── #}
     {% if shops | length > 0 %}
-        <div class="cl-eyebrow">Classement boutiques</div>
+        <div class="cl-eyebrow">{{ translations.shop_ranking ?? 'Classement boutiques' }}</div>
         <div class="cl-ranklist">
             {% for s in shops %}
                 {% set rank = loop.index %}
@@ -95,11 +95,11 @@
                             <div class="cl-rank-name-row">
                                 <span class="cl-rank-name">{{ s.shop_name }}</span>
                                 {% if s.day_closed %}
-                                    <span class="cl-chip cl-chip-closed">Clôturé</span>
+                                    <span class="cl-chip cl-chip-closed">{{ translations.closed ?? 'Clôturé' }}</span>
                                 {% elseif (s.mandatory_missed ?? 0) > 0 or cr < 60 %}
-                                    <span class="cl-chip cl-chip-late">En retard</span>
+                                    <span class="cl-chip cl-chip-late">{{ translations.late ?? 'En retard' }}</span>
                                 {% else %}
-                                    <span class="cl-chip cl-chip-open">Ouvert</span>
+                                    <span class="cl-chip cl-chip-open">{{ translations.open ?? 'Ouvert' }}</span>
                                 {% endif %}
                             </div>
                             <div class="cl-rank-city">{{ s.shop_city }}</div>
@@ -108,16 +108,16 @@
                     </div>
                     <div class="cl-rank-bar"><span style="width:{{ cr }}%;background:{{ grad }}"></span></div>
                     <div class="cl-rank-stats">
-                        <div class="cl-stat"><div class="cl-stat-v" style="color:#2D7A3E">{{ s.tasks_done ?? 0 }}</div><div class="cl-stat-l">faites</div></div>
-                        <div class="cl-stat"><div class="cl-stat-v" style="color:#7a7168">{{ pending }}</div><div class="cl-stat-l">attente</div></div>
-                        <div class="cl-stat"><div class="cl-stat-v" style="color:#C17A2A">{{ s.tasks_skipped ?? 0 }}</div><div class="cl-stat-l">ignorée</div></div>
-                        <div class="cl-stat"><div class="cl-stat-v" style="color:#8D1D2C">{{ s.tasks_failed ?? 0 }}</div><div class="cl-stat-l">échecs</div></div>
+                        <div class="cl-stat"><div class="cl-stat-v" style="color:#2D7A3E">{{ s.tasks_done ?? 0 }}</div><div class="cl-stat-l">{{ translations.done ?? 'faites' }}</div></div>
+                        <div class="cl-stat"><div class="cl-stat-v" style="color:#7a7168">{{ pending }}</div><div class="cl-stat-l">{{ translations.pending ?? 'attente' }}</div></div>
+                        <div class="cl-stat"><div class="cl-stat-v" style="color:#C17A2A">{{ s.tasks_skipped ?? 0 }}</div><div class="cl-stat-l">{{ translations.skipped ?? 'ignorée' }}</div></div>
+                        <div class="cl-stat"><div class="cl-stat-v" style="color:#8D1D2C">{{ s.tasks_failed ?? 0 }}</div><div class="cl-stat-l">{{ translations.failed ?? 'échecs' }}</div></div>
                     </div>
                 </a>
             {% endfor %}
         </div>
     {% else %}
-        <div class="cl-empty">{{ icons.svg('clipboard-check', 34) }}<div>Aucune donnée de checklist pour ce jour.</div></div>
+        <div class="cl-empty">{{ icons.svg('clipboard-check', 34) }}<div>{{ translations.none_today ?? 'Aucune donnée de checklist pour ce jour.' }}</div></div>
     {% endif %}
 
 </div>

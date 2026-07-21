@@ -2,9 +2,9 @@
 {% import "components/_icons.twig" as icons %}
 {% set active_nav = 'tasks' %}
 
-{% block title %}Zadanie{% endblock %}
-{% block page_title %}Zadanie{% endblock %}
-{% block page_subtitle %}Szczegóły i realizacja{% endblock %}
+{% block title %}{{ translations.task ?? 'Tâche' }}{% endblock %}
+{% block page_title %}{{ translations.task ?? 'Tâche' }}{% endblock %}
+{% block page_subtitle %}{{ translations.details_and_realization ?? 'Détails et réalisation' }}{% endblock %}
 
 {% block head %}
 <style>
@@ -36,7 +36,7 @@
 {% block content %}
 {% set task = task|default(null) %}
 {% if not task %}
-    <div class="task-panel text-center text-muted">Nie znaleziono zadania.</div>
+    <div class="task-panel text-center text-muted">{{ translations.task_not_found ?? 'Tâche introuvable.' }}</div>
 {% else %}
     {% set scheduled_for_date = selected_date|default("now"|date("Y-m-d")) %}
     {% set scheduled_time = task.execution_time ?: '00:00:00' %}
@@ -50,16 +50,16 @@
             {% if task.subcategory_name or task.base_subcategory_name %}<span class="task-chip">{{ icons.svg('tag') }}{{ task.subcategory_name ?? task.base_subcategory_name }}</span>{% endif %}
             <span class="task-chip">{{ icons.svg('flag') }}P{{ task.priority ?? 5 }}</span>
             {% if task.is_mandatory %}<span class="task-chip">{{ icons.svg('circle-alert') }}Obowiązkowe</span>{% endif %}
-            {% if requires_photo %}<span class="task-chip photo">{{ icons.svg('camera') }}Wymaga zdjęcia</span>{% endif %}
+            {% if requires_photo %}<span class="task-chip photo">{{ icons.svg('camera') }}{{ translations.requires_photo ?? 'Photo requise' }}</span>{% endif %}
         </div>
     </div>
 
     <div class="task-panel">
-        <div class="section-title">Szczegóły</div>
+        <div class="section-title">{{ translations.details ?? 'Détails' }}</div>
         {% if task.description %}
             <div class="task-desc">{{ task.description }}</div>
         {% else %}
-            <div class="text-muted">Brak opisu.</div>
+            <div class="text-muted">{{ translations.no_description ?? 'Pas de description.' }}</div>
         {% endif %}
         <div class="task-chips">
             {% if task.execution_time %}<span class="task-chip">{{ icons.svg('clock') }}{{ task.execution_time|slice(0,5) }}</span>{% endif %}
@@ -69,7 +69,7 @@
     </div>
 
     <div class="task-panel">
-        <div class="section-title">Realizacja</div>
+        <div class="section-title">{{ translations.realization ?? 'Réalisation' }}</div>
 
         {% if errors.photo_upload is defined %}
             <div class="alert alert-danger">{{ errors.photo_upload }}</div>
@@ -85,24 +85,24 @@
             <input type="hidden" name="status" value="DONE">
 
             <div class="mb-3">
-                <label class="form-label fw-bold">Notatka</label>
-                <textarea class="form-control" name="note" rows="4" placeholder="Opcjonalna notatka">{{ old('note') }}</textarea>
+                <label class="form-label fw-bold">{{ translations.note ?? 'Note' }}</label>
+                <textarea class="form-control" name="note" rows="4" placeholder="{{ translations.note_ph ?? 'Note optionnelle' }}">{{ old('note') }}</textarea>
             </div>
 
             <div class="mb-3">
-                <label class="form-label fw-bold">Zdjęcie{% if requires_photo %} <span class="text-danger">*</span>{% endif %}</label>
+                <label class="form-label fw-bold">{{ translations.photo ?? 'Photo' }}{% if requires_photo %} <span class="text-danger">*</span>{% endif %}</label>
                 <input type="file" class="form-control" name="photo" id="photoInput" accept="image/*" capture="environment">
-                <div class="form-text">Maksymalny rozmiar: 10MB.</div>
+                <div class="form-text">{{ translations.max_size ?? 'Taille maximale : 10 Mo.' }}</div>
                 <div class="alert alert-danger mt-2" id="photoError" style="display:none;"></div>
-                <div class="photo-preview mt-2" id="photoPreview"><img id="photoPreviewImg" alt="Podgląd zdjęcia"></div>
+                <div class="photo-preview mt-2" id="photoPreview"><img id="photoPreviewImg" alt="{{ translations.photo_preview ?? 'Aperçu de la photo' }}"></div>
             </div>
 
             <div class="sticky-actions">
                 <button class="btn btn-primary w-100 fw-bold" type="submit" id="doneBtn"{% if requires_photo %} disabled{% endif %}>
-                    {{ icons.svg('check-circle') }} Oznacz jako zrealizowane
+                    {{ icons.svg('check-circle') }} {{ translations.mark_done ?? 'Marquer comme faite' }}
                 </button>
                 <a class="btn btn-light w-100 fw-bold mt-2" href="{{ ROOT }}/tasks">
-                    {{ icons.svg('arrow-left') }} Wróć do zadań
+                    {{ icons.svg('arrow-left') }} {{ translations.back_to_tasks ?? 'Retour aux tâches' }}
                 </a>
             </div>
         </form>

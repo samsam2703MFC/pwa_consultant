@@ -2,7 +2,7 @@
 {% import "components/_icons.twig" as icons %}
 {% set active_nav = 'tasks' %}
 
-{% block title %}Tâches — Panel consultant{% endblock %}
+{% block title %}{{ translations.title ?? 'Tâches' }} — Panel consultant{% endblock %}
 
 {% set total = tasks | length %}
 {% set done_count = 0 %}
@@ -17,8 +17,8 @@
     <div class="container">
         <div class="scr-head">
             <div>
-                <div class="scr-title">Tâches</div>
-                <div class="scr-sub">Assignées à votre poste</div>
+                <div class="scr-title">{{ translations.title ?? 'Tâches' }}</div>
+                <div class="scr-sub">{{ translations.assigned ?? 'Assignées à votre poste' }}</div>
             </div>
             <button class="app-hamburger" id="appHamburger" aria-label="Menu" aria-expanded="false" aria-controls="appNavSheet">
                 {{ icons.svg('menu', 22) }}
@@ -43,7 +43,7 @@
     </div>
 
     {% if total == 0 %}
-        <div class="cl-empty">{{ icons.svg('list-checks', 34) }}<div>Aucune tâche assignée pour le moment.</div></div>
+        <div class="cl-empty">{{ icons.svg('list-checks', 34) }}<div>{{ translations.none ?? 'Aucune tâche assignée pour le moment.' }}</div></div>
     {% else %}
         {% for task in tasks %}
             {% set is_done = task.is_done %}
@@ -62,7 +62,7 @@
                 {% if task.description %}<p class="tk-card-desc">{{ task.description }}</p>{% endif %}
                 <div class="tk-meta">
                     {% if task.execution_time %}<span class="tk-metachip">{{ icons.svg('clock', 12) }}{{ task.execution_time }}</span>{% endif %}
-                    {% if task.is_mandatory %}<span class="tk-metachip">Obligatoire</span>{% endif %}
+                    {% if task.is_mandatory %}<span class="tk-metachip">{{ translations.mandatory ?? 'Obligatoire' }}</span>{% endif %}
                     {% if task.requires_photo %}<span class="tk-metachip">{{ icons.svg('camera', 12) }}Photo requise</span>{% endif %}
                 </div>
                 {% if is_done and task.completion_id %}
