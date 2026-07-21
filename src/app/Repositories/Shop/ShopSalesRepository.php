@@ -48,37 +48,39 @@ class ShopSalesRepository
             $from   = $fromDate . ' 00:00:00';
             $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
 
-            $params = [':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl];
-
-            // Produits : sous-requête scalaire sur transaction_product, MÊME
-            // périmètre de tickets (fenêtre + montant > 0) que le comptage.
-            $productsExpr = '0';
+            // Agrégation AU NIVEAU DU TICKET (GROUP BY ticket_key) : un même
+            // ticket remonté par plusieurs devices ne compte qu'une fois —
+            // pour le nombre de tickets, MAIS AUSSI pour le CA et les lignes
+            // produits (sinon panier et produits/ticket gonflés). Ligne
+            // représentative du ticket : MAX(id) ; montant : MAX (doublons
+            // identiques → inchangé).
+            $productsSelect = '0 AS qty';
             $cols = $this->transactionProductCols($pdo);
             if ($cols !== null) {
                 [$fk, $qty] = $cols;
                 $inner = $qty !== null ? 'COALESCE(SUM(tp.`' . $qty . '`), 0)' : 'COUNT(*)';
-                $productsExpr =
-                    '(SELECT ' . $inner . '
-                      FROM transaction_product tp
-                      INNER JOIN transaction t2 ON t2.id = tp.`' . $fk . '`
-                      WHERE t2.id_shop = :id2
-                        AND t2.insert_timestamp >= :from2
-                        AND t2.insert_timestamp <  :toExcl2
-                        AND t2.total_gross_amount_after_discount > 0)';
-                $params += [':id2' => $shopId, ':from2' => $from, ':toExcl2' => $toExcl];
+                $productsSelect = '(SELECT ' . $inner . ' FROM transaction_product tp WHERE tp.`' . $fk . '` = x.tid) AS qty';
             }
 
             $stmt = $pdo->prepare(
-                'SELECT COUNT(DISTINCT t.ticket_key)                              AS tickets,
-                        COALESCE(SUM(t.total_gross_amount_after_discount), 0)     AS ca,
-                        ' . $productsExpr . '                                     AS products
-                 FROM transaction t
-                 WHERE t.id_shop = :id
-                   AND t.insert_timestamp >= :from
-                   AND t.insert_timestamp <  :toExcl
-                   AND t.total_gross_amount_after_discount > 0'
+                'SELECT COUNT(*)                AS tickets,
+                        COALESCE(SUM(y.ca), 0)  AS ca,
+                        COALESCE(SUM(y.qty), 0) AS products
+                 FROM (
+                     SELECT x.ca, ' . $productsSelect . '
+                     FROM (
+                         SELECT MAX(t.id)                                   AS tid,
+                                MAX(t.total_gross_amount_after_discount)    AS ca
+                         FROM transaction t
+                         WHERE t.id_shop = :id
+                           AND t.insert_timestamp >= :from
+                           AND t.insert_timestamp <  :toExcl
+                           AND t.total_gross_amount_after_discount > 0
+                         GROUP BY t.ticket_key
+                     ) x
+                 ) y'
             );
-            $stmt->execute($params);
+            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
             $row = $stmt->fetch() ?: [];
 
             $tickets  = (int)($row['tickets'] ?? 0);
