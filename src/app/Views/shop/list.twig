@@ -903,7 +903,23 @@ const I18N = {
                 params: { date_from: d.from, date_to: d.to, grouping: groupings[i] },
                 onSuccess: (resp) => {
                     const costs = extractCategoryCosts(resp);
-                    if (costs) { _catCostCache[cacheKey] = costs; d.costs = costs; done(); }
+                    if (costs) {
+                        // Table de contrôle : permet de comparer les valeurs
+                        // extraites aux chiffres connus (ex. Halle/Viennoiserie
+                        // 523,20 € / 219,83 € → marge 58 %).
+                        try {
+                            const dbg = {};
+                            for (const k in costs) {
+                                dbg[k] = {
+                                    ventes: Math.round(costs[k].sales * 100) / 100,
+                                    cout: Math.round(costs[k].cost * 100) / 100,
+                                    marge: costs[k].sales > 0 ? (Math.round((1 - costs[k].cost / costs[k].sales) * 1000) / 10) + ' %' : 'n/a',
+                                };
+                            }
+                            console.info('[pnl] marges par catégorie — magasin ' + shopId + ' (' + d.from + ' → ' + d.to + ')', dbg);
+                        } catch (e) { /* debug uniquement */ }
+                        _catCostCache[cacheKey] = costs; d.costs = costs; done();
+                    }
                     else {
                         console.warn('[pnl] product-category-groups (grouping=' + groupings[i] + ') sans coûts détectables', shopId, resp);
                         attempt(i + 1);
