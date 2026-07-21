@@ -669,14 +669,14 @@ const I18N = {
     }
 
     // Marge de la catégorie (CA − food cost, en % du CA) → couleur.
-    // Barème validé : perte → rouge sang · 0–20 % → rouge · 20–30 % → orange ·
-    // 30–40 % → vert orangé · 40–60 % → vert · > 60 % → gold.
+    // Barème validé : perte → rouge sang · 0–40 % → rouge · 40–50 % → orange ·
+    // 50–60 % → vert orangé · 60–70 % → vert · > 70 % → gold.
     function marginColor(mPct) {
         if (mPct < 0)  return '#8B0000';
-        if (mPct < 20) return '#dc3545';
-        if (mPct < 30) return '#e67e22';
-        if (mPct < 40) return '#8FA31E';
-        if (mPct < 60) return '#27ae60';
+        if (mPct < 40) return '#dc3545';
+        if (mPct < 50) return '#e67e22';
+        if (mPct < 60) return '#8FA31E';
+        if (mPct < 70) return '#27ae60';
         return '#C9A227';
     }
 
@@ -780,8 +780,8 @@ const I18N = {
         if (scaleEl) {
             const sw = (color, label) => `<span><i style="background:${color};"></i>${label}</span>`;
             scaleEl.innerHTML = marginMode
-                ? sw('#8B0000', I18N.loss) + sw('#dc3545', '0–20') + sw('#e67e22', '20–30')
-                    + sw('#8FA31E', '30–40') + sw('#27ae60', '40–60') + sw('#C9A227', '&gt; 60 %')
+                ? sw('#8B0000', I18N.loss) + sw('#dc3545', '0–40') + sw('#e67e22', '40–50')
+                    + sw('#8FA31E', '50–60') + sw('#27ae60', '60–70') + sw('#C9A227', '&gt; 70 %')
                 : sw('#C96A6A', '&lt; −5') + sw('#e67e22', '−5–0') + sw('#8FA31E', '0–5')
                     + sw('#27ae60', '&gt; +5 %') + sw('#9BA1A6', 'n/a');
         }
