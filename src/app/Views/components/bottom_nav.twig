@@ -127,18 +127,38 @@
             </a>
         {% endfor %}
     </div>
+    {# ── Plein écran : toggle DANS le menu, valable toute la visite ── #}
+    <button type="button" class="app-nav-fstoggle" id="appFsToggle" role="switch" aria-checked="false">
+        <span class="app-nav-fstoggle-ic">{{ icons.svg('maximize', 18) }}</span>
+        <span class="app-nav-fstoggle-lbl">{{ translations.fullscreen_on ?? 'Plein écran' }}</span>
+        <span class="app-nav-fstoggle-sw" aria-hidden="true"><i></i></span>
+    </button>
     <div class="app-nav-sheet-handle"></div>
 </div>
 <style>
-    /* Icône plein écran discrète, insérée par JS à côté du bouton menu ☰ */
-    .app-fs-toggle {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 36px; height: 36px; margin-right: 2px;
-        border: 0; border-radius: 10px; background: transparent;
-        color: #7a7168; opacity: .75; cursor: pointer; flex-shrink: 0;
+    /* Toggle plein écran dans le menu — état on/off visible */
+    .app-nav-fstoggle {
+        display: flex; align-items: center; gap: 10px;
+        width: calc(100% - 24px); margin: 10px 12px 4px; min-height: 46px;
+        padding: 0 12px; border: 0; border-radius: 12px;
+        background: rgba(0,0,0,.04); color: #241f1c;
+        font-size: .84rem; font-weight: 800; cursor: pointer; text-align: left;
         -webkit-tap-highlight-color: transparent;
     }
-    .app-fs-toggle:active { background: rgba(0,0,0,.07); opacity: 1; }
+    .app-nav-fstoggle:active { background: rgba(0,0,0,.08); }
+    .app-nav-fstoggle-ic { display: inline-flex; color: #8D1D2C; flex-shrink: 0; }
+    .app-nav-fstoggle-lbl { flex: 1; }
+    .app-nav-fstoggle-sw {
+        width: 40px; height: 22px; border-radius: 999px; flex-shrink: 0;
+        background: #d8d2c9; position: relative; transition: background .18s ease;
+    }
+    .app-nav-fstoggle-sw i {
+        position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+        border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+        transition: left .18s ease;
+    }
+    .app-nav-fstoggle[aria-checked="true"] .app-nav-fstoggle-sw { background: #2D7A3E; }
+    .app-nav-fstoggle[aria-checked="true"] .app-nav-fstoggle-sw i { left: 20px; }
 </style>
 <script>
 (function () {
@@ -151,7 +171,8 @@
         sheet.classList.add('is-open');
         backdrop.classList.add('is-open');
         btn.setAttribute('aria-expanded', 'true');
-        btn.querySelector('i').className = 'bi bi-x-lg';
+        const icOpen = btn.querySelector('i');
+        if (icOpen) icOpen.className = 'bi bi-x-lg';   // hamburger legacy <i> ; SVG → rien
         document.body.style.overflow = 'hidden';
         closeBtn && closeBtn.focus();
     }
@@ -159,7 +180,8 @@
         sheet.classList.remove('is-open');
         backdrop.classList.remove('is-open');
         btn.setAttribute('aria-expanded', 'false');
-        btn.querySelector('i').className = 'bi bi-list';
+        const icClose = btn.querySelector('i');
+        if (icClose) icClose.className = 'bi bi-list';
         document.body.style.overflow = '';
     }
     btn.addEventListener('click', function () {
@@ -181,44 +203,45 @@
 
 })();
 
-// ── Plein écran PERSISTANT ──────────────────────────────────────────────
-// Petite icône discrète insérée à côté du bouton menu ☰ (toutes les pages).
-// L'app est multi-pages : le navigateur sort du plein écran à chaque
-// navigation. L'état VOULU vit donc dans sessionStorage (partagé entre les
-// pages) et il est RÉAPPLIQUÉ au premier geste utilisateur sur la nouvelle
-// page — l'API Fullscreen exige un geste, impossible de le forcer au
-// chargement. Sortie voulue = Échap ou re-clic sur l'icône → état oublié.
+// ── Plein écran PERSISTANT (toggle dans le menu) ────────────────────────
+// Le toggle vaut pour TOUTE LA VISITE : l'état voulu vit dans
+// sessionStorage (partagé entre les pages, mort à la fermeture de
+// session). L'app est multi-pages : le navigateur sort du plein écran à
+// chaque navigation → l'état est RÉAPPLIQUÉ au premier geste utilisateur
+// sur la nouvelle page (l'API Fullscreen exige un geste, impossible de le
+// forcer au chargement). Sortie voulue = Échap ou toggle off → état oublié.
 (function () {
     'use strict';
     const root = document.documentElement;
     const req = root.requestFullscreen || root.webkitRequestFullscreen;
-    const ham = document.getElementById('appHamburger');
-    if (!req || !ham || !ham.parentNode) return;   // API absente (iPhone) → pas d'icône
+    const btn = document.getElementById('appFsToggle');
+    if (!btn) return;
+    if (!req) { btn.style.display = 'none'; return; }   // API absente (iPhone)
 
     const KEY = 'consultant_fs';
-    const SVG_ON  = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
-    const SVG_OFF = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>';
     const LBL_ON  = {{ (translations.fullscreen_on ?? 'Plein écran')|json_encode|raw }};
     const LBL_OFF = {{ (translations.fullscreen_off ?? 'Quitter le plein écran')|json_encode|raw }};
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'app-fs-toggle';
-    btn.id = 'appFsToggle';
-    ham.parentNode.insertBefore(btn, ham);
+    const lbl = btn.querySelector('.app-nav-fstoggle-lbl');
 
     const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
     const enter = () => { try { const p = req.call(root); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
     const exit  = () => { try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {} };
     const refresh = () => {
-        btn.innerHTML = isFs() ? SVG_OFF : SVG_ON;
-        btn.setAttribute('aria-label', isFs() ? LBL_OFF : LBL_ON);
-        btn.title = isFs() ? LBL_OFF : LBL_ON;
+        btn.setAttribute('aria-checked', isFs() ? 'true' : 'false');
+        if (lbl) lbl.textContent = isFs() ? LBL_OFF : LBL_ON;
     };
 
     btn.addEventListener('click', function () {
         if (isFs()) { sessionStorage.removeItem(KEY); exit(); }
         else { sessionStorage.setItem(KEY, '1'); enter(); }
+        // referme le menu pour voir l'effet immédiatement
+        const sheet = document.getElementById('appNavSheet');
+        const backdrop = document.getElementById('appNavBackdrop');
+        const ham = document.getElementById('appHamburger');
+        if (sheet) sheet.classList.remove('is-open');
+        if (backdrop) backdrop.classList.remove('is-open');
+        if (ham) ham.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
     });
 
     // L'icône reflète TOUJOURS l'état réel. Sortie détectée sans re-clic :
