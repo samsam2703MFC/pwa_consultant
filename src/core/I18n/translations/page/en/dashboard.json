@@ -16,6 +16,12 @@
   "kpi_ca_today": "Today's turnover",
   "kpi_checklists": "Checklists",
   "kpi_tasks_done": "Tasks done",
+  "live_basket": "Basket",
+  "live_ca": "Sales",
+  "live_clients": "Clients",
+  "live_now": "live",
+  "live_result": "Result",
+  "live_shop": "Shop",
   "month_names": [
     "January",
     "February",

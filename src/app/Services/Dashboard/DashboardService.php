@@ -34,6 +34,27 @@ class DashboardService
         private ShopService $shopService,
     ) {}
 
+    /**
+     * Magasins actifs pour le tableau « état au moment T » de l'accueil —
+     * chargés dynamiquement (mêmes source et filtre actif que le module
+     * Boutiques), rien de codé en dur. Les chiffres temps réel sont ensuite
+     * récupérés côté navigateur, magasin par magasin, via le proxy.
+     *
+     * @return array<int, array{id:int, name:string}>
+     */
+    public function getLiveShops(): array
+    {
+        $out = [];
+        foreach ($this->shopService->getAllShops() as $shop) {
+            $id = (int)($shop['id'] ?? 0);
+            $name = trim((string)($shop['representative_name'] ?? $shop['name'] ?? ''));
+            if ($id > 0 && $name !== '') {
+                $out[] = ['id' => $id, 'name' => $name];
+            }
+        }
+        return $out;
+    }
+
     public function getDashboard(string $date): array
     {
         $ranking = $this->checklistService->getNetworkTasksRanking($date);

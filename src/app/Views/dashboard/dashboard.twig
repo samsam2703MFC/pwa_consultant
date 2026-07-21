@@ -7,6 +7,30 @@
 {% set mn = translations.month_names ?? ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'] %}
 {% set frenchdate = (jn[date|date('w')]|capitalize) ~ ' ' ~ date|date('j') ~ ' ' ~ mn[date|date('n') - 1] ~ ' ' ~ date|date('Y') %}
 
+{% block head %}
+<style>
+    /* État des magasins au moment T */
+    .dash-live-badge { display:inline-flex; align-items:center; gap:5px; font-size:.64rem; font-weight:800; color:#2D7A3E; text-transform:uppercase; letter-spacing:.05em; }
+    .dash-live-dot { width:7px; height:7px; border-radius:50%; background:#2D7A3E; animation:livePulse 1.6s ease-in-out infinite; }
+    @keyframes livePulse { 0%,100% { opacity:1; } 50% { opacity:.25; } }
+    .live-tbl { width:100%; border-collapse:collapse; table-layout:fixed; }
+    .live-tbl th {
+        font-size:.58rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+        color:#7a7168; padding:7px 4px 5px; text-align:right; border-bottom:1px solid #f1ede6;
+    }
+    .live-tbl td { padding:8px 4px; text-align:right; font-size:.72rem; font-weight:800; color:#241f1c; border-bottom:1px solid #f8f5f0; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .live-tbl tr:last-child td { border-bottom:0; }
+    .live-tbl .lt-name { text-align:left; overflow:hidden; text-overflow:ellipsis; }
+    .live-tbl th.lt-name { width:27%; }
+    .live-tbl td.lt-name { font-size:.72rem; font-weight:800; }
+    .lt-pct { display:block; font-size:.6rem; font-weight:800; margin-top:1px; }
+    .lt-sub { display:block; font-size:.58rem; font-weight:700; color:#a89f96; margin-top:1px; }
+    .lt-skel { display:inline-block; width:34px; height:10px; border-radius:5px; background:linear-gradient(90deg,#f0ece5 25%,#e4dfd6 50%,#f0ece5 75%); background-size:200% 100%; animation:shimmer 1.4s infinite; }
+    @keyframes shimmer { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
+    .lt-err { color:#adb5bd; font-weight:700; }
+</style>
+{% endblock %}
+
 {# ── Custom header: logo (left) · date (center) · menu (right) ── #}
 {% block topbar %}
 <div class="app-topbar">
@@ -91,8 +115,40 @@
     </div>
     {% endif %}
 
-    {# ── Vos boutiques ── #}
-    {% if shops is not empty %}
+    {# ── Vos boutiques — état au moment T (temps réel, un magasin par ligne).
+         Remplace l'ancienne liste (% checklist) ; repli sur celle-ci quand
+         la liste des magasins n'est pas disponible. ── #}
+    {% set live_shops = live_shops|default([]) %}
+    {% if live_shops is not empty %}
+    <div class="dash-secthead">
+        <div class="dash-eyebrow">{{ translations.your_shops ?? 'Vos boutiques' }} <span class="dash-live-badge"><span class="dash-live-dot"></span>{{ translations.live_now ?? 'en direct' }}</span></div>
+        <a href="{{ ROOT }}/shops" class="dash-seelink">{{ translations.pnl_detail ?? 'Détail P&L' }}</a>
+    </div>
+    <div class="dash-card" style="padding:6px 10px 8px;">
+        <table class="live-tbl">
+            <thead>
+                <tr>
+                    <th class="lt-name">{{ translations.live_shop ?? 'Magasin' }}</th>
+                    <th>{{ translations.live_result ?? 'Résultat' }}</th>
+                    <th>{{ translations.live_ca ?? 'CA' }}</th>
+                    <th>{{ translations.live_clients ?? 'Clients' }}</th>
+                    <th>{{ translations.live_basket ?? 'Panier' }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in live_shops %}
+                <tr class="live-row" data-shop-id="{{ s.id }}">
+                    <td class="lt-name" title="{{ s.name }}">{{ s.name }}</td>
+                    <td class="lt-res"><span class="lt-skel"></span></td>
+                    <td class="lt-ca"><span class="lt-skel"></span></td>
+                    <td class="lt-cli"><span class="lt-skel"></span></td>
+                    <td class="lt-bas"><span class="lt-skel"></span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elseif shops is not empty %}
     <div class="dash-secthead">
         <div class="dash-eyebrow">{{ translations.your_shops ?? 'Vos boutiques' }}</div>
         <a href="{{ ROOT }}/shops" class="dash-seelink">{{ translations.pnl_detail ?? 'Détail P&L' }}</a>
@@ -121,4 +177,138 @@
     </div>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* État des magasins au moment T : pour chaque ligne du tableau, le CA, le
+ * labour et la fenêtre du jour viennent du P&L temps réel (period=day),
+ * l'overhead mensuel est proratisé au jour, le coût matière et le nombre de
+ * clients viennent de /statistics/daily-summary sur la même fenêtre.
+ * Résultat = CA − matière − labour − overhead/jour ; % = Résultat / CA. */
+(function () {
+    'use strict';
+    const rows = document.querySelectorAll('.live-row');
+    if (!rows.length || typeof ConsultantAjax === 'undefined') return;
+
+    const eur0 = v => new Intl.NumberFormat('fr-BE', { maximumFractionDigits: 0 }).format(v) + ' €';
+    const eur2 = v => new Intl.NumberFormat('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + ' €';
+    const nb   = v => new Intl.NumberFormat('fr-BE').format(v);
+
+    // Même barème que la ligne Result du module Boutiques.
+    function resultColor(r, t) {
+        if (r < 0) return '#8B0000';
+        const p = t > 0 ? (r / t) * 100 : 0;
+        if (p <= 5)  return '#dc3545';
+        if (p <= 10) return '#e67e22';
+        if (p <= 15) return '#8FA31E';
+        if (p <= 25) return '#27ae60';
+        return '#C9A227';
+    }
+
+    const numOf = v => (typeof v === 'number') ? v
+        : (typeof v === 'string' && v !== '' && isFinite(v)) ? Number(v)
+        : (v && typeof v === 'object' && typeof v.value === 'number') ? v.value : null;
+
+    // Coût matière : somme récursive des clés material/food+cost (hors pct…).
+    function extractFood(node) {
+        let sum = 0, found = false;
+        (function walk(n) {
+            if (Array.isArray(n)) { n.forEach(walk); return; }
+            if (!n || typeof n !== 'object') return;
+            for (const k in n) {
+                const isFood = /(material|food)/i.test(k) && /(cost|value|amount)/i.test(k)
+                    && !/(pct|percent|ratio|rate|delta|margin)/i.test(k);
+                const x = numOf(n[k]);
+                if (isFood && x != null) { sum += x; found = true; }
+                else if (n[k] && typeof n[k] === 'object') walk(n[k]);
+            }
+        })(node);
+        return found ? sum : null;
+    }
+
+    // Nombre de clients : clés transactions/tickets/clients/receipts (comptes,
+    // pas de montants), sommées sur les buckets éventuels.
+    function extractClients(node) {
+        const PREFS = ['transactions_count', 'transaction_count', 'tickets_count', 'ticket_count',
+            'clients_count', 'client_count', 'receipts_count', 'receipt_count', 'customers_count',
+            'transactions', 'tickets', 'clients', 'receipts', 'customers'];
+        let sum = 0, found = false;
+        (function walk(n) {
+            if (Array.isArray(n)) { n.forEach(walk); return; }
+            if (!n || typeof n !== 'object') return;
+            for (let p = 0; p < PREFS.length; p++) {
+                for (const k in n) {
+                    if (k.toLowerCase() !== PREFS[p]) continue;
+                    if (/(amount|value|cost|gross|net|avg|average)/i.test(k)) continue;
+                    const x = numOf(n[k]);
+                    if (x != null) { sum += x; found = true; }
+                }
+                if (found) break;   // une seule famille de clés par nœud
+            }
+            for (const k in n) { if (n[k] && typeof n[k] === 'object') walk(n[k]); }
+        })(node);
+        return found && sum > 0 ? Math.round(sum) : null;
+    }
+
+    function daysInCurrentMonth() {
+        const d = new Date();
+        return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    }
+
+    function cell(row, cls) { return row.querySelector(cls); }
+    function fail(row) {
+        ['.lt-res', '.lt-ca', '.lt-cli', '.lt-bas'].forEach(c => { cell(row, c).innerHTML = '<span class="lt-err">—</span>'; });
+    }
+
+    function render(row, ca, result, clients) {
+        const color = resultColor(result, ca);
+        const pct = ca > 0 ? Math.round((result / ca) * 100) : null;
+        cell(row, '.lt-res').innerHTML = '<span style="color:' + color + ';">' + eur0(result) + '</span>';
+        cell(row, '.lt-ca').innerHTML = eur0(ca)
+            + (pct != null ? '<span class="lt-pct" style="color:' + color + ';">' + (result >= 0 ? '+' : '') + pct + ' %</span>' : '');
+        cell(row, '.lt-cli').textContent = clients != null ? nb(clients) : '—';
+        cell(row, '.lt-bas').textContent = (clients != null && clients > 0 && ca > 0) ? eur2(ca / clients) : '—';
+    }
+
+    rows.forEach(row => {
+        const shopId = parseInt(row.dataset.shopId, 10);
+        if (!shopId) { fail(row); return; }
+
+        ConsultantAjax.load({
+            endpoint: '/consultant/shops/' + shopId + '/pnl',
+            params: { period: 'day' },
+            onSuccess: (day) => {
+                const ca = Number(day.turnover && day.turnover.value) || 0;
+                const labour = Number(day.labour && day.labour.value) || 0;
+                const from = day.date_from ? String(day.date_from).slice(0, 10) : null;
+                const to = day.date_to ? String(day.date_to).slice(0, 10) : null;
+
+                ConsultantAjax.load({
+                    endpoint: '/consultant/shops/' + shopId + '/pnl',
+                    params: { period: 'month' },
+                    onSuccess: (month) => {
+                        const ocMonth = Number(month.overhead && month.overhead.value) || 0;
+                        const ocDay = ocMonth / daysInCurrentMonth();
+
+                        const finish = (food, clients) => {
+                            const result = ca - (food || 0) - labour - ocDay;
+                            render(row, ca, result, clients);
+                        };
+                        if (!from || !to) { finish(null, null); return; }
+                        ConsultantAjax.load({
+                            endpoint: '/shops/' + shopId + '/statistics/daily-summary',
+                            params: { date_from: from, date_to: to, from: from, to: to },
+                            onSuccess: (s) => finish(extractFood(s), extractClients(s)),
+                            onError: () => finish(null, null),
+                        });
+                    },
+                    onError: () => fail(row),
+                });
+            },
+            onError: () => fail(row),
+        });
+    });
+})();
+</script>
 {% endblock %}
