@@ -2,6 +2,7 @@
   "apply": "Apply",
   "avg_basket": "average basket",
   "ca_month": "Monthly turnover",
+  "ca_share": "of sales",
   "compare_gap": "Gap",
   "compare_mtd": "Month to date",
   "compare_period": "Period",
@@ -26,6 +27,8 @@
   "subtitle": "Financial overview · today",
   "tickets_per_day": "tickets / day",
   "title": "Shops",
+  "tm_legend_delta": "Area: share of sales · Colour: change vs N-1",
+  "tm_legend_margin": "Area: share of sales · Colour: margin level",
   "to": "To",
   "turnover": "Turnover"
 }

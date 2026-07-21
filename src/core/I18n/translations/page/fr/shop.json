@@ -2,6 +2,7 @@
   "apply": "Appliquer",
   "avg_basket": "panier moyen",
   "ca_month": "CA du mois",
+  "ca_share": "du CA",
   "compare_gap": "Écart",
   "compare_mtd": "Mois à date",
   "compare_period": "Période",
@@ -26,6 +27,8 @@
   "subtitle": "Aperçu financier · aujourd'hui",
   "tickets_per_day": "tickets / jour",
   "title": "Boutiques",
+  "tm_legend_delta": "Surface : poids dans le CA · Couleur : évolution vs N-1",
+  "tm_legend_margin": "Surface : poids dans le CA · Couleur : niveau de marge",
   "to": "Au",
   "turnover": "TurnOver"
 }

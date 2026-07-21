@@ -128,26 +128,34 @@
     .pnl-row.result-row .pnl-row-label { color: #8D1D2C; }
     .pnl-row.result-row .pnl-row-value { color: #8D1D2C; }
 
-    /* Category breakdown */
+    /* Category breakdown — treemap (surface ∝ poids CA) */
     .pnl-categories {
         display: none;
         flex-direction: column;
-        gap: 1px;
-        padding: 2px 0 4px 20px;
+        padding: 6px 0 4px;
     }
     .pnl-categories.is-open { display: flex; }
-    .pnl-cat-row {
-        display: flex;
-        align-items: center;
-        padding: 5px 10px;
-        border-radius: 8px;
+    .pnl-treemap { position: relative; width: 100%; border-radius: 12px; overflow: hidden; }
+    .tm-cell {
+        position: absolute; box-sizing: border-box; border-radius: 7px; overflow: hidden;
+        color: #fff; display: flex; flex-direction: column; justify-content: flex-start;
     }
-    .pnl-cat-name { flex: 1; font-size: .75rem; color: #6c757d; }
-    .pnl-cat-value { font-size: .75rem; font-weight: 600; color: #212529; min-width: 60px; text-align: right; }
-    .pnl-cat-delta { font-size: .68rem; font-weight: 600; min-width: 40px; text-align: right; padding-left: 4px; }
-    .pnl-cat-delta.pos { color: #28a745; }
-    .pnl-cat-delta.neg { color: #dc3545; }
-    .pnl-cat-delta.neu { color: #adb5bd; }
+    .tm-name {
+        font-size: .76rem; font-weight: 900; line-height: 1.2; letter-spacing: .01em;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        text-shadow: 0 1px 2px rgba(0,0,0,.25);
+    }
+    .tm-val  { font-size: .8rem; font-weight: 800; margin-top: 3px; text-shadow: 0 1px 2px rgba(0,0,0,.2); font-variant-numeric: tabular-nums; }
+    .tm-share { font-size: .64rem; font-weight: 700; opacity: .95; margin-top: 1px; letter-spacing: .03em; text-transform: uppercase; }
+    .tm-fc   { font-size: .62rem; font-weight: 700; opacity: .92; margin-top: 4px; }
+    .tm-chip {
+        display: inline-block; align-self: flex-start; margin-top: 5px;
+        background: rgba(255,255,255,.28); border-radius: 999px; padding: 1px 7px;
+        font-size: .6rem; font-weight: 800;
+    }
+    .tm-mini { font-size: .68rem; font-weight: 900; text-shadow: 0 1px 2px rgba(0,0,0,.3); margin: auto; }
+    .tm-legend { font-size: .62rem; color: #8a8079; font-weight: 700; margin-top: 8px; padding: 0 2px; }
+    .pnl-cat-empty { font-size: .75rem; color: #adb5bd; font-style: italic; padding: 8px; }
 
     .oc-breakdown {
         display: grid;
@@ -429,7 +437,10 @@ const I18N = {
     overhead:  {{ (translations.overhead ?? 'Overhead Cost (OC)')|json_encode|raw }},
     result:    {{ (translations.result ?? 'Result')|json_encode|raw }},
     noData:    {{ (translations.no_data ?? 'Aucune donnée')|json_encode|raw }},
-    loadError: {{ (translations.load_error ?? 'Erreur de chargement')|json_encode|raw }}
+    loadError: {{ (translations.load_error ?? 'Erreur de chargement')|json_encode|raw }},
+    caShare:   {{ (translations.ca_share ?? 'du CA')|json_encode|raw }},
+    tmLegendDelta:  {{ (translations.tm_legend_delta ?? 'Surface : poids dans le CA · Couleur : évolution vs N-1')|json_encode|raw }},
+    tmLegendMargin: {{ (translations.tm_legend_margin ?? 'Surface : poids dans le CA · Couleur : niveau de marge')|json_encode|raw }}
 };
 (function () {
     'use strict';
@@ -503,9 +514,13 @@ const I18N = {
                 <span class="pnl-row-pct"></span>
             </div>
             <div class="pnl-categories" id="pnl-cats-${shopId}">
-                ${renderCategories(data.turnover ? data.turnover.categories : [], T)}
+                <div class="pnl-treemap" id="pnl-tm-${shopId}"></div>
+                <div class="tm-legend" id="pnl-tml-${shopId}"></div>
             </div>
         `);
+        // Données du treemap, construit au premier dépliage (le conteneur doit
+        // être visible pour connaître sa largeur).
+        _tmData[shopId] = { cats: (data.turnover && data.turnover.categories) || [], total: T };
 
         // 2. Food Cost + 3. Marge brute
         {
@@ -561,25 +576,145 @@ const I18N = {
             toRow.addEventListener('click', () => {
                 const open = cats.classList.toggle('is-open');
                 toRow.classList.toggle('expanded', open);
+                if (open && !cats.dataset.built) {
+                    cats.dataset.built = '1';
+                    buildTreemap(shopId);
+                }
             });
         }
     }
 
-    function renderCategories(categories, turnoverTotal) {
-        if (!categories || categories.length === 0) {
-            return '<div class="pnl-cat-row"><span class="pnl-cat-name" style="font-style:italic;">${I18N.noData}</span></div>';
+    // ── TREEMAP CATÉGORIES ─────────────────────────────────────────────────
+    // Surface ∝ poids de la catégorie dans le CA. Couleur : niveau de marge
+    // quand le coefficient food cost de la catégorie est connu (FOOD_COEF),
+    // sinon évolution vs N-1 (delta API). Textes progressifs selon la taille
+    // de la tuile : nom + CA + part + delta → nom + part → part seule
+    // (info complète dans le title / appui long).
+    const _tmData = {};
+
+    // Coefficients food cost par catégorie (part matière du CA, ex. 0.24).
+    // Clé = fragment de nom en minuscules. À remplir dès réception des
+    // coefficients ; le treemap bascule alors en couleurs « marge ».
+    const FOOD_COEF = {};
+
+    function foodCoefOf(name) {
+        const n = String(name || '').toLowerCase();
+        for (const k in FOOD_COEF) {
+            if (Object.prototype.hasOwnProperty.call(FOOD_COEF, k) && n.indexOf(k) !== -1) return FOOD_COEF[k];
         }
-        const sorted = [...categories].sort((a, b) => b.value - a.value);
-        return sorted.map(cat => {
-            const pct = (turnoverTotal > 0) ? (cat.value / turnoverTotal * 100) : 0;
-            const { text, cls } = fmtDelta(cat.delta);
-            return `
-                <div class="pnl-cat-row">
-                    <span class="pnl-cat-name">${escHtml(cat.name)}</span>
-                    <span class="pnl-cat-value">${pct.toFixed(1)}%</span>
-                    <span class="pnl-cat-delta ${cls}">${text}</span>
-                </div>`;
-        }).join('');
+        return null;
+    }
+
+    // Marge (% du CA) → couleur — même esprit que la ligne Result.
+    function marginColor(mPct) {
+        if (mPct >= 80) return '#C9A227';
+        if (mPct >= 72) return '#27ae60';
+        if (mPct >= 65) return '#8FA31E';
+        if (mPct >= 60) return '#e67e22';
+        return '#C96A6A';
+    }
+
+    // Évolution vs N-1 → couleur (repli tant que la marge/catégorie manque).
+    function deltaColor(delta) {
+        if (delta == null || !isFinite(delta)) return '#9BA1A6';
+        if (delta >= 5)  return '#27ae60';
+        if (delta >= 0)  return '#8FA31E';
+        if (delta >= -5) return '#e67e22';
+        return '#C96A6A';
+    }
+
+    // Treemap « squarified » (Bruls et al.) : découpe W×H en rectangles
+    // d'aires ∝ values, au ratio le plus proche du carré possible.
+    // Retourne [{x,y,w,h}] dans l'ordre des values (triées au préalable).
+    function squarify(values, W, H) {
+        const total = values.reduce((a, b) => a + b, 0);
+        if (total <= 0 || W <= 0 || H <= 0) return [];
+        const areas = values.map(v => (v / total) * W * H);
+        const rects = [];
+        let x = 0, y = 0, w = W, h = H, row = [];
+
+        const sum = r => r.reduce((a, b) => a + b, 0);
+        function worst(r, side) {
+            const s = sum(r), mx = Math.max.apply(null, r), mn = Math.min.apply(null, r);
+            return Math.max((side * side * mx) / (s * s), (s * s) / (side * side * mn));
+        }
+        function layoutRow(r) {
+            const s = sum(r);
+            if (w >= h) {          // colonne posée sur le bord gauche
+                const cw = s / h; let cy = y;
+                r.forEach(a => { rects.push({ x: x, y: cy, w: cw, h: a / cw }); cy += a / cw; });
+                x += cw; w -= cw;
+            } else {               // rangée posée sur le bord haut
+                const ch = s / w; let cx = x;
+                r.forEach(a => { rects.push({ x: cx, y: y, w: a / ch, h: ch }); cx += a / ch; });
+                y += ch; h -= ch;
+            }
+        }
+        areas.forEach(a => {
+            const side = Math.min(w, h);
+            if (!row.length || worst(row.concat([a]), side) <= worst(row, side)) row.push(a);
+            else { layoutRow(row); row = [a]; }
+        });
+        if (row.length) layoutRow(row);
+        return rects;
+    }
+
+    function categoryCell(cat, r, total) {
+        const v = Number(cat.value) || 0;
+        const sharePct = total > 0 ? Math.round((v / total) * 100) : 0;
+        const delta = (cat.delta != null && isFinite(cat.delta)) ? Number(cat.delta) : null;
+        const coef = foodCoefOf(cat.name);
+        const color = coef != null ? marginColor((1 - coef) * 100) : deltaColor(delta);
+        const dTxt = fmtDelta(delta).text;
+        const area = r.w * r.h;
+
+        let inner;
+        if (area >= 11000 && r.w >= 96) {
+            // Grande tuile : hiérarchie complète.
+            inner = `
+                <div class="tm-name">${escHtml(cat.name)}</div>
+                <div class="tm-val">${fmt(v)}</div>
+                <div class="tm-share">${sharePct} % ${escHtml(I18N.caShare)}</div>
+                ${coef != null
+                    ? `<div class="tm-fc">FC ${Math.round(coef * 100)} % · ${escHtml(I18N.gross)} ${Math.round((1 - coef) * 100)} %</div>`
+                    : (delta != null ? `<span class="tm-chip">${dTxt} vs N-1</span>` : '')}`;
+        } else if (area >= 4200 && r.w >= 64) {
+            inner = `<div class="tm-name">${escHtml(cat.name)}</div><div class="tm-share">${sharePct} %</div>`;
+        } else {
+            inner = `<div class="tm-mini">${sharePct} %</div>`;
+        }
+
+        const pad = area >= 4200 ? 8 : 3;
+        const title = `${cat.name} — ${fmt(v)} (${sharePct} %)` + (delta != null ? ` · ${dTxt} vs N-1` : '');
+        return `<div class="tm-cell" title="${escHtml(title)}" style="left:${(r.x + 1).toFixed(1)}px;top:${(r.y + 1).toFixed(1)}px;width:${Math.max(0, r.w - 2).toFixed(1)}px;height:${Math.max(0, r.h - 2).toFixed(1)}px;background:${color};padding:${pad}px;">${inner}</div>`;
+    }
+
+    function renderTreemapInto(host, legendEl, cats, total) {
+        const items = (cats || [])
+            .map(c => Object.assign({}, c, { value: Number(c.value) || 0 }))
+            .filter(c => c.value > 0)
+            .sort((a, b) => b.value - a.value);
+        if (!items.length) {
+            host.innerHTML = `<div class="pnl-cat-empty">${I18N.noData}</div>`;
+            if (legendEl) legendEl.textContent = '';
+            return;
+        }
+        const W = host.clientWidth || 300;
+        const H = Math.min(300, Math.max(190, Math.round(W * 0.72)));
+        host.style.height = H + 'px';
+        const rects = squarify(items.map(c => c.value), W, H);
+        host.innerHTML = items.map((c, i) => categoryCell(c, rects[i], total)).join('');
+        if (legendEl) {
+            const marginMode = items.some(c => foodCoefOf(c.name) != null);
+            legendEl.textContent = marginMode ? I18N.tmLegendMargin : I18N.tmLegendDelta;
+        }
+    }
+
+    function buildTreemap(shopId) {
+        const host = document.getElementById('pnl-tm-' + shopId);
+        const legendEl = document.getElementById('pnl-tml-' + shopId);
+        const d = _tmData[shopId];
+        if (host && d) renderTreemapInto(host, legendEl, d.cats, d.total);
     }
 
     function escHtml(str) {

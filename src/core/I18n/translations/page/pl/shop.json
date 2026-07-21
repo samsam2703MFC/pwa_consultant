@@ -2,6 +2,7 @@
   "apply": "Zastosuj",
   "avg_basket": "średni koszyk",
   "ca_month": "Obrót w miesiącu",
+  "ca_share": "obrotu",
   "compare_gap": "Różnica",
   "compare_mtd": "Miesiąc do dziś",
   "compare_period": "Okres",
@@ -26,6 +27,8 @@
   "subtitle": "Przegląd finansowy · dzisiaj",
   "tickets_per_day": "paragony / dzień",
   "title": "Sklepy",
+  "tm_legend_delta": "Powierzchnia: udział w obrocie · Kolor: zmiana vs N-1",
+  "tm_legend_margin": "Powierzchnia: udział w obrocie · Kolor: poziom marży",
   "to": "Do",
   "turnover": "Obrót"
 }
