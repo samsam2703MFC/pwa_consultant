@@ -288,12 +288,20 @@
                 // Panier = panier OBSERVÉ en base (CA base / tickets base) ;
                 // clients = tickets base × CA_API/CA_base (base du jour
                 // partielle → redressement au prorata, comme les Boutiques).
+                // Base vide pour aujourd'hui (alimentation différée) → repli :
+                // panier de référence des 7 derniers jours pleins, et
+                // clients = CA API du jour / panier de référence.
                 let clients = null, basket = null;
                 const dbTickets = db ? Number(db.tickets) || 0 : 0;
                 const dbCa = db ? Number(db.ca) || 0 : 0;
+                const refTickets = db ? Number(db.ref_tickets) || 0 : 0;
+                const refCa = db ? Number(db.ref_ca) || 0 : 0;
                 if (dbTickets > 0 && dbCa > 0) {
                     basket = dbCa / dbTickets;
                     clients = ca > 0 ? Math.round(dbTickets * (ca / dbCa)) : dbTickets;
+                } else if (ca > 0 && refTickets > 0 && refCa > 0) {
+                    basket = refCa / refTickets;
+                    clients = Math.round(ca / basket);
                 }
                 render(row, ca, result, clients, basket);
             });
