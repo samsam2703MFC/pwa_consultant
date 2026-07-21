@@ -194,6 +194,51 @@ class ShopSalesRepository
     }
 
     /**
+     * Drapeaux « actif » des magasins depuis la table locale `shops`.
+     * La colonne est détectée (active / is_active / enabled / shop_active…) ;
+     * renvoie null si table ou colonne introuvable → l'appelant ne filtre pas.
+     *
+     * @return array<int,bool>|null  id magasin => actif
+     */
+    public function getActiveShopIds(): ?array
+    {
+        $pdo = Database::pdo();
+        if ($pdo === null) {
+            return null;
+        }
+
+        try {
+            $stmt = $pdo->query(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'shops'"
+            );
+            $names = array_map(fn($r) => (string)$r['COLUMN_NAME'], $stmt->fetchAll());
+
+            $col = null;
+            foreach (['active', 'is_active', 'enabled', 'is_enabled', 'shop_active', 'status'] as $cand) {
+                foreach ($names as $n) {
+                    if (strcasecmp($n, $cand) === 0) { $col = $n; break 2; }
+                }
+            }
+            if ($col === null) {
+                return null;
+            }
+
+            $stmt = $pdo->query("SELECT id, `$col` AS flag FROM shops");
+            $out = [];
+            foreach ($stmt->fetchAll() as $row) {
+                // 1 / true / 'active' → actif ; 0 / null / autre → inactif.
+                $v = $row['flag'];
+                $out[(int)$row['id']] = is_numeric($v) ? ((int)$v === 1) : (strcasecmp((string)$v, 'active') === 0);
+            }
+            return $out;
+        } catch (Throwable $e) {
+            error_log('[db] getActiveShopIds échoué: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Diagnostic : liste les tables de la base avec leur nombre de lignes
      * (approx. information_schema). Sert à repérer une éventuelle table de
      * LIGNES de ticket (détail produits) pour un vrai « produits / client ».
