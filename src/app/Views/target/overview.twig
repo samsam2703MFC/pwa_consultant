@@ -10,7 +10,7 @@
         <div class="scr-head">
             <div>
                 <div class="scr-title">{{ translations.franchise_title ?? 'Targets' }}</div>
-                <div class="scr-sub">{{ translations.franchise_sub ?? 'Les 3 objectifs du franchisé · mois en cours' }}</div>
+                <div class="scr-sub">{{ translations.franchise_sub ?? 'Les 3 objectifs du franchisé' }}</div>
             </div>
             <button class="app-hamburger" id="appHamburger" aria-label="Menu" aria-expanded="false" aria-controls="appNavSheet">
                 {{ icons.svg('menu', 22) }}
@@ -24,8 +24,16 @@
 <style>
     .tg-shopsel {
         width: 100%; padding: 10px 12px; border: 1px solid #e7ded2; border-radius: 12px;
-        background: #fff; font-size: .82rem; font-weight: 700; color: #241f1c; margin-bottom: 12px;
+        background: #fff; font-size: .82rem; font-weight: 700; color: #241f1c; margin-bottom: 8px;
     }
+    .tg-period { display: flex; gap: 6px; margin-bottom: 12px; }
+    .tg-period .tg-badge {
+        flex: 1; text-align: center; padding: 6px 0; border-radius: 20px;
+        border: 1px solid #e0d8cd; background: #fff; font-size: .72rem;
+        font-weight: 700; color: #7a7168; -webkit-tap-highlight-color: transparent;
+        transition: all .15s;
+    }
+    .tg-period .tg-badge.active { background: #8D1D2C; border-color: #8D1D2C; color: #fff; }
     .tg-card {
         background: #fff; border: 1px solid #e7ded2; border-radius: 16px; padding: 4px 14px;
         box-shadow: 0 10px 24px -18px rgba(70,40,25,.25);
@@ -77,6 +85,13 @@
             {% endfor %}
         </select>
 
+        {# ── Période : mois / trimestre / année (en cours, vs N-1) ── #}
+        <div class="tg-period" id="tgPeriod">
+            <button class="tg-badge active" data-period="month">{{ translations.period_month ?? 'Mois' }}</button>
+            <button class="tg-badge" data-period="quarter">{{ translations.period_quarter ?? 'Trimestre' }}</button>
+            <button class="tg-badge" data-period="year">{{ translations.period_year ?? 'Année' }}</button>
+        </div>
+
         <div class="tg-card">
             <div class="tg-skel" id="tgSkel">
                 <div class="l" style="width:85%;"></div>
@@ -116,9 +131,10 @@ const TG_I18N = {
     objective:{{ (translations.lbl_objective ?? 'Objectif')|json_encode|raw }},
     ofObj:    {{ (translations.of_objective ?? "de l'objectif")|json_encode|raw }},
     toEncode: {{ (translations.to_encode ?? 'à encoder')|json_encode|raw }},
-    chartCap: {{ (translations.chart_cap ?? 'Barres grises = N-1 · barres colorées = actuel (statut du mois) · pointillé = objectif')|json_encode|raw }},
+    chartCap: {{ (translations.chart_cap ?? 'Barres grises = N-1 · barres colorées = actuel (statut de la période) · pointillé = objectif')|json_encode|raw }},
     chartB2b: {{ (translations.chart_b2b_empty ?? 'Pas de série mensuelle : valeurs B2B à encoder par le franchiseur.')|json_encode|raw }},
-    loading:  {{ (translations.load ?? 'Chargement…')|json_encode|raw }}
+    loading:  {{ (translations.load ?? 'Chargement…')|json_encode|raw }},
+    qLetter:  {{ (translations.quarter_letter ?? 'T')|json_encode|raw }}
 };
 
 (function () {
@@ -127,6 +143,7 @@ const TG_I18N = {
     const rowsEl = document.getElementById('tgRows');
     const skelEl = document.getElementById('tgSkel');
     const shopSel = document.getElementById('tgShop');
+    const perBar = document.getElementById('tgPeriod');
     const encodeLink = document.getElementById('tgEncodeLink');
     if (!rowsEl) return;
 
@@ -151,22 +168,27 @@ const TG_I18N = {
     const ST_ICON = { g: '✓', o: '⚠', r: '●', nd: '—' };
     const ST_HEX  = { g: '#2D7A3E', o: '#e67e22', r: '#c0182b', nd: '#adb5bd' };
 
-    // ── Fenêtres mois-à-date N et N-1 (mêmes dates, un an plus tôt) ──
-    function mtdWindows() {
+    // ── Périodes : mois / trimestre / année EN COURS, vs N-1 (mêmes
+    // dates un an plus tôt). Objectif : les targets sont MENSUELLES →
+    // pour les compteurs (B2B, clients) l'objectif de période = mensuel
+    // × nb de mois (3, 12) ; le panier moyen est une moyenne → inchangé.
+    const P_MONTHS = { month: 1, quarter: 3, year: 12 };
+
+    function periodStart(period, y, m) {
+        if (period === 'year') return new Date(y, 0, 1);
+        if (period === 'quarter') return new Date(y, Math.floor(m / 3) * 3, 1);
+        return new Date(y, m, 1);
+    }
+    function curWindows(period) {
         const now = new Date();
-        const from = new Date(now.getFullYear(), now.getMonth(), 1);
-        const fromP = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+        const from = periodStart(period, now.getFullYear(), now.getMonth());
+        const fromP = periodStart(period, now.getFullYear() - 1, now.getMonth());
         const toP = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
         return { n: { from: iso(from), to: iso(now) }, p: { from: iso(fromP), to: iso(toP) } };
     }
-    // Fenêtre d'un mois entier décalé de `back` mois (mois courant → MTD).
-    function monthWindow(back, yearsBack) {
-        const now = new Date();
-        const y = now.getFullYear() - (yearsBack || 0);
-        const first = new Date(y, now.getMonth() - back, 1);
-        let last = new Date(first.getFullYear(), first.getMonth() + 1, 0);
-        if (back === 0) last = new Date(y, now.getMonth(), now.getDate());
-        return { from: iso(first), to: iso(last), label: first.toLocaleDateString(document.documentElement.lang || 'fr', { month: 'short' }) };
+    function scaleObj(objective, unit, period) {
+        if (objective == null) return null;
+        return unit === 'amount' ? Number(objective) : Number(objective) * P_MONTHS[period];
     }
 
     function fetchSales(shopId, w, done) {
@@ -178,16 +200,22 @@ const TG_I18N = {
         });
     }
 
-    // ── Chargement du mois courant (les 3 lignes) ──
-    const _cache = {};   // shopId → state
+    // ── Chargement des 3 lignes pour un magasin × une période ──
+    const _cache = {};   // 'shopId|period' → state
     let curShop = Number(shopSel.value);
+    let curPeriod = 'month';
 
-    function load(shopId) {
+    function load(shopId, period) {
         skelEl.style.display = '';
         rowsEl.innerHTML = '';
         const st = { fr: null, n: null, p: null, series: {} };
         let pending = 3;
-        const step = () => { if (--pending === 0) { _cache[shopId] = st; if (shopId === curShop) render(st); } };
+        const step = () => {
+            if (--pending === 0) {
+                _cache[shopId + '|' + period] = st;
+                if (shopId === curShop && period === curPeriod) render(st);
+            }
+        };
 
         ConsultantAjax.load({
             endpoint: '/targets/' + shopId + '/franchise-data',
@@ -195,32 +223,35 @@ const TG_I18N = {
             onSuccess: r => { st.fr = ((r || {}).data || {}).kpis || null; step(); },
             onError: step,
         });
-        const w = mtdWindows();
+        const w = curWindows(period);
         fetchSales(shopId, w.n, d => { st.n = d; step(); });
         fetchSales(shopId, w.p, d => { st.p = d; step(); });
     }
 
-    function kpiModel(st) {
+    function kpiModel(st, period) {
         const fr = st.fr || {};
         const un = (fr.basket && fr.basket.unit) || 'amount';
         return [
             { key: 'b2b', nm: TG_I18N.b2b, unit: (fr.b2b && fr.b2b.unit) || '',
               n1: null, val: fr.b2b ? fr.b2b.value : null,
-              obj: fr.b2b ? fr.b2b.objective : null, lower: !!(fr.b2b && fr.b2b.lower) },
+              obj: fr.b2b ? scaleObj(fr.b2b.objective, (fr.b2b.unit || ''), period) : null,
+              lower: !!(fr.b2b && fr.b2b.lower) },
             { key: 'clients', nm: TG_I18N.clients, unit: '',
               n1: st.p ? Number(st.p.tickets) || null : null,
               val: st.n ? Number(st.n.tickets) || null : null,
-              obj: fr.clients ? fr.clients.objective : null, lower: !!(fr.clients && fr.clients.lower) },
+              obj: fr.clients ? scaleObj(fr.clients.objective, '', period) : null,
+              lower: !!(fr.clients && fr.clients.lower) },
             { key: 'basket', nm: TG_I18N.basket, unit: un,
               n1: st.p && st.p.avg_basket != null ? Number(st.p.avg_basket) : null,
               val: st.n && st.n.avg_basket != null ? Number(st.n.avg_basket) : null,
-              obj: fr.basket ? fr.basket.objective : null, lower: !!(fr.basket && fr.basket.lower) },
+              obj: fr.basket ? scaleObj(fr.basket.objective, 'amount', period) : null,
+              lower: !!(fr.basket && fr.basket.lower) },
         ];
     }
 
     function render(st) {
         skelEl.style.display = 'none';
-        rowsEl.innerHTML = kpiModel(st).map(k => {
+        rowsEl.innerHTML = kpiModel(st, curPeriod).map(k => {
             const pct = pctOf(k.val, k.obj, k.lower);
             const s = stOf(pct);
             const pctTxt = pct == null
@@ -246,33 +277,66 @@ const TG_I18N = {
             const open = row.classList.toggle('open');
             this.setAttribute('aria-expanded', open ? 'true' : 'false');
             rowsEl.querySelectorAll('.tg-row').forEach(r2 => { if (r2 !== row) r2.classList.remove('open'); });
-            if (open) drawChart(curShop, row.dataset.kpi, row.querySelector('.tg-chart'));
+            if (open) drawChart(curShop, row.dataset.kpi, row.querySelector('.tg-chart'), curPeriod);
         }));
     }
 
-    // ── Graphique V2 : barres mensuelles N (colorées) vs N-1 (grises) ──
-    // 6 derniers mois ; couleur de chaque barre N = statut du mois vs
-    // l'objectif du mois courant (ligne pointillée). B2B : pas de série
-    // POS → message tant que le franchiseur n'encode pas de mensuel.
-    const MONTHS_BACK = 6;
+    // ── Graphique V2 : barres N (colorées) vs N-1 (grises) ──
+    // Mois → 6 derniers mois · Trimestre → 4 derniers trimestres ·
+    // Année → 3 dernières années. Couleur de chaque barre N = statut de
+    // la période vs l'objectif (pointillé). B2B : pas de série POS.
+    function chartBars(period) {
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+        const out = [];
+        if (period === 'quarter') {
+            const q0 = Math.floor(m / 3);
+            for (let i = 3; i >= 0; i--) {
+                const first = new Date(y, (q0 - i) * 3, 1);
+                const last = i === 0 ? new Date(y, m, d) : new Date(first.getFullYear(), first.getMonth() + 3, 0);
+                const firstP = new Date(first.getFullYear() - 1, first.getMonth(), 1);
+                const lastP = new Date(last.getFullYear() - 1, last.getMonth(), Math.min(last.getDate(), 28));
+                out.push({ label: TG_I18N.qLetter + (Math.floor(first.getMonth() / 3) + 1) + '·' + String(first.getFullYear()).slice(2),
+                           n: { from: iso(first), to: iso(last) }, p: { from: iso(firstP), to: iso(lastP) } });
+            }
+            return out;
+        }
+        if (period === 'year') {
+            for (let i = 2; i >= 0; i--) {
+                const first = new Date(y - i, 0, 1);
+                const last = i === 0 ? new Date(y, m, d) : new Date(y - i, 11, 31);
+                const firstP = new Date(first.getFullYear() - 1, 0, 1);
+                const lastP = new Date(last.getFullYear() - 1, last.getMonth(), Math.min(last.getDate(), 28));
+                out.push({ label: String(y - i),
+                           n: { from: iso(first), to: iso(last) }, p: { from: iso(firstP), to: iso(lastP) } });
+            }
+            return out;
+        }
+        for (let i = 5; i >= 0; i--) {
+            const first = new Date(y, m - i, 1);
+            const last = i === 0 ? new Date(y, m, d) : new Date(first.getFullYear(), first.getMonth() + 1, 0);
+            const firstP = new Date(first.getFullYear() - 1, first.getMonth(), 1);
+            const lastP = new Date(last.getFullYear() - 1, last.getMonth(), Math.min(last.getDate(), 28));
+            out.push({ label: first.toLocaleDateString(document.documentElement.lang || 'fr', { month: 'short' }),
+                       n: { from: iso(first), to: iso(last) }, p: { from: iso(firstP), to: iso(lastP) } });
+        }
+        return out;
+    }
 
-    function drawChart(shopId, kpi, host) {
-        const st = _cache[shopId];
+    function drawChart(shopId, kpi, host, period) {
+        const st = _cache[shopId + '|' + period];
         if (!st) return;
         if (kpi === 'b2b') { host.innerHTML = '<div class="empty">' + TG_I18N.chartB2b + '</div>'; return; }
-        if (st.series[kpi]) { host.innerHTML = st.series[kpi]; return; }
+        const sKey = kpi + '|' + period;
+        if (st.series[sKey]) { host.innerHTML = st.series[sKey]; return; }
 
-        const pts = [];
-        let pending = MONTHS_BACK * 2;
-        for (let i = MONTHS_BACK - 1; i >= 0; i--) {
-            (function (i) {
-                const wN = monthWindow(i, 0), wP = monthWindow(i, 1);
-                const p = { label: wN.label, n: null, p: null };
-                pts[MONTHS_BACK - 1 - i] = p;
-                fetchSales(shopId, wN, d => { p.n = metricOf(d, kpi); if (--pending === 0) finish(); });
-                fetchSales(shopId, wP, d => { p.p = metricOf(d, kpi); if (--pending === 0) finish(); });
-            })(i);
-        }
+        const bars = chartBars(period);
+        const pts = bars.map(b => ({ label: b.label, n: null, p: null }));
+        let pending = bars.length * 2;
+        bars.forEach((b, idx) => {
+            fetchSales(shopId, b.n, d => { pts[idx].n = metricOf(d, kpi); if (--pending === 0) finish(); });
+            fetchSales(shopId, b.p, d => { pts[idx].p = metricOf(d, kpi); if (--pending === 0) finish(); });
+        });
 
         function metricOf(d, kpi) {
             if (!d) return null;
@@ -282,23 +346,25 @@ const TG_I18N = {
 
         function finish() {
             const fr = (st.fr || {})[kpi] || {};
-            const obj = fr.objective != null ? Number(fr.objective) : null;
+            const obj = fr.objective != null
+                ? scaleObj(fr.objective, kpi === 'basket' ? 'amount' : '', period)
+                : null;
             const lower = !!fr.lower;
             const vals = pts.flatMap(p => [p.n, p.p]).filter(v => v != null);
             if (obj != null) vals.push(obj);
-            if (!vals.length) { host.innerHTML = '<div class="empty">' + TG_I18N.toEncode + '</div>'; st.series[kpi] = host.innerHTML; return; }
+            if (!vals.length) { host.innerHTML = '<div class="empty">' + TG_I18N.toEncode + '</div>'; st.series[sKey] = host.innerHTML; return; }
             const max = Math.max.apply(null, vals) * 1.12;
             const W = 320, H = 120, base = 106, top = 10, span = base - top;
-            const groupW = (W - 28) / MONTHS_BACK;
-            const bw = Math.min(13, groupW / 3);
+            const groupW = (W - 28) / pts.length;
+            const bw = Math.min(16, groupW / 3);
             let svg = '';
             if (obj != null) {
-                const y = base - (obj / max) * span;
-                svg += '<line x1="24" y1="' + y.toFixed(1) + '" x2="' + (W - 4) + '" y2="' + y.toFixed(1) + '" stroke="#241f1c" stroke-width="1.5" stroke-dasharray="5 4"/>'
-                    + '<text x="' + (W - 4) + '" y="' + (y - 4).toFixed(1) + '" font-size="8" fill="#241f1c" text-anchor="end" font-weight="700">' + TG_I18N.objective + '</text>';
+                const yl = base - (obj / max) * span;
+                svg += '<line x1="24" y1="' + yl.toFixed(1) + '" x2="' + (W - 4) + '" y2="' + yl.toFixed(1) + '" stroke="#241f1c" stroke-width="1.5" stroke-dasharray="5 4"/>'
+                    + '<text x="' + (W - 4) + '" y="' + (yl - 4).toFixed(1) + '" font-size="8" fill="#241f1c" text-anchor="end" font-weight="700">' + TG_I18N.objective + '</text>';
             }
             pts.forEach((p, idx) => {
-                const x0 = 26 + idx * groupW;
+                const x0 = 26 + idx * groupW + (groupW - 2 * bw - 3) / 2;
                 if (p.p != null) {
                     const h = (p.p / max) * span;
                     svg += '<rect x="' + x0.toFixed(1) + '" y="' + (base - h).toFixed(1) + '" width="' + bw + '" height="' + h.toFixed(1) + '" rx="3" fill="#d9d1c6"/>';
@@ -312,16 +378,26 @@ const TG_I18N = {
             });
             host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%">' + svg + '</svg>'
                 + '<div class="cap">' + TG_I18N.chartCap + '</div>';
-            st.series[kpi] = host.innerHTML;
+            st.series[sKey] = host.innerHTML;
         }
     }
 
+    function refresh() {
+        const key = curShop + '|' + curPeriod;
+        _cache[key] ? render(_cache[key]) : load(curShop, curPeriod);
+    }
     shopSel.addEventListener('change', function () {
         curShop = Number(this.value);
         if (encodeLink) encodeLink.href = ROOT + '/targets/' + curShop + '?year=' + TG_YEAR + '&month=' + TG_MONTH;
-        _cache[curShop] ? render(_cache[curShop]) : load(curShop);
+        refresh();
     });
-    load(curShop);
+    perBar.querySelectorAll('.tg-badge').forEach(b => b.addEventListener('click', function () {
+        perBar.querySelectorAll('.tg-badge').forEach(x => x.classList.remove('active'));
+        this.classList.add('active');
+        curPeriod = this.dataset.period;
+        refresh();
+    }));
+    load(curShop, curPeriod);
 })();
 </script>
 {% endif %}

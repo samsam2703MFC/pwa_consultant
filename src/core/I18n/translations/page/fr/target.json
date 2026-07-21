@@ -32,5 +32,9 @@
     "to_encode": "à encoder",
     "encode_targets": "Encoder les targets de cette boutique",
     "chart_cap": "Barres grises = N-1 · barres colorées = actuel (statut du mois) · pointillé = objectif",
-    "chart_b2b_empty": "Pas de série mensuelle : valeurs B2B à encoder par le franchiseur."
+    "chart_b2b_empty": "Pas de série mensuelle : valeurs B2B à encoder par le franchiseur.",
+    "period_month": "Mois",
+    "period_quarter": "Trimestre",
+    "period_year": "Année",
+    "quarter_letter": "T"
 }

@@ -32,5 +32,9 @@
     "to_encode": "do wprowadzenia",
     "encode_targets": "Wprowadź targety tego sklepu",
     "chart_cap": "Szare słupki = N-1 · kolorowe = obecnie (status miesiąca) · przerywana = cel",
-    "chart_b2b_empty": "Brak serii miesięcznej: wartości B2B wprowadza franczyzodawca."
+    "chart_b2b_empty": "Brak serii miesięcznej: wartości B2B wprowadza franczyzodawca.",
+    "period_month": "Miesiąc",
+    "period_quarter": "Kwartał",
+    "period_year": "Rok",
+    "quarter_letter": "K"
 }
