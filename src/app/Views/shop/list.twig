@@ -154,7 +154,9 @@
         font-size: .6rem; font-weight: 800;
     }
     .tm-mini { font-size: .68rem; font-weight: 900; text-shadow: 0 1px 2px rgba(0,0,0,.3); margin: auto; }
-    .tm-legend { font-size: .62rem; color: #8a8079; font-weight: 700; margin-top: 8px; padding: 0 2px; }
+    .tm-legend { font-size: .62rem; color: #8a8079; font-weight: 700; margin-top: 4px; padding: 0 2px; }
+    .tm-scale { display: flex; flex-wrap: wrap; gap: 3px 9px; margin-top: 8px; padding: 0 2px; font-size: .6rem; font-weight: 800; color: #5f574f; }
+    .tm-scale i { display: inline-block; width: 8px; height: 8px; border-radius: 3px; margin-right: 3px; vertical-align: -1px; }
     .tm-detail {
         display: none; margin-top: 8px; padding: 7px 10px;
         background: rgba(36,26,22,.045); border-radius: 9px;
@@ -325,30 +327,18 @@
 {% block content %}
 <div class="page-content-loaded">
 
-    {# ── Légende des couleurs (Result + marge des catégories) ── #}
+    {# ── Légende des couleurs du Result (la légende de marge des catégories
+         vit dans le treemap, affichée à son ouverture) ── #}
     <div class="result-legend">
-        <div class="rl-row">
-            <span class="rl-title">{{ translations.legend_result ?? 'Couleur du Result (marge en % du CA)' }}</span>
-            <span class="rl-items">
-                <span class="rl-item"><i style="background:#8B0000;"></i>{{ translations.loss ?? 'Perte' }}</span>
-                <span class="rl-item"><i style="background:#dc3545;"></i>0–5&nbsp;%</span>
-                <span class="rl-item"><i style="background:#e67e22;"></i>5–10&nbsp;%</span>
-                <span class="rl-item"><i style="background:#8FA31E;"></i>10–15&nbsp;%</span>
-                <span class="rl-item"><i style="background:#27ae60;"></i>15–25&nbsp;%</span>
-                <span class="rl-item"><i style="background:#C9A227;"></i>&gt;&nbsp;25&nbsp;%</span>
-            </span>
-        </div>
-        <div class="rl-row">
-            <span class="rl-title">{{ translations.legend_margin ?? 'Marge des catégories (vs food cost)' }}</span>
-            <span class="rl-items">
-                <span class="rl-item"><i style="background:#8B0000;"></i>{{ translations.loss ?? 'Perte' }}</span>
-                <span class="rl-item"><i style="background:#dc3545;"></i>0–20&nbsp;%</span>
-                <span class="rl-item"><i style="background:#e67e22;"></i>20–30&nbsp;%</span>
-                <span class="rl-item"><i style="background:#8FA31E;"></i>30–40&nbsp;%</span>
-                <span class="rl-item"><i style="background:#27ae60;"></i>40–60&nbsp;%</span>
-                <span class="rl-item"><i style="background:#C9A227;"></i>&gt;&nbsp;60&nbsp;%</span>
-            </span>
-        </div>
+        <span class="rl-title">{{ translations.legend_result ?? 'Couleur du Result (marge en % du CA)' }}</span>
+        <span class="rl-items">
+            <span class="rl-item"><i style="background:#8B0000;"></i>{{ translations.loss ?? 'Perte' }}</span>
+            <span class="rl-item"><i style="background:#dc3545;"></i>0–5&nbsp;%</span>
+            <span class="rl-item"><i style="background:#e67e22;"></i>5–10&nbsp;%</span>
+            <span class="rl-item"><i style="background:#8FA31E;"></i>10–15&nbsp;%</span>
+            <span class="rl-item"><i style="background:#27ae60;"></i>15–25&nbsp;%</span>
+            <span class="rl-item"><i style="background:#C9A227;"></i>&gt;&nbsp;25&nbsp;%</span>
+        </span>
     </div>
 
     {% if shops is empty %}
@@ -484,6 +474,7 @@ const I18N = {
     loadError: {{ (translations.load_error ?? 'Erreur de chargement')|json_encode|raw }},
     caShare:   {{ (translations.ca_share ?? 'du CA')|json_encode|raw }},
     marginLabel: {{ (translations.margin_label ?? 'marge')|json_encode|raw }},
+    loss:      {{ (translations.loss ?? 'Perte')|json_encode|raw }},
     tmLegendDelta:  {{ (translations.tm_legend_delta ?? 'Surface : poids dans le CA · Couleur : évolution vs N-1')|json_encode|raw }},
     tmLegendMargin: {{ (translations.tm_legend_margin ?? 'Surface : poids dans le CA · Couleur : niveau de marge')|json_encode|raw }}
 };
@@ -561,6 +552,7 @@ const I18N = {
             <div class="pnl-categories" id="pnl-cats-${shopId}">
                 <div class="pnl-treemap" id="pnl-tm-${shopId}"></div>
                 <div class="tm-detail" id="pnl-tmd-${shopId}"></div>
+                <div class="tm-scale" id="pnl-tms-${shopId}"></div>
                 <div class="tm-legend" id="pnl-tml-${shopId}"></div>
             </div>
         `);
@@ -738,7 +730,7 @@ const I18N = {
         return `<div class="tm-cell" title="${escHtml(title)}" style="left:${(r.x + 1).toFixed(1)}px;top:${(r.y + 1).toFixed(1)}px;width:${Math.max(0, r.w - 2).toFixed(1)}px;height:${Math.max(0, r.h - 2).toFixed(1)}px;background:${color};padding:${pad}px;">${inner}</div>`;
     }
 
-    function renderTreemapInto(host, legendEl, cats, total, detailEl) {
+    function renderTreemapInto(host, legendEl, cats, total, detailEl, scaleEl) {
         const items = (cats || [])
             .map(c => Object.assign({}, c, { value: Number(c.value) || 0 }))
             .filter(c => c.value > 0)
@@ -747,6 +739,7 @@ const I18N = {
         if (!items.length) {
             host.innerHTML = `<div class="pnl-cat-empty">${I18N.noData}</div>`;
             if (legendEl) legendEl.textContent = '';
+            if (scaleEl) scaleEl.innerHTML = '';
             return;
         }
         const W = host.clientWidth || 300;
@@ -754,9 +747,18 @@ const I18N = {
         host.style.height = H + 'px';
         const rects = squarify(items.map(c => c.value), W, H);
         host.innerHTML = items.map((c, i) => categoryCell(c, rects[i], total)).join('');
-        if (legendEl) {
-            const marginMode = items.some(c => foodCoefOf(c.name) != null);
-            legendEl.textContent = marginMode ? I18N.tmLegendMargin : I18N.tmLegendDelta;
+
+        const marginMode = items.some(c => foodCoefOf(c.name) != null);
+        if (legendEl) legendEl.textContent = marginMode ? I18N.tmLegendMargin : I18N.tmLegendDelta;
+        // Mini-légende des couleurs, visible seulement treemap ouvert, au-dessus
+        // de la ligne « Surface … » — barème du mode actif (marge ou delta N-1).
+        if (scaleEl) {
+            const sw = (color, label) => `<span><i style="background:${color};"></i>${label}</span>`;
+            scaleEl.innerHTML = marginMode
+                ? sw('#8B0000', I18N.loss) + sw('#dc3545', '0–20') + sw('#e67e22', '20–30')
+                    + sw('#8FA31E', '30–40') + sw('#27ae60', '40–60') + sw('#C9A227', '&gt; 60 %')
+                : sw('#C96A6A', '&lt; −5') + sw('#e67e22', '−5–0') + sw('#8FA31E', '0–5')
+                    + sw('#27ae60', '&gt; +5 %') + sw('#9BA1A6', 'n/a');
         }
 
         // Tap sur une tuile → bandeau de détail sous le treemap (nom complet,
@@ -789,8 +791,9 @@ const I18N = {
         const host = document.getElementById('pnl-tm-' + shopId);
         const legendEl = document.getElementById('pnl-tml-' + shopId);
         const detailEl = document.getElementById('pnl-tmd-' + shopId);
+        const scaleEl = document.getElementById('pnl-tms-' + shopId);
         const d = _tmData[shopId];
-        if (host && d) renderTreemapInto(host, legendEl, d.cats, d.total, detailEl);
+        if (host && d) renderTreemapInto(host, legendEl, d.cats, d.total, detailEl, scaleEl);
     }
 
     function escHtml(str) {
