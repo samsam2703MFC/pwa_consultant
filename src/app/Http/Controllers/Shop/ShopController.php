@@ -92,9 +92,17 @@ class ShopController extends Controller
                 $days     = max(1, (int)date('t')); // nombre de jours du mois
             }
 
-            // Comparatif N vs N-1 (année/mois à date, semaine équivalente),
-            // au prorata du CA API pour rester cohérent avec le CA affiché.
-            $shop['compare'] = $this->buildComparison($id, $compareWindows, $scale);
+            // Comparatif N vs N-1. Colonne N : CA temps réel de l'API quand il
+            // existe (mois à date = turnover déjà chargé ; semaine = P&L week),
+            // car la base locale peut être alimentée avec du retard — sinon
+            // les derniers jours (donc la ligne « Semaine ») resteraient à 0.
+            // N-1 et année à date : base locale au prorata du CA API.
+            $pnlWeek  = $id > 0 ? $this->shopService->getPnl($id, 'week') : [];
+            $weekApi  = isset($pnlWeek['turnover']['value']) ? (float)$pnlWeek['turnover']['value'] : null;
+            $shop['compare'] = $this->buildComparison($id, $compareWindows, $scale, [
+                'mtd'  => $turnover,
+                'week' => $weekApi,
+            ]);
 
             $shop['ca_month']        = $ca;
             $shop['tickets_count']   = $tickets;
@@ -152,13 +160,16 @@ class ShopController extends Controller
      *  ok   : ≥ année passée (vert) · warn : 0 % > écart ≥ −5 % (orange)
      *  late : < −5 % (rouge)        · na   : pas de référence N-1 (gris).
      */
-    private function buildComparison(int $shopId, array $windows, float $scale): array
+    private function buildComparison(int $shopId, array $windows, float $scale, array $apiN = []): array
     {
         $sums = $shopId > 0 ? $this->shopSales->getWindowSums($shopId, $windows) : [];
 
         $rows = [];
         foreach (['ytd', 'mtd', 'week'] as $key) {
-            $n  = ((float)($sums[$key . '_n'] ?? 0)) * $scale;
+            // Colonne N : valeur API temps réel si disponible, sinon base×prorata.
+            $n = isset($apiN[$key]) && $apiN[$key] !== null
+                ? (float)$apiN[$key]
+                : ((float)($sums[$key . '_n'] ?? 0)) * $scale;
             $n1 = ((float)($sums[$key . '_p'] ?? 0)) * $scale;
 
             $pct = $n1 > 0 ? (($n - $n1) / $n1) * 100 : null;
