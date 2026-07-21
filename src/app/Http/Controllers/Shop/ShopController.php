@@ -13,39 +13,29 @@ class ShopController extends Controller
     ) {}
 
     /**
-     * Tickets et CA du jour lus dans la base locale (table transaction),
-     * plus une fenêtre de RÉFÉRENCE (7 jours pleins jusqu'à la veille) : la
-     * base est alimentée avec du retard et peut ne rien contenir pour le jour
-     * en cours. Le tableau « état au moment T » de l'accueil s'en sert pour
-     * clients et panier : jour présent en base → panier observé du jour et
-     * tickets redressés au prorata du CA API ; sinon → panier de référence
-     * des 7 derniers jours et clients = CA API / panier.
+     * Tickets et CA lus dans la base locale (table transaction) sur une
+     * fenêtre arbitraire — MÊME calcul (getShopSummary) que les indicateurs
+     * du module Boutiques, validés. Le tableau « état au moment T » de
+     * l'accueil l'appelle avec la fenêtre du P&L mensuel : le panier
+     * (CA base / tickets base) est alors identique à celui de la tuile
+     * Boutiques, et clients du jour = CA API du jour / panier.
      */
     public function daySales(int $shopId): \Symfony\Component\HttpFoundation\JsonResponse
     {
-        $date = (string)($_GET['date'] ?? date('Y-m-d'));
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            $date = date('Y-m-d');
+        $re   = '/^\d{4}-\d{2}-\d{2}$/';
+        $from = (string)($_GET['from'] ?? $_GET['date'] ?? date('Y-m-d'));
+        $to   = (string)($_GET['to'] ?? $from);
+        if (!preg_match($re, $from)) {
+            $from = date('Y-m-d');
         }
-        // Ventes réelles uniquement (montant > 0) : les tickets à 0 € ou
-        // négatifs gonflent le compte sans CA et écrasent le panier moyen.
-        $sum = $this->shopSales->getSalesTickets($shopId, $date, $date);
+        if (!preg_match($re, $to) || $to < $from) {
+            $to = $from;
+        }
 
-        $day     = new \DateTimeImmutable($date);
-        $ref     = $this->shopSales->getSalesTickets(
-            $shopId,
-            $day->modify('-7 days')->format('Y-m-d'),
-            $day->modify('-1 day')->format('Y-m-d')
-        );
-
+        $sum = $this->shopSales->getShopSummary($shopId, $from, $to);
         return $this->json([
             'ok'   => true,
-            'data' => [
-                'tickets'     => (int)$sum['tickets'],
-                'ca'          => (float)$sum['ca'],
-                'ref_tickets' => (int)$ref['tickets'],
-                'ref_ca'      => (float)$ref['ca'],
-            ],
+            'data' => ['tickets' => (int)$sum['tickets'], 'ca' => (float)$sum['ca']],
         ]);
     }
 

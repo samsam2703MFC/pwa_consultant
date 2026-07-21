@@ -187,10 +187,10 @@
  * l'overhead mensuel est proratisé au jour, le coût matière vient de
  * /statistics/daily-summary sur la même fenêtre.
  * Résultat = CA − matière − labour − overhead/jour ; % = Résultat / CA.
- * Clients & panier : base locale (/shops/{id}/day-sales, table transaction),
- * comme les indicateurs Boutiques — panier = CA_base / tickets_base (le
- * panier observé est représentatif même base partielle), clients = tickets
- * redressés au prorata du CA API du jour. */
+ * Clients & panier : MÊME calcul que la tuile Boutiques — panier =
+ * CA_base / tickets_base sur la fenêtre du P&L MENSUEL (/shops/{id}/day-sales,
+ * table transaction via getShopSummary) ; clients du jour = CA API du jour
+ * / panier. Le panier affiché est donc identique à celui des Boutiques. */
 (function () {
     'use strict';
     const rows = document.querySelectorAll('.live-row');
@@ -275,33 +275,31 @@
             const pFood = (from && to)
                 ? ajax({ endpoint: '/shops/' + shopId + '/statistics/daily-summary', params: { date_from: from, date_to: to, from: from, to: to } }).then(s => s ? extractFood(s) : null)
                 : Promise.resolve(null);
-            // Clients & panier depuis la base locale du jour.
-            const pDb = fetch(ROOT + '/shops/' + shopId + '/day-sales' + (from ? '?date=' + from : ''), { credentials: 'same-origin' })
-                .then(r => r.ok ? r.json() : null)
-                .then(j => (j && j.ok && j.data) ? j.data : null)
-                .catch(() => null);
+            // Tickets + CA de la base locale sur la fenêtre du P&L MENSUEL :
+            // exactement la fenêtre et le calcul de la tuile Boutiques.
+            const pDb = pMonth.then(month => {
+                const mFrom = month && month.date_from ? String(month.date_from).slice(0, 10) : null;
+                const mTo = month && month.date_to ? String(month.date_to).slice(0, 10) : null;
+                if (!mFrom || !mTo) return null;
+                return fetch(ROOT + '/shops/' + shopId + '/day-sales?from=' + mFrom + '&to=' + mTo, { credentials: 'same-origin' })
+                    .then(r => r.ok ? r.json() : null)
+                    .then(j => (j && j.ok && j.data) ? j.data : null)
+                    .catch(() => null);
+            });
 
             Promise.all([pMonth, pFood, pDb]).then(([month, food, db]) => {
                 const ocMonth = Number(month && month.overhead && month.overhead.value) || 0;
                 const result = ca - (food || 0) - labour - (ocMonth / daysInCurrentMonth());
 
-                // Panier = panier OBSERVÉ en base (CA base / tickets base) ;
-                // clients = tickets base × CA_API/CA_base (base du jour
-                // partielle → redressement au prorata, comme les Boutiques).
-                // Base vide pour aujourd'hui (alimentation différée) → repli :
-                // panier de référence des 7 derniers jours pleins, et
-                // clients = CA API du jour / panier de référence.
+                // Panier = CA base / tickets base sur le mois (identique au
+                // « panier moyen » de la tuile Boutiques, calcul validé) ;
+                // clients du jour = CA API du jour / panier.
                 let clients = null, basket = null;
                 const dbTickets = db ? Number(db.tickets) || 0 : 0;
                 const dbCa = db ? Number(db.ca) || 0 : 0;
-                const refTickets = db ? Number(db.ref_tickets) || 0 : 0;
-                const refCa = db ? Number(db.ref_ca) || 0 : 0;
                 if (dbTickets > 0 && dbCa > 0) {
                     basket = dbCa / dbTickets;
-                    clients = ca > 0 ? Math.round(dbTickets * (ca / dbCa)) : dbTickets;
-                } else if (ca > 0 && refTickets > 0 && refCa > 0) {
-                    basket = refCa / refTickets;
-                    clients = Math.round(ca / basket);
+                    if (ca > 0) clients = Math.round(ca / basket);
                 }
                 render(row, ca, result, clients, basket);
             });

@@ -33,51 +33,6 @@ class ShopSalesRepository
      *
      * @return array{tickets:int, products:int, ca:float}
      */
-    /**
-     * Tickets et CA de VENTES RÉELLES sur la fenêtre : seuls les tickets à
-     * montant strictement positif comptent. La base reçoit aussi des lignes
-     * à 0 € (tickets insérés avant enrichissement du montant, opérations de
-     * caisse) et des négatifs (annulations) qui gonflent le nombre de tickets
-     * sans CA — le panier moyen en sortirait sous-évalué (constaté : 11,26 €
-     * affiché contre 15,10 € réel sur Corbais). Utilisé pour le panier et le
-     * nombre de clients du tableau temps réel de l'accueil.
-     *
-     * @return array{tickets:int, ca:float}
-     */
-    public function getSalesTickets(int $shopId, string $fromDate, string $toDate): array
-    {
-        $empty = ['tickets' => 0, 'ca' => 0.0];
-        $pdo = Database::pdo();
-        if ($pdo === null) {
-            return $empty;
-        }
-
-        try {
-            $from   = $fromDate . ' 00:00:00';
-            $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
-
-            $stmt = $pdo->prepare(
-                'SELECT COUNT(DISTINCT id_device, ticket_key)                 AS tickets,
-                        COALESCE(SUM(total_gross_amount_after_discount), 0)   AS ca
-                 FROM transaction
-                 WHERE id_shop = :id
-                   AND insert_timestamp >= :from
-                   AND insert_timestamp <  :toExcl
-                   AND total_gross_amount_after_discount > 0'
-            );
-            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
-            $row = $stmt->fetch() ?: [];
-
-            return [
-                'tickets' => (int)($row['tickets'] ?? 0),
-                'ca'      => (float)($row['ca'] ?? 0),
-            ];
-        } catch (Throwable $e) {
-            error_log('[db] getSalesTickets échoué: ' . $e->getMessage());
-            return $empty;
-        }
-    }
-
     public function getShopSummary(int $shopId, string $fromDate, string $toDate): array
     {
         $empty = ['tickets' => 0, 'products' => 0, 'ca' => 0.0];
