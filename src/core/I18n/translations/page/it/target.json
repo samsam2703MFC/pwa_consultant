@@ -36,5 +36,13 @@
     "period_month": "Mese",
     "period_quarter": "Trimestre",
     "period_year": "Anno",
-    "quarter_letter": "T"
+    "quarter_letter": "T",
+    "campaigns_title": "Campagne commerciali",
+    "leads_generated": "Lead generati",
+    "leads_opened": "Lead aperti",
+    "conversion": "conversione",
+    "ca_vs_target": "del target di fatturato",
+    "reached": "raggiunto",
+    "missing": "mancante",
+    "no_campaigns": "Nessuna campagna per ora."
 }
