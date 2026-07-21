@@ -155,7 +155,24 @@
     }
     .tm-mini { font-size: .68rem; font-weight: 900; text-shadow: 0 1px 2px rgba(0,0,0,.3); margin: auto; }
     .tm-legend { font-size: .62rem; color: #8a8079; font-weight: 700; margin-top: 8px; padding: 0 2px; }
+    .tm-detail {
+        display: none; margin-top: 8px; padding: 7px 10px;
+        background: rgba(36,26,22,.045); border-radius: 9px;
+        font-size: .72rem; font-weight: 700; color: #241f1c;
+    }
+    .tm-detail.show { display: block; }
+    .tm-cell.sel { box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px rgba(36,26,22,.35); }
     .pnl-cat-empty { font-size: .75rem; color: #adb5bd; font-style: italic; padding: 8px; }
+
+    /* Légende des couleurs en tête de page */
+    .result-legend {
+        background: #fff; border-radius: 12px; padding: 9px 12px; margin-bottom: 12px;
+        box-shadow: 0 1px 5px rgba(0,0,0,.05);
+    }
+    .rl-title { display: block; font-size: .62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #7a7168; margin-bottom: 6px; }
+    .rl-items { display: flex; flex-wrap: wrap; gap: 5px 12px; }
+    .rl-item { display: inline-flex; align-items: center; gap: 4px; font-size: .68rem; font-weight: 800; color: #241f1c; white-space: nowrap; }
+    .rl-item i { width: 11px; height: 11px; border-radius: 4px; flex-shrink: 0; }
 
     .oc-breakdown {
         display: grid;
@@ -306,6 +323,19 @@
 
 {% block content %}
 <div class="page-content-loaded">
+
+    {# ── Légende des couleurs (Result & treemap marge, en % du CA) ── #}
+    <div class="result-legend">
+        <span class="rl-title">{{ translations.legend_result ?? 'Couleur du Result (marge en % du CA)' }}</span>
+        <span class="rl-items">
+            <span class="rl-item"><i style="background:#8B0000;"></i>{{ translations.loss ?? 'Perte' }}</span>
+            <span class="rl-item"><i style="background:#dc3545;"></i>0–5&nbsp;%</span>
+            <span class="rl-item"><i style="background:#e67e22;"></i>5–10&nbsp;%</span>
+            <span class="rl-item"><i style="background:#8FA31E;"></i>10–15&nbsp;%</span>
+            <span class="rl-item"><i style="background:#27ae60;"></i>15–25&nbsp;%</span>
+            <span class="rl-item"><i style="background:#C9A227;"></i>&gt;&nbsp;25&nbsp;%</span>
+        </span>
+    </div>
 
     {% if shops is empty %}
         <div class="text-center text-muted py-5">
@@ -515,6 +545,7 @@ const I18N = {
             </div>
             <div class="pnl-categories" id="pnl-cats-${shopId}">
                 <div class="pnl-treemap" id="pnl-tm-${shopId}"></div>
+                <div class="tm-detail" id="pnl-tmd-${shopId}"></div>
                 <div class="tm-legend" id="pnl-tml-${shopId}"></div>
             </div>
         `);
@@ -689,11 +720,12 @@ const I18N = {
         return `<div class="tm-cell" title="${escHtml(title)}" style="left:${(r.x + 1).toFixed(1)}px;top:${(r.y + 1).toFixed(1)}px;width:${Math.max(0, r.w - 2).toFixed(1)}px;height:${Math.max(0, r.h - 2).toFixed(1)}px;background:${color};padding:${pad}px;">${inner}</div>`;
     }
 
-    function renderTreemapInto(host, legendEl, cats, total) {
+    function renderTreemapInto(host, legendEl, cats, total, detailEl) {
         const items = (cats || [])
             .map(c => Object.assign({}, c, { value: Number(c.value) || 0 }))
             .filter(c => c.value > 0)
             .sort((a, b) => b.value - a.value);
+        if (detailEl) { detailEl.classList.remove('show'); detailEl.textContent = ''; }
         if (!items.length) {
             host.innerHTML = `<div class="pnl-cat-empty">${I18N.noData}</div>`;
             if (legendEl) legendEl.textContent = '';
@@ -708,13 +740,35 @@ const I18N = {
             const marginMode = items.some(c => foodCoefOf(c.name) != null);
             legendEl.textContent = marginMode ? I18N.tmLegendMargin : I18N.tmLegendDelta;
         }
+
+        // Tap sur une tuile → bandeau de détail sous le treemap (nom complet,
+        // CA, part, delta). Indispensable pour les catégories < 1 % dont la
+        // tuile est trop petite pour porter un texte. Re-tap → referme.
+        if (detailEl) {
+            const cells = host.querySelectorAll('.tm-cell');
+            cells.forEach((cell, i) => {
+                cell.addEventListener('click', () => {
+                    const wasSel = cell.classList.contains('sel');
+                    cells.forEach(c => c.classList.remove('sel'));
+                    if (wasSel) { detailEl.classList.remove('show'); return; }
+                    cell.classList.add('sel');
+                    const c = items[i];
+                    const share = total > 0 ? Math.round((c.value / total) * 1000) / 10 : 0;
+                    const delta = (c.delta != null && isFinite(c.delta)) ? Number(c.delta) : null;
+                    detailEl.textContent = c.name + ' — ' + fmt(c.value) + ' · ' + String(share).replace('.', ',') + ' % ' + I18N.caShare
+                        + (delta != null ? ' · ' + fmtDelta(delta).text.replace('.', ',') + ' vs N-1' : '');
+                    detailEl.classList.add('show');
+                });
+            });
+        }
     }
 
     function buildTreemap(shopId) {
         const host = document.getElementById('pnl-tm-' + shopId);
         const legendEl = document.getElementById('pnl-tml-' + shopId);
+        const detailEl = document.getElementById('pnl-tmd-' + shopId);
         const d = _tmData[shopId];
-        if (host && d) renderTreemapInto(host, legendEl, d.cats, d.total);
+        if (host && d) renderTreemapInto(host, legendEl, d.cats, d.total, detailEl);
     }
 
     function escHtml(str) {
