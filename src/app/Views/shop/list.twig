@@ -170,6 +170,7 @@
         box-shadow: 0 1px 5px rgba(0,0,0,.05);
     }
     .rl-title { display: block; font-size: .62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #7a7168; margin-bottom: 6px; }
+    .rl-row + .rl-row { margin-top: 8px; padding-top: 8px; border-top: 1px solid #f4f0e9; }
     .rl-items { display: flex; flex-wrap: wrap; gap: 5px 12px; }
     .rl-item { display: inline-flex; align-items: center; gap: 4px; font-size: .68rem; font-weight: 800; color: #241f1c; white-space: nowrap; }
     .rl-item i { width: 11px; height: 11px; border-radius: 4px; flex-shrink: 0; }
@@ -324,17 +325,30 @@
 {% block content %}
 <div class="page-content-loaded">
 
-    {# ── Légende des couleurs (Result & treemap marge, en % du CA) ── #}
+    {# ── Légende des couleurs (Result + marge des catégories) ── #}
     <div class="result-legend">
-        <span class="rl-title">{{ translations.legend_result ?? 'Couleur du Result (marge en % du CA)' }}</span>
-        <span class="rl-items">
-            <span class="rl-item"><i style="background:#8B0000;"></i>{{ translations.loss ?? 'Perte' }}</span>
-            <span class="rl-item"><i style="background:#dc3545;"></i>0–5&nbsp;%</span>
-            <span class="rl-item"><i style="background:#e67e22;"></i>5–10&nbsp;%</span>
-            <span class="rl-item"><i style="background:#8FA31E;"></i>10–15&nbsp;%</span>
-            <span class="rl-item"><i style="background:#27ae60;"></i>15–25&nbsp;%</span>
-            <span class="rl-item"><i style="background:#C9A227;"></i>&gt;&nbsp;25&nbsp;%</span>
-        </span>
+        <div class="rl-row">
+            <span class="rl-title">{{ translations.legend_result ?? 'Couleur du Result (marge en % du CA)' }}</span>
+            <span class="rl-items">
+                <span class="rl-item"><i style="background:#8B0000;"></i>{{ translations.loss ?? 'Perte' }}</span>
+                <span class="rl-item"><i style="background:#dc3545;"></i>0–5&nbsp;%</span>
+                <span class="rl-item"><i style="background:#e67e22;"></i>5–10&nbsp;%</span>
+                <span class="rl-item"><i style="background:#8FA31E;"></i>10–15&nbsp;%</span>
+                <span class="rl-item"><i style="background:#27ae60;"></i>15–25&nbsp;%</span>
+                <span class="rl-item"><i style="background:#C9A227;"></i>&gt;&nbsp;25&nbsp;%</span>
+            </span>
+        </div>
+        <div class="rl-row">
+            <span class="rl-title">{{ translations.legend_margin ?? 'Marge des catégories (vs food cost)' }}</span>
+            <span class="rl-items">
+                <span class="rl-item"><i style="background:#8B0000;"></i>{{ translations.loss ?? 'Perte' }}</span>
+                <span class="rl-item"><i style="background:#dc3545;"></i>0–20&nbsp;%</span>
+                <span class="rl-item"><i style="background:#e67e22;"></i>20–30&nbsp;%</span>
+                <span class="rl-item"><i style="background:#8FA31E;"></i>30–40&nbsp;%</span>
+                <span class="rl-item"><i style="background:#27ae60;"></i>40–60&nbsp;%</span>
+                <span class="rl-item"><i style="background:#C9A227;"></i>&gt;&nbsp;60&nbsp;%</span>
+            </span>
+        </div>
     </div>
 
     {% if shops is empty %}
@@ -469,6 +483,7 @@ const I18N = {
     noData:    {{ (translations.no_data ?? 'Aucune donnée')|json_encode|raw }},
     loadError: {{ (translations.load_error ?? 'Erreur de chargement')|json_encode|raw }},
     caShare:   {{ (translations.ca_share ?? 'du CA')|json_encode|raw }},
+    marginLabel: {{ (translations.margin_label ?? 'marge')|json_encode|raw }},
     tmLegendDelta:  {{ (translations.tm_legend_delta ?? 'Surface : poids dans le CA · Couleur : évolution vs N-1')|json_encode|raw }},
     tmLegendMargin: {{ (translations.tm_legend_margin ?? 'Surface : poids dans le CA · Couleur : niveau de marge')|json_encode|raw }}
 };
@@ -636,13 +651,16 @@ const I18N = {
         return null;
     }
 
-    // Marge (% du CA) → couleur — même esprit que la ligne Result.
+    // Marge de la catégorie (CA − food cost, en % du CA) → couleur.
+    // Barème validé : perte → rouge sang · 0–20 % → rouge · 20–30 % → orange ·
+    // 30–40 % → vert orangé · 40–60 % → vert · > 60 % → gold.
     function marginColor(mPct) {
-        if (mPct >= 80) return '#C9A227';
-        if (mPct >= 72) return '#27ae60';
-        if (mPct >= 65) return '#8FA31E';
-        if (mPct >= 60) return '#e67e22';
-        return '#C96A6A';
+        if (mPct < 0)  return '#8B0000';
+        if (mPct < 20) return '#dc3545';
+        if (mPct < 30) return '#e67e22';
+        if (mPct < 40) return '#8FA31E';
+        if (mPct < 60) return '#27ae60';
+        return '#C9A227';
     }
 
     // Évolution vs N-1 → couleur (repli tant que la marge/catégorie manque).
@@ -755,7 +773,11 @@ const I18N = {
                     const c = items[i];
                     const share = total > 0 ? Math.round((c.value / total) * 1000) / 10 : 0;
                     const delta = (c.delta != null && isFinite(c.delta)) ? Number(c.delta) : null;
+                    // Marge de la catégorie (vs food cost) quand le coefficient
+                    // est connu : « FC 24 % · marge 76 % » ajouté au détail.
+                    const coef = foodCoefOf(c.name);
                     detailEl.textContent = c.name + ' — ' + fmt(c.value) + ' · ' + String(share).replace('.', ',') + ' % ' + I18N.caShare
+                        + (coef != null ? ' · FC ' + Math.round(coef * 100) + ' % · ' + I18N.marginLabel + ' ' + Math.round((1 - coef) * 100) + ' %' : '')
                         + (delta != null ? ' · ' + fmtDelta(delta).text.replace('.', ',') + ' vs N-1' : '');
                     detailEl.classList.add('show');
                 });
