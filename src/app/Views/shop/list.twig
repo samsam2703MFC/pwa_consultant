@@ -901,18 +901,19 @@ const I18N = {
         return foundCost ? map : null;
     }
 
-    function fetchCatCosts(shopId, done) {
-        const d = _tmData[shopId];
-        if (!d || !d.from || !d.to) { done(); return; }
-        const cacheKey = shopId + '|' + d.from + '|' + d.to;
-        if (cacheKey in _catCostCache) { d.costs = _catCostCache[cacheKey]; done(); return; }
+    // Ventilation ventes/coût matière par catégorie sur une fenêtre ARBITRAIRE
+    // — source commune du treemap ET du Food Cost du P&L (jour, semaine, mois) :
+    // même agrégation partout, donc plus de divergence entre les périodes.
+    function fetchCategoryCosts(shopId, from, to, done) {
+        const cacheKey = shopId + '|' + from + '|' + to;
+        if (cacheKey in _catCostCache) { done(_catCostCache[cacheKey]); return; }
 
         const groupings = ['category', 'group', 'month'];
         (function attempt(i) {
-            if (i >= groupings.length) { _catCostCache[cacheKey] = null; done(); return; }
+            if (i >= groupings.length) { _catCostCache[cacheKey] = null; done(null); return; }
             ConsultantAjax.load({
                 endpoint: '/shops/' + shopId + '/statistics/sales/product-category-groups',
-                params: { date_from: d.from, date_to: d.to, grouping: groupings[i] },
+                params: { date_from: from, date_to: to, grouping: groupings[i] },
                 onSuccess: (resp) => {
                     const costs = extractCategoryCosts(resp);
                     if (costs) {
@@ -928,9 +929,9 @@ const I18N = {
                                     marge: costs[k].sales > 0 ? (Math.round((1 - costs[k].cost / costs[k].sales) * 1000) / 10) + ' %' : 'n/a',
                                 };
                             }
-                            console.info('[pnl] marges par catégorie — magasin ' + shopId + ' (' + d.from + ' → ' + d.to + ')', dbg);
+                            console.info('[pnl] marges par catégorie — magasin ' + shopId + ' (' + from + ' → ' + to + ')', dbg);
                         } catch (e) { /* debug uniquement */ }
-                        _catCostCache[cacheKey] = costs; d.costs = costs; done();
+                        _catCostCache[cacheKey] = costs; done(costs);
                     }
                     else {
                         console.warn('[pnl] product-category-groups (grouping=' + groupings[i] + ') sans coûts détectables', shopId, resp);
@@ -943,6 +944,15 @@ const I18N = {
                 },
             });
         })(0);
+    }
+
+    function fetchCatCosts(shopId, done) {
+        const d = _tmData[shopId];
+        if (!d || !d.from || !d.to) { done(); return; }
+        fetchCategoryCosts(shopId, d.from, d.to, (costs) => {
+            if (costs) d.costs = costs;
+            done();
+        });
     }
 
     function escHtml(str) {
@@ -1073,20 +1083,39 @@ const I18N = {
         const to   = pnlData && pnlData.date_to   ? String(pnlData.date_to).slice(0, 10)   : null;
         if (!from || !to) { done(); return; }
 
-        ConsultantAjax.load({
-            endpoint: '/shops/' + shopId + '/statistics/daily-summary',
-            params: { date_from: from, date_to: to, from: from, to: to },
-            onSuccess: (resp) => {
-                const cost = extractMaterialCost(resp);
-                _foodCache[key] = cost;
-                if (cost != null && cost > 0) pnlData.food_cost = cost;
-                else console.warn('[pnl] daily-summary sans coût matière détectable', shopId, period, resp);
-                done();
-            },
-            onError: (msg) => {
-                console.warn('[pnl] daily-summary indisponible', shopId, period, msg);
-                done();
-            },
+        // SOURCE PRIMAIRE : product-category-groups sur la fenêtre exacte du
+        // P&L — le food cost de la période = SOMME des coûts matière de
+        // toutes les catégories. Cette agrégation par fenêtre est VALIDÉE
+        // (FC 42 % Viennoiserie) et identique pour jour, semaine et mois :
+        // le FC de la semaine = somme de ses jours, par construction.
+        // (daily-summary, pensé pour une journée, divergeait sur les plages.)
+        fetchCategoryCosts(shopId, from, to, (costs) => {
+            if (costs) {
+                let total = 0;
+                for (const k in costs) total += Number(costs[k].cost) || 0;
+                if (total > 0) {
+                    _foodCache[key] = total;
+                    pnlData.food_cost = total;
+                    console.info('[pnl] food cost ' + period + ' (' + from + ' → ' + to + ') = ' + (Math.round(total * 100) / 100) + ' € (somme des catégories)');
+                    done(); return;
+                }
+            }
+            // REPLI : daily-summary (extraction mono-clé).
+            ConsultantAjax.load({
+                endpoint: '/shops/' + shopId + '/statistics/daily-summary',
+                params: { date_from: from, date_to: to, from: from, to: to },
+                onSuccess: (resp) => {
+                    const cost = extractMaterialCost(resp);
+                    _foodCache[key] = cost;
+                    if (cost != null && cost > 0) pnlData.food_cost = cost;
+                    else console.warn('[pnl] aucun coût matière détectable (catégories + daily-summary)', shopId, period, resp);
+                    done();
+                },
+                onError: (msg) => {
+                    console.warn('[pnl] daily-summary indisponible', shopId, period, msg);
+                    done();
+                },
+            });
         });
     }
 
