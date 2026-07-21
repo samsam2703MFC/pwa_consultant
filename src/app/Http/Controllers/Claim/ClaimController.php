@@ -25,15 +25,20 @@ class ClaimController extends Controller
             $selectedShop = (string)($shops[0]['id'] ?? '');
         }
 
+        // Niveau global : toutes les réclamations de TOUS les magasins —
+        // sert aux badges globaux (au-dessus du sélecteur de magasin).
+        $allClaims    = $this->claimService->getClaimsForAllShops($shops);
+        $globalCounts = $this->claimService->countByStatus($allClaims);
+
         if ($selectedShop === 'all') {
-            $claims = $this->claimService->getClaimsForAllShops($shops);
+            $claims = $allClaims;
         } else {
             $shopId = $selectedShop !== null ? (int)$selectedShop : null;
             $claims = $this->claimService->getClaimsForShop($shopId);
         }
 
-        // Compteurs par statut sur l'ensemble (le filtrage se fait côté client
-        // via les badges), calculés sur les données réelles.
+        // Niveau magasin : compteurs sur la sélection courante (le filtrage
+        // se fait côté client via les badges), données réelles.
         $statusCounts = $this->claimService->countByStatus($claims);
 
         // Filtre initial optionnel via ?status= (badge pré-activé côté client).
@@ -48,6 +53,8 @@ class ClaimController extends Controller
             'selected_shop_id' => $selectedShop,
             'status_counts' => $statusCounts,
             'status_order' => array_keys($statusCounts),
+            'global_status_counts' => $globalCounts,
+            'global_status_order' => array_keys($globalCounts),
             'active_status' => $activeStatus,
             'active_nav' => 'claims',
         ]);

@@ -178,6 +178,16 @@
         gap: 8px;
         margin-bottom: 14px;
     }
+    .claim-status-bar a.claim-status-badge { text-decoration: none; }
+    .claim-status-eyebrow {
+        font-size: .68rem;
+        font-weight: 800;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        color: #7a7168;
+        margin: 2px 2px 8px;
+    }
+    .claim-status-bar-global { margin-bottom: 16px; }
     .claim-status-badge {
         display: inline-flex;
         align-items: center;
@@ -240,6 +250,27 @@
             <p class="mt-3">{{ translations.no_shops ?? 'Aucune boutique disponible.' }}</p>
         </div>
     {% else %}
+        {# ── NIVEAU 1 : badges globaux (toutes réclamations, tous magasins) ── #}
+        {% set status_css = {
+            'NEW': 'new', 'IN_REVIEW': 'review', 'ACCEPTED': 'accepted', 'REJECTED': 'rejected'
+        } %}
+        {% set status_labels = {
+            'NEW': translations.status_new ?? 'Nouvelle', 'IN_REVIEW': translations.status_in_review ?? 'En cours', 'ACCEPTED': translations.status_accepted ?? 'Résolue', 'REJECTED': translations.status_rejected ?? 'Rejetée'
+        } %}
+        <div class="claim-status-eyebrow">{{ translations.all_shops ?? 'Toutes les boutiques' }}</div>
+        <div class="claim-status-bar claim-status-bar-global">
+            {% for st in global_status_order %}
+                {% set cnt = global_status_counts[st] ?? 0 %}
+                {% set g_active = selected_shop_id == 'all' and active_status == st %}
+                <a href="{{ ROOT }}/claims?shop_id=all{{ g_active ? '' : ('&status=' ~ st) }}"
+                   class="claim-status-badge s-{{ status_css[st] ?? 'new' }}{{ cnt == 0 ? ' is-zero' : '' }}{{ g_active ? ' is-active' : '' }}"
+                   aria-pressed="{{ g_active ? 'true' : 'false' }}">
+                    <span class="claim-status-badge-lbl">{{ status_labels[st] ?? st }}</span>
+                    <span class="claim-status-badge-count">{{ cnt }}</span>
+                </a>
+            {% endfor %}
+        </div>
+
         <form method="GET" action="{{ ROOT }}/claims" class="claim-filter">
             <div class="d-flex flex-column gap-2">
                 <div>
@@ -256,13 +287,7 @@
             </div>
         </form>
 
-        {# ── Badges de statut (filtre) — comptes réels, un badge par statut ── #}
-        {% set status_css = {
-            'NEW': 'new', 'IN_REVIEW': 'review', 'ACCEPTED': 'accepted', 'REJECTED': 'rejected'
-        } %}
-        {% set status_labels = {
-            'NEW': translations.status_new ?? 'Nouvelle', 'IN_REVIEW': translations.status_in_review ?? 'En cours', 'ACCEPTED': translations.status_accepted ?? 'Résolue', 'REJECTED': translations.status_rejected ?? 'Rejetée'
-        } %}
+        {# ── NIVEAU 2 : badges du magasin sélectionné (filtre client) ── #}
         <div class="claim-status-bar" data-active="{{ active_status }}">
             {% for st in status_order %}
                 {% set cnt = status_counts[st] ?? 0 %}
