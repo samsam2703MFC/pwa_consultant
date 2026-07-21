@@ -46,13 +46,19 @@ class ShopSalesRepository
             $from   = $fromDate . ' 00:00:00';
             $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
 
+            // Uniquement les tickets de VENTE RÉELLE (montant > 0) : la base
+            // reçoit aussi des lignes à 0 € (tickets pas encore enrichis,
+            // opérations de caisse) et des négatifs (annulations) qui gonflent
+            // le compte de tickets sans CA → panier moyen écrasé et
+            // tickets/jour surévalués (constaté sur les données de juillet).
             $stmt = $pdo->prepare(
                 'SELECT COUNT(DISTINCT id_device, ticket_key)                 AS tickets,
                         COALESCE(SUM(total_gross_amount_after_discount), 0)   AS ca
                  FROM transaction
                  WHERE id_shop = :id
                    AND insert_timestamp >= :from
-                   AND insert_timestamp <  :toExcl'
+                   AND insert_timestamp <  :toExcl
+                   AND total_gross_amount_after_discount > 0'
             );
             $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
             $row = $stmt->fetch() ?: [];
@@ -93,7 +99,8 @@ class ShopSalesRepository
                  INNER JOIN transaction t ON t.id = tp.`' . $fk . '`
                  WHERE t.id_shop = :id
                    AND t.insert_timestamp >= :from
-                   AND t.insert_timestamp <  :toExcl'
+                   AND t.insert_timestamp <  :toExcl
+                   AND t.total_gross_amount_after_discount > 0'
             );
             $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
 
