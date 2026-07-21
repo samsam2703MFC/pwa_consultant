@@ -43,6 +43,8 @@ class ShopController extends Controller
      */
     private function withSalesIndicators(array $shops): array
     {
+        $compareWindows = $this->compareWindows();
+
         foreach ($shops as &$shop) {
             $id = (int)($shop['id'] ?? 0);
 
@@ -50,6 +52,7 @@ class ShopController extends Controller
             $tickets = 0;
             $products = 0;
             $days = 1;
+            $scale = 1.0;
 
             $pnl      = $id > 0 ? $this->shopService->getPnl($id, 'month') : [];
             $turnover = isset($pnl['turnover']['value']) ? (float)$pnl['turnover']['value'] : null;
@@ -89,6 +92,10 @@ class ShopController extends Controller
                 $days     = max(1, (int)date('t')); // nombre de jours du mois
             }
 
+            // Comparatif N vs N-1 (année/mois à date, semaine équivalente),
+            // au prorata du CA API pour rester cohérent avec le CA affiché.
+            $shop['compare'] = $this->buildComparison($id, $compareWindows, $scale);
+
             $shop['ca_month']        = $ca;
             $shop['tickets_count']   = $tickets;
             $shop['tickets_per_day'] = $tickets > 0 ? $tickets / $days : 0.0;
@@ -109,6 +116,61 @@ class ShopController extends Controller
         unset($shop);
 
         return $shops;
+    }
+
+    /**
+     * Bornes des trois paires de fenêtres N vs N-1, à période équivalente :
+     *  - année à date  : 1er janvier → aujourd'hui inclus, vs même plage N-1 ;
+     *  - mois à date   : 1er du mois → aujourd'hui inclus, vs même plage N-1 ;
+     *  - semaine       : lundi → aujourd'hui inclus, vs -364 jours (52 semaines
+     *    pile) pour comparer les mêmes jours de semaine.
+     * Bornes hautes exclusives (lendemain 00:00).
+     */
+    private function compareWindows(): array
+    {
+        $today    = new \DateTimeImmutable('today');
+        $toExcl   = $today->modify('+1 day')->format('Y-m-d 00:00:00');
+        $lastY    = $today->modify('-1 year');
+        $lastYEnd = $lastY->modify('+1 day')->format('Y-m-d 00:00:00');
+        $monday   = $today->modify('monday this week');
+
+        return [
+            'ytd_n'  => [$today->format('Y-01-01 00:00:00'),  $toExcl],
+            'ytd_p'  => [$lastY->format('Y-01-01 00:00:00'),  $lastYEnd],
+            'mtd_n'  => [$today->format('Y-m-01 00:00:00'),   $toExcl],
+            'mtd_p'  => [$lastY->format('Y-m-01 00:00:00'),   $lastYEnd],
+            'week_n' => [$monday->format('Y-m-d 00:00:00'),   $toExcl],
+            'week_p' => [
+                $monday->modify('-364 days')->format('Y-m-d 00:00:00'),
+                $today->modify('-364 days')->modify('+1 day')->format('Y-m-d 00:00:00'),
+            ],
+        ];
+    }
+
+    /**
+     * Lignes du tableau comparatif : N-1, N, écart %, statut.
+     *  ok   : ≥ année passée (vert) · warn : 0 % > écart ≥ −5 % (orange)
+     *  late : < −5 % (rouge)        · na   : pas de référence N-1 (gris).
+     */
+    private function buildComparison(int $shopId, array $windows, float $scale): array
+    {
+        $sums = $shopId > 0 ? $this->shopSales->getWindowSums($shopId, $windows) : [];
+
+        $rows = [];
+        foreach (['ytd', 'mtd', 'week'] as $key) {
+            $n  = ((float)($sums[$key . '_n'] ?? 0)) * $scale;
+            $n1 = ((float)($sums[$key . '_p'] ?? 0)) * $scale;
+
+            $pct = $n1 > 0 ? (($n - $n1) / $n1) * 100 : null;
+            $status = 'na';
+            if ($pct !== null) {
+                $status = $pct >= 0 ? 'ok' : ($pct >= -5 ? 'warn' : 'late');
+            }
+
+            $rows[] = ['key' => $key, 'n1' => $n1, 'n' => $n, 'pct' => $pct, 'status' => $status];
+        }
+
+        return $rows;
     }
 
     /** Valide une date au format Y-m-d (et qu'elle existe réellement). */

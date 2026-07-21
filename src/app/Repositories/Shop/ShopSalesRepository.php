@@ -151,6 +151,49 @@ class ShopSalesRepository
     }
 
     /**
+     * CA d'UN magasin sur trois paires de fenêtres N vs N-1 :
+     * année à date, mois à date, semaine (lundi → aujourd'hui, N-1 = -364 j
+     * pour rester aligné sur les jours de semaine). Une seule requête
+     * (agrégation conditionnelle sur insert_timestamp).
+     *
+     * @param array<string, array{0:string,1:string}> $windows  clé => [from, toExcl] (datetime)
+     * @return array<string, float>  clé => CA
+     */
+    public function getWindowSums(int $shopId, array $windows): array
+    {
+        $empty = array_fill_keys(array_keys($windows), 0.0);
+        $pdo = Database::pdo();
+        if ($pdo === null || $windows === []) {
+            return $empty;
+        }
+
+        try {
+            $selects = [];
+            $params  = [':id' => $shopId];
+            $i = 0;
+            foreach ($windows as $key => [$from, $toExcl]) {
+                $selects[] = "COALESCE(SUM(CASE WHEN insert_timestamp >= :f$i AND insert_timestamp < :t$i
+                                   THEN total_gross_amount_after_discount ELSE 0 END), 0) AS `$key`";
+                $params[":f$i"] = $from;
+                $params[":t$i"] = $toExcl;
+                $i++;
+            }
+            $stmt = $pdo->prepare('SELECT ' . implode(', ', $selects) . ' FROM transaction WHERE id_shop = :id');
+            $stmt->execute($params);
+            $row = $stmt->fetch() ?: [];
+
+            $out = [];
+            foreach ($windows as $key => $_) {
+                $out[$key] = (float)($row[$key] ?? 0);
+            }
+            return $out;
+        } catch (Throwable $e) {
+            error_log('[db] getWindowSums échoué: ' . $e->getMessage());
+            return $empty;
+        }
+    }
+
+    /**
      * Diagnostic : liste les tables de la base avec leur nombre de lignes
      * (approx. information_schema). Sert à repérer une éventuelle table de
      * LIGNES de ticket (détail produits) pour un vrai « produits / client ».
