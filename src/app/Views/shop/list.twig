@@ -178,6 +178,49 @@
         100% { box-shadow: 0 0 0 0 rgba(141, 29, 44, 0); }
     }
 
+    /* ── Comparaison structure (catégories × magasins) ── */
+    .cmp-struct-wrap { margin-top: 16px; }
+    .cmp-struct-btn {
+        width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+        background: #8D1D2C; color: #fff; border: 0; border-radius: 14px;
+        padding: 12px 16px; font-size: .85rem; font-weight: 700;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .cmp-struct-chev { display: inline-flex; transition: transform .2s; }
+    .cmp-struct-btn[aria-expanded="true"] .cmp-struct-chev { transform: rotate(180deg); }
+    .cmp-struct-panel {
+        background: #fff; border-radius: 14px; margin-top: 10px; padding: 12px;
+        box-shadow: 0 1px 5px rgba(0,0,0,.05);
+    }
+    .cmp-sub { font-size: .66rem; color: #7a7168; margin-bottom: 8px; }
+    .cmp-detail {
+        display: none; font-size: .72rem; color: #241f1c; background: #F4EFE8;
+        border-radius: 9px; padding: 7px 10px; margin-bottom: 8px; line-height: 1.35;
+    }
+    .cmp-detail.show { display: block; }
+    .cmp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .cmp-table { border-collapse: collapse; width: 100%; }
+    .cmp-table th, .cmp-table td { font-size: .68rem; padding: 6px 5px; text-align: center; white-space: nowrap; }
+    .cmp-table th {
+        font-size: .58rem; text-transform: uppercase; letter-spacing: .05em;
+        color: #7a7168; font-weight: 700; border-bottom: 1px solid #e7ded2;
+    }
+    .cmp-table td.cmp-rowh, .cmp-table th.cmp-rowh {
+        text-align: left; font-weight: 700; color: #241f1c; position: sticky; left: 0;
+        background: #fff; max-width: 92px; overflow: hidden; text-overflow: ellipsis; z-index: 1;
+    }
+    .cmp-table tr + tr td { border-top: 1px solid #f3ece2; }
+    .cmp-table td { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .cmp-table td.sel { box-shadow: inset 0 0 0 2px rgba(141,29,44,.45); border-radius: 6px; }
+    .cmp-pct { font-weight: 700; }
+    .cmp-dlt { display: block; font-size: .56rem; font-weight: 700; margin-top: 1px; }
+    .cmp-zero { background: #fdeaea; color: #8B0000; }
+    .cmp-low  { background: #fdf3e6; }
+    .cmp-nd   { color: #adb5bd; }
+    .cmp-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 9px; font-size: .58rem; color: #7a7168; }
+    .cmp-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+    .cmp-empty { font-size: .75rem; color: #adb5bd; font-style: italic; padding: 8px; }
+
     /* Légende des couleurs en tête de page */
     .result-legend {
         background: #fff; border-radius: 12px; padding: 9px 12px; margin-bottom: 12px;
@@ -468,6 +511,36 @@
                 </div>
             {% endfor %}
         </div>
+
+        {# ── Comparaison structure : tableau croisé catégories × magasins ──
+             Vue « écart vs moyenne réseau » (± points) ; montant € au tap
+             sur une cellule. Données : mêmes P&L que les cartes ci-dessus. #}
+        <div class="cmp-struct-wrap">
+            <button class="cmp-struct-btn" id="cmpStructBtn" aria-expanded="false">
+                <span style="font-size:1rem;">⇄</span>
+                <span>{{ translations.cmp_structure ?? 'Comparaison structure' }}</span>
+                <span class="cmp-struct-chev">{{ icons.svg('chevron-down') }}</span>
+            </button>
+            <div class="cmp-struct-panel" id="cmpStructPanel" style="display:none;">
+                <div class="pnl-period-bar" id="cmpPeriodBar">
+                    <button class="pnl-badge active" data-period="day">{{ translations.period_today ?? "Aujourd'hui" }}</button>
+                    <button class="pnl-badge" data-period="week">{{ translations.period_week ?? 'Semaine' }}</button>
+                    <button class="pnl-badge" data-period="month">{{ translations.period_month ?? 'Mois' }}</button>
+                </div>
+                <div class="cmp-sub">{{ translations.cmp_structure_sub ?? 'Poids de chaque catégorie dans le CA (%) · écart vs la moyenne réseau en points' }}</div>
+                <div class="cmp-detail" id="cmpDetail"></div>
+                <div class="pnl-skeleton" id="cmpSkel" style="display:none;">
+                    <div class="pnl-skel-line" style="width:80%;"></div>
+                    <div class="pnl-skel-line" style="width:65%;"></div>
+                    <div class="pnl-skel-line" style="width:72%;"></div>
+                </div>
+                <div class="cmp-scroll"><table class="cmp-table" id="cmpTable"></table></div>
+                <div class="cmp-legend">
+                    <span><i style="background:#fdeaea;border:1px solid #f5c6cb;"></i>{{ translations.cmp_zero ?? '0 % — ne se vend pas' }}</span>
+                    <span><i style="background:#fdf3e6;border:1px solid #f0ddc0;"></i>{{ translations.cmp_low ?? 'nettement sous la moyenne réseau' }}</span>
+                </div>
+            </div>
+        </div>
     {% endif %}
 
 </div>
@@ -488,8 +561,13 @@ const I18N = {
     marginLabel: {{ (translations.margin_label ?? 'marge')|json_encode|raw }},
     loss:      {{ (translations.loss ?? 'Perte')|json_encode|raw }},
     tmLegendDelta:  {{ (translations.tm_legend_delta ?? 'Surface : poids dans le CA · Couleur : évolution vs N-1')|json_encode|raw }},
-    tmLegendMargin: {{ (translations.tm_legend_margin ?? 'Surface : poids dans le CA · Couleur : niveau de marge')|json_encode|raw }}
+    tmLegendMargin: {{ (translations.tm_legend_margin ?? 'Surface : poids dans le CA · Couleur : niveau de marge')|json_encode|raw }},
+    cmpCategory:  {{ (translations.cmp_category ?? 'Catégorie')|json_encode|raw }},
+    cmpNetwork:   {{ (translations.cmp_network ?? 'Réseau')|json_encode|raw }},
+    cmpVsNetwork: {{ (translations.cmp_vs_network ?? 'vs réseau')|json_encode|raw }}
 };
+// Magasins de la page (pour la comparaison de structure).
+const CMP_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representative_name ?? s.name)|json_encode|raw }} }{{ loop.last ? '' : ',' }}{% endfor %}];
 (function () {
     'use strict';
 
@@ -1234,6 +1312,160 @@ const I18N = {
         });
 
     });
+
+    // ── COMPARAISON STRUCTURE ──────────────────────────────────────────────
+    // Tableau croisé : catégories en lignes × magasins en colonnes. Chaque
+    // cellule = poids de la catégorie dans le CA du magasin (%) + écart vs
+    // la moyenne réseau en points. Tap sur une cellule → montant € dans le
+    // bandeau détail. Source : les mêmes P&L que les cartes (une requête
+    // par magasin, cache serveur), % calculés sur la somme des catégories
+    // du magasin → chaque colonne totalise 100 %.
+    (function () {
+        const btn   = document.getElementById('cmpStructBtn');
+        const panel = document.getElementById('cmpStructPanel');
+        if (!btn || !panel || !CMP_SHOPS.length) return;
+        const tableEl  = document.getElementById('cmpTable');
+        const skelEl   = document.getElementById('cmpSkel');
+        const detailEl = document.getElementById('cmpDetail');
+        const barEl    = document.getElementById('cmpPeriodBar');
+
+        const _cache = {};            // period → résultats pnl par magasin
+        let curPeriod = 'day';
+
+        const pct1 = p => (Math.round(p * 10) / 10).toFixed(1).replace(/\.0$/, '').replace('.', ',');
+        const kOf  = n => String(n || '').trim().toLowerCase();
+
+        btn.addEventListener('click', function () {
+            const open = panel.style.display !== 'none';
+            panel.style.display = open ? 'none' : '';
+            btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+            if (!open && !_cache[curPeriod]) load(curPeriod);
+        });
+
+        barEl.querySelectorAll('.pnl-badge').forEach(badge => {
+            badge.addEventListener('click', function () {
+                barEl.querySelectorAll('.pnl-badge').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                curPeriod = this.dataset.period;
+                detailEl.classList.remove('show');
+                _cache[curPeriod] ? build(_cache[curPeriod]) : load(curPeriod);
+            });
+        });
+
+        function load(period) {
+            skelEl.style.display = '';
+            tableEl.innerHTML = '';
+            const results = {};
+            let pending = CMP_SHOPS.length;
+            CMP_SHOPS.forEach(s => {
+                ConsultantAjax.load({
+                    endpoint: '/consultant/shops/' + s.id + '/pnl',
+                    params: { period: period },
+                    onSuccess: d => { results[s.id] = d; if (--pending === 0) finish(period, results); },
+                    onError:  () => { results[s.id] = null; if (--pending === 0) finish(period, results); },
+                });
+            });
+        }
+
+        function finish(period, results) {
+            _cache[period] = results;
+            skelEl.style.display = 'none';
+            if (period === curPeriod) build(results);
+        }
+
+        function build(results) {
+            // Par magasin : {clé catégorie → montant}, total = somme des
+            // catégories (dénominateur des %, garantit un total de 100 %).
+            const perShop = CMP_SHOPS.map(s => {
+                const d = results[s.id];
+                const cats = (d && d.turnover && d.turnover.categories) || [];
+                const map = {}; let tot = 0;
+                cats.forEach(c => {
+                    const v = Number(c.value) || 0;
+                    if (v < 0) return;
+                    const k = kOf(c.name);
+                    if (!k) return;
+                    map[k] = (map[k] || 0) + v; tot += v;
+                });
+                return { shop: s, map: map, tot: tot };
+            });
+
+            // Union des catégories (nom d'affichage = premier rencontré),
+            // triées par poids réseau décroissant.
+            const disp = {};
+            perShop.forEach(p => {
+                Object.keys(p.map).forEach(k => { if (!(k in disp)) disp[k] = null; });
+            });
+            CMP_SHOPS.forEach(s => {
+                const d = results[s.id];
+                (((d || {}).turnover || {}).categories || []).forEach(c => {
+                    const k = kOf(c.name);
+                    if (k && disp[k] == null) disp[k] = String(c.name).trim();
+                });
+            });
+            if (!perShop.some(p => p.tot > 0)) {
+                detailEl.classList.remove('show');
+                tableEl.innerHTML = '<tr><td class="cmp-empty">' + I18N.noData + '</td></tr>';
+                return;
+            }
+
+            const rows = Object.keys(disp).map(k => {
+                const pcts = perShop.map(p => p.tot > 0 ? ((p.map[k] || 0) / p.tot) * 100 : null);
+                const have = pcts.filter(v => v != null);
+                const avg = have.reduce((a, b) => a + b, 0) / have.length;
+                return { key: k, name: disp[k], pcts: pcts, avg: avg };
+            }).sort((a, b) => b.avg - a.avg);
+
+            const cell = (row, i) => {
+                const p = row.pcts[i];
+                if (p == null) return '<td class="cmp-nd">—</td>';
+                const v = perShop[i].map[row.key] || 0;
+                const d = p - row.avg;
+                let cls = '';
+                if (p === 0) cls = 'cmp-zero';
+                else if (row.avg > 0 && p < 0.65 * row.avg) cls = 'cmp-low';
+                let dlt;
+                if (p === 0) dlt = '<span class="cmp-dlt" style="color:#8B0000;">✕ 0</span>';
+                else {
+                    const col = d >= 1 ? '#27ae60' : (d <= -0.35 * row.avg ? '#8B0000' : (d < -1 ? '#e67e22' : '#7a7168'));
+                    const arrow = d >= 1 ? '▲' : (d < -1 ? '▼' : '≈');
+                    dlt = '<span class="cmp-dlt" style="color:' + col + ';">' + arrow + ' ' + (d > 0 ? '+' : '') + d.toFixed(1).replace('.', ',') + ' pt</span>';
+                }
+                return '<td class="' + cls + '" data-cat="' + escHtml(row.name) + '" data-shop="' + i + '" data-val="' + v + '" data-pct="' + p + '" data-dlt="' + d.toFixed(1) + '">'
+                    + '<span class="cmp-pct">' + pct1(p) + ' %</span>' + dlt + '</td>';
+            };
+
+            tableEl.innerHTML =
+                '<tr><th class="cmp-rowh">' + I18N.cmpCategory + '</th><th>' + I18N.cmpNetwork + '</th>'
+                + CMP_SHOPS.map(s => '<th>' + escHtml(shortName(s.name)) + '</th>').join('') + '</tr>'
+                + rows.map(row =>
+                    '<tr><td class="cmp-rowh">' + escHtml(row.name) + '</td>'
+                    + '<td style="color:#7a7168;">' + pct1(row.avg) + ' %</td>'
+                    + perShop.map((_, i) => cell(row, i)).join('') + '</tr>'
+                ).join('');
+        }
+
+        // Nom court pour l'en-tête de colonne : dernier segment après « - »
+        // (« Atelier by Berlo - Corbais » → « Corbais »).
+        function shortName(n) {
+            const parts = String(n || '').split(' - ');
+            return (parts.length > 1 ? parts[parts.length - 1] : String(n || '')).trim();
+        }
+
+        // Tap sur une cellule → bandeau détail avec le montant €.
+        tableEl.addEventListener('click', function (e) {
+            const td = e.target.closest('td[data-cat]');
+            if (!td) return;
+            tableEl.querySelectorAll('td.sel').forEach(x => x.classList.remove('sel'));
+            td.classList.add('sel');
+            const shop = CMP_SHOPS[Number(td.dataset.shop)];
+            const d = Number(td.dataset.dlt);
+            const dTxt = (d > 0 ? '+' : '') + d.toFixed(1).replace('.', ',') + ' pt ' + I18N.cmpVsNetwork;
+            detailEl.textContent = td.dataset.cat + ' — ' + shortName(shop.name) + ' · ' + fmt(Number(td.dataset.val))
+                + ' · ' + pct1(Number(td.dataset.pct)) + ' % ' + I18N.caShare + ' · ' + dTxt;
+            detailEl.classList.add('show');
+        });
+    })();
 
     // ── Ouverture directe depuis l'accueil ──────────────────────────────────
     // ?focus={id}&period=day&treemap=1 : scroll sur le magasin, P&L ouvert
