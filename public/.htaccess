@@ -13,8 +13,8 @@ SetEnv CONSULTANT_API_BASE https://atelierby.tfbuddy.com/api/v1
 # Login diagnostic — disabled. Uncomment to re-enable /auth?diag=1 for debugging.
 # SetEnv AUTH_DIAG 1
 
-# TEMPORARY diagnostic — enables /pnl-debug and /api-debug.
-SetEnv PNL_DIAG 1
+# TEMPORARY diagnostic — disabled. Uncomment to re-enable /pnl-debug and /api-debug.
+# SetEnv PNL_DIAG 1
 
 # Nie przepisywuj istniejących plików i katalogów
 RewriteCond %{REQUEST_FILENAME} !-f
