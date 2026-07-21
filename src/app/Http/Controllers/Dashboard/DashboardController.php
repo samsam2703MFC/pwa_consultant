@@ -41,6 +41,14 @@ class DashboardController extends Controller
             $shops      = $demo['shops'];
         }
 
+        // Magasins pour le tableau « état au moment T » (temps réel, côté JS).
+        $liveShops = $this->safeFetch(
+            [$this->dashboardService, 'getLiveShops'],
+            $this->errors,
+            [],
+            []
+        );
+
         $this->view('dashboard/dashboard', [
             'date'        => $date,
             'active_nav'  => 'dashboard',
@@ -48,6 +56,7 @@ class DashboardController extends Controller
             'today_tasks' => $todayTasks,
             'alerts'      => $alerts,
             'shops'       => $shops,
+            'live_shops'  => $liveShops,
             'is_demo'     => empty($dashboard),
         ]);
     }
