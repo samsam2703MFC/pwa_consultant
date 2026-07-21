@@ -800,11 +800,12 @@ const I18N = {
                     const c = items[i];
                     const share = total > 0 ? Math.round((c.value / total) * 1000) / 10 : 0;
                     const delta = (c.delta != null && isFinite(c.delta)) ? Number(c.delta) : null;
-                    // Marge de la catégorie (vs food cost) quand elle est
-                    // connue : « FC 24 % · marge 76 % » ajouté au détail.
+                    // La marge brute n'apparaît nulle part en texte : elle ne
+                    // sert qu'à la couleur conditionnelle des tuiles. Le détail
+                    // affiche le food cost, seul chiffre de coût montré.
                     const m = marginPctFor(c.name, costs);
                     detailEl.textContent = c.name + ' — ' + fmt(c.value) + ' · ' + String(share).replace('.', ',') + ' % ' + I18N.caShare
-                        + (m != null ? ' · FC ' + Math.round(100 - m) + ' % · ' + I18N.marginLabel + ' ' + Math.round(m) + ' %' : '')
+                        + (m != null ? ' · FC ' + Math.round(100 - m) + ' %' : '')
                         + (delta != null ? ' · ' + fmtDelta(delta).text.replace('.', ',') + ' vs N-1' : '');
                     detailEl.classList.add('show');
                 });
