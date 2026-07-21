@@ -14,7 +14,7 @@ class ShopController extends Controller
 
     /**
      * Tickets et CA lus dans la base locale (table transaction) sur une
-     * fenêtre arbitraire — MÊME calcul (getShopSummary) que les indicateurs
+     * fenêtre arbitraire — MÊME calcul (getSalesKpis) que les indicateurs
      * du module Boutiques, validés. Le tableau « état au moment T » de
      * l'accueil l'appelle avec la fenêtre du P&L mensuel : le panier
      * (CA base / tickets base) est alors identique à celui de la tuile
@@ -32,10 +32,23 @@ class ShopController extends Controller
             $to = $from;
         }
 
-        $sum = $this->shopSales->getShopSummary($shopId, $from, $to);
+        // Période standard optionnelle (?period=day|week|month) → fenêtre
+        // résolue côté serveur ; sinon la fenêtre from/to explicite.
+        $period = (string)($_GET['period'] ?? '');
+        if (in_array($period, ['day', 'week', 'month'], true)) {
+            [$from, $to] = ShopSalesRepository::periodWindow($period);
+        }
+
+        $kpi = $this->shopSales->getSalesKpis($shopId, $from, $to);
         return $this->json([
             'ok'   => true,
-            'data' => ['tickets' => (int)$sum['tickets'], 'ca' => (float)$sum['ca']],
+            'data' => [
+                'tickets'             => $kpi['tickets'],
+                'ca'                  => $kpi['ca'],
+                'products'            => $kpi['products'],
+                'avg_basket'          => $kpi['avg_basket'],
+                'products_per_ticket' => $kpi['products_per_ticket'],
+            ],
         ]);
     }
 
@@ -77,9 +90,9 @@ class ShopController extends Controller
 
             $ca = 0.0;
             $tickets = 0;
-            $products = 0;
+            $basket = null;
+            $ppt = null;
             $days = 1;
-            $scale = 1.0;
 
             $pnl      = $id > 0 ? $this->shopService->getPnl($id, 'month') : [];
             $turnover = isset($pnl['turnover']['value']) ? (float)$pnl['turnover']['value'] : null;
@@ -87,22 +100,22 @@ class ShopController extends Controller
             $toDate   = isset($pnl['date_to'])   ? substr((string)$pnl['date_to'], 0, 10)   : '';
 
             if ($turnover !== null && $this->isDate($fromDate) && $this->isDate($toDate)) {
-                // Aligné sur le P&L : même CA, même fenêtre.
+                // Aligné sur le P&L : même CA, même fenêtre. Les 3 KPI
+                // viennent d'UNE requête (getSalesKpis) — même périmètre.
                 $ca  = $turnover;
-                $sum = $this->shopSales->getShopSummary($id, $fromDate, $toDate);
-                $tickets  = $sum['tickets'];
-                $products = $sum['products'];
+                $kpi = $this->shopSales->getSalesKpis($id, $fromDate, $toDate);
+                $tickets = $kpi['tickets'];
+                $basket  = $kpi['avg_basket'];
+                $ppt     = $kpi['products_per_ticket'];
 
                 // La base locale peut être PARTIELLE (CA_DB < CA_API) tout en
-                // étant représentative (même panier moyen). On redresse donc
-                // les comptages au prorata du CA de l'API : le panier affiché
-                // reste celui observé en base, et tickets/jour retrouve le
+                // étant représentative : les RATIOS (panier, produits/ticket)
+                // sont justes tels quels ; seul le VOLUME de tickets est
+                // redressé au prorata du CA de l'API pour retrouver le
                 // périmètre complet. Base complète → ratio 1 (aucun effet).
-                $caDb = (float)$sum['ca'];
+                $caDb = $kpi['ca'];
                 if ($caDb > 0 && $turnover > 0) {
-                    $scale    = $turnover / $caDb;
-                    $tickets  = (int)round($tickets * $scale);
-                    $products = (int)round($products * $scale);
+                    $tickets = (int)round($tickets * ($turnover / $caDb));
                 }
 
                 // Tickets et CA couvrent toute la fenêtre du P&L → la moyenne
@@ -112,11 +125,12 @@ class ShopController extends Controller
                 $days = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($toExclObj)->days);
             } else {
                 // Repli : mois calendaire courant, lu en base.
-                $sum      = $this->shopSales->getShopSummary($id, date('Y-m-01'), date('Y-m-t'));
-                $ca       = (float)$sum['ca'];
-                $tickets  = (int)$sum['tickets'];
-                $products = (int)$sum['products'];
-                $days     = max(1, (int)date('t')); // nombre de jours du mois
+                $kpi     = $this->shopSales->getSalesKpis($id, date('Y-m-01'), date('Y-m-t'));
+                $ca      = $kpi['ca'];
+                $tickets = $kpi['tickets'];
+                $basket  = $kpi['avg_basket'];
+                $ppt     = $kpi['products_per_ticket'];
+                $days    = max(1, (int)date('t')); // nombre de jours du mois
             }
 
             // Comparatif N vs N-1. Colonne N : CA temps réel de l'API quand il
@@ -135,11 +149,12 @@ class ShopController extends Controller
             $shop['ca_month']        = $ca;
             $shop['tickets_count']   = $tickets;
             $shop['tickets_per_day'] = $tickets > 0 ? $tickets / $days : 0.0;
-            $shop['avg_basket']      = $tickets > 0 ? $ca / $tickets : 0.0;
+            // Panier et produits/ticket : ratios OBSERVÉS en base (getSalesKpis),
+            // insensibles au redressement de volume (le prorata s'annule).
+            $shop['avg_basket']      = $basket ?? 0.0;
             // Produits/client : calculable seulement si la base contient le
             // détail des lignes (produits > tickets). Sinon null → « — ».
-            $ppc = $tickets > 0 ? $products / $tickets : 0.0;
-            $shop['products_per_client'] = $ppc > 1.05 ? $ppc : null;
+            $shop['products_per_client'] = ($ppt !== null && $ppt > 1.05) ? $ppt : null;
         }
         unset($shop);
 

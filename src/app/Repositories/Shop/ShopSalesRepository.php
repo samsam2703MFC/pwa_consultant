@@ -14,101 +14,103 @@ class ShopSalesRepository
     private ?array $tpCols = null;
 
     /**
-     * Indicateurs de vente d'UN magasin sur une fenêtre de dates métier
-     * [fromDate, toDate] (inclusives, format Y-m-d).
+     * LES 3 KPI de vente d'UN magasin — tickets vendus, panier moyen,
+     * produits/ticket — en UNE SEULE requête agrégée, sur une fenêtre de
+     * dates métier [fromDate, toDate] (inclusives, Y-m-d). C'est LA méthode
+     * de référence, utilisée partout (Boutiques, accueil, day-sales) : même
+     * périmètre de tickets pour les trois chiffres, par construction.
      *
-     * Sources :
-     *   - `transaction` (1 ligne = 1 ticket) :
-     *       tickets = COUNT(DISTINCT id_device, ticket_key)
-     *       CA      = SUM(total_gross_amount_after_discount)
-     *   - `transaction_product` (1 ligne = 1 ligne de ticket) :
-     *       produits = SUM(quantité) si une colonne quantité existe,
-     *                  sinon COUNT(lignes). 0 si la table est absente.
+     * Périmètre : tickets de VENTE RÉELLE uniquement (montant > 0) — les
+     * lignes à 0 € (tickets pas encore enrichis, opérations de caisse) et
+     * négatives (annulations) sont exclues, sinon panier écrasé et
+     * tickets surévalués. Fenêtre bornée sur insert_timestamp, semi-ouverte
+     * [from 00:00, to+1j 00:00). tickets = COUNT(DISTINCT id_device,
+     * ticket_key) ; produits = sous-requête agrégée sur transaction_product
+     * (colonnes FK/quantité détectées ; table absente → 0).
      *
-     * Fenêtre bornée sur insert_timestamp — seule datation cohérente sur tous
-     * les magasins (les ticket_key ont des encodages différents par magasin).
+     * NB : la base locale peut être PARTIELLE (CA_DB < CA_API). Les RATIOS
+     * (panier, produits/ticket) restent justes ; seul le VOLUME de tickets
+     * doit être redressé par l'appelant au prorata du CA API si besoin.
      *
-     * NB : cette base locale peut être PARTIELLE (CA_DB < CA_API). L'appelant
-     * redresse alors les comptages au prorata du CA de l'API (cf. ShopController).
-     *
-     * @return array{tickets:int, products:int, ca:float}
+     * @return array{tickets:int, ca:float, products:int, avg_basket:?float, products_per_ticket:?float}
      */
-    public function getShopSummary(int $shopId, string $fromDate, string $toDate): array
+    public function getSalesKpis(int $shopId, string $fromDate, string $toDate): array
     {
-        $empty = ['tickets' => 0, 'products' => 0, 'ca' => 0.0];
+        $empty = ['tickets' => 0, 'ca' => 0.0, 'products' => 0, 'avg_basket' => null, 'products_per_ticket' => null];
         $pdo = Database::pdo();
         if ($pdo === null) {
             return $empty;
         }
 
         try {
-            // Fenêtre semi-ouverte [from 00:00:00, (to+1j) 00:00:00).
             $from   = $fromDate . ' 00:00:00';
             $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
 
-            // Uniquement les tickets de VENTE RÉELLE (montant > 0) : la base
-            // reçoit aussi des lignes à 0 € (tickets pas encore enrichis,
-            // opérations de caisse) et des négatifs (annulations) qui gonflent
-            // le compte de tickets sans CA → panier moyen écrasé et
-            // tickets/jour surévalués (constaté sur les données de juillet).
+            $params = [':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl];
+
+            // Produits : sous-requête scalaire sur transaction_product, MÊME
+            // périmètre de tickets (fenêtre + montant > 0) que le comptage.
+            $productsExpr = '0';
+            $cols = $this->transactionProductCols($pdo);
+            if ($cols !== null) {
+                [$fk, $qty] = $cols;
+                $inner = $qty !== null ? 'COALESCE(SUM(tp.`' . $qty . '`), 0)' : 'COUNT(*)';
+                $productsExpr =
+                    '(SELECT ' . $inner . '
+                      FROM transaction_product tp
+                      INNER JOIN transaction t2 ON t2.id = tp.`' . $fk . '`
+                      WHERE t2.id_shop = :id2
+                        AND t2.insert_timestamp >= :from2
+                        AND t2.insert_timestamp <  :toExcl2
+                        AND t2.total_gross_amount_after_discount > 0)';
+                $params += [':id2' => $shopId, ':from2' => $from, ':toExcl2' => $toExcl];
+            }
+
             $stmt = $pdo->prepare(
-                'SELECT COUNT(DISTINCT id_device, ticket_key)                 AS tickets,
-                        COALESCE(SUM(total_gross_amount_after_discount), 0)   AS ca
-                 FROM transaction
-                 WHERE id_shop = :id
-                   AND insert_timestamp >= :from
-                   AND insert_timestamp <  :toExcl
-                   AND total_gross_amount_after_discount > 0'
-            );
-            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
-            $row = $stmt->fetch() ?: [];
-
-            return [
-                'tickets'  => (int)($row['tickets'] ?? 0),
-                'products' => $this->countProducts($pdo, $shopId, $from, $toExcl),
-                'ca'       => (float)($row['ca'] ?? 0),
-            ];
-        } catch (Throwable $e) {
-            error_log('[db] getShopSummary échoué: ' . $e->getMessage());
-            return $empty;
-        }
-    }
-
-    /**
-     * Nombre de produits vendus sur la fenêtre, depuis transaction_product
-     * (lignes de ticket). Colonnes détectées dynamiquement : la FK vers
-     * `transaction` (nom contenant « transaction ») et une éventuelle colonne
-     * quantité (quantity/qty/amount) → SUM(quantité), sinon COUNT(lignes).
-     */
-    private function countProducts(\PDO $pdo, int $shopId, string $from, string $toExcl): int
-    {
-        $cols = $this->transactionProductCols($pdo);
-        if ($cols === null) {
-            return 0; // table absente → l'appelant affichera « — »
-        }
-        [$fk, $qty] = $cols;
-
-        $expr = $qty !== null
-            ? 'COALESCE(SUM(tp.`' . $qty . '`), 0)'
-            : 'COUNT(*)';
-
-        try {
-            $stmt = $pdo->prepare(
-                'SELECT ' . $expr . ' AS products
-                 FROM transaction_product tp
-                 INNER JOIN transaction t ON t.id = tp.`' . $fk . '`
+                'SELECT COUNT(DISTINCT t.id_device, t.ticket_key)                 AS tickets,
+                        COALESCE(SUM(t.total_gross_amount_after_discount), 0)     AS ca,
+                        ' . $productsExpr . '                                     AS products
+                 FROM transaction t
                  WHERE t.id_shop = :id
                    AND t.insert_timestamp >= :from
                    AND t.insert_timestamp <  :toExcl
                    AND t.total_gross_amount_after_discount > 0'
             );
-            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
+            $stmt->execute($params);
+            $row = $stmt->fetch() ?: [];
 
-            return (int)round((float)($stmt->fetchColumn() ?: 0));
+            $tickets  = (int)($row['tickets'] ?? 0);
+            $ca       = (float)($row['ca'] ?? 0);
+            $products = (int)round((float)($row['products'] ?? 0));
+
+            return [
+                'tickets'             => $tickets,
+                'ca'                  => $ca,
+                'products'            => $products,
+                'avg_basket'          => $tickets > 0 ? $ca / $tickets : null,
+                'products_per_ticket' => ($tickets > 0 && $products > 0) ? $products / $tickets : null,
+            ];
         } catch (Throwable $e) {
-            error_log('[db] countProducts échoué: ' . $e->getMessage());
-            return 0;
+            error_log('[db] getSalesKpis échoué: ' . $e->getMessage());
+            return $empty;
         }
+    }
+
+    /**
+     * Fenêtre de dates métier [from, to] (inclusives, Y-m-d) pour une période
+     * standard : day = aujourd'hui · week = lundi → aujourd'hui ·
+     * month = 1er du mois → aujourd'hui.
+     *
+     * @return array{0:string, 1:string}
+     */
+    public static function periodWindow(string $period): array
+    {
+        $today = new \DateTimeImmutable('today');
+        return match ($period) {
+            'week'  => [$today->modify('monday this week')->format('Y-m-d'), $today->format('Y-m-d')],
+            'month' => [$today->format('Y-m-01'), $today->format('Y-m-d')],
+            default => [$today->format('Y-m-d'), $today->format('Y-m-d')],
+        };
     }
 
     /**
