@@ -32,5 +32,9 @@
     "to_encode": "to be entered",
     "encode_targets": "Enter this shop's targets",
     "chart_cap": "Grey bars = N-1 · coloured bars = current (month status) · dashed = objective",
-    "chart_b2b_empty": "No monthly series: B2B values to be entered by the franchisor."
+    "chart_b2b_empty": "No monthly series: B2B values to be entered by the franchisor.",
+    "period_month": "Month",
+    "period_quarter": "Quarter",
+    "period_year": "Year",
+    "quarter_letter": "Q"
 }

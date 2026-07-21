@@ -32,5 +32,9 @@
     "to_encode": "in te voeren",
     "encode_targets": "Targets van deze winkel invoeren",
     "chart_cap": "Grijze balken = N-1 · gekleurde balken = huidig (status van de maand) · stippellijn = doel",
-    "chart_b2b_empty": "Geen maandreeks: B2B-waarden in te voeren door de franchisegever."
+    "chart_b2b_empty": "Geen maandreeks: B2B-waarden in te voeren door de franchisegever.",
+    "period_month": "Maand",
+    "period_quarter": "Kwartaal",
+    "period_year": "Jaar",
+    "quarter_letter": "K"
 }
