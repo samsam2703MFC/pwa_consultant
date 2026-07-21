@@ -179,8 +179,9 @@
         color: #212529;
     }
 
-    /* Comparatif N vs N-1 */
-    .pnl-compare { margin-bottom: 12px; }
+    /* Comparatif N vs N-1 — panneau de l'onglet dédié (masqué par défaut) */
+    .pnl-compare { display: none; margin-bottom: 12px; }
+    .pnl-compare.is-open { display: block; }
     .pnl-compare table { width: 100%; border-collapse: collapse; }
     .pnl-compare th {
         font-size: .62rem; font-weight: 800; text-transform: uppercase;
@@ -362,16 +363,17 @@
                             <button class="pnl-badge active" data-period="day">{{ translations.period_today ?? "Aujourd'hui" }}</button>
                             <button class="pnl-badge" data-period="week">{{ translations.period_week ?? 'Semaine' }}</button>
                             <button class="pnl-badge" data-period="month">{{ translations.period_month ?? 'Mois' }}</button>
+                            <button class="pnl-badge" data-period="compare">{{ translations.compare_tab ?? 'N vs N-1' }}</button>
                         </div>
 
-                        {# ── Comparatif N vs N-1 à période équivalente ── #}
+                        {# ── Comparatif N vs N-1 (affiché par l'onglet dédié) ── #}
                         {% if shop.compare is defined and shop.compare %}
                         {% set cmp_labels = {
                             'ytd':  translations.compare_ytd ?? 'Année à date',
                             'mtd':  translations.compare_mtd ?? 'Mois à date',
                             'week': translations.period_week ?? 'Semaine',
                         } %}
-                        <div class="pnl-compare">
+                        <div class="pnl-compare" id="pnl-compare-{{ shop.id }}">
                             <table>
                                 <thead>
                                     <tr>
@@ -386,9 +388,9 @@
                                     {% for row in shop.compare %}
                                     <tr>
                                         <td>{{ cmp_labels[row.key] ?? row.key }}</td>
-                                        <td class="num">{{ row.n1|number_format(0, ',', ' ') }} €</td>
-                                        <td class="num">{{ row.n|number_format(0, ',', ' ') }} €</td>
-                                        <td class="num cmp-{{ row.status }}">{{ row.pct is not null ? ((row.pct >= 0 ? '+' : '') ~ row.pct|number_format(1, ',', ' ') ~ '%') : '—' }}</td>
+                                        <td class="num">{{ row.n1 >= 100000 ? ((row.n1 / 1000)|number_format(0, ',', ' ') ~ ' k€') : (row.n1|number_format(0, ',', ' ') ~ ' €') }}</td>
+                                        <td class="num">{{ row.n >= 100000 ? ((row.n / 1000)|number_format(0, ',', ' ') ~ ' k€') : (row.n|number_format(0, ',', ' ') ~ ' €') }}</td>
+                                        <td class="num cmp-{{ row.status }}">{{ row.pct is not null ? ((row.pct >= 0 ? '+' : '') ~ row.pct|number_format(0, ',', ' ') ~ '%') : '—' }}</td>
                                         <td class="dotcell"><span class="cmp-dot cmp-dot-{{ row.status }}" aria-label="{{ row.status }}"></span></td>
                                     </tr>
                                     {% endfor %}
@@ -701,6 +703,19 @@ const I18N = {
                 // Update active badge
                 card.querySelectorAll('.pnl-badge').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
+
+                // Onglet « N vs N-1 » : affiche le comparatif (déjà rendu côté
+                // serveur), masque le P&L — aucune requête.
+                const cmpPanel = document.getElementById('pnl-compare-' + shopId);
+                const skelEl   = document.getElementById('pnl-skel-' + shopId);
+                const dataEl   = document.getElementById('pnl-data-' + shopId);
+                if (cmpPanel) cmpPanel.classList.toggle('is-open', period === 'compare');
+                if (period === 'compare') {
+                    if (skelEl) skelEl.style.display = 'none';
+                    if (dataEl) dataEl.style.display = 'none';
+                    return;
+                }
+                if (dataEl && card.dataset.loaded === period) { dataEl.style.display = ''; return; }
 
                 card.dataset.loaded = period;
                 loadPnl(shopId, period);
