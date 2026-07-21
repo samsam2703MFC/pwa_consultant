@@ -254,18 +254,15 @@
 
 {% include "components/bottom_nav.twig" with { active_nav: active_nav ?? '' } %}
 
-{# ── Bottom tab bar (primary navigation) ── #}
-{% set _uname = current_user.display_name ?? '' %}
-{% set _uparts = _uname|trim|split(' ')|filter(p => p is not empty) %}
-{% set _uinit = (_uparts|first|default('')|slice(0,1)) ~ (_uparts|length > 1 ? _uparts[1]|slice(0,1) : '') %}
+{# ── Bottom tab bar (primary navigation) ──
+     Le profil vit désormais dans le menu (ligne rouge avec l'avatar) ;
+     le 5e onglet est la page 6L. #}
 <nav class="app-tabbar-bar" aria-label="{{ translations.primary_navigation ?? 'Navigation' }}">
     <a href="{{ ROOT }}/dashboard"  class="app-tab {{ (active_nav ?? '') == 'dashboard'  ? 'is-active' : '' }}">{{ icons.svg('home', 23) }}<span>{{ translations.nav_home ?? 'Accueil' }}</span></a>
     <a href="{{ ROOT }}/shops"      class="app-tab {{ (active_nav ?? '') == 'shops'      ? 'is-active' : '' }}">{{ icons.svg('store', 23) }}<span>{{ translations.nav_shops ?? 'Boutiques' }}</span></a>
     <a href="{{ ROOT }}/checklists" class="app-tab {{ (active_nav ?? '') == 'checklists' ? 'is-active' : '' }}">{{ icons.svg('clipboard-check', 23) }}<span>{{ translations.nav_checklists ?? 'Checklists' }}</span></a>
     <a href="{{ ROOT }}/tasks"      class="app-tab {{ (active_nav ?? '') == 'tasks'      ? 'is-active' : '' }}">{{ icons.svg('square-check', 23) }}<span>{{ translations.nav_tasks ?? 'Tâches' }}</span></a>
-    <a href="{{ ROOT }}/me"         class="app-tab app-tab-profile {{ (active_nav ?? '') == 'profile' ? 'is-active' : '' }}" aria-label="{{ _uname ?: (translations.nav_profile ?? 'Profil') }}">
-        <span class="app-tab-avatar">{% if _uinit|trim %}{{ _uinit|upper }}{% else %}{{ icons.svg('user', 15) }}{% endif %}</span><span>{{ translations.nav_profile ?? 'Profil' }}</span>
-    </a>
+    <a href="{{ ROOT }}/levers"     class="app-tab {{ (active_nav ?? '') == 'sixl'       ? 'is-active' : '' }}">{{ icons.svg('sixl', 23) }}<span>{{ translations.nav_sixl ?? '6L' }}</span></a>
 </nav>
 
 <script>window.__consultantRoot = '{{ ROOT }}';</script>
