@@ -22,6 +22,8 @@
   "live_now": "live",
   "live_result": "Result",
   "live_shop": "Shop",
+  "loading_sub": "Loading shops, P&L and tasks…",
+  "loading_title": "Preparing your workspace",
   "month_names": [
     "January",
     "February",

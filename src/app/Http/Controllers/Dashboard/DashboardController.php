@@ -62,6 +62,32 @@ class DashboardController extends Controller
     }
 
     /**
+     * Page de chargement post-login : petite animation aux couleurs du
+     * design system + préchargement PARALLÈLE de tous les endpoints
+     * (magasins, P&L par magasin, tâches, ranking checklists) via le proxy.
+     * Chaque appel remplit le cache GET serveur de l'ApiClient → les écrans
+     * suivants se rendent instantanément, sans spinner.
+     *
+     * NB : l'appel getLiveShops() ci-dessous préchauffe déjà lui-même
+     * /consultant/shops et fournit les ids pour l'éventail d'appels JS.
+     */
+    public function loading(): void
+    {
+        $shops = $this->safeFetch(
+            [$this->dashboardService, 'getLiveShops'],
+            $this->errors,
+            [],
+            []
+        );
+
+        $this->view('dashboard/loading', [
+            'warm_shop_ids' => array_map(fn($s) => (int)$s['id'], $shops),
+            'today'         => date('Y-m-d'),
+            'active_nav'    => 'dashboard',
+        ]);
+    }
+
+    /**
      * Zawartość poglądowa odwzorowująca makietę „Panel consultant".
      */
     private function demoData(): array
