@@ -54,6 +54,16 @@ class ShopController extends Controller
             [$from, $to] = ShopSalesRepository::periodWindow($period);
         }
 
+        // Mode diagnostic (session connectée) : variantes de comptage +
+        // échantillon brut, pour confronter aux chiffres POS réels.
+        if (($_GET['debug'] ?? '') === '1') {
+            return $this->json([
+                'ok'    => true,
+                'debug' => $this->shopSales->getSalesDebug($shopId, $from, $to),
+                'api'   => $this->shopRepository->getSalesKpisFromApi($shopId, $from, $to),
+            ]);
+        }
+
         $kpi = $this->salesKpis($shopId, $from, $to);
         return $this->json([
             'ok'   => true,
