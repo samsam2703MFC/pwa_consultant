@@ -99,16 +99,9 @@
         bg:    'rgba(193,122,42,.14)',
         href:  ROOT ~ '/targets'
     },
-    {
-        key: 'profile',
-        label: translations.nav_profile ?? 'Profil',
-        sub:   translations.nav_profile_sub ?? 'Mon compte et réglages',
-        icon:  'user',
-        color: '#8a4a24',
-        bg:    'rgba(138,74,36,.12)',
-        href:  ROOT ~ '/me'
-    },
 ] %}
+{# Le profil ne vit plus dans la grille : ligne-bouton rouge avec l'avatar,
+   tout en bas du menu (voir app-nav-profile). #}
 {# Backdrop #}
 <div class="app-nav-backdrop" id="appNavBackdrop" aria-hidden="true"></div>
 {# Top Sheet #}
@@ -142,6 +135,18 @@
         <span class="app-nav-fstoggle-lbl">{{ translations.fullscreen_on ?? 'Plein écran' }}</span>
         <span class="app-nav-fstoggle-sw" aria-hidden="true"><i></i></span>
     </button>
+    {# ── Profil : ligne-bouton rouge avec l'avatar, tout en bas du menu ── #}
+    {% set _dn = (current_user.display_name ?? 'Consultant')|trim %}
+    {% set _parts = _dn|split(' ') %}
+    {% set _initials = (_parts[0]|first ~ (_parts[1] is defined ? _parts[1]|first : ''))|upper %}
+    <a href="{{ ROOT }}/me" class="app-nav-profile {{ (active_nav ?? '') == 'profile' ? 'is-active' : '' }}">
+        <span class="app-nav-profile-avatar" aria-hidden="true">{{ _initials }}</span>
+        <span class="app-nav-profile-txt">
+            <span class="app-nav-profile-name">{{ _dn }}</span>
+            <span class="app-nav-profile-sub">{{ translations.nav_profile_sub ?? 'Mon compte et réglages' }}</span>
+        </span>
+        <span class="app-nav-profile-chev">{{ icons.svg('chevron-right', 16) }}</span>
+    </a>
     <div class="app-nav-sheet-handle"></div>
 </div>
 <style>
@@ -168,6 +173,28 @@
     }
     .app-nav-fstoggle[aria-checked="true"] .app-nav-fstoggle-sw { background: #2D7A3E; }
     .app-nav-fstoggle[aria-checked="true"] .app-nav-fstoggle-sw i { left: 20px; }
+
+    /* Profil : ligne-bouton ROUGE tout en bas du menu, avec l'avatar */
+    .app-nav-profile {
+        display: flex; align-items: center; gap: 11px;
+        width: calc(100% - 24px); margin: 8px 12px 6px; min-height: 54px;
+        padding: 0 14px; border-radius: 14px;
+        background: #8D1D2C; color: #fff; text-decoration: none;
+        box-shadow: 0 8px 18px -12px rgba(141,29,44,.6);
+        -webkit-tap-highlight-color: transparent;
+    }
+    .app-nav-profile:hover, .app-nav-profile:focus { color: #fff; text-decoration: none; }
+    .app-nav-profile:active { background: #7a1826; }
+    .app-nav-profile-avatar {
+        width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+        background: #fff; color: #8D1D2C;
+        display: flex; align-items: center; justify-content: center;
+        font-size: .78rem; font-weight: 800; letter-spacing: .02em;
+    }
+    .app-nav-profile-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .app-nav-profile-name { font-size: .84rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .app-nav-profile-sub { font-size: .62rem; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .app-nav-profile-chev { display: inline-flex; opacity: .8; flex-shrink: 0; }
 </style>
 <script>
 (function () {
