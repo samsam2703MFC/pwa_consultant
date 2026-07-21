@@ -1017,23 +1017,45 @@ const I18N = {
     const _foodCache = {};
 
     function extractMaterialCost(node) {
+        // UNE SEULE clé de coût est retenue (material_cost prioritaire) puis
+        // sommée sur les buckets (jours) : additionner des clés redondantes
+        // (material_cost + total_cost…) doublerait le food cost — même bug
+        // que le FC à 84 % corrigé sur les catégories.
+        const SKIP = /(pct|percent|ratio|rate|delta|margin)/i;
+        const numOf = v => (typeof v === 'number') ? v
+            : (typeof v === 'string' && v !== '' && isFinite(v)) ? Number(v)
+            : (v && typeof v === 'object' && typeof v.value === 'number') ? v.value : null;
+
+        const names = [];
+        (function collect(n) {
+            if (Array.isArray(n)) { n.forEach(collect); return; }
+            if (!n || typeof n !== 'object') return;
+            for (const k in n) {
+                if (/(material|food)/i.test(k) && /(cost|value|amount)/i.test(k) && !SKIP.test(k) && numOf(n[k]) != null) {
+                    if (names.indexOf(k) === -1) names.push(k);
+                }
+                if (n[k] && typeof n[k] === 'object') collect(n[k]);
+            }
+        })(node);
+        if (!names.length) return null;
+
+        const PREFS = ['material_cost', 'materials_cost', 'food_cost', 'goods_cost', 'cost_of_goods'];
+        let key = null;
+        for (let p = 0; p < PREFS.length && !key; p++) {
+            key = names.find(n2 => n2.toLowerCase() === PREFS[p]) || null;
+        }
+        if (!key) key = names[0];
+
         let sum = 0, found = false;
         (function walk(n) {
             if (Array.isArray(n)) { n.forEach(walk); return; }
             if (!n || typeof n !== 'object') return;
             for (const k in n) {
-                if (!Object.prototype.hasOwnProperty.call(n, k)) continue;
-                const v = n[k];
-                const isFoodKey = /(material|food)/i.test(k)
-                    && /(cost|value|amount)/i.test(k)
-                    && !/(pct|percent|ratio|rate|delta|margin)/i.test(k);
-                if (isFoodKey && (typeof v === 'number' || (typeof v === 'string' && v !== '' && isFinite(v)))) {
-                    sum += Number(v); found = true;
-                } else if (isFoodKey && v && typeof v === 'object' && typeof v.value === 'number') {
-                    sum += v.value; found = true;
-                } else {
-                    walk(v);
+                if (k === key) {
+                    const x = numOf(n[k]);
+                    if (x != null) { sum += x; found = true; continue; }
                 }
+                if (n[k] && typeof n[k] === 'object') walk(n[k]);
             }
         })(node);
         return found ? sum : null;
