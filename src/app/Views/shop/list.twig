@@ -450,6 +450,19 @@ const I18N = {
         return { text: sign + delta.toFixed(1) + '%', cls };
     }
 
+    // Couleur de la ligne Result selon la marge (Result en % du TurnOver) :
+    // perte → rouge sang · 0–5 % → rouge · 5–10 % → orange ·
+    // 10–15 % → vert orangé · 15–25 % → vert · > 25 % → gold.
+    function resultColor(r, t) {
+        if (r < 0) return '#8B0000';
+        const p = t > 0 ? (r / t) * 100 : 0;
+        if (p <= 5)  return '#dc3545';
+        if (p <= 10) return '#e67e22';
+        if (p <= 15) return '#8FA31E';
+        if (p <= 25) return '#27ae60';
+        return '#C9A227';
+    }
+
     // ── RENDER ──────────────────────────────────────────────────────────────
 
     function renderPnl(shopId, data) {
@@ -528,13 +541,14 @@ const I18N = {
             </div>
         `);
 
-        // 6. Result (= Marge brute − Labour − Overhead)
-        const resultColor = R >= 0 ? '' : 'style="color:#dc3545;"';
+        // 6. Result (= Marge brute − Labour − Overhead) — couleur selon la
+        // marge en % du TurnOver (voir resultColor).
+        const resultStyle = `style="color:${resultColor(R, T)};"`;
         rows.push(`
-            <div class="pnl-row result-row" ${resultColor}>
-                <span class="pnl-row-label" ${resultColor}>${I18N.result}</span>
-                <span class="pnl-row-value" ${resultColor}>${fmt(R)}</span>
-                <span class="pnl-row-pct" ${resultColor}>${pct(R)}</span>
+            <div class="pnl-row result-row" ${resultStyle}>
+                <span class="pnl-row-label" ${resultStyle}>${I18N.result}</span>
+                <span class="pnl-row-value" ${resultStyle}>${fmt(R)}</span>
+                <span class="pnl-row-pct" ${resultStyle}>${pct(R)}</span>
             </div>
         `);
 
