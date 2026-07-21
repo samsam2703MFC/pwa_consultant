@@ -265,16 +265,17 @@
         ['.lt-res', '.lt-pct-cell', '.lt-ca', '.lt-cli', '.lt-bas'].forEach(c => { cell(row, c).innerHTML = '<span class="lt-err">—</span>'; });
     }
 
-    function render(row, ca, result, clients, basket) {
+    function render(row, ca, result, clients, basket, approx) {
         const color = resultColor(result, ca);
         const pct = ca > 0 ? Math.round((result / ca) * 100) : null;
+        const pre = approx ? '≈ ' : '';
         cell(row, '.lt-res').innerHTML = '<span style="color:' + color + ';">' + eur0(result) + '</span>';
         cell(row, '.lt-pct-cell').innerHTML = pct != null
             ? '<span style="color:' + color + ';">' + (result >= 0 ? '+' : '') + pct + ' %</span>'
             : '<span class="lt-err">—</span>';
         cell(row, '.lt-ca').textContent = eur0(ca);
-        cell(row, '.lt-cli').textContent = clients != null ? nb(clients) : '—';
-        cell(row, '.lt-bas').textContent = basket != null ? eur2(basket) : '—';
+        cell(row, '.lt-cli').textContent = clients != null ? pre + nb(clients) : '—';
+        cell(row, '.lt-bas').textContent = basket != null ? pre + eur2(basket) : '—';
     }
 
     const ROOT = window.__consultantRoot || '';
@@ -298,32 +299,39 @@
             const pFood = (from && to)
                 ? ajax({ endpoint: '/shops/' + shopId + '/statistics/daily-summary', params: { date_from: from, date_to: to, from: from, to: to } }).then(s => s ? extractFood(s) : null)
                 : Promise.resolve(null);
-            // Tickets + CA + panier de la base locale sur la FENÊTRE DU JOUR
-            // (celle du P&L day) : clients = COUNT(DISTINCT ticket_key) brut,
-            // même formule que les Boutiques sur leur propre fenêtre.
+            // Clients & panier : d'abord le COMPTAGE BRUT du jour
+            // (COUNT(DISTINCT ticket_key), même formule que les Boutiques).
+            // La base locale est alimentée avec retard (constaté : 7 jours) —
+            // si elle n'a rien pour aujourd'hui, estimation TRANSPARENTE
+            // préfixée ≈ : CA API du jour / panier moyen du mois (base).
+            const fetchDb = (f, t) => fetch(ROOT + '/shops/' + shopId + '/day-sales?from=' + f + '&to=' + t, { credentials: 'same-origin' })
+                .then(r => r.ok ? r.json() : null)
+                .then(j => (j && j.ok && j.data) ? j.data : null)
+                .catch(() => null);
             const dbFrom = from || null, dbTo = to || from || null;
-            const pDb = (dbFrom && dbTo)
-                ? fetch(ROOT + '/shops/' + shopId + '/day-sales?from=' + dbFrom + '&to=' + dbTo, { credentials: 'same-origin' })
-                    .then(r => r.ok ? r.json() : null)
-                    .then(j => (j && j.ok && j.data) ? j.data : null)
-                    .catch(() => null)
-                : Promise.resolve(null);
+            const pDbDay = (dbFrom && dbTo) ? fetchDb(dbFrom, dbTo) : Promise.resolve(null);
+            const pDbMonth = pMonth.then(month => {
+                const mFrom = month && month.date_from ? String(month.date_from).slice(0, 10) : null;
+                const mTo = month && month.date_to ? String(month.date_to).slice(0, 10) : null;
+                return (mFrom && mTo) ? fetchDb(mFrom, mTo) : null;
+            });
 
-            Promise.all([pMonth, pFood, pDb]).then(([month, food, db]) => {
+            Promise.all([pMonth, pFood, pDbDay, pDbMonth]).then(([month, food, dbDay, dbMonth]) => {
                 const ocMonth = Number(month && month.overhead && month.overhead.value) || 0;
                 const result = ca - (food || 0) - labour - (ocMonth / daysInCurrentMonth());
 
-                // Comptage brut du jour — aucune estimation : si la base n'a
-                // pas encore reçu les tickets du jour, « — » plutôt qu'un
-                // chiffre divergent des Boutiques.
-                let clients = null, basket = null;
-                const dbTickets = db ? Number(db.tickets) || 0 : 0;
-                const dbBasket = db && db.avg_basket != null ? Number(db.avg_basket) : null;
-                if (dbTickets > 0) {
-                    clients = dbTickets;
-                    basket = (dbBasket != null && isFinite(dbBasket)) ? dbBasket : null;
+                let clients = null, basket = null, approx = false;
+                const dayTickets = dbDay ? Number(dbDay.tickets) || 0 : 0;
+                if (dayTickets > 0) {
+                    clients = dayTickets;
+                    const b = dbDay.avg_basket != null ? Number(dbDay.avg_basket) : NaN;
+                    basket = isFinite(b) ? b : null;
+                } else if (ca > 0 && dbMonth && Number(dbMonth.avg_basket) > 0) {
+                    basket = Number(dbMonth.avg_basket);
+                    clients = Math.round(ca / basket);
+                    approx = true;
                 }
-                render(row, ca, result, clients, basket);
+                render(row, ca, result, clients, basket, approx);
             });
         });
     });
