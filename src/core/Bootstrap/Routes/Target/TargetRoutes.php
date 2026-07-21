@@ -9,6 +9,12 @@ return function (RouteCollector $r) {
         'method'     => 'overview',
     ]);
 
+    // Objectifs des 3 KPI franchisé (vue « verdict d'abord » de /targets).
+    $r->addRoute('GET', '/targets/{shopId:\d+}/franchise-data', [
+        'controller' => \App\Consultant\app\Http\Controllers\Target\ShopMetricTargetController::class,
+        'method'     => 'franchiseData',
+    ]);
+
     $r->addRoute('GET', '/targets/{shopId:\d+}', [
         'controller' => \App\Consultant\app\Http\Controllers\Target\ShopMetricTargetController::class,
         'method'     => 'edit',
