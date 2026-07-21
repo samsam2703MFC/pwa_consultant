@@ -1223,6 +1223,46 @@ const I18N = {
 
     });
 
+    // ── Ouverture directe depuis l'accueil ──────────────────────────────────
+    // ?focus={id}&period=day&treemap=1 : scroll sur le magasin, P&L ouvert
+    // sur la période demandée (défaut : AUJOURD'HUI), treemap des catégories
+    // déplié dès que les données sont rendues. Exécuté APRÈS le binding des
+    // toggles et badges (les clics simulés doivent avoir leurs handlers).
+    (function () {
+        const q = new URLSearchParams(window.location.search);
+        const focusId = q.get('focus');
+        if (!focusId) return;
+        const period = ['day', 'week', 'month'].indexOf(q.get('period')) !== -1 ? q.get('period') : 'day';
+
+        const toggle = document.querySelector('.pnl-toggle-btn[data-shop-id="' + focusId + '"]');
+        if (!toggle) return;
+        const shopCard = toggle.closest('.card');
+        if (shopCard) setTimeout(() => shopCard.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+
+        toggle.click();   // ouvre le P&L → charge la période « day » par défaut
+        if (period !== 'day') {
+            const badge = document.querySelector('#pnl-' + focusId + ' .pnl-badge[data-period="' + period + '"]');
+            if (badge) badge.click();
+        }
+
+        if (q.get('treemap') === '1') {
+            // Déplie le treemap dès que la ligne TurnOver est rendue (données
+            // chargées) — le conteneur doit être visible pour que le treemap
+            // mesure sa largeur.
+            let tries = 0;
+            const timer = setInterval(function () {
+                const toRow = document.getElementById('pnl-to-row-' + focusId);
+                if (toRow) {
+                    clearInterval(timer);
+                    const cats = document.getElementById('pnl-cats-' + focusId);
+                    if (cats && !cats.classList.contains('is-open')) toRow.click();
+                } else if (++tries > 60) {
+                    clearInterval(timer);   // données jamais arrivées → abandon silencieux
+                }
+            }, 150);
+        }
+    })();
+
 })();
 </script>
 {% endblock %}
