@@ -1,0 +1,12 @@
+{
+  "account": "Account",
+  "language": "Lingua",
+  "logout": "Esci",
+  "membership": "Iscrizione",
+  "name": "Nome",
+  "preferred_language": "Lingua preferita",
+  "preferred_language_hint": "Si applica alla visualizzazione del pannello su questo dispositivo.",
+  "scope": "Ambito",
+  "subtitle": "Il mio account",
+  "title": "Profilo"
+}

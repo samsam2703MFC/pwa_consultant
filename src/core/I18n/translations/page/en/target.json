@@ -1,0 +1,23 @@
+{
+  "back": "Back",
+  "cancel": "Cancel",
+  "choose_shop": "Choose a shop",
+  "copy": "Copy targets",
+  "copy_btn": "Copy",
+  "copy_modal_body": "Your targets from",
+  "copy_modal_body2": "will be loaded.",
+  "copy_prev_month": "Copy from previous month",
+  "incomplete_thresholds": "Incomplete thresholds.",
+  "lever": "Lever",
+  "load": "Load",
+  "month": "Month",
+  "no_shops": "No shops available.",
+  "save": "Save targets",
+  "set_targets": "Set targets",
+  "shop_fallback": "Shop",
+  "shops_targets": "Shop targets",
+  "shops_targets_sub": "Evaluation thresholds per shop",
+  "six_levers": "6 Management Levers",
+  "title": "Targets",
+  "year": "Year"
+}

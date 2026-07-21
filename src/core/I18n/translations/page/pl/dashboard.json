@@ -1,13 +1,42 @@
 {
+  "alerts": "Alerty",
+  "claims_short": "Reklam.",
   "consultant_panel": "Panel konsultanta",
-  "dashboard": "Panel główny",
-  "home": "Strona główna",
-  "welcome_back": "Witaj ponownie",
-  "quick_overview_of_your_day": "Szybki przegląd Twojego dnia",
-  "today": "Dzisiaj",
-  "shops": "Sklepy",
+  "day_names": [
+    "niedziela",
+    "poniedziałek",
+    "wtorek",
+    "środa",
+    "czwartek",
+    "piątek",
+    "sobota"
+  ],
+  "done": "Zrobione",
+  "kpi_alerts": "Alerty do obsługi",
+  "kpi_ca_today": "Obrót dzisiaj",
+  "kpi_checklists": "Checklisty",
+  "kpi_tasks_done": "Zadania wykonane",
+  "month_names": [
+    "stycznia",
+    "lutego",
+    "marca",
+    "kwietnia",
+    "maja",
+    "czerwca",
+    "lipca",
+    "sierpnia",
+    "września",
+    "października",
+    "listopada",
+    "grudnia"
+  ],
+  "notes": "Notatki",
+  "pnl_detail": "Szczegóły P&L",
   "reports": "Raporty",
-  "tasks": "Zadania",
-  "claims": "Reklamacje"
+  "see_all": "Zobacz wszystko",
+  "shortcuts": "Skróty",
+  "targets": "Targety",
+  "today_tasks": "Zadania na dziś",
+  "todo": "Do zrobienia",
+  "your_shops": "Twoje sklepy"
 }
-

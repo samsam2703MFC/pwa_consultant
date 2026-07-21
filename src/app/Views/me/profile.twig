@@ -7,7 +7,7 @@
 {% set uname = current_user.display_name ?? '' %}
 {% set uparts = uname|trim|split(' ')|filter(p => p is not empty) %}
 {% set uinit = (uparts|first|default('')|slice(0,1)) ~ (uparts|length > 1 ? uparts[1]|slice(0,1) : '') %}
-{% set langs = {'fr':'Français','nl':'Nederlands','en':'English','pl':'Polski'} %}
+{% set langs = {'en':'English','fr':'Français','it':'Italiano','pl':'Polski','nl':'Nederlands'} %}
 {% set app_lang = lang_code ?? 'fr' %}
 
 {% block topbar %}
@@ -28,37 +28,27 @@
 
 {% block head %}
 <style>
-    /* Sélecteur de langue préférée */
-    .pf-langs {
-        display: flex;
-        gap: 8px;
-        padding: 12px 14px;
+    /* Sélecteur de langue préférée (liste déroulante) */
+    .pf-lang-wrap {
+        padding: 12px 14px 4px;
     }
-    .pf-lang-btn {
-        flex: 1 1 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 7px;
-        padding: 10px 8px;
-        border: 1.5px solid rgba(0,0,0,.10);
+    .pf-lang-select {
+        width: 100%;
+        padding: 11px 40px 11px 14px;
+        border: 1.5px solid rgba(0,0,0,.12);
         border-radius: 12px;
-        background: #fff;
-        font-size: .86rem;
+        background: #fff url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238D1D2C' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center;
+        font-size: .9rem;
         font-weight: 700;
         color: #241f1c;
+        appearance: none;
+        -webkit-appearance: none;
+        outline: none;
         cursor: pointer;
-        -webkit-tap-highlight-color: transparent;
-        transition: background .15s, border-color .15s, color .15s;
     }
-    .pf-lang-btn .pf-lang-flag { font-size: 1.05rem; line-height: 1; }
-    .pf-lang-btn.is-active {
-        background: #8D1D2C;
-        border-color: #8D1D2C;
-        color: #fff;
-    }
+    .pf-lang-select:focus { border-color: #8D1D2C; }
     .pf-lang-hint {
-        padding: 0 14px 12px;
+        padding: 8px 14px 12px;
         font-size: .74rem;
         color: #7a7168;
     }
@@ -75,16 +65,22 @@
         <div class="pf-role">{{ current_user.scope_type ?: (translations.consultant ?? 'Consultant') }}</div>
     </div>
 
-    {# ── Langue préférée ── #}
+    {# ── Langue préférée (liste déroulante) ── #}
+    {% set lang_options = [
+        {code: 'en', flag: '🇬🇧', name: 'English'},
+        {code: 'fr', flag: '🇫🇷', name: 'Français'},
+        {code: 'it', flag: '🇮🇹', name: 'Italiano'},
+        {code: 'pl', flag: '🇵🇱', name: 'Polski'},
+        {code: 'nl', flag: '🇳🇱', name: 'Nederlands'},
+    ] %}
     <div class="pf-eyebrow">{{ translations.preferred_language ?? 'Langue préférée' }}</div>
     <div class="pf-card">
-        <div class="pf-langs">
-            <button type="button" class="pf-lang-btn{{ app_lang == 'fr' ? ' is-active' : '' }}" data-lang="fr">
-                <span class="pf-lang-flag">🇫🇷</span> Français
-            </button>
-            <button type="button" class="pf-lang-btn{{ app_lang == 'nl' ? ' is-active' : '' }}" data-lang="nl">
-                <span class="pf-lang-flag">🇳🇱</span> Nederlands
-            </button>
+        <div class="pf-lang-wrap">
+            <select class="pf-lang-select" id="pfLangSelect" aria-label="{{ translations.preferred_language ?? 'Langue préférée' }}">
+                {% for l in lang_options %}
+                    <option value="{{ l.code }}" {{ app_lang == l.code ? 'selected' : '' }}>{{ l.flag }} {{ l.name }}</option>
+                {% endfor %}
+            </select>
         </div>
         <div class="pf-lang-hint">{{ translations.preferred_language_hint ?? "S'applique à l'affichage du panel sur cet appareil." }}</div>
     </div>
@@ -124,14 +120,15 @@
 <script>
 // Langue préférée : cookie 1 an, appliqué immédiatement (rechargement).
 (function () {
-    document.querySelectorAll('.pf-lang-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var lang = btn.getAttribute('data-lang');
-            if (!lang || btn.classList.contains('is-active')) return;
-            var exp = new Date(Date.now() + 365 * 24 * 3600 * 1000).toUTCString();
-            document.cookie = 'consultant_lang=' + lang + '; expires=' + exp + '; path=/; SameSite=Lax';
-            location.reload();
-        });
+    var sel = document.getElementById('pfLangSelect');
+    if (!sel) return;
+    var current = sel.value;
+    sel.addEventListener('change', function () {
+        var lang = sel.value;
+        if (!lang || lang === current) return;
+        var exp = new Date(Date.now() + 365 * 24 * 3600 * 1000).toUTCString();
+        document.cookie = 'consultant_lang=' + lang + '; expires=' + exp + '; path=/; SameSite=Lax';
+        location.reload();
     });
 })();
 </script>

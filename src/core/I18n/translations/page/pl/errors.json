@@ -1,10 +1,9 @@
 {
+  "forbidden": "Brak dostępu",
+  "forbidden_desc": "Nie masz uprawnień do wyświetlenia tej strony.",
+  "go_back": "Wstecz",
   "not_found": "Nie znaleziono strony",
   "not_found_desc": "Strona, której szukasz, nie istnieje.",
-  "forbidden": "Brak dostępu",
-  "forbidden_desc": "Nie masz uprawnień do tej strony.",
   "server_error": "Błąd serwera",
-  "server_error_desc": "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.",
-  "go_back": "Wróć"
+  "server_error_desc": "Wystąpił nieoczekiwany błąd. Spróbuj ponownie."
 }
-

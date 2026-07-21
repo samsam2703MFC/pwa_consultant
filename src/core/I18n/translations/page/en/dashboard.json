@@ -1,13 +1,42 @@
 {
+  "alerts": "Alerts",
+  "claims_short": "Claims",
   "consultant_panel": "Consultant Panel",
-  "dashboard": "Dashboard",
-  "home": "Home",
-  "welcome_back": "Welcome back",
-  "quick_overview_of_your_day": "Quick overview of your day",
-  "today": "Today",
-  "shops": "Shops",
+  "day_names": [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday"
+  ],
+  "done": "Done",
+  "kpi_alerts": "Alerts to handle",
+  "kpi_ca_today": "Today's turnover",
+  "kpi_checklists": "Checklists",
+  "kpi_tasks_done": "Tasks done",
+  "month_names": [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ],
+  "notes": "Notes",
+  "pnl_detail": "P&L detail",
   "reports": "Reports",
-  "tasks": "Tasks",
-  "claims": "Claims"
+  "see_all": "See all",
+  "shortcuts": "Shortcuts",
+  "targets": "Targets",
+  "today_tasks": "Today's tasks",
+  "todo": "To do",
+  "your_shops": "Your shops"
 }
-

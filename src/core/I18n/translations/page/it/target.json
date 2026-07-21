@@ -1,0 +1,23 @@
+{
+  "back": "Indietro",
+  "cancel": "Annulla",
+  "choose_shop": "Scegli un negozio",
+  "copy": "Copia i target",
+  "copy_btn": "Copia",
+  "copy_modal_body": "I tuoi target di",
+  "copy_modal_body2": "saranno caricati.",
+  "copy_prev_month": "Copia dal mese precedente",
+  "incomplete_thresholds": "Soglie incomplete.",
+  "lever": "Leva",
+  "load": "Carica",
+  "month": "Mese",
+  "no_shops": "Nessun negozio disponibile.",
+  "save": "Salva i target",
+  "set_targets": "Imposta i target",
+  "shop_fallback": "Negozio",
+  "shops_targets": "Target dei negozi",
+  "shops_targets_sub": "Soglie di valutazione per negozio",
+  "six_levers": "6 Leve di Gestione",
+  "title": "Target",
+  "year": "Anno"
+}

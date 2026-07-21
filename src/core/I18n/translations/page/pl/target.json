@@ -1,0 +1,23 @@
+{
+  "back": "Powrót",
+  "cancel": "Anuluj",
+  "choose_shop": "Wybierz sklep",
+  "copy": "Kopiuj targety",
+  "copy_btn": "Skopiuj",
+  "copy_modal_body": "Twoje targety z",
+  "copy_modal_body2": "zostaną wczytane.",
+  "copy_prev_month": "Kopiuj z poprzedniego miesiąca",
+  "incomplete_thresholds": "Brak kompletnych progów.",
+  "lever": "Dźwignia",
+  "load": "Wczytaj",
+  "month": "Miesiąc",
+  "no_shops": "Brak dostępnych sklepów.",
+  "save": "Zapisz targety",
+  "set_targets": "Ustaw targety",
+  "shop_fallback": "Sklep",
+  "shops_targets": "Targety sklepów",
+  "shops_targets_sub": "Progi oceny per sklep",
+  "six_levers": "6 Dźwigni Zarządzania",
+  "title": "Targety",
+  "year": "Rok"
+}
