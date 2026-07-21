@@ -5,7 +5,7 @@
         {% if status == 'DONE' %}{{ icons.svg('check-circle') }}{% elseif status == 'SKIPPED' %}{{ icons.svg('skip-forward') }}{% elseif status == 'FAILED' %}{{ icons.svg('circle-x') }}{% else %}{{ icons.svg('hourglass') }}{% endif %}
     </div>
     <div class="flex-grow-1">
-        <div class="task-name">{{ t.task_name }}</div>{% if t.checklist_name %}<div class="task-meta"><span class="me-1">{{ icons.svg('clipboard-check') }}</span>{{ t.checklist_name }}</div>{% endif %}
+        <div class="task-name">{{ t.task_name }}</div>{% if t.checklist_name and not hide_checklist|default(false) %}<div class="task-meta"><span class="me-1">{{ icons.svg('clipboard-check') }}</span>{{ t.checklist_name }}</div>{% endif %}
         <div class="task-meta">
             {% if t.is_mandatory %}<span class="task-badge badge-mandatory">{{ icons.svg('alert-triangle') }}{{ translations.badge_mandatory ?? 'obligatoire' }}</span>{% endif %}
             {% if t.requires_photo %}<span class="task-badge badge-photo">{{ icons.svg('camera') }}{{ translations.badge_photo ?? 'photo' }}</span>{% endif %}
