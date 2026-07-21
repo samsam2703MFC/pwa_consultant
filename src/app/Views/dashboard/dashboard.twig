@@ -24,6 +24,8 @@
     .live-tbl .lt-name { text-align:left; overflow:hidden; text-overflow:ellipsis; }
     .live-tbl th.lt-name { width:22%; }
     .live-tbl td.lt-name { font-size:.72rem; font-weight:800; }
+    .live-row { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .live-row:active td { background:#faf7f2; }
     .lt-skel { display:inline-block; width:34px; height:10px; border-radius:5px; background:linear-gradient(90deg,#f0ece5 25%,#e4dfd6 50%,#f0ece5 75%); background-size:200% 100%; animation:shimmer 1.4s infinite; }
     @keyframes shimmer { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
     .lt-err { color:#adb5bd; font-weight:700; }
@@ -287,6 +289,12 @@
     rows.forEach(row => {
         const shopId = parseInt(row.dataset.shopId, 10);
         if (!shopId) { fail(row); return; }
+
+        // Clic sur la ligne → page du magasin en mode AUJOURD'HUI avec le
+        // treemap des catégories directement déplié.
+        row.addEventListener('click', function () {
+            window.location.href = ROOT + '/shops?focus=' + shopId + '&period=day&treemap=1';
+        });
 
         ajax({ endpoint: '/consultant/shops/' + shopId + '/pnl', params: { period: 'day' } }).then(day => {
             if (!day) { fail(row); return; }
