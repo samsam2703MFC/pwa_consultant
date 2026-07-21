@@ -466,13 +466,18 @@ const I18N = {
         const T    = Number(data.turnover && data.turnover.value) || 0;
         const L    = Number(data.labour   && data.labour.value)   || 0;
         const OC   = Number(data.overhead && data.overhead.value) || 0; // déjà proratisé (semaine/jour)
-        const R    = Number(data.result   && data.result.value)   || 0;
-        const food = T - L - OC - R;   // Food Cost (dérivé)
+        const Rapi = Number(data.result   && data.result.value)   || 0;
+        // Food Cost RÉEL : coût matière (tables recipe_cost) lu sur
+        // /shops/{id}/statistics/daily-summary pour la même fenêtre que le P&L
+        // (injecté dans data.food_cost par loadFoodCost). Le result de l'API
+        // vaut T − labour − overhead (sans matière) → on le recalcule avec le
+        // food réel. Repli : food dérivé de l'identité (≈ 0 tant que l'API ne
+        // renvoie rien).
+        const FC   = (data.food_cost != null && isFinite(data.food_cost) && Number(data.food_cost) > 0)
+            ? Number(data.food_cost) : null;
+        const food  = FC != null ? FC : (T - L - OC - Rapi);
         const gross = T - food;        // Marge brute
-        // NOTE : le backend n'expose pas encore le food cost (result = T − labour
-        // − overhead ⇒ food ≈ 0 aujourd'hui). On affiche quand même la structure
-        // complète ; le food cost sera calculé depuis le CA par catégorie une
-        // fois les coefficients fournis.
+        const R     = FC != null ? (T - FC - L - OC) : Rapi;
 
         // % par rapport au TurnOver de la même période/magasin, arrondi à l'entier.
         const pct = (x) => (T > 0 ? Math.round((x / T) * 100) + '%' : '—');
@@ -624,6 +629,68 @@ const I18N = {
         }
     }
 
+    // ── FOOD COST (coût matière) ────────────────────────────────────────────
+    // Source : GET /shops/{id}/statistics/daily-summary sur la fenêtre exacte
+    // du P&L (date_from/date_to). Côté backend :
+    // TransactionRepository::getMaterialCostInDataRange (tables recipe_cost /
+    // recipe_cost_archive). Le schéma exact de la réponse pouvant varier, on
+    // additionne récursivement les clés « coût matière » (material/food +
+    // cost/value/amount), en excluant pourcentages et deltas. Échec ou zéro →
+    // le P&L garde son affichage dérivé actuel.
+    const _foodCache = {};
+
+    function extractMaterialCost(node) {
+        let sum = 0, found = false;
+        (function walk(n) {
+            if (Array.isArray(n)) { n.forEach(walk); return; }
+            if (!n || typeof n !== 'object') return;
+            for (const k in n) {
+                if (!Object.prototype.hasOwnProperty.call(n, k)) continue;
+                const v = n[k];
+                const isFoodKey = /(material|food)/i.test(k)
+                    && /(cost|value|amount)/i.test(k)
+                    && !/(pct|percent|ratio|rate|delta|margin)/i.test(k);
+                if (isFoodKey && (typeof v === 'number' || (typeof v === 'string' && v !== '' && isFinite(v)))) {
+                    sum += Number(v); found = true;
+                } else if (isFoodKey && v && typeof v === 'object' && typeof v.value === 'number') {
+                    sum += v.value; found = true;
+                } else {
+                    walk(v);
+                }
+            }
+        })(node);
+        return found ? sum : null;
+    }
+
+    // Récupère le coût matière de la fenêtre du P&L, l'injecte dans
+    // pnlData.food_cost puis appelle done() — TOUJOURS, même en erreur.
+    function loadFoodCost(shopId, period, pnlData, done) {
+        const key = shopId + '|' + period;
+        if (key in _foodCache) {
+            if (_foodCache[key] != null) pnlData.food_cost = _foodCache[key];
+            done(); return;
+        }
+        const from = pnlData && pnlData.date_from ? String(pnlData.date_from).slice(0, 10) : null;
+        const to   = pnlData && pnlData.date_to   ? String(pnlData.date_to).slice(0, 10)   : null;
+        if (!from || !to) { done(); return; }
+
+        ConsultantAjax.load({
+            endpoint: '/shops/' + shopId + '/statistics/daily-summary',
+            params: { date_from: from, date_to: to, from: from, to: to },
+            onSuccess: (resp) => {
+                const cost = extractMaterialCost(resp);
+                _foodCache[key] = cost;
+                if (cost != null && cost > 0) pnlData.food_cost = cost;
+                else console.warn('[pnl] daily-summary sans coût matière détectable', shopId, period, resp);
+                done();
+            },
+            onError: (msg) => {
+                console.warn('[pnl] daily-summary indisponible', shopId, period, msg);
+                done();
+            },
+        });
+    }
+
     // ── LOAD DATA ───────────────────────────────────────────────────────────
 
     function loadPnl(shopId, period, dateFrom, dateTo) {
@@ -636,9 +703,13 @@ const I18N = {
         const params = { period };
 
         const finish = (responseData) => {
-            if (skel) skel.style.display = 'none';
-            if (data) data.style.display = '';
-            renderPnl(shopId, responseData);
+            // Le vrai food cost (coût matière) est chargé sur la même fenêtre
+            // que le P&L avant le rendu ; en cas d'échec on rend sans lui.
+            loadFoodCost(shopId, period, responseData, () => {
+                if (skel) skel.style.display = 'none';
+                if (data) data.style.display = '';
+                renderPnl(shopId, responseData);
+            });
         };
 
         ConsultantAjax.load({
