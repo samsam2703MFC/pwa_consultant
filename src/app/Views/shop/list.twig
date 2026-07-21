@@ -245,6 +245,16 @@
         margin: 0 16px;
     }
 
+    /* Nom du magasin : jusqu'à 2 lignes, puis ellipse */
+    .shop-name {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+    }
+
     /* Rang du magasin (1 = plus gros CA) */
     .shop-rank {
         width: 24px;
@@ -309,15 +319,11 @@
                     <div class="card-body py-3">
                         <div class="d-flex align-items-center gap-3">
                             {% if shop.rank is defined %}
-                            <div class="shop-rank flex-shrink-0" aria-label="Rang {{ shop.rank }}">{{ shop.rank }}</div>
+                            <div class="shop-rank flex-shrink-0" aria-label="{{ translations.rank ?? 'Rang' }} {{ shop.rank }}">{{ shop.rank }}</div>
                             {% endif %}
-                            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                                 style="width:42px;height:42px;background:rgba(141,29,44,.12);">
-                                <span style="font-size:1.1rem;color:#8D1D2C;">{{ icons.svg('store') }}</span>
-                            </div>
                             <div class="flex-grow-1 min-w-0">
                                 <a href="{{ ROOT }}/shops/{{ shop.id }}/notes" class="text-decoration-none">
-                                    <div class="fw-700 text-truncate" style="font-size:.95rem;color:#212529;">{{ shop.representative_name ?? shop.name }}</div>
+                                    <div class="fw-700 shop-name" style="font-size:.95rem;color:#212529;">{{ shop.representative_name ?? shop.name }}</div>
                                     <div class="text-muted text-truncate" style="font-size:.78rem;">{{ shop.city ?? '' }}</div>
                                 </a>
                             </div>
