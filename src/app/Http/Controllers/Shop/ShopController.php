@@ -127,11 +127,17 @@ class ShopController extends Controller
                 $basket  = $kpi['avg_basket'];
                 $ppt     = $kpi['products_per_ticket'];
 
-                // Tickets et CA couvrent toute la fenêtre du P&L → la moyenne
-                // par jour se divise par le NOMBRE DE JOURS DE LA FENÊTRE
-                // (date_from → date_to inclus), pas par les jours écoulés.
-                $toExclObj = (new \DateTimeImmutable($toDate))->modify('+1 day');
-                $days = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($toExclObj)->days);
+                // Moyenne par jour = tickets / jours ÉCOULÉS de la fenêtre
+                // (from → min(to, aujourd'hui) inclus) : la base ne contient
+                // des tickets que jusqu'à aujourd'hui — diviser un comptage
+                // en cours de mois par les 31 jours de la fenêtre P&L
+                // sous-évaluerait tickets/jour.
+                $endObj = new \DateTimeImmutable($toDate);
+                $today  = new \DateTimeImmutable('today');
+                if ($today < $endObj) {
+                    $endObj = $today;
+                }
+                $days = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($endObj->modify('+1 day'))->days);
             } else {
                 // Repli : mois calendaire courant.
                 $kpi     = $this->salesKpis($id, date('Y-m-01'), date('Y-m-t'));
@@ -139,7 +145,7 @@ class ShopController extends Controller
                 $tickets = $kpi['tickets'];
                 $basket  = $kpi['avg_basket'];
                 $ppt     = $kpi['products_per_ticket'];
-                $days    = max(1, (int)date('t')); // nombre de jours du mois
+                $days    = max(1, (int)date('j')); // jours écoulés du mois
             }
 
             // Comparatif N vs N-1. Colonne N : CA temps réel de l'API quand il

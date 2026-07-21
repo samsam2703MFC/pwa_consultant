@@ -185,13 +185,29 @@ class ShopSalesRepository
             $params  = [':id' => $shopId];
             $i = 0;
             foreach ($windows as $key => [$from, $toExcl]) {
-                $selects[] = "COALESCE(SUM(CASE WHEN insert_timestamp >= :f$i AND insert_timestamp < :t$i
-                                   THEN total_gross_amount_after_discount ELSE 0 END), 0) AS `$key`";
+                $selects[] = "COALESCE(SUM(CASE WHEN x.ts >= :f$i AND x.ts < :t$i
+                                   THEN x.ca ELSE 0 END), 0) AS `$key`";
                 $params[":f$i"] = $from;
                 $params[":t$i"] = $toExcl;
                 $i++;
             }
-            $stmt = $pdo->prepare('SELECT ' . implode(', ', $selects) . ' FROM transaction WHERE id_shop = :id');
+            // MÊME périmètre que getSalesKpis : ventes réelles (montant > 0)
+            // dédupliquées PAR TICKET (un ticket remonté par plusieurs devices
+            // compte une fois). Sur ces fenêtres longues (jusqu'à 1 an), le
+            // groupement inclut la DATE par sécurité : identique si le numéro
+            // de ticket est unique dans le temps, et protège si une
+            // numérotation redémarrait périodiquement.
+            $stmt = $pdo->prepare(
+                'SELECT ' . implode(', ', $selects) . '
+                 FROM (
+                     SELECT MAX(insert_timestamp)                       AS ts,
+                            MAX(total_gross_amount_after_discount)      AS ca
+                     FROM transaction
+                     WHERE id_shop = :id
+                       AND total_gross_amount_after_discount > 0
+                     GROUP BY DATE(insert_timestamp), ticket_key
+                 ) x'
+            );
             $stmt->execute($params);
             $row = $stmt->fetch() ?: [];
 
