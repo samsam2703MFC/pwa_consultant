@@ -1,0 +1,114 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% block title %}{{ translations.loading_title ?? 'Préparation de votre espace' }} — Panel consultant{% endblock %}
+
+{# Écran plein, sans chrome : ni topbar ni navigation. #}
+{% block topbar %}{% endblock %}
+
+{% block head %}
+<style>
+    .app-bottom-nav, .bottom-nav, nav.mobile-nav { display: none !important; }
+    body { background: #F4EFE8; }
+    .ld-wrap {
+        min-height: 82vh;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 22px; padding: 24px; text-align: center;
+    }
+    .ld-logo {
+        width: 190px; max-width: 60vw; height: auto;
+        animation: ldPulse 1.8s ease-in-out infinite;
+    }
+    @keyframes ldPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(.97); } }
+    .ld-title { font-size: 1rem; font-weight: 900; color: #241f1c; letter-spacing: .01em; }
+    .ld-sub { font-size: .78rem; font-weight: 700; color: #7a7168; margin-top: -14px; }
+    .ld-bar-wrap { width: min(320px, 78vw); }
+    .ld-bar {
+        height: 8px; border-radius: 5px; background: rgba(141,29,44,.14); overflow: hidden;
+    }
+    .ld-bar span {
+        display: block; height: 100%; width: 4%;
+        background: linear-gradient(90deg, #8D1D2C, #b2455a);
+        border-radius: 5px;
+        transition: width .25s ease;
+    }
+    .ld-pct { font-size: .7rem; font-weight: 800; color: #8D1D2C; margin-top: 7px; font-variant-numeric: tabular-nums; }
+    .ld-dots { display: inline-flex; gap: 5px; margin-left: 4px; vertical-align: 1px; }
+    .ld-dots i { width: 4px; height: 4px; border-radius: 50%; background: #8D1D2C; animation: ldDot 1.2s ease-in-out infinite; }
+    .ld-dots i:nth-child(2) { animation-delay: .2s; }
+    .ld-dots i:nth-child(3) { animation-delay: .4s; }
+    @keyframes ldDot { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ld-wrap">
+    <img src="{{ ROOT }}/assets/brand/logo.png" alt="L'Atelier" class="ld-logo">
+    <div>
+        <div class="ld-title">{{ translations.loading_title ?? 'Préparation de votre espace' }}<span class="ld-dots"><i></i><i></i><i></i></span></div>
+    </div>
+    <div class="ld-bar-wrap">
+        <div class="ld-bar"><span id="ldFill"></span></div>
+        <div class="ld-pct"><span id="ldPct">0</span> %</div>
+    </div>
+    <div class="ld-sub" id="ldHint">{{ translations.loading_sub ?? 'Chargement des boutiques, P&L et tâches…' }}</div>
+    <noscript><meta http-equiv="refresh" content="0;url={{ ROOT }}/dashboard"></noscript>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Préchargement PARALLÈLE de tous les endpoints via le proxy : chaque appel
+ * remplit le cache GET serveur (ApiClient) → les écrans suivants se rendent
+ * sans attendre l'API. Échec d'un appel = non bloquant. Garde-fou : départ
+ * forcé vers le dashboard après 9 s quoi qu'il arrive. */
+(function () {
+    'use strict';
+    const ROOT = window.__consultantRoot || '';
+    const DEST = ROOT + '/dashboard';
+    const fill = document.getElementById('ldFill');
+    const pct = document.getElementById('ldPct');
+
+    let finished = false;
+    function go() {
+        if (finished) return;
+        finished = true;
+        if (fill) fill.style.width = '100%';
+        if (pct) pct.textContent = '100';
+        setTimeout(() => window.location.replace(DEST), 180);
+    }
+
+    if (typeof ConsultantAjax === 'undefined') { go(); return; }
+
+    const shopIds = {{ warm_shop_ids|default([])|json_encode|raw }};
+    const today = {{ today|default("now"|date("Y-m-d"))|json_encode|raw }};
+
+    const jobs = [];
+    const add = (endpoint, params) => jobs.push(() => new Promise(resolve => {
+        ConsultantAjax.load({ endpoint, params: params || {}, onSuccess: () => resolve(1), onError: () => resolve(0) });
+    }));
+
+    add('/consultant/shops');
+    add('/consultant/tasks');
+    add('/consultant/network/tasks/ranking', { date: today });
+    shopIds.forEach(id => {
+        add('/consultant/shops/' + id + '/pnl', { period: 'day' });
+        add('/consultant/shops/' + id + '/pnl', { period: 'week' });
+        add('/consultant/shops/' + id + '/pnl', { period: 'month' });
+    });
+
+    const total = jobs.length;
+    if (total === 0) { go(); return; }
+
+    let done = 0;
+    const tick = () => {
+        done++;
+        const p = Math.min(99, Math.round((done / total) * 100));
+        if (fill) fill.style.width = p + '%';
+        if (pct) pct.textContent = String(p);
+    };
+
+    Promise.all(jobs.map(job => job().then(r => { tick(); return r; }))).then(go);
+    setTimeout(go, 9000);   // garde-fou : jamais bloqué sur cet écran
+})();
+</script>
+{% endblock %}

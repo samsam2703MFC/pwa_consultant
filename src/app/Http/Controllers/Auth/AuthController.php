@@ -48,7 +48,9 @@ class AuthController extends Controller
         $result = $this->authService->login($_POST);
 
         if ($result['success']) {
-            redirect('/dashboard');
+            // Page de chargement : préchauffe en parallèle le cache API
+            // (magasins, P&L, tâches, checklists) puis ouvre le dashboard.
+            redirect('/loading');
             return;
         }
 

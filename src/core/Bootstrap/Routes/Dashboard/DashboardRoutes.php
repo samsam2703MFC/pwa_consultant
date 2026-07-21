@@ -10,5 +10,11 @@ return function(RouteCollector $r) {
         'method'     => 'index'
     ]);
 
+    // Page de chargement post-login : préchauffe le cache API en parallèle.
+    $r->addRoute('GET', '/loading', [
+        'controller' => DashboardController::class,
+        'method'     => 'loading'
+    ]);
+
 };
 
