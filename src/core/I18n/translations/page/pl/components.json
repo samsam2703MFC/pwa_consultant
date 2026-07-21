@@ -1,6 +1,8 @@
 {
   "add_to_home": "Dodaj do ekranu głównego",
   "close": "Zamknij",
+  "fullscreen_off": "Wyjdź z pełnego ekranu",
+  "fullscreen_on": "Pełny ekran",
   "install": "Instaluj",
   "install_app": "Zainstaluj aplikację",
   "install_offline_hint": "Dodaj do ekranu głównego — działa offline",

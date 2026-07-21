@@ -4,7 +4,8 @@
   "description": "Aplikacja dla konsultantów sieci franczyzowej",
   "start_url": "/pwa_consultant/?source=pwa",
   "scope": "/pwa_consultant/",
-  "display": "standalone",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
   "background_color": "#ffffff",
   "theme_color": "#435ebe",
   "icons": [

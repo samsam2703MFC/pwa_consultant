@@ -1,6 +1,8 @@
 {
   "add_to_home": "Add to Home Screen",
   "close": "Close",
+  "fullscreen_off": "Exit full screen",
+  "fullscreen_on": "Full screen",
   "install": "Install",
   "install_app": "Install the app",
   "install_offline_hint": "Add to Home Screen — works offline",
