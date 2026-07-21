@@ -1,0 +1,488 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% import "components/_icons.twig" as icons %}
+{% set active_nav = 'sixl' %}
+{% block title %}{{ translations.title ?? '6L — Leviers de gestion' }} — Panel consultant{% endblock %}
+
+{% block topbar %}
+<div class="app-topbar">
+    <div class="container">
+        <div class="scr-head">
+            <div>
+                <div class="scr-title">{{ translations.title ?? '6L — Leviers de gestion' }}</div>
+                <div class="scr-sub">{{ translations.subtitle ?? 'Magasin vs moyenne réseau' }}</div>
+            </div>
+            <button class="app-hamburger" id="appHamburger" aria-label="Menu" aria-expanded="false" aria-controls="appNavSheet">
+                {{ icons.svg('menu', 22) }}
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    .sixl-shopsel {
+        width: 100%; padding: 10px 12px; border: 1px solid #e7ded2; border-radius: 12px;
+        background: #fff; font-size: .82rem; font-weight: 700; color: #241f1c; margin-bottom: 8px;
+    }
+    .sixl-period { display: flex; gap: 6px; margin-bottom: 12px; }
+    .sixl-period .pnl-badge {
+        flex: 1; text-align: center; padding: 6px 0; border-radius: 20px;
+        border: 1px solid #e0d8cd; background: #fff; font-size: .72rem;
+        font-weight: 700; color: #7a7168; -webkit-tap-highlight-color: transparent;
+        transition: all .15s;
+    }
+    .sixl-period .pnl-badge.active { background: #8D1D2C; border-color: #8D1D2C; color: #fff; }
+
+    /* Un levier par ligne */
+    .lev {
+        background: #fff; border: 1px solid #e7ded2; border-radius: 14px; margin-bottom: 9px;
+        box-shadow: 0 8px 18px -14px rgba(70,40,25,.3); overflow: hidden;
+    }
+    .lev-hd { display: flex; align-items: center; gap: 9px; padding: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .lev-hd .lv-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .lev-hd .lv-nm { flex: 1; font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; min-width: 0; }
+    .lev-hd .lv-kv { text-align: right; }
+    .lev-hd .lv-kv b { font-size: .88rem; white-space: nowrap; }
+    .lev-hd .lv-kv small { display: block; font-size: .56rem; color: #7a7168; white-space: nowrap; }
+    .lv-st { font-size: .85rem; font-weight: 900; width: 20px; text-align: center; flex-shrink: 0; }
+    .lv-st.ok  { color: #2D7A3E; }
+    .lv-st.mid { color: #e67e22; }
+    .lv-st.bad { color: #c0182b; }
+    .lv-st.nd  { color: #adb5bd; }
+    .lv-chev { color: #adb5bd; font-size: .6rem; flex-shrink: 0; transition: transform .2s; }
+    .lev.open .lv-chev { transform: rotate(180deg); }
+
+    /* Drop list des 3 KPI */
+    .lev-drop { display: none; border-top: 1px solid #f3ece2; padding: 4px 12px 10px; background: #fffdf9; }
+    .lev.open .lev-drop { display: block; }
+    .krow { padding: 9px 0 7px; border-top: 1px solid #f3ece2; }
+    .krow:first-child { border-top: 0; }
+    .k1 { display: flex; align-items: center; gap: 8px; }
+    .k1 .k-ic { width: 15px; text-align: center; font-weight: 900; font-size: .72rem; flex-shrink: 0; }
+    .k1 .k-nm { flex: 1; font-size: .73rem; font-weight: 700; min-width: 0; }
+    .k1 .k-val { font-weight: 800; font-size: .75rem; white-space: nowrap; }
+    .k1 .k-net { color: #7a7168; font-size: .6rem; white-space: nowrap; margin-left: 6px; }
+    .k-what { font-size: .6rem; color: #7a7168; margin: 3px 0 0 23px; }
+    .k-why  { font-size: .6rem; color: #8a4a24; margin: 2px 0 0 23px; }
+    .k-why b { color: #8D1D2C; }
+    .k-soon { color: #adb5bd; font-style: italic; font-weight: 600; font-size: .66rem; }
+
+    /* Comparateur magasins × leviers */
+    .sixl-sect { font-size: .62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #8D1D2C; margin: 16px 2px 8px; }
+    .sixl-cmp { background: #fff; border: 1px solid #e7ded2; border-radius: 14px; padding: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .sixl-cmp table { border-collapse: collapse; width: 100%; }
+    .sixl-cmp th, .sixl-cmp td { font-size: .64rem; padding: 6px 4px; text-align: center; white-space: nowrap; }
+    .sixl-cmp th { font-size: .52rem; text-transform: uppercase; color: #7a7168; border-bottom: 1px solid #e7ded2; }
+    .sixl-cmp td.rh, .sixl-cmp th.rh { text-align: left; font-weight: 700; position: sticky; left: 0; background: #fff; z-index: 1; max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+    .sixl-cmp tr + tr td { border-top: 1px solid #f3ece2; }
+    .sixl-legend { display: flex; gap: 10px 14px; font-size: .58rem; color: #7a7168; margin-top: 8px; flex-wrap: wrap; }
+    .sixl-skel { padding: 12px; }
+    .sixl-skel .pnl-skel-line { height: 12px; border-radius: 6px; background: rgba(0,0,0,.06); margin: 8px 0; animation: pulseSkel 1.2s ease-in-out infinite; }
+    @keyframes pulseSkel { 50% { opacity: .45; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-content-loaded">
+
+    {% if shops is empty %}
+        <div class="text-center text-muted py-5">
+            <span style="font-size:2.5rem;opacity:.3;">{{ icons.svg('store') }}</span>
+            <p class="mt-3">{{ translations.none ?? 'Aucune boutique disponible.' }}</p>
+        </div>
+    {% else %}
+
+        <select class="sixl-shopsel" id="sixlShop" aria-label="{{ translations.shop ?? 'Magasin' }}">
+            {% for s in shops %}
+                <option value="{{ s.id }}">{{ s.representative_name ?? s.name }}</option>
+            {% endfor %}
+        </select>
+
+        <div class="sixl-period pnl-period-bar" id="sixlPeriod">
+            <button class="pnl-badge active" data-period="day">{{ translations.period_today ?? "Aujourd'hui" }}</button>
+            <button class="pnl-badge" data-period="week">{{ translations.period_week ?? 'Semaine' }}</button>
+            <button class="pnl-badge" data-period="month">{{ translations.period_month ?? 'Mois' }}</button>
+        </div>
+
+        <div class="sixl-skel" id="sixlSkel">
+            <div class="pnl-skel-line" style="width:85%;"></div>
+            <div class="pnl-skel-line" style="width:70%;"></div>
+            <div class="pnl-skel-line" style="width:78%;"></div>
+            <div class="pnl-skel-line" style="width:62%;"></div>
+        </div>
+
+        <div id="sixlLevers"></div>
+
+        <div class="sixl-sect">{{ translations.comparator ?? 'Comparateur réseau — magasins × leviers' }}</div>
+        <div class="sixl-cmp">
+            <table id="sixlCmpTable"></table>
+            <div class="sixl-legend">
+                <span style="color:#2D7A3E;">✓ {{ translations.legend_good ?? 'bon' }}</span>
+                <span style="color:#e67e22;">⚠ {{ translations.legend_mid ?? 'moyen' }}</span>
+                <span style="color:#c0182b;">● {{ translations.legend_bad ?? 'danger' }}</span>
+                <span style="color:#adb5bd;">— {{ translations.legend_nodata ?? 'données à venir' }}</span>
+                <span id="sixlThrLbl"></span>
+            </div>
+        </div>
+
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if shops is not empty %}
+<script>
+// ── Config serveur : magasins, leviers officiels (of_tag), seuils ──
+const SIXL_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representative_name ?? s.name)|json_encode|raw }} }{{ loop.last ? '' : ',' }}{% endfor %}];
+const SIXL_TAGS  = {{ of_tags|json_encode|raw }};
+const SIXL_THR   = {{ thresholds|json_encode|raw }};   // % relatifs vs moyenne réseau (voir LeversController)
+const SIXL_I18N  = {
+    vsNet:    {{ (translations.vs_network ?? 'réseau')|json_encode|raw }},
+    kpiCount: {{ (translations.kpi_count ?? '3 KPI')|json_encode|raw }},
+    soon:     {{ (translations.data_soon ?? 'données à venir')|json_encode|raw }},
+    noData:   {{ (translations.no_data ?? 'Aucune donnée')|json_encode|raw }},
+    shopCol:  {{ (translations.shop ?? 'Magasin')|json_encode|raw }},
+    thrLbl:   {{ (translations.legend_thresholds ?? 'seuils : bon ≥ réseau %good% % · danger < %danger% % · sens inversé pour les coûts')|json_encode|raw }}
+};
+// Définition des 6 leviers et de leurs 3 KPI (libellés/explications i18n).
+// dir = sens du KPI (+1 plus haut = mieux, −1 plus bas = mieux).
+// src = clé de la métrique calculée ; absente/null → « données à venir ».
+const SIXL_LEVERS = [
+    { key: 'trafic', num: 4, color: '#1F4F6B',
+      name: {{ (translations.lev_trafic ?? 'Trafic')|json_encode|raw }},
+      kpis: [
+        { src: 'ticketsDay', dir: 1, fmt: 'int', unit: {{ (translations.u_tickets_day ?? 'tickets/j')|json_encode|raw }},
+          nm: {{ (translations.k_tickets_day ?? 'Trafic boutique (tickets/jour)')|json_encode|raw }},
+          what: {{ (translations.k_tickets_day_what ?? 'Nombre de tickets de caisse par jour (comptage POS).')|json_encode|raw }},
+          why: {{ (translations.k_tickets_day_why ?? "Mesure directe de l'affluence : c'est la base de tout le CA — sans passage, pas de vente.")|json_encode|raw }} },
+        { src: null, dir: 1,
+          nm: {{ (translations.k_google ?? 'Note Google')|json_encode|raw }},
+          what: {{ (translations.k_google_what ?? 'Moyenne des notes de la fiche Google Business.')|json_encode|raw }},
+          why: {{ (translations.k_google_why ?? "Premier filtre d'attraction : la réputation locale décide qui pousse la porte.")|json_encode|raw }} },
+        { src: null, dir: 1,
+          nm: {{ (translations.k_new_clients ?? 'Nouveaux clients / mois')|json_encode|raw }},
+          what: {{ (translations.k_new_clients_what ?? 'Nombre de nouveaux clients identifiés (fidélité/CRM) par mois.')|json_encode|raw }},
+          why: {{ (translations.k_new_clients_why ?? 'Capacité à élargir la base clientèle : moteur de croissance du trafic dans le temps.')|json_encode|raw }} },
+      ] },
+    { key: 'recurrence', num: 3, color: '#8a4a24',
+      name: {{ (translations.lev_recurrence ?? 'Récurrence')|json_encode|raw }},
+      kpis: [
+        { src: null, dir: 1,
+          nm: {{ (translations.k_loyalty_rate ?? 'Taux de fidélisation (% clients récurrents)')|json_encode|raw }},
+          what: {{ (translations.k_loyalty_rate_what ?? 'Clients avec ≥ 2 visites ÷ total clients, sur la période.')|json_encode|raw }},
+          why: {{ (translations.k_loyalty_rate_why ?? 'Cœur de la récurrence : fidéliser coûte bien moins cher que recruter un nouveau client.')|json_encode|raw }} },
+        { src: 'avgBasket', dir: 1, fmt: 'eur2',
+          nm: {{ (translations.k_basket ?? 'Panier moyen (€)')|json_encode|raw }},
+          what: {{ (translations.k_basket_what ?? 'CA ÷ nombre de tickets.')|json_encode|raw }},
+          why: {{ (translations.k_basket_why ?? 'Valeur créée par visite : monte quand le client revient et consomme davantage.')|json_encode|raw }} },
+        { src: null, dir: 1,
+          nm: {{ (translations.k_members ?? 'Évolution adhérents fidélité')|json_encode|raw }},
+          what: {{ (translations.k_members_what ?? "Variation mensuelle du nombre d'adhérents au programme fidélité.")|json_encode|raw }},
+          why: {{ (translations.k_members_why ?? 'Indicateur avancé de la récurrence : une base fidélité qui grossit = des revenus récurrents.')|json_encode|raw }} },
+      ] },
+    { key: 'xp', num: 2, color: '#2D7A3E',
+      name: {{ (translations.lev_xp ?? 'Expérience client')|json_encode|raw }},
+      kpis: [
+        { src: null, dir: 1,
+          nm: {{ (translations.k_mystery ?? 'Score expérience client (mystery shopper)')|json_encode|raw }},
+          what: {{ (translations.k_mystery_what ?? "Grille d'audit du client mystère, notée sur 100.")|json_encode|raw }},
+          why: {{ (translations.k_mystery_why ?? "Mesure objective et externe de l'XP réellement vécue en boutique.")|json_encode|raw }} },
+        { src: null, dir: 1,
+          nm: {{ (translations.k_haccp ?? 'Score hygiène HACCP')|json_encode|raw }},
+          what: {{ (translations.k_haccp_what ?? 'Audit HACCP mensuel, noté sur 100 (tolérance 0).')|json_encode|raw }},
+          why: {{ (translations.k_haccp_why ?? 'Sécurité alimentaire non négociable : socle de confiance et de conformité légale.')|json_encode|raw }} },
+        { src: null, dir: -1,
+          nm: {{ (translations.k_wait ?? 'Temps de prise en charge client')|json_encode|raw }},
+          what: {{ (translations.k_wait_what ?? "Temps moyen (sec) avant qu'un client soit pris en charge.")|json_encode|raw }},
+          why: {{ (translations.k_wait_why ?? "Premier signal de qualité de service perçue : au-delà de 10 s, l'expérience se dégrade.")|json_encode|raw }} },
+      ] },
+    { key: 'food', num: 5, color: '#C9A227',
+      name: {{ (translations.lev_food ?? 'Food Cost')|json_encode|raw }},
+      kpis: [
+        { src: 'foodPct', dir: -1, fmt: 'pct',
+          nm: {{ (translations.k_food ?? 'Coût matière (% du CA)')|json_encode|raw }},
+          what: {{ (translations.k_food_what ?? 'Coût des matières premières ÷ CA.')|json_encode|raw }},
+          why: {{ (translations.k_food_why ?? "Premier poste de coût variable : c'est le levier n°1 de la marge produit.")|json_encode|raw }} },
+        { src: 'grossPct', dir: 1, fmt: 'pct',
+          nm: {{ (translations.k_gross ?? 'Marge brute (% du CA)')|json_encode|raw }},
+          what: {{ (translations.k_gross_what ?? '(CA − coût matières) ÷ CA.')|json_encode|raw }},
+          why: {{ (translations.k_gross_why ?? 'Rentabilité du produit après matière : ce qui reste pour couvrir le reste des charges.')|json_encode|raw }} },
+        { src: null, dir: -1,
+          nm: {{ (translations.k_waste ?? 'Casse / invendus (% du CA)')|json_encode|raw }},
+          what: {{ (translations.k_waste_what ?? 'Valeur de la casse + invendus ÷ CA.')|json_encode|raw }},
+          why: {{ (translations.k_waste_why ?? 'Pertes évitables : révèle le sur-stockage et cale la production sur les ventes réelles.')|json_encode|raw }} },
+      ] },
+    { key: 'labour', num: 6, color: '#8D1D2C',
+      name: {{ (translations.lev_labour ?? 'Labour Cost')|json_encode|raw }},
+      kpis: [
+        { src: 'labourPct', dir: -1, fmt: 'pct',
+          nm: {{ (translations.k_labour ?? "Coût main d'œuvre (% du CA)")|json_encode|raw }},
+          what: {{ (translations.k_labour_what ?? 'Masse salariale (chargée) ÷ CA.')|json_encode|raw }},
+          why: {{ (translations.k_labour_why ?? "Deuxième poste de coût : pilote la productivité et l'équilibre du modèle.")|json_encode|raw }} },
+        { src: null, dir: 1,
+          nm: {{ (translations.k_ca_hour ?? 'Ratio CA / heure travaillée (€/h)')|json_encode|raw }},
+          what: {{ (translations.k_ca_hour_what ?? 'CA ÷ total des heures travaillées.')|json_encode|raw }},
+          why: {{ (translations.k_ca_hour_why ?? 'Productivité horaire : base du dimensionnement du planning et du staffing.')|json_encode|raw }} },
+        { src: null, dir: 1,
+          nm: {{ (translations.k_prod_slot ?? 'Productivité par tranche horaire (€ CA/h)')|json_encode|raw }},
+          what: {{ (translations.k_prod_slot_what ?? 'CA généré ÷ heures travaillées, par créneau horaire.')|json_encode|raw }},
+          why: {{ (translations.k_prod_slot_why ?? "Cale précisément le planning sur les pics d'affluence pour éviter sur/sous-effectif.")|json_encode|raw }} },
+      ] },
+    { key: 'overhead', num: 7, color: '#7a7168',
+      name: {{ (translations.lev_overhead ?? 'Overhead Cost')|json_encode|raw }},
+      kpis: [
+        { src: null, dir: 1,
+          nm: {{ (translations.k_ca_m2 ?? 'CA / m² (€/m²)')|json_encode|raw }},
+          what: {{ (translations.k_ca_m2_what ?? 'CA ÷ surface commerciale (m²).')|json_encode|raw }},
+          why: {{ (translations.k_ca_m2_why ?? "Efficacité d'usage de l'espace : le loyer est un coût fixe majeur à rentabiliser.")|json_encode|raw }} },
+        { src: 'weekEvo', dir: 1, fmt: 'evo',
+          nm: {{ (translations.k_week_evo ?? 'Évolution hebdo CA vs N-1')|json_encode|raw }},
+          what: {{ (translations.k_week_evo_what ?? '(CA semaine − CA même semaine N-1) ÷ CA N-1.')|json_encode|raw }},
+          why: {{ (translations.k_week_evo_why ?? 'Dynamique de croissance : un CA qui monte dilue mécaniquement les frais fixes.')|json_encode|raw }} },
+        { src: null, dir: -1,
+          nm: {{ (translations.k_payback ?? 'Investissement total / Marge totale annuelle')|json_encode|raw }},
+          what: {{ (translations.k_payback_what ?? 'Investissement total ÷ marge brute annuelle totale (= délai de retour en années).')|json_encode|raw }},
+          why: {{ (translations.k_payback_why ?? "Santé financière structurelle : en combien d'années l'investissement se rembourse.")|json_encode|raw }} },
+      ] },
+];
+
+(function () {
+    'use strict';
+    const ROOT = window.__consultantRoot || '';
+    const leversEl = document.getElementById('sixlLevers');
+    const skelEl   = document.getElementById('sixlSkel');
+    const cmpEl    = document.getElementById('sixlCmpTable');
+    const shopSel  = document.getElementById('sixlShop');
+    const perBar   = document.getElementById('sixlPeriod');
+    if (!leversEl) return;
+
+    document.getElementById('sixlThrLbl').textContent =
+        SIXL_I18N.thrLbl.replace('%good%', String(SIXL_THR.good).replace('.', ',').replace(/,0$/, ''))
+                        .replace('%danger%', String(SIXL_THR.danger).replace('.', ',').replace(/,0$/, ''));
+
+    // Couleur officielle of_tag si le nom correspond au levier (repli locale).
+    (SIXL_TAGS || []).forEach(t => {
+        const n = String(t.name || '').toLowerCase();
+        SIXL_LEVERS.forEach(l => {
+            if (t.color && (n.indexOf(l.key) !== -1 || n.indexOf(l.name.toLowerCase()) !== -1)) l.color = t.color;
+        });
+    });
+
+    // ── Formats (fr-BE : milliers = espace, décimales = virgule) ──
+    const nf0 = new Intl.NumberFormat('fr-BE', { maximumFractionDigits: 0 });
+    const nf2 = new Intl.NumberFormat('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    function fmtVal(v, fmt, unit) {
+        if (v == null || !isFinite(v)) return null;
+        if (fmt === 'eur2') return nf2.format(v) + ' €';
+        if (fmt === 'pct')  return String(Math.round(v * 10) / 10).replace('.', ',') + ' %';
+        if (fmt === 'evo')  return (v > 0 ? '+' : '') + String(Math.round(v * 10) / 10).replace('.', ',') + ' %';
+        return nf0.format(Math.round(v)) + (unit ? ' ' + unit : '');
+    }
+
+    // ── Statut vs moyenne réseau (seuils SIXL_THR, sens dir) ──
+    function statusOf(v, avg, dir) {
+        if (v == null || avg == null || !isFinite(v) || !isFinite(avg) || avg === 0) return null;
+        const score = dir * ((v - avg) / Math.abs(avg)) * 100;
+        if (score >= SIXL_THR.good) return 'ok';
+        if (score >= SIXL_THR.danger) return 'mid';
+        return 'bad';
+    }
+    const ST_ICON = { ok: '✓', mid: '⚠', bad: '●', nd: '—' };
+    const ST_COL  = { ok: '#2D7A3E', mid: '#e67e22', bad: '#c0182b', nd: '#adb5bd' };
+    const WORST   = { bad: 3, mid: 2, ok: 1 };
+    function worst(sts) {
+        let w = null;
+        sts.forEach(s => { if (s && (!w || WORST[s] > WORST[w])) w = s; });
+        return w;
+    }
+
+    // ── Chargement des métriques : mêmes endpoints que Boutiques/Accueil ──
+    // Par magasin et période : P&L (T, L, OC, R → FC %, MB %, Labour %) +
+    // KPI de vente (tickets, panier). Évolution hebdo vs N-1 : fenêtre de la
+    // semaine courante vs la même semaine un an plus tôt (une fois, quel que
+    // soit la période affichée — le KPI est hebdomadaire par définition).
+    const _cache = {};   // clé period → { shopId → metrics }
+
+    function elapsedDays(period) {
+        const now = new Date();
+        if (period === 'week') { const d = (now.getDay() + 6) % 7; return d + 1; }
+        if (period === 'month') return now.getDate();
+        return 1;
+    }
+    function isoDate(d) { return d.toISOString().slice(0, 10); }
+    function weekWindow(yearsBack) {
+        const now = new Date();
+        now.setFullYear(now.getFullYear() - yearsBack);
+        const dow = (now.getDay() + 6) % 7;
+        const from = new Date(now); from.setDate(now.getDate() - dow);
+        return { from: isoDate(from), to: isoDate(now) };
+    }
+
+    function loadShop(shopId, period, done) {
+        const m = { ticketsDay: null, avgBasket: null, foodPct: null, grossPct: null, labourPct: null, weekEvo: null };
+        let pending = 4;
+        const step = () => { if (--pending === 0) done(m); };
+
+        ConsultantAjax.load({
+            endpoint: '/consultant/shops/' + shopId + '/pnl',
+            params: { period: period },
+            onSuccess: d => {
+                const T = Number(d.turnover && d.turnover.value) || 0;
+                const L = Number(d.labour && d.labour.value) || 0;
+                const OC = Number(d.overhead && d.overhead.value) || 0;
+                const R = Number(d.result && d.result.value) || 0;
+                if (T > 0) {
+                    const F = T - L - OC - R;   // même dérivation que la page Boutiques
+                    m.foodPct   = (F / T) * 100;
+                    m.grossPct  = 100 - m.foodPct;
+                    m.labourPct = (L / T) * 100;
+                }
+                step();
+            },
+            onError: step,
+        });
+        ConsultantAjax.load({
+            endpoint: '/shops/' + shopId + '/day-sales',
+            params: { period: period },
+            onSuccess: r => {
+                const k = (r && r.data) || {};
+                const t = Number(k.tickets) || 0;
+                if (t > 0) m.ticketsDay = t / elapsedDays(period);
+                if (k.avg_basket != null) m.avgBasket = Number(k.avg_basket);
+                step();
+            },
+            onError: step,
+        });
+        const wN = weekWindow(0), wP = weekWindow(1);
+        let caN = null, caP = null;
+        const evo = () => { if (caN != null && caP != null && caP > 0) m.weekEvo = ((caN - caP) / caP) * 100; };
+        ConsultantAjax.load({
+            endpoint: '/shops/' + shopId + '/day-sales',
+            params: { from: wN.from, to: wN.to },
+            onSuccess: r => { caN = Number(((r || {}).data || {}).ca) || 0; evo(); step(); },
+            onError: step,
+        });
+        ConsultantAjax.load({
+            endpoint: '/shops/' + shopId + '/day-sales',
+            params: { from: wP.from, to: wP.to },
+            onSuccess: r => { caP = Number(((r || {}).data || {}).ca) || 0; evo(); step(); },
+            onError: step,
+        });
+    }
+
+    function loadAll(period) {
+        skelEl.style.display = '';
+        leversEl.innerHTML = '';
+        cmpEl.innerHTML = '';
+        const all = {};
+        let pending = SIXL_SHOPS.length;
+        SIXL_SHOPS.forEach(s => loadShop(s.id, period, m => {
+            all[s.id] = m;
+            if (--pending === 0) {
+                _cache[period] = all;
+                if (period === curPeriod) render(all);
+            }
+        }));
+    }
+
+    // Moyenne réseau d'une métrique (magasins avec valeur).
+    function netAvg(all, src) {
+        const vs = SIXL_SHOPS.map(s => all[s.id] && all[s.id][src]).filter(v => v != null && isFinite(v));
+        return vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function leverStatusFor(all, shopId, lev) {
+        return worst(lev.kpis.map(k => {
+            if (!k.src) return null;
+            const v = all[shopId] ? all[shopId][k.src] : null;
+            return statusOf(v, netAvg(all, k.src), k.dir);
+        }));
+    }
+
+    function render(all) {
+        skelEl.style.display = 'none';
+        const shopId = Number(shopSel.value);
+        const m = all[shopId] || {};
+
+        leversEl.innerHTML = SIXL_LEVERS.map(lev => {
+            const st = leverStatusFor(all, shopId, lev) || 'nd';
+            // KPI phare = premier KPI branché du levier.
+            const head = lev.kpis.find(k => k.src && m[k.src] != null);
+            let kv = '<small class="k-soon">' + SIXL_I18N.soon + '</small>';
+            if (head) {
+                const avg = netAvg(all, head.src);
+                kv = '<b>' + fmtVal(m[head.src], head.fmt, head.unit) + '</b>'
+                   + '<small>' + SIXL_I18N.vsNet + ' ' + (avg != null ? fmtVal(avg, head.fmt, head.unit) : '—') + '</small>';
+            }
+            const rows = lev.kpis.map(k => {
+                let icon = '—', col = ST_COL.nd, right = '<span class="k-soon">' + SIXL_I18N.soon + '</span>';
+                if (k.src && m[k.src] != null) {
+                    const avg = netAvg(all, k.src);
+                    const s = statusOf(m[k.src], avg, k.dir) || 'nd';
+                    icon = ST_ICON[s]; col = ST_COL[s];
+                    right = '<span class="k-val" style="color:' + col + ';">' + fmtVal(m[k.src], k.fmt, k.unit) + '</span>'
+                          + '<span class="k-net">' + SIXL_I18N.vsNet + ' ' + (avg != null ? fmtVal(avg, k.fmt, k.unit) : '—') + '</span>';
+                }
+                return '<div class="krow">'
+                    + '<div class="k1"><span class="k-ic" style="color:' + col + ';">' + icon + '</span>'
+                    + '<span class="k-nm">' + escHtml(k.nm) + '</span>' + right + '</div>'
+                    + '<div class="k-what">' + escHtml(k.what) + '</div>'
+                    + '<div class="k-why"><b>→</b> ' + escHtml(k.why) + '</div>'
+                    + '</div>';
+            }).join('');
+            return '<div class="lev" data-lev="' + lev.key + '">'
+                + '<div class="lev-hd" role="button" aria-expanded="false">'
+                + '<span class="lv-st ' + st + '">' + ST_ICON[st] + '</span>'
+                + '<span class="lv-dot" style="background:' + lev.color + ';"></span>'
+                + '<span class="lv-nm">' + lev.num + ' · ' + escHtml(lev.name) + '</span>'
+                + '<span class="lv-kv">' + kv + '</span>'
+                + '<span class="lv-chev">▼</span>'
+                + '</div>'
+                + '<div class="lev-drop">' + rows + '</div>'
+                + '</div>';
+        }).join('');
+
+        leversEl.querySelectorAll('.lev-hd').forEach(hd => {
+            hd.addEventListener('click', function () {
+                const lev = this.closest('.lev');
+                const open = lev.classList.toggle('open');
+                this.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+        });
+
+        // ── Comparateur : magasins × leviers (pire statut des KPI dispo) ──
+        cmpEl.innerHTML =
+            '<tr><th class="rh">' + SIXL_I18N.shopCol + '</th>'
+            + SIXL_LEVERS.map(l => '<th>' + escHtml(l.name) + '</th>').join('') + '</tr>'
+            + SIXL_SHOPS.map(s => {
+                const shortN = (String(s.name).split(' - ').pop() || s.name).trim();
+                return '<tr><td class="rh">' + escHtml(shortN) + '</td>'
+                    + SIXL_LEVERS.map(l => {
+                        const st = leverStatusFor(all, s.id, l) || 'nd';
+                        return '<td style="color:' + ST_COL[st] + ';font-weight:900;">' + ST_ICON[st] + '</td>';
+                    }).join('') + '</tr>';
+            }).join('');
+    }
+
+    let curPeriod = 'day';
+    perBar.querySelectorAll('.pnl-badge').forEach(b => b.addEventListener('click', function () {
+        perBar.querySelectorAll('.pnl-badge').forEach(x => x.classList.remove('active'));
+        this.classList.add('active');
+        curPeriod = this.dataset.period;
+        _cache[curPeriod] ? render(_cache[curPeriod]) : loadAll(curPeriod);
+    }));
+    shopSel.addEventListener('change', function () {
+        if (_cache[curPeriod]) render(_cache[curPeriod]);
+    });
+
+    loadAll(curPeriod);
+})();
+</script>
+{% endif %}
+{% endblock %}
