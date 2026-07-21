@@ -224,16 +224,23 @@
     const lbl = btn.querySelector('.app-nav-fstoggle-lbl');
 
     const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const wanted = () => sessionStorage.getItem(KEY) === '1';
     const enter = () => { try { const p = req.call(root); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
     const exit  = () => { try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {} };
+    // L'interrupteur affiche l'INTENTION (l'état voulu pour la visite), pas
+    // seulement l'état instantané : sur une nouvelle page, le plein écran
+    // n'est pas encore réappliqué (il attend le premier geste) mais le
+    // toggle doit déjà être « on » — l'information voyage entre les pages.
     const refresh = () => {
-        btn.setAttribute('aria-checked', isFs() ? 'true' : 'false');
-        if (lbl) lbl.textContent = isFs() ? LBL_OFF : LBL_ON;
+        const on = isFs() || wanted();
+        btn.setAttribute('aria-checked', on ? 'true' : 'false');
+        if (lbl) lbl.textContent = on ? LBL_OFF : LBL_ON;
     };
 
     btn.addEventListener('click', function () {
-        if (isFs()) { sessionStorage.removeItem(KEY); exit(); }
+        if (isFs() || wanted()) { sessionStorage.removeItem(KEY); exit(); }
         else { sessionStorage.setItem(KEY, '1'); enter(); }
+        refresh();
         // referme le menu pour voir l'effet immédiatement
         const sheet = document.getElementById('appNavSheet');
         const backdrop = document.getElementById('appNavBackdrop');
@@ -244,32 +251,42 @@
         document.body.style.overflow = '';
     });
 
-    // L'icône reflète TOUJOURS l'état réel. Sortie détectée sans re-clic :
-    // navigation (la page se décharge → on GARDE l'état pour la suivante)
-    // ou Échap (la page reste vivante → on oublie l'état après un court
-    // délai de confirmation).
+    // Échap pendant le plein écran = sortie VOULUE → intention oubliée.
+    // (Seule action, avec le toggle, qui efface l'état : une sortie due à
+    // une navigation ne l'efface jamais — c'était le bug de transmission
+    // entre les pages.)
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && isFs()) sessionStorage.removeItem(KEY);
+    }, true);
+
+    // Le changement d'état réel ne fait que rafraîchir l'affichage :
+    // l'état demandé (sessionStorage) ne s'efface QUE sur action explicite
+    // (toggle off, ou Échap ci-dessus). Une sortie due à une navigation ne
+    // l'efface jamais. Si on est sorti alors que l'intention est toujours
+    // active (ex. sortie système), on ré-arme la ré-application au geste.
     function onChange() {
         refresh();
-        if (!isFs() && sessionStorage.getItem(KEY) === '1') {
-            setTimeout(function () {
-                if (!document.hidden && !isFs()) sessionStorage.removeItem(KEY);
-            }, 400);
-        }
+        if (!isFs() && wanted()) armReapply();
     }
     document.addEventListener('fullscreenchange', onChange);
     document.addEventListener('webkitfullscreenchange', onChange);
 
     // Ré-application après une navigation : au premier geste utilisateur
     // sur la nouvelle page, tant que l'état demandé est actif.
-    if (sessionStorage.getItem(KEY) === '1' && !isFs()) {
+    let reapplyArmed = false;
+    function armReapply() {
+        if (reapplyArmed) return;
+        reapplyArmed = true;
         const reapply = function () {
             document.removeEventListener('pointerdown', reapply, true);
             document.removeEventListener('keydown', reapply, true);
-            if (sessionStorage.getItem(KEY) === '1' && !isFs()) enter();
+            reapplyArmed = false;
+            if (wanted() && !isFs()) enter();
         };
         document.addEventListener('pointerdown', reapply, true);
         document.addEventListener('keydown', reapply, true);
     }
+    if (wanted() && !isFs()) armReapply();
     refresh();
 })();
 </script>

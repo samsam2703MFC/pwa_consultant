@@ -166,6 +166,18 @@
     .tm-cell.sel { box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px rgba(36,26,22,.35); }
     .pnl-cat-empty { font-size: .75rem; color: #adb5bd; font-style: italic; padding: 8px; }
 
+    /* Halo d'auto-focus : signale la carte du magasin ciblé depuis l'accueil */
+    .shop-focus-glow {
+        animation: shopFocusGlow 2.2s ease-out 1;
+        border-radius: 12px;
+    }
+    @keyframes shopFocusGlow {
+        0%   { box-shadow: 0 0 0 0 rgba(141, 29, 44, 0); }
+        25%  { box-shadow: 0 0 0 4px rgba(141, 29, 44, .45), 0 0 26px 6px rgba(141, 29, 44, .30); }
+        60%  { box-shadow: 0 0 0 4px rgba(141, 29, 44, .30), 0 0 18px 4px rgba(141, 29, 44, .18); }
+        100% { box-shadow: 0 0 0 0 rgba(141, 29, 44, 0); }
+    }
+
     /* Légende des couleurs en tête de page */
     .result-legend {
         background: #fff; border-radius: 12px; padding: 9px 12px; margin-bottom: 12px;
@@ -487,14 +499,14 @@ const I18N = {
 
     function fmt(val) {
         if (val == null) return '—';
-        return new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val) + ' eur';
+        return new Intl.NumberFormat('fr-BE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val) + ' €';
     }
 
     function fmtDelta(delta) {
         if (delta == null) return { text: '—', cls: 'neu' };
         const sign = delta > 0 ? '+' : '';
         const cls  = delta > 0 ? 'pos' : (delta < 0 ? 'neg' : 'neu');
-        return { text: sign + delta.toFixed(1) + '%', cls };
+        return { text: sign + delta.toFixed(1).replace('.', ',') + '%', cls };
     }
 
     // Couleur de la ligne Result selon la marge (Result en % du TurnOver) :
@@ -1237,7 +1249,15 @@ const I18N = {
         const toggle = document.querySelector('.pnl-toggle-btn[data-shop-id="' + focusId + '"]');
         if (!toggle) return;
         const shopCard = toggle.closest('.card');
-        if (shopCard) setTimeout(() => shopCard.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+        if (shopCard) {
+            // Auto-focus : la carte glisse au CENTRE de l'écran, puis un halo
+            // aux couleurs de la marque signale le magasin ciblé.
+            setTimeout(() => {
+                shopCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                shopCard.classList.add('shop-focus-glow');
+                shopCard.addEventListener('animationend', () => shopCard.classList.remove('shop-focus-glow'), { once: true });
+            }, 80);
+        }
 
         toggle.click();   // ouvre le P&L → charge la période « day » par défaut
         if (period !== 'day') {
