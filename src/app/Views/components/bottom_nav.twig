@@ -127,23 +127,18 @@
             </a>
         {% endfor %}
     </div>
-    {# Plein écran (API Fullscreen — équivalent F11 ; masqué si non supporté) #}
-    <button type="button" class="app-nav-fs" id="appFullscreenBtn">
-        <span class="app-nav-fs-ic" id="appFullscreenIcon">{{ icons.svg('maximize', 18) }}</span>
-        <span id="appFullscreenLabel">{{ translations.fullscreen_on ?? 'Plein écran' }}</span>
-    </button>
     <div class="app-nav-sheet-handle"></div>
 </div>
 <style>
-    .app-nav-fs {
-        display: flex; align-items: center; justify-content: center; gap: 8px;
-        width: calc(100% - 24px); margin: 10px 12px 4px; min-height: 44px;
-        border: 1.5px solid rgba(141,29,44,.25); border-radius: 12px;
-        background: rgba(141,29,44,.06); color: #8D1D2C;
-        font-size: .84rem; font-weight: 800; cursor: pointer;
+    /* Icône plein écran discrète, insérée par JS à côté du bouton menu ☰ */
+    .app-fs-toggle {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 36px; height: 36px; margin-right: 2px;
+        border: 0; border-radius: 10px; background: transparent;
+        color: #7a7168; opacity: .75; cursor: pointer; flex-shrink: 0;
+        -webkit-tap-highlight-color: transparent;
     }
-    .app-nav-fs:active { background: rgba(141,29,44,.12); }
-    .app-nav-fs-ic { display: inline-flex; }
+    .app-fs-toggle:active { background: rgba(0,0,0,.07); opacity: 1; }
 </style>
 <script>
 (function () {
@@ -184,34 +179,74 @@
         if (startY - e.changedTouches[0].clientY > 60) closeMenu();
     }, { passive: true });
 
-    // ── Plein écran (API Fullscreen — équivalent F11, sur clic uniquement :
-    //    le navigateur interdit de le forcer sans action utilisateur).
-    //    Sortie : re-clic sur le bouton ou touche Échap (gérée par le
-    //    navigateur). Masqué si l'API n'est pas disponible (ex. iPhone).
-    const fsBtn   = document.getElementById('appFullscreenBtn');
-    const fsLabel = document.getElementById('appFullscreenLabel');
-    if (fsBtn) {
-        const root = document.documentElement;
-        const canFs = root.requestFullscreen || root.webkitRequestFullscreen;
-        if (!canFs) {
-            fsBtn.style.display = 'none';
-        } else {
-            const ON  = {{ (translations.fullscreen_on ?? 'Plein écran')|json_encode|raw }};
-            const OFF = {{ (translations.fullscreen_off ?? 'Quitter le plein écran')|json_encode|raw }};
-            const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
-            const refresh = () => { if (fsLabel) fsLabel.textContent = isFs() ? OFF : ON; };
-            fsBtn.addEventListener('click', function () {
-                if (isFs()) {
-                    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-                } else {
-                    (root.requestFullscreen || root.webkitRequestFullscreen).call(root);
-                }
-                closeMenu();
-            });
-            document.addEventListener('fullscreenchange', refresh);
-            document.addEventListener('webkitfullscreenchange', refresh);
-            refresh();
+})();
+
+// ── Plein écran PERSISTANT ──────────────────────────────────────────────
+// Petite icône discrète insérée à côté du bouton menu ☰ (toutes les pages).
+// L'app est multi-pages : le navigateur sort du plein écran à chaque
+// navigation. L'état VOULU vit donc dans sessionStorage (partagé entre les
+// pages) et il est RÉAPPLIQUÉ au premier geste utilisateur sur la nouvelle
+// page — l'API Fullscreen exige un geste, impossible de le forcer au
+// chargement. Sortie voulue = Échap ou re-clic sur l'icône → état oublié.
+(function () {
+    'use strict';
+    const root = document.documentElement;
+    const req = root.requestFullscreen || root.webkitRequestFullscreen;
+    const ham = document.getElementById('appHamburger');
+    if (!req || !ham || !ham.parentNode) return;   // API absente (iPhone) → pas d'icône
+
+    const KEY = 'consultant_fs';
+    const SVG_ON  = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+    const SVG_OFF = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>';
+    const LBL_ON  = {{ (translations.fullscreen_on ?? 'Plein écran')|json_encode|raw }};
+    const LBL_OFF = {{ (translations.fullscreen_off ?? 'Quitter le plein écran')|json_encode|raw }};
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'app-fs-toggle';
+    btn.id = 'appFsToggle';
+    ham.parentNode.insertBefore(btn, ham);
+
+    const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const enter = () => { try { const p = req.call(root); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
+    const exit  = () => { try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {} };
+    const refresh = () => {
+        btn.innerHTML = isFs() ? SVG_OFF : SVG_ON;
+        btn.setAttribute('aria-label', isFs() ? LBL_OFF : LBL_ON);
+        btn.title = isFs() ? LBL_OFF : LBL_ON;
+    };
+
+    btn.addEventListener('click', function () {
+        if (isFs()) { sessionStorage.removeItem(KEY); exit(); }
+        else { sessionStorage.setItem(KEY, '1'); enter(); }
+    });
+
+    // L'icône reflète TOUJOURS l'état réel. Sortie détectée sans re-clic :
+    // navigation (la page se décharge → on GARDE l'état pour la suivante)
+    // ou Échap (la page reste vivante → on oublie l'état après un court
+    // délai de confirmation).
+    function onChange() {
+        refresh();
+        if (!isFs() && sessionStorage.getItem(KEY) === '1') {
+            setTimeout(function () {
+                if (!document.hidden && !isFs()) sessionStorage.removeItem(KEY);
+            }, 400);
         }
     }
+    document.addEventListener('fullscreenchange', onChange);
+    document.addEventListener('webkitfullscreenchange', onChange);
+
+    // Ré-application après une navigation : au premier geste utilisateur
+    // sur la nouvelle page, tant que l'état demandé est actif.
+    if (sessionStorage.getItem(KEY) === '1' && !isFs()) {
+        const reapply = function () {
+            document.removeEventListener('pointerdown', reapply, true);
+            document.removeEventListener('keydown', reapply, true);
+            if (sessionStorage.getItem(KEY) === '1' && !isFs()) enter();
+        };
+        document.addEventListener('pointerdown', reapply, true);
+        document.addEventListener('keydown', reapply, true);
+    }
+    refresh();
 })();
 </script>
