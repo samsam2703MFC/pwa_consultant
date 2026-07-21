@@ -7,8 +7,8 @@
     <div class="flex-grow-1">
         <div class="task-name">{{ t.task_name }}</div>{% if t.checklist_name %}<div class="task-meta"><span class="me-1">{{ icons.svg('clipboard-check') }}</span>{{ t.checklist_name }}</div>{% endif %}
         <div class="task-meta">
-            {% if t.is_mandatory %}<span class="task-badge badge-mandatory">{{ icons.svg('alert-triangle') }}obowiązkowe</span>{% endif %}
-            {% if t.requires_photo %}<span class="task-badge badge-photo">{{ icons.svg('camera') }}zdjęcie</span>{% endif %}
+            {% if t.is_mandatory %}<span class="task-badge badge-mandatory">{{ icons.svg('alert-triangle') }}{{ translations.badge_mandatory ?? 'obligatoire' }}</span>{% endif %}
+            {% if t.requires_photo %}<span class="task-badge badge-photo">{{ icons.svg('camera') }}{{ translations.badge_photo ?? 'photo' }}</span>{% endif %}
             {% if t.execution_time %}<span class="task-badge badge-time">{{ icons.svg('clock') }}{{ t.execution_time | slice(0, 5) }}</span>{% endif %}
         </div>
         {% if t.completed_by and status == 'DONE' %}

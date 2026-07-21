@@ -2,13 +2,17 @@
 namespace App\Consultant\app\Http\Controllers\Task;
 
 use App\Consultant\app\Http\Controllers\Controller;
+use App\Consultant\app\Repositories\Task\TodoTaskRepository;
 use App\Consultant\app\Services\Task\TaskService;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 class TaskController extends Controller
 {
-    public function __construct(private TaskService $taskService) {}
+    public function __construct(
+        private TaskService $taskService,
+        private TodoTaskRepository $todoTasks,
+    ) {}
 
     public function tasks(): void
     {
@@ -63,6 +67,9 @@ class TaskController extends Controller
         $this->view('task/task_overview', [
             'task' => $task,
             'selected_date' => $data['date'] ?? date('Y-m-d'),
+            // Tâches prédéfinies (table todo_task) : cochées dans le formulaire,
+            // elles sont ajoutées à la note — plus de saisie libre obligatoire.
+            'shop_tasks' => $this->todoTasks->getTasks(),
             'active_nav' => 'tasks',
         ]);
     }
@@ -120,6 +127,7 @@ class TaskController extends Controller
             $this->view('task/task_overview', [
                 'task' => $task,
                 'selected_date' => $_POST['scheduled_for_date'],
+                'shop_tasks' => $this->todoTasks->getTasks(),
                 'active_nav' => 'tasks',
             ]);
             return;
@@ -132,6 +140,7 @@ class TaskController extends Controller
                 $this->view('task/task_overview', [
                     'task' => $task,
                     'selected_date' => $_POST['scheduled_for_date'],
+                    'shop_tasks' => $this->todoTasks->getTasks(),
                     'active_nav' => 'tasks',
                 ]);
                 return;
@@ -147,6 +156,7 @@ class TaskController extends Controller
         $this->view('task/task_overview', [
             'task' => $task,
             'selected_date' => $_POST['scheduled_for_date'],
+            'shop_tasks' => $this->todoTasks->getTasks(),
             'active_nav' => 'tasks',
         ]);
     }
