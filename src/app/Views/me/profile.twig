@@ -4,7 +4,8 @@
 
 {% block title %}{{ translations.title ?? 'Profil' }} — Panel consultant{% endblock %}
 
-{% set uname = current_user.display_name ?? '' %}
+{% set consultant = consultant|default({}) %}
+{% set uname = consultant.full_name|default(null) ?: (current_user.display_name ?? '') %}
 {% set uparts = uname|trim|split(' ')|filter(p => p is not empty) %}
 {% set uinit = (uparts|first|default('')|slice(0,1)) ~ (uparts|length > 1 ? uparts[1]|slice(0,1) : '') %}
 {% set langs = {'en':'English','fr':'Français','it':'Italiano','pl':'Polski','nl':'Nederlands'} %}
@@ -52,6 +53,15 @@
         font-size: .74rem;
         color: #7a7168;
     }
+
+    /* Zones d'intervention & leviers officiels (of_tag) */
+    .pf-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px 14px; }
+    .pf-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: #f4efe8; border-radius: 999px; padding: 6px 11px;
+        font-size: .76rem; font-weight: 800; color: #241f1c;
+    }
+    .pf-chip i { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: #c9c0b6; }
 </style>
 {% endblock %}
 
@@ -62,7 +72,7 @@
     <div class="pf-card pf-identity">
         <span class="pf-avatar">{% if uinit|trim %}{{ uinit|upper }}{% else %}{{ icons.svg('user', 30) }}{% endif %}</span>
         <div class="pf-name">{{ uname ?: (translations.consultant ?? 'Consultant') }}</div>
-        <div class="pf-role">{{ current_user.scope_type ?: (translations.consultant ?? 'Consultant') }}</div>
+        <div class="pf-role">{{ consultant.position|default(null) ?: (current_user.scope_type ?: (translations.consultant ?? 'Consultant')) }}{% if consultant.level|default(null) %} · {{ consultant.level }}{% endif %}</div>
     </div>
 
     {# ── Langue préférée (liste déroulante) ── #}
@@ -102,6 +112,24 @@
             <span class="pf-row-ic" style="color:#C17A2A">{{ icons.svg('globe', 18) }}</span>
             <div class="pf-row-txt"><div class="pf-row-l">{{ translations.language ?? 'Langue' }}</div><div class="pf-row-v">{{ langs[app_lang] ?? app_lang|upper }}</div></div>
         </div>
+        {% if consultant.position|default(null) %}
+        <div class="pf-row">
+            <span class="pf-row-ic" style="color:#2D7A3E">{{ icons.svg('briefcase', 18) }}</span>
+            <div class="pf-row-txt"><div class="pf-row-l">{{ translations.position ?? 'Poste' }}</div><div class="pf-row-v">{{ consultant.position }}{% if consultant.level|default(null) %} · {{ consultant.level }}{% endif %}</div></div>
+        </div>
+        {% endif %}
+        {% if consultant.email|default(null) %}
+        <div class="pf-row">
+            <span class="pf-row-ic" style="color:#1F4F6B">{{ icons.svg('mail', 18) }}</span>
+            <div class="pf-row-txt"><div class="pf-row-l">{{ translations.email ?? 'E-mail' }}</div><div class="pf-row-v">{{ consultant.email }}</div></div>
+        </div>
+        {% endif %}
+        {% if consultant.phone|default(null) %}
+        <div class="pf-row">
+            <span class="pf-row-ic" style="color:#C17A2A">{{ icons.svg('phone', 18) }}</span>
+            <div class="pf-row-txt"><div class="pf-row-l">{{ translations.phone ?? 'Téléphone' }}</div><div class="pf-row-v">{{ consultant.phone }}</div></div>
+        </div>
+        {% endif %}
         {% if current_user.membership_id %}
         <div class="pf-row">
             <span class="pf-row-ic" style="color:#5C4A8A">{{ icons.svg('id-card', 18) }}</span>
@@ -109,6 +137,26 @@
         </div>
         {% endif %}
     </div>
+
+    {# ── Zones d'intervention (position_consultant_areas) ── #}
+    {% if consultant.areas|default([])|length > 0 %}
+    <div class="pf-eyebrow">{{ translations.areas ?? "Zones d'intervention" }}</div>
+    <div class="pf-card">
+        <div class="pf-chips">
+            {% for a in consultant.areas %}<span class="pf-chip">{{ icons.svg('map-pin', 12) }}{{ a }}</span>{% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Leviers officiels (of_tag — référence transversale) ── #}
+    {% if of_tags|default([])|length > 0 %}
+    <div class="pf-eyebrow">{{ translations.levers ?? 'Leviers officiels' }}</div>
+    <div class="pf-card">
+        <div class="pf-chips">
+            {% for t in of_tags %}<span class="pf-chip"><i{% if t.color %} style="background:{{ t.color }};"{% endif %}></i>{{ t.name }}</span>{% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
     {# ── Déconnexion ── #}
     <a href="{{ ROOT }}/logout" class="pf-logout">{{ icons.svg('log-out', 17) }} {{ translations.logout ?? 'Déconnexion' }}</a>
