@@ -179,39 +179,32 @@
         color: #212529;
     }
 
-    /* Date range picker */
-    .pnl-daterange {
-        display: none;
-        gap: 8px;
-        margin-bottom: 10px;
-        align-items: center;
-        flex-wrap: wrap;
+    /* Comparatif N vs N-1 */
+    .pnl-compare { margin-bottom: 12px; }
+    .pnl-compare table { width: 100%; border-collapse: collapse; }
+    .pnl-compare th {
+        font-size: .62rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .04em; color: #8a8079; padding: 2px 4px 6px;
+        text-align: left; border-bottom: 1px solid rgba(0,0,0,.07);
     }
-    .pnl-daterange.is-open { display: flex; }
-    .pnl-daterange input[type="date"] {
-        flex: 1;
-        min-width: 120px;
-        padding: 5px 8px;
-        border: 1.5px solid #dee2e6;
-        border-radius: 10px;
-        font-size: .75rem;
-        color: #495057;
-        background: #fff;
-        outline: none;
-    }
-    .pnl-daterange input[type="date"]:focus { border-color: #8D1D2C; }
-    .pnl-daterange-apply {
-        padding: 5px 14px;
-        border-radius: 20px;
-        background: #8D1D2C;
-        color: #fff;
-        border: none;
-        font-size: .75rem;
-        font-weight: 700;
-        cursor: pointer;
+    .pnl-compare td {
+        font-size: .74rem; font-weight: 600; color: #241f1c;
+        padding: 5px 4px; border-bottom: 1px solid rgba(0,0,0,.04);
         white-space: nowrap;
-        -webkit-tap-highlight-color: transparent;
     }
+    .pnl-compare tr:last-child td { border-bottom: 0; }
+    .pnl-compare .num { text-align: right; }
+    .pnl-compare td:first-child { color: #6c757d; font-weight: 700; font-size: .7rem; }
+    .pnl-compare .dotcell { width: 16px; text-align: right; }
+    .cmp-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+    .cmp-dot-ok   { background: #2D7A3E; }
+    .cmp-dot-warn { background: #C17A2A; }
+    .cmp-dot-late { background: #8D1D2C; }
+    .cmp-dot-na   { background: #cfc9c2; }
+    .cmp-ok   { color: #2D7A3E; }
+    .cmp-warn { color: #C17A2A; }
+    .cmp-late { color: #8D1D2C; }
+    .cmp-na   { color: #adb5bd; }
 
     /* Loading skeleton */
     .pnl-skeleton { padding: 4px 0; }
@@ -369,15 +362,40 @@
                             <button class="pnl-badge active" data-period="day">{{ translations.period_today ?? "Aujourd'hui" }}</button>
                             <button class="pnl-badge" data-period="week">{{ translations.period_week ?? 'Semaine' }}</button>
                             <button class="pnl-badge" data-period="month">{{ translations.period_month ?? 'Mois' }}</button>
-                            <button class="pnl-badge" data-period="custom">{{ translations.period_range ?? 'Plage' }}</button>
                         </div>
 
-                        {# Custom date range picker #}
-                        <div class="pnl-daterange" id="pnl-dr-{{ shop.id }}">
-                            <input type="date" id="pnl-dr-from-{{ shop.id }}" aria-label="{{ translations.from ?? 'Du' }}">
-                            <input type="date" id="pnl-dr-to-{{ shop.id }}"   aria-label="{{ translations.to ?? 'Au' }}">
-                            <button class="pnl-daterange-apply" data-shop-id="{{ shop.id }}">{{ translations.apply ?? 'Appliquer' }}</button>
+                        {# ── Comparatif N vs N-1 à période équivalente ── #}
+                        {% if shop.compare is defined and shop.compare %}
+                        {% set cmp_labels = {
+                            'ytd':  translations.compare_ytd ?? 'Année à date',
+                            'mtd':  translations.compare_mtd ?? 'Mois à date',
+                            'week': translations.period_week ?? 'Semaine',
+                        } %}
+                        <div class="pnl-compare">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>{{ translations.compare_period ?? 'Période' }}</th>
+                                        <th class="num">N-1</th>
+                                        <th class="num">N</th>
+                                        <th class="num">{{ translations.compare_gap ?? 'Écart' }}</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in shop.compare %}
+                                    <tr>
+                                        <td>{{ cmp_labels[row.key] ?? row.key }}</td>
+                                        <td class="num">{{ row.n1|number_format(0, ',', ' ') }} €</td>
+                                        <td class="num">{{ row.n|number_format(0, ',', ' ') }} €</td>
+                                        <td class="num cmp-{{ row.status }}">{{ row.pct is not null ? ((row.pct >= 0 ? '+' : '') ~ row.pct|number_format(1, ',', ' ') ~ '%') : '—' }}</td>
+                                        <td class="dotcell"><span class="cmp-dot cmp-dot-{{ row.status }}" aria-label="{{ row.status }}"></span></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
                         </div>
+                        {% endif %}
 
                         {# Skeleton (shown while loading) #}
                         <div class="pnl-skeleton" id="pnl-skel-{{ shop.id }}">
@@ -614,10 +632,6 @@ const I18N = {
         if (data) data.style.display = 'none';
 
         const params = { period };
-        if (period === 'custom' && dateFrom && dateTo) {
-            params.date_from = dateFrom;
-            params.date_to   = dateTo;
-        }
 
         const finish = (responseData) => {
             if (skel) skel.style.display = 'none';
@@ -679,7 +693,6 @@ const I18N = {
     // Period badge switching — delegated to each pnl-card
     document.querySelectorAll('.pnl-card').forEach(card => {
         const shopId  = card.dataset.shopId;
-        const drPanel = document.getElementById('pnl-dr-' + shopId);
 
         card.querySelectorAll('.pnl-badge').forEach(badge => {
             badge.addEventListener('click', function () {
@@ -689,41 +702,11 @@ const I18N = {
                 card.querySelectorAll('.pnl-badge').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
 
-                // Show/hide date range picker
-                if (drPanel) drPanel.classList.toggle('is-open', period === 'custom');
-
-                // For custom, wait for Zastosuj — do not load yet
-                if (period === 'custom') return;
-
                 card.dataset.loaded = period;
                 loadPnl(shopId, period);
             });
         });
 
-        // Zastosuj button
-        if (drPanel) {
-            drPanel.querySelector('.pnl-daterange-apply').addEventListener('click', function () {
-                const fromInput = document.getElementById('pnl-dr-from-' + shopId);
-                const toInput   = document.getElementById('pnl-dr-to-'   + shopId);
-                const dateFrom  = fromInput ? fromInput.value : '';
-                const dateTo    = toInput   ? toInput.value   : '';
-
-                if (!dateFrom || !dateTo) {
-                    if (fromInput && !fromInput.value) fromInput.reportValidity();
-                    if (toInput   && !toInput.value)   toInput.reportValidity();
-                    return;
-                }
-                if (dateTo < dateFrom) {
-                    toInput.setCustomValidity('Data „Do” nie może być wcześniejsza niż „Od”');
-                    toInput.reportValidity();
-                    toInput.setCustomValidity('');
-                    return;
-                }
-
-                card.dataset.loaded = 'custom';
-                loadPnl(shopId, 'custom', dateFrom, dateTo);
-            });
-        }
     });
 
 })();
