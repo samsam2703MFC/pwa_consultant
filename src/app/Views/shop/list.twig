@@ -205,9 +205,17 @@
         font-size: .58rem; text-transform: uppercase; letter-spacing: .05em;
         color: #7a7168; font-weight: 700; border-bottom: 1px solid #e7ded2;
     }
+    /* Deux premières colonnes FIGÉES (Catégorie + Réseau) : seuls les
+       magasins défilent horizontalement sur petit écran. La 1re colonne a
+       une largeur fixe pour que la 2e puisse se coller juste après. */
     .cmp-table td.cmp-rowh, .cmp-table th.cmp-rowh {
         text-align: left; font-weight: 700; color: #241f1c; position: sticky; left: 0;
-        background: #fff; max-width: 92px; overflow: hidden; text-overflow: ellipsis; z-index: 1;
+        background: #fff; width: 88px; min-width: 88px; max-width: 88px;
+        overflow: hidden; text-overflow: ellipsis; z-index: 2;
+    }
+    .cmp-table td.cmp-netcol, .cmp-table th.cmp-netcol {
+        position: sticky; left: 88px; background: #fff; z-index: 2;
+        box-shadow: 3px 0 4px -2px rgba(70,40,25,.18);
     }
     .cmp-table tr + tr td { border-top: 1px solid #f3ece2; }
     .cmp-table td { cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -1436,11 +1444,11 @@ const CMP_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representat
             };
 
             tableEl.innerHTML =
-                '<tr><th class="cmp-rowh">' + I18N.cmpCategory + '</th><th>' + I18N.cmpNetwork + '</th>'
+                '<tr><th class="cmp-rowh">' + I18N.cmpCategory + '</th><th class="cmp-netcol">' + I18N.cmpNetwork + '</th>'
                 + CMP_SHOPS.map(s => '<th>' + escHtml(shortName(s.name)) + '</th>').join('') + '</tr>'
                 + rows.map(row =>
                     '<tr><td class="cmp-rowh">' + escHtml(row.name) + '</td>'
-                    + '<td style="color:#7a7168;">' + pct1(row.avg) + ' %</td>'
+                    + '<td class="cmp-netcol" style="color:#7a7168;">' + pct1(row.avg) + ' %</td>'
                     + perShop.map((_, i) => cell(row, i)).join('') + '</tr>'
                 ).join('');
         }
