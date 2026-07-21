@@ -1,0 +1,12 @@
+{
+  "account": "Account",
+  "language": "Language",
+  "logout": "Log out",
+  "membership": "Membership",
+  "name": "Name",
+  "preferred_language": "Preferred language",
+  "preferred_language_hint": "Applies to how the panel is displayed on this device.",
+  "scope": "Scope",
+  "subtitle": "My account",
+  "title": "Profile"
+}

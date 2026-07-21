@@ -1,0 +1,12 @@
+{
+  "account": "Konto",
+  "language": "Język",
+  "logout": "Wyloguj",
+  "membership": "Członkostwo",
+  "name": "Imię i nazwisko",
+  "preferred_language": "Preferowany język",
+  "preferred_language_hint": "Dotyczy wyświetlania panelu na tym urządzeniu.",
+  "scope": "Zakres",
+  "subtitle": "Moje konto",
+  "title": "Profil"
+}

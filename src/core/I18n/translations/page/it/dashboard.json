@@ -1,0 +1,42 @@
+{
+  "alerts": "Avvisi",
+  "claims_short": "Reclami",
+  "consultant_panel": "Pannello consulente",
+  "day_names": [
+    "domenica",
+    "lunedì",
+    "martedì",
+    "mercoledì",
+    "giovedì",
+    "venerdì",
+    "sabato"
+  ],
+  "done": "Fatto",
+  "kpi_alerts": "Avvisi da gestire",
+  "kpi_ca_today": "Fatturato di oggi",
+  "kpi_checklists": "Checklist",
+  "kpi_tasks_done": "Attività svolte",
+  "month_names": [
+    "gennaio",
+    "febbraio",
+    "marzo",
+    "aprile",
+    "maggio",
+    "giugno",
+    "luglio",
+    "agosto",
+    "settembre",
+    "ottobre",
+    "novembre",
+    "dicembre"
+  ],
+  "notes": "Note",
+  "pnl_detail": "Dettaglio P&L",
+  "reports": "Report",
+  "see_all": "Vedi tutto",
+  "shortcuts": "Scorciatoie",
+  "targets": "Target",
+  "today_tasks": "Attività di oggi",
+  "todo": "Da fare",
+  "your_shops": "I tuoi negozi"
+}

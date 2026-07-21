@@ -95,11 +95,11 @@ function getUserLanguage(): string
  *      le sélecteur de langue du profil),
  *   2. langue du compte (claim JWT usr_ln),
  *   3. langue du navigateur.
- * Bornée aux langues supportées par le panel ; défaut : français.
+ * Langues supportées : fr, nl, en, it, pl ; défaut : français.
  */
 function resolveAppLanguage(?string $accountLang = null): string
 {
-    $supported = ['fr', 'nl'];
+    $supported = ['fr', 'nl', 'en', 'it', 'pl'];
 
     $cookie = strtolower(substr((string)($_COOKIE['consultant_lang'] ?? ''), 0, 2));
     if (in_array($cookie, $supported, true)) {
