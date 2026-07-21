@@ -12,6 +12,26 @@ class ShopController extends Controller
         private ShopSalesRepository $shopSales,
     ) {}
 
+    /**
+     * Tickets et CA du jour lus dans la base locale (table transaction).
+     * Le tableau « état au moment T » de l'accueil s'en sert pour le nombre
+     * de clients et le panier moyen : la base du jour peut être partielle,
+     * mais son panier observé est représentatif — le front redresse le
+     * nombre de tickets au prorata du CA temps réel de l'API.
+     */
+    public function daySales(int $shopId): \Symfony\Component\HttpFoundation\JsonResponse
+    {
+        $date = (string)($_GET['date'] ?? date('Y-m-d'));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $date = date('Y-m-d');
+        }
+        $sum = $this->shopSales->getShopSummary($shopId, $date, $date);
+        return $this->json([
+            'ok'   => true,
+            'data' => ['tickets' => (int)$sum['tickets'], 'ca' => (float)$sum['ca']],
+        ]);
+    }
+
     public function index(): void
     {
         $shops = $this->shopService->getAllShops();
