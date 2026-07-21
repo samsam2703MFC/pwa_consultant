@@ -13,11 +13,13 @@ class ShopController extends Controller
     ) {}
 
     /**
-     * Tickets et CA du jour lus dans la base locale (table transaction).
-     * Le tableau « état au moment T » de l'accueil s'en sert pour le nombre
-     * de clients et le panier moyen : la base du jour peut être partielle,
-     * mais son panier observé est représentatif — le front redresse le
-     * nombre de tickets au prorata du CA temps réel de l'API.
+     * Tickets et CA du jour lus dans la base locale (table transaction),
+     * plus une fenêtre de RÉFÉRENCE (7 jours pleins jusqu'à la veille) : la
+     * base est alimentée avec du retard et peut ne rien contenir pour le jour
+     * en cours. Le tableau « état au moment T » de l'accueil s'en sert pour
+     * clients et panier : jour présent en base → panier observé du jour et
+     * tickets redressés au prorata du CA API ; sinon → panier de référence
+     * des 7 derniers jours et clients = CA API / panier.
      */
     public function daySales(int $shopId): \Symfony\Component\HttpFoundation\JsonResponse
     {
@@ -26,9 +28,22 @@ class ShopController extends Controller
             $date = date('Y-m-d');
         }
         $sum = $this->shopSales->getShopSummary($shopId, $date, $date);
+
+        $day     = new \DateTimeImmutable($date);
+        $ref     = $this->shopSales->getShopSummary(
+            $shopId,
+            $day->modify('-7 days')->format('Y-m-d'),
+            $day->modify('-1 day')->format('Y-m-d')
+        );
+
         return $this->json([
             'ok'   => true,
-            'data' => ['tickets' => (int)$sum['tickets'], 'ca' => (float)$sum['ca']],
+            'data' => [
+                'tickets'     => (int)$sum['tickets'],
+                'ca'          => (float)$sum['ca'],
+                'ref_tickets' => (int)$ref['tickets'],
+                'ref_ca'      => (float)$ref['ca'],
+            ],
         ]);
     }
 
