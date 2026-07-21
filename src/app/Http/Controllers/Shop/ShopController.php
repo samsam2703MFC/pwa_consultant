@@ -27,10 +27,12 @@ class ShopController extends Controller
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             $date = date('Y-m-d');
         }
-        $sum = $this->shopSales->getShopSummary($shopId, $date, $date);
+        // Ventes réelles uniquement (montant > 0) : les tickets à 0 € ou
+        // négatifs gonflent le compte sans CA et écrasent le panier moyen.
+        $sum = $this->shopSales->getSalesTickets($shopId, $date, $date);
 
         $day     = new \DateTimeImmutable($date);
-        $ref     = $this->shopSales->getShopSummary(
+        $ref     = $this->shopSales->getSalesTickets(
             $shopId,
             $day->modify('-7 days')->format('Y-m-d'),
             $day->modify('-1 day')->format('Y-m-d')
