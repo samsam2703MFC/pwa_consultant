@@ -557,8 +557,15 @@ const I18N = {
             </div>
         `);
         // Données du treemap, construit au premier dépliage (le conteneur doit
-        // être visible pour connaître sa largeur).
-        _tmData[shopId] = { cats: (data.turnover && data.turnover.categories) || [], total: T };
+        // être visible pour connaître sa largeur). from/to = fenêtre du P&L,
+        // utilisée pour charger les coûts matière par catégorie.
+        _tmData[shopId] = {
+            cats: (data.turnover && data.turnover.categories) || [],
+            total: T,
+            from: data.date_from ? String(data.date_from).slice(0, 10) : null,
+            to:   data.date_to   ? String(data.date_to).slice(0, 10)   : null,
+            costs: null,
+        };
 
         // 2. Food Cost + 3. Marge brute
         {
@@ -643,6 +650,24 @@ const I18N = {
         return null;
     }
 
+    // Marge réelle de la catégorie (% du CA) : d'abord les coûts matière par
+    // catégorie chargés depuis l'API (costs = {nom → {sales, cost}}), sinon
+    // le coefficient FOOD_COEF, sinon null (→ couleur par delta N-1).
+    function marginPctFor(name, costs) {
+        const n = String(name || '').toLowerCase().trim();
+        if (costs && n !== '') {
+            let e = costs[n];
+            if (!e) {
+                for (const k in costs) {
+                    if (k !== '' && (k.indexOf(n) !== -1 || n.indexOf(k) !== -1)) { e = costs[k]; break; }
+                }
+            }
+            if (e && e.sales > 0 && e.cost >= 0) return (1 - e.cost / e.sales) * 100;
+        }
+        const coef = foodCoefOf(name);
+        return coef != null ? (1 - coef) * 100 : null;
+    }
+
     // Marge de la catégorie (CA − food cost, en % du CA) → couleur.
     // Barème validé : perte → rouge sang · 0–20 % → rouge · 20–30 % → orange ·
     // 30–40 % → vert orangé · 40–60 % → vert · > 60 % → gold.
@@ -700,12 +725,12 @@ const I18N = {
         return rects;
     }
 
-    function categoryCell(cat, r, total) {
+    function categoryCell(cat, r, total, costs) {
         const v = Number(cat.value) || 0;
         const sharePct = total > 0 ? Math.round((v / total) * 100) : 0;
         const delta = (cat.delta != null && isFinite(cat.delta)) ? Number(cat.delta) : null;
-        const coef = foodCoefOf(cat.name);
-        const color = coef != null ? marginColor((1 - coef) * 100) : deltaColor(delta);
+        const m = marginPctFor(cat.name, costs);   // marge % réelle ou coefficient, sinon null
+        const color = m != null ? marginColor(m) : deltaColor(delta);
         const dTxt = fmtDelta(delta).text;
         const area = r.w * r.h;
 
@@ -716,8 +741,8 @@ const I18N = {
                 <div class="tm-name">${escHtml(cat.name)}</div>
                 <div class="tm-val">${fmt(v)}</div>
                 <div class="tm-share">${sharePct} % ${escHtml(I18N.caShare)}</div>
-                ${coef != null
-                    ? `<div class="tm-fc">FC ${Math.round(coef * 100)} % · ${escHtml(I18N.gross)} ${Math.round((1 - coef) * 100)} %</div>`
+                ${m != null
+                    ? `<div class="tm-fc">FC ${Math.round(100 - m)} % · ${escHtml(I18N.gross)} ${Math.round(m)} %</div>`
                     : (delta != null ? `<span class="tm-chip">${dTxt} vs N-1</span>` : '')}`;
         } else if (area >= 4200 && r.w >= 64) {
             inner = `<div class="tm-name">${escHtml(cat.name)}</div><div class="tm-share">${sharePct} %</div>`;
@@ -730,7 +755,7 @@ const I18N = {
         return `<div class="tm-cell" title="${escHtml(title)}" style="left:${(r.x + 1).toFixed(1)}px;top:${(r.y + 1).toFixed(1)}px;width:${Math.max(0, r.w - 2).toFixed(1)}px;height:${Math.max(0, r.h - 2).toFixed(1)}px;background:${color};padding:${pad}px;">${inner}</div>`;
     }
 
-    function renderTreemapInto(host, legendEl, cats, total, detailEl, scaleEl) {
+    function renderTreemapInto(host, legendEl, cats, total, detailEl, scaleEl, costs) {
         const items = (cats || [])
             .map(c => Object.assign({}, c, { value: Number(c.value) || 0 }))
             .filter(c => c.value > 0)
@@ -746,9 +771,9 @@ const I18N = {
         const H = Math.min(300, Math.max(190, Math.round(W * 0.72)));
         host.style.height = H + 'px';
         const rects = squarify(items.map(c => c.value), W, H);
-        host.innerHTML = items.map((c, i) => categoryCell(c, rects[i], total)).join('');
+        host.innerHTML = items.map((c, i) => categoryCell(c, rects[i], total, costs)).join('');
 
-        const marginMode = items.some(c => foodCoefOf(c.name) != null);
+        const marginMode = items.some(c => marginPctFor(c.name, costs) != null);
         if (legendEl) legendEl.textContent = marginMode ? I18N.tmLegendMargin : I18N.tmLegendDelta;
         // Mini-légende des couleurs, visible seulement treemap ouvert, au-dessus
         // de la ligne « Surface … » — barème du mode actif (marge ou delta N-1).
@@ -775,11 +800,11 @@ const I18N = {
                     const c = items[i];
                     const share = total > 0 ? Math.round((c.value / total) * 1000) / 10 : 0;
                     const delta = (c.delta != null && isFinite(c.delta)) ? Number(c.delta) : null;
-                    // Marge de la catégorie (vs food cost) quand le coefficient
-                    // est connu : « FC 24 % · marge 76 % » ajouté au détail.
-                    const coef = foodCoefOf(c.name);
+                    // Marge de la catégorie (vs food cost) quand elle est
+                    // connue : « FC 24 % · marge 76 % » ajouté au détail.
+                    const m = marginPctFor(c.name, costs);
                     detailEl.textContent = c.name + ' — ' + fmt(c.value) + ' · ' + String(share).replace('.', ',') + ' % ' + I18N.caShare
-                        + (coef != null ? ' · FC ' + Math.round(coef * 100) + ' % · ' + I18N.marginLabel + ' ' + Math.round((1 - coef) * 100) + ' %' : '')
+                        + (m != null ? ' · FC ' + Math.round(100 - m) + ' % · ' + I18N.marginLabel + ' ' + Math.round(m) + ' %' : '')
                         + (delta != null ? ' · ' + fmtDelta(delta).text.replace('.', ',') + ' vs N-1' : '');
                     detailEl.classList.add('show');
                 });
@@ -793,7 +818,103 @@ const I18N = {
         const detailEl = document.getElementById('pnl-tmd-' + shopId);
         const scaleEl = document.getElementById('pnl-tms-' + shopId);
         const d = _tmData[shopId];
-        if (host && d) renderTreemapInto(host, legendEl, d.cats, d.total, detailEl, scaleEl);
+        if (!host || !d) return;
+        const render = () => renderTreemapInto(host, legendEl, d.cats, d.total, detailEl, scaleEl, d.costs);
+        render();
+        // Coûts matière par catégorie chargés en arrière-plan : dès qu'ils
+        // arrivent, le treemap se reconstruit en couleurs « marge ».
+        if (!d.costs) fetchCatCosts(shopId, () => { if (d.costs) render(); });
+    }
+
+    // ── COÛT MATIÈRE PAR CATÉGORIE ─────────────────────────────────────────
+    // Source : GET /shops/{id}/statistics/sales/product-category-groups
+    //          ?date_from&date_to&grouping (StatisticsRepository::
+    //          getSalesSplittedByGroupAndCategory) sur la fenêtre du P&L.
+    // Le schéma exact et la valeur attendue de `grouping` n'étant pas encore
+    // observés côté front, on tente plusieurs groupings et on extrait de
+    // façon tolérante, par entrée nommée : un montant de ventes et un coût
+    // (clés *cost*), sommés par nom de catégorie. Échec → repli silencieux
+    // (couleurs par delta N-1), réponse loggée en console pour ajustement.
+    const _catCostCache = {};
+
+    function extractCategoryCosts(node) {
+        const map = {};
+        let foundCost = false;
+        const numOf = v => (typeof v === 'number') ? v
+            : (typeof v === 'string' && v !== '' && isFinite(v)) ? Number(v)
+            : (v && typeof v === 'object' && typeof v.value === 'number') ? v.value : null;
+        const SALES_PREFS = ['turnover', 'sales', 'revenue', 'gross', 'value', 'amount', 'total', 'net'];
+
+        (function walk(n) {
+            if (Array.isArray(n)) { n.forEach(walk); return; }
+            if (!n || typeof n !== 'object') return;
+
+            let name = null;
+            ['category_name', 'category', 'group_name', 'name', 'label'].some(k => {
+                if (typeof n[k] === 'string' && n[k].trim() !== '') { name = n[k].trim(); return true; }
+                return false;
+            });
+
+            if (name) {
+                let cost = 0, hasCost = false, sales = null;
+                for (const k in n) {
+                    if (!Object.prototype.hasOwnProperty.call(n, k)) continue;
+                    if (/(pct|percent|ratio|rate|delta|margin|qty|quantity|count)/i.test(k)) continue;
+                    if (/cost/i.test(k)) {
+                        const x = numOf(n[k]);
+                        if (x != null) { cost += x; hasCost = true; }
+                    }
+                }
+                for (let p = 0; p < SALES_PREFS.length && sales == null; p++) {
+                    for (const k in n) {
+                        if (/cost|pct|percent|ratio|rate|delta|margin|qty|quantity|count/i.test(k)) continue;
+                        if (k.toLowerCase().indexOf(SALES_PREFS[p]) !== -1) {
+                            const x = numOf(n[k]);
+                            if (x != null) { sales = x; break; }
+                        }
+                    }
+                }
+                if (hasCost) {
+                    const key = name.toLowerCase();
+                    const e = map[key] || (map[key] = { sales: 0, cost: 0 });
+                    e.cost += cost;
+                    if (sales != null) e.sales += sales;
+                    foundCost = true;
+                }
+            }
+            for (const k in n) {
+                if (Object.prototype.hasOwnProperty.call(n, k) && n[k] && typeof n[k] === 'object') walk(n[k]);
+            }
+        })(node);
+        return foundCost ? map : null;
+    }
+
+    function fetchCatCosts(shopId, done) {
+        const d = _tmData[shopId];
+        if (!d || !d.from || !d.to) { done(); return; }
+        const cacheKey = shopId + '|' + d.from + '|' + d.to;
+        if (cacheKey in _catCostCache) { d.costs = _catCostCache[cacheKey]; done(); return; }
+
+        const groupings = ['category', 'group', 'month'];
+        (function attempt(i) {
+            if (i >= groupings.length) { _catCostCache[cacheKey] = null; done(); return; }
+            ConsultantAjax.load({
+                endpoint: '/shops/' + shopId + '/statistics/sales/product-category-groups',
+                params: { date_from: d.from, date_to: d.to, grouping: groupings[i] },
+                onSuccess: (resp) => {
+                    const costs = extractCategoryCosts(resp);
+                    if (costs) { _catCostCache[cacheKey] = costs; d.costs = costs; done(); }
+                    else {
+                        console.warn('[pnl] product-category-groups (grouping=' + groupings[i] + ') sans coûts détectables', shopId, resp);
+                        attempt(i + 1);
+                    }
+                },
+                onError: (msg) => {
+                    console.warn('[pnl] product-category-groups (grouping=' + groupings[i] + ') en erreur', shopId, msg);
+                    attempt(i + 1);
+                },
+            });
+        })(0);
     }
 
     function escHtml(str) {
