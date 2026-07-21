@@ -48,6 +48,11 @@ h1,h2,h3,h4,h5,.card-title { font-family:var(--font-display); font-weight:400; l
 a { color:var(--c-primary); text-decoration:none; }
 a:hover { color:var(--c-primary-hover); }
 html, body { overflow-x:clip; }
+/* Utilitaire absent de Bootstrap/Mazer mais utilisé par les vues (shop, claim,
+   helpdesk) : sans lui, un item flex ne rétrécit pas sous la largeur de son
+   texte nowrap → la troncature ne s'applique pas et le bouton de droite est
+   poussé hors de la carte sur mobile. */
+.min-w-0 { min-width:0 !important; }
 .app-content .container { max-width:100% !important; }
 .app-content .container, .app-topbar .container { padding-inline:20px; box-sizing:border-box; }
 
