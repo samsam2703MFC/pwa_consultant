@@ -66,6 +66,36 @@
     .tg-skel { padding: 12px 0; }
     .tg-skel .l { height: 12px; border-radius: 6px; background: rgba(0,0,0,.06); margin: 10px 0; animation: tgPulse 1.2s ease-in-out infinite; }
     @keyframes tgPulse { 50% { opacity: .45; } }
+
+    /* ── Campagnes commerciales : une tuile minimaliste par ligne ── */
+    .tg-sect { font-size: .62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #8D1D2C; margin: 18px 2px 8px; }
+    .cp-row { border-top: 1px solid #f3ece2; }
+    .cp-row:first-child { border-top: 0; }
+    .cp-hd { display: flex; align-items: center; gap: 11px; padding: 10px 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .cp-ill {
+        width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; overflow: hidden;
+        display: flex; align-items: center; justify-content: center; font-size: 21px;
+        background: linear-gradient(135deg, #fdf3e6, #f0e3cf);
+    }
+    .cp-ill img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cp-mid { flex: 1; min-width: 0; }
+    .cp-type { font-size: .56rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #7a7168; }
+    .cp-nm { font-size: .76rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cp-pct { text-align: right; flex-shrink: 0; }
+    .cp-pct b { font-size: 1.02rem; display: block; }
+    .cp-pct small { font-size: .56rem; color: #7a7168; }
+    .cp-chev { color: #adb5bd; font-size: .6rem; flex-shrink: 0; transition: transform .2s; }
+    .cp-row.open .cp-chev { transform: rotate(180deg); }
+    .cp-drop { display: none; background: #fffdf9; border: 1px solid #f3ece2; border-radius: 12px; padding: 10px 12px; margin: 0 0 12px 53px; }
+    .cp-row.open .cp-drop { display: block; }
+    .cp-line { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-top: 1px solid #f3ece2; font-size: .7rem; }
+    .cp-line:first-child { border-top: 0; }
+    .cp-line .lb { color: #7a7168; }
+    .cp-line b { font-size: .74rem; }
+    .cp-bar { position: relative; height: 12px; border-radius: 7px; background: #f0e9df; margin: 8px 0 4px; }
+    .cp-bar .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 7px; }
+    .cp-cap { display: flex; justify-content: space-between; font-size: .58rem; }
+    .cp-empty { font-size: .74rem; color: #adb5bd; font-style: italic; padding: 12px 2px; }
 </style>
 {% endblock %}
 
@@ -111,6 +141,17 @@
             {{ icons.svg('square-pen', 14) }} {{ translations.encode_targets ?? 'Encoder les targets de cette boutique' }}
         </a>
 
+        {# ── Bilan des campagnes commerciales (targets définies DANS la
+             campagne, source : endpoint campagnes du back-office) ── #}
+        <div class="tg-sect">{{ translations.campaigns_title ?? 'Campagnes commerciales' }}</div>
+        <div class="tg-card">
+            <div class="tg-skel" id="cpSkel">
+                <div class="l" style="width:80%;"></div>
+                <div class="l" style="width:64%;"></div>
+            </div>
+            <div id="cpRows"></div>
+        </div>
+
     {% endif %}
 </div>
 {% endblock %}
@@ -134,7 +175,14 @@ const TG_I18N = {
     chartCap: {{ (translations.chart_cap ?? 'Barres grises = N-1 · barres colorées = actuel (statut de la période) · pointillé = objectif')|json_encode|raw }},
     chartB2b: {{ (translations.chart_b2b_empty ?? 'Pas de série mensuelle : valeurs B2B à encoder par le franchiseur.')|json_encode|raw }},
     loading:  {{ (translations.load ?? 'Chargement…')|json_encode|raw }},
-    qLetter:  {{ (translations.quarter_letter ?? 'T')|json_encode|raw }}
+    qLetter:  {{ (translations.quarter_letter ?? 'T')|json_encode|raw }},
+    leadsGen: {{ (translations.leads_generated ?? 'Leads générés')|json_encode|raw }},
+    leadsOpen:{{ (translations.leads_opened ?? 'Leads ouverts')|json_encode|raw }},
+    conv:     {{ (translations.conversion ?? 'conversion')|json_encode|raw }},
+    caVs:     {{ (translations.ca_vs_target ?? 'du CA target')|json_encode|raw }},
+    reached:  {{ (translations.reached ?? 'atteint')|json_encode|raw }},
+    missing:  {{ (translations.missing ?? 'manquant')|json_encode|raw }},
+    noCampaigns: {{ (translations.no_campaigns ?? 'Aucune campagne pour le moment.')|json_encode|raw }}
 };
 
 (function () {
@@ -382,6 +430,114 @@ const TG_I18N = {
         }
     }
 
+    // ── CAMPAGNES COMMERCIALES ─────────────────────────────────────────
+    // Une tuile minimaliste par ligne ; tap → drop avec leads (générés /
+    // ouverts + conversion), CA réalisé vs CA target (barre), % atteint
+    // et % manquant. Les targets vivent DANS la campagne : source =
+    // GET /shops/{id}/campaigns?date_from&date_to (année en cours).
+    // Extraction tolérante des clés ; endpoint absent → état vide propre.
+    const cpRows = document.getElementById('cpRows');
+    const cpSkel = document.getElementById('cpSkel');
+    const _cpCache = {};
+    const CP_I18N = {
+        leadsGen:  TG_I18N.leadsGen, leadsOpen: TG_I18N.leadsOpen, conv: TG_I18N.conv,
+        caVs: TG_I18N.caVs, reached: TG_I18N.reached, missing: TG_I18N.missing,
+        none: TG_I18N.noCampaigns
+    };
+
+    function num(o, keys) {
+        for (const k of keys) {
+            if (o && o[k] != null && isFinite(Number(o[k]))) return Number(o[k]);
+        }
+        return null;
+    }
+    function str(o, keys) {
+        for (const k of keys) {
+            if (o && typeof o[k] === 'string' && o[k].trim() !== '') return o[k].trim();
+        }
+        return null;
+    }
+    function escH(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function loadCampaigns(shopId) {
+        cpSkel.style.display = '';
+        cpRows.innerHTML = '';
+        if (_cpCache[shopId]) { renderCampaigns(_cpCache[shopId]); return; }
+        const y = new Date().getFullYear();
+        ConsultantAjax.load({
+            endpoint: '/shops/' + shopId + '/campaigns',
+            params: { date_from: y + '-01-01', date_to: iso(new Date()) },
+            onSuccess: r => {
+                let list = (r && (r.data || r.campaigns || r)) || [];
+                if (list && !Array.isArray(list)) list = list.campaigns || list.items || list.list || [];
+                _cpCache[shopId] = Array.isArray(list) ? list : [];
+                renderCampaigns(_cpCache[shopId]);
+            },
+            onError: () => { _cpCache[shopId] = []; renderCampaigns([]); },
+        });
+    }
+
+    const CP_EMOJI = ['🥐', '💝', '🐣', '☕', '🎄', '🍰'];
+
+    function renderCampaigns(list) {
+        cpSkel.style.display = 'none';
+        if (!list.length) {
+            cpRows.innerHTML = '<div class="cp-empty">' + CP_I18N.none + '</div>';
+            return;
+        }
+        cpRows.innerHTML = list.map((c, i) => {
+            const name = str(c, ['name', 'title', 'label']) || '—';
+            const type = str(c, ['type', 'category', 'kind']) || '';
+            const img  = str(c, ['image_url', 'image', 'illustration', 'picture']);
+            const tgt  = num(c, ['target_revenue', 'ca_target', 'revenue_target', 'target']);
+            const act  = num(c, ['actual_revenue', 'revenue', 'ca', 'actual', 'realised_revenue']);
+            const lg   = num(c, ['leads_generated', 'leads', 'leads_count']);
+            const lo   = num(c, ['leads_opened', 'opened_leads', 'leads_open']);
+            const pct  = (tgt != null && tgt > 0 && act != null) ? (act / tgt) * 100 : null;
+            const s    = stOf(pct);
+            const ill  = img ? '<img src="' + escH(img) + '" alt="" loading="lazy">' : CP_EMOJI[i % CP_EMOJI.length];
+            const pctH = pct == null
+                ? '<b class="nd">—</b><small>' + TG_I18N.toEncode + '</small>'
+                : '<b class="' + s + '">' + String(Math.round(pct)) + ' %</b><small>' + CP_I18N.caVs + '</small>';
+
+            // Drop : leads, conversion, CA vs target, barre, % atteint / manquant
+            const conv = (lg != null && lg > 0 && lo != null) ? Math.round((lo / lg) * 100) : null;
+            let drop = '';
+            if (lg != null) drop += '<div class="cp-line"><span class="lb">' + CP_I18N.leadsGen + '</span><b>' + nf0.format(lg) + '</b></div>';
+            if (lo != null) drop += '<div class="cp-line"><span class="lb">' + CP_I18N.leadsOpen + '</span><b>' + nf0.format(lo)
+                + (conv != null ? ' <small style="color:#7a7168;font-weight:600;">· ' + CP_I18N.conv + ' ' + conv + ' %</small>' : '') + '</b></div>';
+            if (act != null && tgt != null) {
+                drop += '<div class="cp-line"><span class="lb">' + CP_I18N.caVs + '</span><b>' + nf0.format(act) + ' € <small style="color:#7a7168;font-weight:600;">/ ' + nf0.format(tgt) + ' €</small></b></div>';
+                const wPct = Math.max(0, Math.min(100, pct || 0));
+                const missing = Math.max(0, 100 - (pct || 0));
+                drop += '<div class="cp-bar"><div class="fill" style="width:' + wPct.toFixed(1) + '%;background:' + ST_HEX[s] + ';"></div></div>'
+                    + '<div class="cp-cap"><span class="' + s + '">' + String(Math.round(pct)) + ' % ' + CP_I18N.reached + '</span>'
+                    + (missing > 0 ? '<span class="r">−' + String(Math.round(missing)) + ' % ' + CP_I18N.missing + ' (' + nf0.format(Math.max(0, tgt - act)) + ' €)</span>' : '')
+                    + '</div>';
+            }
+            if (drop === '') drop = '<div class="cp-empty">' + TG_I18N.toEncode + '</div>';
+
+            return '<div class="cp-row">'
+                + '<div class="cp-hd" role="button" aria-expanded="false">'
+                + '<span class="cp-ill">' + ill + '</span>'
+                + '<div class="cp-mid">' + (type ? '<div class="cp-type">' + escH(type) + '</div>' : '')
+                + '<div class="cp-nm">' + escH(name) + '</div></div>'
+                + '<div class="cp-pct">' + pctH + '</div>'
+                + '<span class="cp-chev">▼</span>'
+                + '</div>'
+                + '<div class="cp-drop">' + drop + '</div>'
+                + '</div>';
+        }).join('');
+
+        cpRows.querySelectorAll('.cp-hd').forEach(hd => hd.addEventListener('click', function () {
+            const row = this.closest('.cp-row');
+            const open = row.classList.toggle('open');
+            this.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }));
+    }
+
     function refresh() {
         const key = curShop + '|' + curPeriod;
         _cache[key] ? render(_cache[key]) : load(curShop, curPeriod);
@@ -390,6 +546,7 @@ const TG_I18N = {
         curShop = Number(this.value);
         if (encodeLink) encodeLink.href = ROOT + '/targets/' + curShop + '?year=' + TG_YEAR + '&month=' + TG_MONTH;
         refresh();
+        loadCampaigns(curShop);
     });
     perBar.querySelectorAll('.tg-badge').forEach(b => b.addEventListener('click', function () {
         perBar.querySelectorAll('.tg-badge').forEach(x => x.classList.remove('active'));
@@ -398,6 +555,7 @@ const TG_I18N = {
         refresh();
     }));
     load(curShop, curPeriod);
+    loadCampaigns(curShop);
 })();
 </script>
 {% endif %}

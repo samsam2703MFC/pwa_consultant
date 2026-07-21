@@ -36,5 +36,13 @@
     "period_month": "Miesiąc",
     "period_quarter": "Kwartał",
     "period_year": "Rok",
-    "quarter_letter": "K"
+    "quarter_letter": "K",
+    "campaigns_title": "Kampanie handlowe",
+    "leads_generated": "Wygenerowane leady",
+    "leads_opened": "Otwarte leady",
+    "conversion": "konwersja",
+    "ca_vs_target": "targetu obrotu",
+    "reached": "osiągnięto",
+    "missing": "brakuje",
+    "no_campaigns": "Na razie brak kampanii."
 }

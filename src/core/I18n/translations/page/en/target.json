@@ -36,5 +36,13 @@
     "period_month": "Month",
     "period_quarter": "Quarter",
     "period_year": "Year",
-    "quarter_letter": "Q"
+    "quarter_letter": "Q",
+    "campaigns_title": "Commercial campaigns",
+    "leads_generated": "Leads generated",
+    "leads_opened": "Leads opened",
+    "conversion": "conversion",
+    "ca_vs_target": "of revenue target",
+    "reached": "reached",
+    "missing": "missing",
+    "no_campaigns": "No campaigns yet."
 }

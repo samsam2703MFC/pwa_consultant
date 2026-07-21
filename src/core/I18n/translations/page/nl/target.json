@@ -36,5 +36,13 @@
     "period_month": "Maand",
     "period_quarter": "Kwartaal",
     "period_year": "Jaar",
-    "quarter_letter": "K"
+    "quarter_letter": "K",
+    "campaigns_title": "Commerciële campagnes",
+    "leads_generated": "Gegenereerde leads",
+    "leads_opened": "Geopende leads",
+    "conversion": "conversie",
+    "ca_vs_target": "van de omzet-target",
+    "reached": "bereikt",
+    "missing": "ontbrekend",
+    "no_campaigns": "Voorlopig geen campagnes."
 }
