@@ -2,6 +2,7 @@
 namespace App\Consultant\app\Http\Controllers\Shop;
 
 use App\Consultant\app\Http\Controllers\Controller;
+use App\Consultant\app\Repositories\Shop\ShopRepository;
 use App\Consultant\app\Repositories\Shop\ShopSalesRepository;
 use App\Consultant\app\Services\Shop\ShopService;
 
@@ -10,7 +11,21 @@ class ShopController extends Controller
     public function __construct(
         private ShopService $shopService,
         private ShopSalesRepository $shopSales,
+        private ShopRepository $shopRepository,
     ) {}
+
+    /**
+     * KPI de vente d'un magasin sur une fenêtre : API BACKEND d'abord
+     * (source de vérité), repli sur le calcul local identique tant que
+     * l'endpoint backend n'est pas déployé.
+     *
+     * @return array{tickets:int, ca:float, products:int, avg_basket:?float, products_per_ticket:?float}
+     */
+    private function salesKpis(int $shopId, string $fromDate, string $toDate): array
+    {
+        return $this->shopRepository->getSalesKpisFromApi($shopId, $fromDate, $toDate)
+            ?? $this->shopSales->getSalesKpis($shopId, $fromDate, $toDate);
+    }
 
     /**
      * Tickets et CA lus dans la base locale (table transaction) sur une
@@ -39,7 +54,7 @@ class ShopController extends Controller
             [$from, $to] = ShopSalesRepository::periodWindow($period);
         }
 
-        $kpi = $this->shopSales->getSalesKpis($shopId, $from, $to);
+        $kpi = $this->salesKpis($shopId, $from, $to);
         return $this->json([
             'ok'   => true,
             'data' => [
@@ -107,7 +122,7 @@ class ShopController extends Controller
                 // même source et même formule que le tableau de l'accueil,
                 // pour des chiffres identiques partout.
                 $ca  = $turnover;
-                $kpi = $this->shopSales->getSalesKpis($id, $fromDate, $toDate);
+                $kpi = $this->salesKpis($id, $fromDate, $toDate);
                 $tickets = $kpi['tickets'];
                 $basket  = $kpi['avg_basket'];
                 $ppt     = $kpi['products_per_ticket'];
@@ -118,8 +133,8 @@ class ShopController extends Controller
                 $toExclObj = (new \DateTimeImmutable($toDate))->modify('+1 day');
                 $days = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($toExclObj)->days);
             } else {
-                // Repli : mois calendaire courant, lu en base.
-                $kpi     = $this->shopSales->getSalesKpis($id, date('Y-m-01'), date('Y-m-t'));
+                // Repli : mois calendaire courant.
+                $kpi     = $this->salesKpis($id, date('Y-m-01'), date('Y-m-t'));
                 $ca      = $kpi['ca'];
                 $tickets = $kpi['tickets'];
                 $basket  = $kpi['avg_basket'];
