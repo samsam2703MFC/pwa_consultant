@@ -742,7 +742,7 @@ const I18N = {
                 <div class="tm-val">${fmt(v)}</div>
                 <div class="tm-share">${sharePct} % ${escHtml(I18N.caShare)}</div>
                 ${m != null
-                    ? `<div class="tm-fc">FC ${Math.round(100 - m)} % · ${escHtml(I18N.gross)} ${Math.round(m)} %</div>`
+                    ? `<div class="tm-fc">FC ${Math.round(100 - m)} %</div>`
                     : (delta != null ? `<span class="tm-chip">${dTxt} vs N-1</span>` : '')}`;
         } else if (area >= 4200 && r.w >= 64) {
             inner = `<div class="tm-name">${escHtml(cat.name)}</div><div class="tm-share">${sharePct} %</div>`;
@@ -856,15 +856,26 @@ const I18N = {
             });
 
             if (name) {
-                let cost = 0, hasCost = false, sales = null;
-                for (const k in n) {
-                    if (!Object.prototype.hasOwnProperty.call(n, k)) continue;
-                    if (/(pct|percent|ratio|rate|delta|margin|qty|quantity|count)/i.test(k)) continue;
-                    if (/cost/i.test(k)) {
-                        const x = numOf(n[k]);
-                        if (x != null) { cost += x; hasCost = true; }
+                // UNE seule valeur de coût par entrée (jamais de somme : les
+                // réponses portent souvent plusieurs champs coût redondants —
+                // material_cost, total_cost… — dont l'addition double le FC).
+                // Noms exacts par priorité, puis première clé *cost* en repli.
+                const COST_PREFS = ['material_cost', 'materials_cost', 'food_cost', 'goods_cost', 'cost_of_goods', 'purchase_cost', 'total_cost', 'cost'];
+                const skip = k => /(pct|percent|ratio|rate|delta|margin|qty|quantity|count)/i.test(k);
+                let cost = null, sales = null;
+                for (let p = 0; p < COST_PREFS.length && cost == null; p++) {
+                    for (const k in n) {
+                        if (skip(k)) continue;
+                        if (k.toLowerCase() === COST_PREFS[p]) { const x = numOf(n[k]); if (x != null) cost = x; break; }
                     }
                 }
+                if (cost == null) {
+                    for (const k in n) {
+                        if (skip(k)) continue;
+                        if (/cost/i.test(k)) { const x = numOf(n[k]); if (x != null) { cost = x; break; } }
+                    }
+                }
+                const hasCost = cost != null;
                 for (let p = 0; p < SALES_PREFS.length && sales == null; p++) {
                     for (const k in n) {
                         if (/cost|pct|percent|ratio|rate|delta|margin|qty|quantity|count/i.test(k)) continue;
