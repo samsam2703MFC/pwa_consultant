@@ -122,7 +122,7 @@ class DebugController extends Controller
                 $td   = isset($pd['date_to'])   ? substr((string)$pd['date_to'], 0, 10)   : '';
                 $ticketsDb = 0; $productsDb = 0; $caDb = 0.0; $days = 1;
                 if (\DateTimeImmutable::createFromFormat('!Y-m-d', $fd) && \DateTimeImmutable::createFromFormat('!Y-m-d', $td)) {
-                    $sum = $this->shopSales->getShopSummary($sid, $fd, $td);
+                    $sum = $this->shopSales->getSalesKpis($sid, $fd, $td);
                     $ticketsDb = $sum['tickets']; $productsDb = $sum['products']; $caDb = (float)$sum['ca'];
                     $toExcl = (new \DateTimeImmutable($td))->modify('+1 day');
                     $days = max(1, (int)(new \DateTimeImmutable($fd))->diff($toExcl)->days);
@@ -216,7 +216,7 @@ class DebugController extends Controller
 
         $valid = fn($v) => (bool)\DateTimeImmutable::createFromFormat('!Y-m-d', $v);
         if ($valid($fromDate) && $valid($toDate)) {
-            $win = $this->shopSales->getShopSummary($shop, $fromDate, $toDate);
+            $win = $this->shopSales->getSalesKpis($shop, $fromDate, $toDate);
             echo '<li>DB sur la fenêtre P&L [' . $esc($fromDate) . ' → ' . $esc($toDate) . '] : '
                . '<b>CA=' . $esc(number_format($win['ca'], 2, ',', ' ')) . '</b>, tickets=' . $esc($win['tickets'])
                . ', produits=' . $esc($win['products']) . '</li>';
@@ -228,7 +228,7 @@ class DebugController extends Controller
         }
 
         // Mois calendaire courant (repli).
-        $cm = $this->shopSales->getShopSummary($shop, date('Y-m-01'), date('Y-m-t'));
+        $cm = $this->shopSales->getSalesKpis($shop, date('Y-m-01'), date('Y-m-t'));
         echo '<li>DB mois calendaire courant [' . $esc(date('Y-m-01')) . ' → ' . $esc(date('Y-m-t')) . '] : '
            . '<b>CA=' . $esc(number_format($cm['ca'], 2, ',', ' ')) . '</b>, tickets=' . $esc($cm['tickets'])
            . ', produits=' . $esc($cm['products']) . '</li>';
@@ -236,7 +236,7 @@ class DebugController extends Controller
 
         // ── Indicateurs Boutiques recalculés (1 ligne transaction = 1 produit) ──
         if ($valid($fromDate) && $valid($toDate)) {
-            $s = $this->shopSales->getShopSummary($shop, $fromDate, $toDate);
+            $s = $this->shopSales->getSalesKpis($shop, $fromDate, $toDate);
 
             // Nombre de jours de la fenêtre (date_from → date_to inclus).
             $toExObj = (new \DateTimeImmutable($toDate))->modify('+1 day');
