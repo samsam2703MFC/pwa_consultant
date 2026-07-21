@@ -110,8 +110,8 @@ class DebugController extends Controller
             echo '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:8px;overflow:hidden">';
             echo '<tr style="background:#8D1D2C;color:#fff;text-align:left">'
                . '<th style="padding:6px">id</th><th>magasin</th><th>fenêtre</th><th>j</th>'
-               . '<th>CA API</th><th>CA DB</th><th>ratio</th><th>tickets DB</th><th>tickets redressés</th>'
-               . '<th>t/j</th><th>panier</th></tr>';
+               . '<th>CA API</th><th>CA DB</th><th>ratio</th><th>tickets DB</th><th>produits DB</th>'
+               . '<th>tickets redressés</th><th>t/j</th><th>panier</th><th>p/client</th></tr>';
             foreach ($shops as $s) {
                 $sid  = (int)($s['id'] ?? 0);
                 $name = $s['representative_name'] ?? $s['name'] ?? ('#' . $sid);
@@ -120,10 +120,10 @@ class DebugController extends Controller
                 $T    = isset($pd['turnover']['value']) ? (float)$pd['turnover']['value'] : 0.0;
                 $fd   = isset($pd['date_from']) ? substr((string)$pd['date_from'], 0, 10) : '';
                 $td   = isset($pd['date_to'])   ? substr((string)$pd['date_to'], 0, 10)   : '';
-                $ticketsDb = 0; $caDb = 0.0; $days = 1;
+                $ticketsDb = 0; $productsDb = 0; $caDb = 0.0; $days = 1;
                 if (\DateTimeImmutable::createFromFormat('!Y-m-d', $fd) && \DateTimeImmutable::createFromFormat('!Y-m-d', $td)) {
                     $sum = $this->shopSales->getShopSummary($sid, $fd, $td);
-                    $ticketsDb = $sum['tickets']; $caDb = (float)$sum['ca'];
+                    $ticketsDb = $sum['tickets']; $productsDb = $sum['products']; $caDb = (float)$sum['ca'];
                     $toExcl = (new \DateTimeImmutable($td))->modify('+1 day');
                     $days = max(1, (int)(new \DateTimeImmutable($fd))->diff($toExcl)->days);
                 }
@@ -132,6 +132,7 @@ class DebugController extends Controller
                 $tickets = (int)round($ticketsDb * $scale);
                 $tj      = $tickets > 0 ? $tickets / $days : 0;
                 $basket  = $tickets > 0 ? $T / $tickets : 0;
+                $ppc     = $ticketsDb > 0 ? $productsDb / $ticketsDb : 0; // ratio insensible au redressement
                 echo '<tr style="border-top:1px solid #eee">'
                    . '<td style="padding:6px">' . $esc($sid) . '</td>'
                    . '<td>' . $esc($name) . '</td>'
@@ -141,9 +142,11 @@ class DebugController extends Controller
                    . '<td>' . $esc(number_format($caDb, 0, ',', ' ')) . '</td>'
                    . '<td>' . $esc(number_format($scale, 3, ',', ' ')) . '</td>'
                    . '<td>' . $esc($ticketsDb) . '</td>'
+                   . '<td>' . $esc($productsDb) . '</td>'
                    . '<td><b>' . $esc($tickets) . '</b></td>'
                    . '<td><b>' . $esc(number_format($tj, 1, ',', ' ')) . '</b></td>'
-                   . '<td><b>' . $esc(number_format($basket, 2, ',', ' ')) . '</b></td></tr>';
+                   . '<td><b>' . $esc(number_format($basket, 2, ',', ' ')) . '</b></td>'
+                   . '<td><b>' . $esc(number_format($ppc, 2, ',', ' ')) . '</b></td></tr>';
             }
             echo '</table></div>';
 

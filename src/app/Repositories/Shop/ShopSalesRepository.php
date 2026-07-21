@@ -10,15 +10,20 @@ use Throwable;
  */
 class ShopSalesRepository
 {
+    /** Colonnes détectées de transaction_product (cache par requête). */
+    private ?array $tpCols = null;
+
     /**
      * Indicateurs de vente d'UN magasin sur une fenêtre de dates métier
      * [fromDate, toDate] (inclusives, format Y-m-d).
      *
-     * Comptages dans `transaction` (1 ligne ≈ 1 ticket dans la base locale) :
-     *   - tickets  = COUNT(DISTINCT id_device, ticket_key)
-     *   - produits = COUNT(*)  (≈ tickets tant que le détail produit n'est pas
-     *                répliqué dans cette base)
-     *   - CA       = SUM(total_gross_amount_after_discount)
+     * Sources :
+     *   - `transaction` (1 ligne = 1 ticket) :
+     *       tickets = COUNT(DISTINCT id_device, ticket_key)
+     *       CA      = SUM(total_gross_amount_after_discount)
+     *   - `transaction_product` (1 ligne = 1 ligne de ticket) :
+     *       produits = SUM(quantité) si une colonne quantité existe,
+     *                  sinon COUNT(lignes). 0 si la table est absente.
      *
      * Fenêtre bornée sur insert_timestamp — seule datation cohérente sur tous
      * les magasins (les ticket_key ont des encodages différents par magasin).
@@ -43,7 +48,6 @@ class ShopSalesRepository
 
             $stmt = $pdo->prepare(
                 'SELECT COUNT(DISTINCT id_device, ticket_key)                 AS tickets,
-                        COUNT(*)                                              AS products,
                         COALESCE(SUM(total_gross_amount_after_discount), 0)   AS ca
                  FROM transaction
                  WHERE id_shop = :id
@@ -55,13 +59,95 @@ class ShopSalesRepository
 
             return [
                 'tickets'  => (int)($row['tickets'] ?? 0),
-                'products' => (int)($row['products'] ?? 0),
+                'products' => $this->countProducts($pdo, $shopId, $from, $toExcl),
                 'ca'       => (float)($row['ca'] ?? 0),
             ];
         } catch (Throwable $e) {
             error_log('[db] getShopSummary échoué: ' . $e->getMessage());
             return $empty;
         }
+    }
+
+    /**
+     * Nombre de produits vendus sur la fenêtre, depuis transaction_product
+     * (lignes de ticket). Colonnes détectées dynamiquement : la FK vers
+     * `transaction` (nom contenant « transaction ») et une éventuelle colonne
+     * quantité (quantity/qty/amount) → SUM(quantité), sinon COUNT(lignes).
+     */
+    private function countProducts(\PDO $pdo, int $shopId, string $from, string $toExcl): int
+    {
+        $cols = $this->transactionProductCols($pdo);
+        if ($cols === null) {
+            return 0; // table absente → l'appelant affichera « — »
+        }
+        [$fk, $qty] = $cols;
+
+        $expr = $qty !== null
+            ? 'COALESCE(SUM(tp.`' . $qty . '`), 0)'
+            : 'COUNT(*)';
+
+        try {
+            $stmt = $pdo->prepare(
+                'SELECT ' . $expr . ' AS products
+                 FROM transaction_product tp
+                 INNER JOIN transaction t ON t.id = tp.`' . $fk . '`
+                 WHERE t.id_shop = :id
+                   AND t.insert_timestamp >= :from
+                   AND t.insert_timestamp <  :toExcl'
+            );
+            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
+
+            return (int)round((float)($stmt->fetchColumn() ?: 0));
+        } catch (Throwable $e) {
+            error_log('[db] countProducts échoué: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Détecte [fk, quantité|null] dans transaction_product, null si table/FK
+     * introuvable. La FK est la colonne id* contenant « transaction ».
+     */
+    private function transactionProductCols(\PDO $pdo): ?array
+    {
+        if ($this->tpCols !== null) {
+            return $this->tpCols === [] ? null : $this->tpCols;
+        }
+
+        try {
+            $stmt = $pdo->query(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transaction_product'"
+            );
+            $names = array_map(fn($r) => (string)$r['COLUMN_NAME'], $stmt->fetchAll());
+        } catch (Throwable $e) {
+            error_log('[db] transactionProductCols échoué: ' . $e->getMessage());
+            $names = [];
+        }
+
+        $fk = null;
+        foreach ($names as $n) {
+            if (preg_match('/^(id_transaction|transaction_id)$/i', $n)) { $fk = $n; break; }
+        }
+        if ($fk === null) {
+            foreach ($names as $n) {
+                if (stripos($n, 'transaction') !== false && stripos($n, 'id') !== false) { $fk = $n; break; }
+            }
+        }
+        if ($fk === null) {
+            $this->tpCols = [];
+            return null;
+        }
+
+        $qty = null;
+        foreach (['quantity', 'qty', 'amount', 'count'] as $cand) {
+            foreach ($names as $n) {
+                if (strcasecmp($n, $cand) === 0) { $qty = $n; break 2; }
+            }
+        }
+
+        $this->tpCols = [$fk, $qty];
+        return $this->tpCols;
     }
 
     /**
