@@ -271,20 +271,39 @@
     document.addEventListener('fullscreenchange', onChange);
     document.addEventListener('webkitfullscreenchange', onChange);
 
-    // Ré-application après une navigation : au premier geste utilisateur
-    // sur la nouvelle page, tant que l'état demandé est actif.
+    // Ré-application après une navigation : au geste utilisateur sur la
+    // nouvelle page, tant que l'état demandé est actif.
+    // ⚠ Le navigateur n'accorde l'« activation utilisateur » (obligatoire
+    // pour requestFullscreen) qu'au RELÂCHER sur tactile : pointerup /
+    // click / touchend / keydown — jamais pointerdown (c'était le bug :
+    // la ré-application échouait silencieusement à chaque page). On
+    // réessaie à CHAQUE geste tant que le plein écran n'est pas
+    // effectivement rétabli ; on désarme quand il l'est (fullscreenchange)
+    // ou quand l'intention disparaît.
     let reapplyArmed = false;
     function armReapply() {
         if (reapplyArmed) return;
         reapplyArmed = true;
-        const reapply = function () {
-            document.removeEventListener('pointerdown', reapply, true);
-            document.removeEventListener('keydown', reapply, true);
+        const disarm = function () {
+            document.removeEventListener('pointerup', tryEnter, true);
+            document.removeEventListener('touchend', tryEnter, true);
+            document.removeEventListener('click', tryEnter, true);
+            document.removeEventListener('keydown', tryEnter, true);
+            document.removeEventListener('fullscreenchange', onEntered, true);
+            document.removeEventListener('webkitfullscreenchange', onEntered, true);
             reapplyArmed = false;
-            if (wanted() && !isFs()) enter();
         };
-        document.addEventListener('pointerdown', reapply, true);
-        document.addEventListener('keydown', reapply, true);
+        const tryEnter = function () {
+            if (!wanted() || isFs()) { disarm(); return; }
+            enter();
+        };
+        const onEntered = function () { if (isFs()) disarm(); };
+        document.addEventListener('pointerup', tryEnter, true);
+        document.addEventListener('touchend', tryEnter, true);
+        document.addEventListener('click', tryEnter, true);
+        document.addEventListener('keydown', tryEnter, true);
+        document.addEventListener('fullscreenchange', onEntered, true);
+        document.addEventListener('webkitfullscreenchange', onEntered, true);
     }
     if (wanted() && !isFs()) armReapply();
     refresh();
