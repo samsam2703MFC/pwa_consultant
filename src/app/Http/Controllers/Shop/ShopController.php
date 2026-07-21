@@ -137,17 +137,20 @@ class ShopController extends Controller
                 $basket  = $kpi['avg_basket'];
                 $ppt     = $kpi['products_per_ticket'];
 
-                // Moyenne par jour = tickets / jours ÉCOULÉS de la fenêtre
-                // (from → min(to, aujourd'hui) inclus) : la base ne contient
-                // des tickets que jusqu'à aujourd'hui — diviser un comptage
-                // en cours de mois par les 31 jours de la fenêtre P&L
-                // sous-évaluerait tickets/jour.
-                $endObj = new \DateTimeImmutable($toDate);
-                $today  = new \DateTimeImmutable('today');
-                if ($today < $endObj) {
-                    $endObj = $today;
+                // Moyenne par jour = tickets / jours RÉELLEMENT COUVERTS par
+                // la base sur la fenêtre (days_with_data) : l'alimentation
+                // peut être en retard de plusieurs jours (constaté : 7 jours)
+                // — diviser par les jours calendaires sous-évaluerait
+                // tickets/jour. Repli : jours écoulés de la fenêtre.
+                $days = (int)($kpi['days_with_data'] ?? 0);
+                if ($days < 1) {
+                    $endObj = new \DateTimeImmutable($toDate);
+                    $today  = new \DateTimeImmutable('today');
+                    if ($today < $endObj) {
+                        $endObj = $today;
+                    }
+                    $days = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($endObj->modify('+1 day'))->days);
                 }
-                $days = max(1, (int)(new \DateTimeImmutable($fromDate))->diff($endObj->modify('+1 day'))->days);
             } else {
                 // Repli : mois calendaire courant.
                 $kpi     = $this->salesKpis($id, date('Y-m-01'), date('Y-m-t'));
@@ -155,7 +158,7 @@ class ShopController extends Controller
                 $tickets = $kpi['tickets'];
                 $basket  = $kpi['avg_basket'];
                 $ppt     = $kpi['products_per_ticket'];
-                $days    = max(1, (int)date('j')); // jours écoulés du mois
+                $days    = max(1, (int)($kpi['days_with_data'] ?? 0) ?: (int)date('j'));
             }
 
             // Comparatif N vs N-1. Colonne N : CA temps réel de l'API quand il

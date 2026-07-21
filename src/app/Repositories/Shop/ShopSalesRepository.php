@@ -38,7 +38,7 @@ class ShopSalesRepository
      */
     public function getSalesKpis(int $shopId, string $fromDate, string $toDate): array
     {
-        $empty = ['tickets' => 0, 'ca' => 0.0, 'products' => 0, 'avg_basket' => null, 'products_per_ticket' => null];
+        $empty = ['tickets' => 0, 'ca' => 0.0, 'products' => 0, 'days_with_data' => 0, 'avg_basket' => null, 'products_per_ticket' => null];
         $pdo = Database::pdo();
         if ($pdo === null) {
             return $empty;
@@ -48,39 +48,47 @@ class ShopSalesRepository
             $from   = $fromDate . ' 00:00:00';
             $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
 
-            // Agrégation AU NIVEAU DU TICKET (GROUP BY ticket_key) : un même
-            // ticket remonté par plusieurs devices ne compte qu'une fois —
-            // pour le nombre de tickets, MAIS AUSSI pour le CA et les lignes
-            // produits (sinon panier et produits/ticket gonflés). Ligne
-            // représentative du ticket : MAX(id) ; montant : MAX (doublons
-            // identiques → inchangé).
-            $productsSelect = '0 AS qty';
+            // Définitions VALIDÉES sur les données réelles (diag 21/07) :
+            //  - tickets = COUNT(DISTINCT ticket_key) — le numéro est unique
+            //    par ticket au sein du magasin, séquence partagée entre
+            //    devices ;
+            //  - CA = SUM de TOUTES les lignes : un ticket peut avoir
+            //    plusieurs lignes (paiements splittés — 3587 lignes pour
+            //    3468 tickets) et son montant est la somme de ses lignes.
+            //    Aucun filtre : la base ne contient ni 0 € ni négatifs, et le
+            //    CA total colle au réel validé ;
+            //  - produits = SUM des quantités des lignes de TOUTES les lignes
+            //    du ticket (même raison) ;
+            //  - days_with_data = jours réellement couverts par la base sur la
+            //    fenêtre (l'alimentation peut être en retard de plusieurs
+            //    jours) → seul dénominateur juste pour « tickets/jour ».
+            $productsExpr = '0';
+            $params = [':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl];
             $cols = $this->transactionProductCols($pdo);
             if ($cols !== null) {
                 [$fk, $qty] = $cols;
                 $inner = $qty !== null ? 'COALESCE(SUM(tp.`' . $qty . '`), 0)' : 'COUNT(*)';
-                $productsSelect = '(SELECT ' . $inner . ' FROM transaction_product tp WHERE tp.`' . $fk . '` = x.tid) AS qty';
+                $productsExpr =
+                    '(SELECT ' . $inner . '
+                      FROM transaction_product tp
+                      INNER JOIN transaction t2 ON t2.id = tp.`' . $fk . '`
+                      WHERE t2.id_shop = :id2
+                        AND t2.insert_timestamp >= :from2
+                        AND t2.insert_timestamp <  :toExcl2)';
+                $params += [':id2' => $shopId, ':from2' => $from, ':toExcl2' => $toExcl];
             }
 
             $stmt = $pdo->prepare(
-                'SELECT COUNT(*)                AS tickets,
-                        COALESCE(SUM(y.ca), 0)  AS ca,
-                        COALESCE(SUM(y.qty), 0) AS products
-                 FROM (
-                     SELECT x.ca, ' . $productsSelect . '
-                     FROM (
-                         SELECT MAX(t.id)                                   AS tid,
-                                MAX(t.total_gross_amount_after_discount)    AS ca
-                         FROM transaction t
-                         WHERE t.id_shop = :id
-                           AND t.insert_timestamp >= :from
-                           AND t.insert_timestamp <  :toExcl
-                           AND t.total_gross_amount_after_discount > 0
-                         GROUP BY t.ticket_key
-                     ) x
-                 ) y'
+                'SELECT COUNT(DISTINCT t.ticket_key)                          AS tickets,
+                        COALESCE(SUM(t.total_gross_amount_after_discount), 0) AS ca,
+                        COUNT(DISTINCT DATE(t.insert_timestamp))              AS days_with_data,
+                        ' . $productsExpr . '                                 AS products
+                 FROM transaction t
+                 WHERE t.id_shop = :id
+                   AND t.insert_timestamp >= :from
+                   AND t.insert_timestamp <  :toExcl'
             );
-            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
+            $stmt->execute($params);
             $row = $stmt->fetch() ?: [];
 
             $tickets  = (int)($row['tickets'] ?? 0);
@@ -91,6 +99,7 @@ class ShopSalesRepository
                 'tickets'             => $tickets,
                 'ca'                  => $ca,
                 'products'            => $products,
+                'days_with_data'      => (int)($row['days_with_data'] ?? 0),
                 'avg_basket'          => $tickets > 0 ? $ca / $tickets : null,
                 'products_per_ticket' => ($tickets > 0 && $products > 0) ? $products / $tickets : null,
             ];
@@ -254,21 +263,17 @@ class ShopSalesRepository
                 $params[":t$i"] = $toExcl;
                 $i++;
             }
-            // MÊME périmètre que getSalesKpis : ventes réelles (montant > 0)
-            // dédupliquées PAR TICKET (un ticket remonté par plusieurs devices
-            // compte une fois). Sur ces fenêtres longues (jusqu'à 1 an), le
-            // groupement inclut la DATE par sécurité : identique si le numéro
-            // de ticket est unique dans le temps, et protège si une
-            // numérotation redémarrait périodiquement.
+            // CA = SUM de TOUTES les lignes (un ticket peut être splitté en
+            // plusieurs lignes de paiement — validé sur les données réelles :
+            // le CA total des lignes colle au réel). Aucune déduplication ni
+            // filtre de montant.
             $stmt = $pdo->prepare(
                 'SELECT ' . implode(', ', $selects) . '
                  FROM (
-                     SELECT MAX(insert_timestamp)                       AS ts,
-                            MAX(total_gross_amount_after_discount)      AS ca
+                     SELECT insert_timestamp                        AS ts,
+                            total_gross_amount_after_discount       AS ca
                      FROM transaction
                      WHERE id_shop = :id
-                       AND total_gross_amount_after_discount > 0
-                     GROUP BY DATE(insert_timestamp), ticket_key
                  ) x'
             );
             $stmt->execute($params);
