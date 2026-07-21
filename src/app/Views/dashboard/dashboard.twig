@@ -187,10 +187,10 @@
  * l'overhead mensuel est proratisé au jour, le coût matière vient de
  * /statistics/daily-summary sur la même fenêtre.
  * Résultat = CA − matière − labour − overhead/jour ; % = Résultat / CA.
- * Clients & panier : MÊME calcul que la tuile Boutiques — panier =
- * CA_base / tickets_base sur la fenêtre du P&L MENSUEL (/shops/{id}/day-sales,
- * table transaction via getSalesKpis) ; clients du jour = CA API du jour
- * / panier. Le panier affiché est donc identique à celui des Boutiques. */
+ * Clients & panier : MÊMES source et formule que le module Boutiques —
+ * getSalesKpis via /shops/{id}/day-sales : clients = COUNT(DISTINCT
+ * ticket_key) du jour (comptage brut, sans estimation), panier = CA base /
+ * tickets base sur la même fenêtre. Cohérence garantie entre les écrans. */
 (function () {
     'use strict';
     const rows = document.querySelectorAll('.live-row');
@@ -275,31 +275,30 @@
             const pFood = (from && to)
                 ? ajax({ endpoint: '/shops/' + shopId + '/statistics/daily-summary', params: { date_from: from, date_to: to, from: from, to: to } }).then(s => s ? extractFood(s) : null)
                 : Promise.resolve(null);
-            // Tickets + CA de la base locale sur la fenêtre du P&L MENSUEL :
-            // exactement la fenêtre et le calcul de la tuile Boutiques.
-            const pDb = pMonth.then(month => {
-                const mFrom = month && month.date_from ? String(month.date_from).slice(0, 10) : null;
-                const mTo = month && month.date_to ? String(month.date_to).slice(0, 10) : null;
-                if (!mFrom || !mTo) return null;
-                return fetch(ROOT + '/shops/' + shopId + '/day-sales?from=' + mFrom + '&to=' + mTo, { credentials: 'same-origin' })
+            // Tickets + CA + panier de la base locale sur la FENÊTRE DU JOUR
+            // (celle du P&L day) : clients = COUNT(DISTINCT ticket_key) brut,
+            // même formule que les Boutiques sur leur propre fenêtre.
+            const dbFrom = from || null, dbTo = to || from || null;
+            const pDb = (dbFrom && dbTo)
+                ? fetch(ROOT + '/shops/' + shopId + '/day-sales?from=' + dbFrom + '&to=' + dbTo, { credentials: 'same-origin' })
                     .then(r => r.ok ? r.json() : null)
                     .then(j => (j && j.ok && j.data) ? j.data : null)
-                    .catch(() => null);
-            });
+                    .catch(() => null)
+                : Promise.resolve(null);
 
             Promise.all([pMonth, pFood, pDb]).then(([month, food, db]) => {
                 const ocMonth = Number(month && month.overhead && month.overhead.value) || 0;
                 const result = ca - (food || 0) - labour - (ocMonth / daysInCurrentMonth());
 
-                // Panier = CA base / tickets base sur le mois (identique au
-                // « panier moyen » de la tuile Boutiques, calcul validé) ;
-                // clients du jour = CA API du jour / panier.
+                // Comptage brut du jour — aucune estimation : si la base n'a
+                // pas encore reçu les tickets du jour, « — » plutôt qu'un
+                // chiffre divergent des Boutiques.
                 let clients = null, basket = null;
                 const dbTickets = db ? Number(db.tickets) || 0 : 0;
-                const dbCa = db ? Number(db.ca) || 0 : 0;
-                if (dbTickets > 0 && dbCa > 0) {
-                    basket = dbCa / dbTickets;
-                    if (ca > 0) clients = Math.round(ca / basket);
+                const dbBasket = db && db.avg_basket != null ? Number(db.avg_basket) : null;
+                if (dbTickets > 0) {
+                    clients = dbTickets;
+                    basket = (dbBasket != null && isFinite(dbBasket)) ? dbBasket : null;
                 }
                 render(row, ca, result, clients, basket);
             });

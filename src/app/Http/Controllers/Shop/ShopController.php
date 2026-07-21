@@ -100,23 +100,17 @@ class ShopController extends Controller
             $toDate   = isset($pnl['date_to'])   ? substr((string)$pnl['date_to'], 0, 10)   : '';
 
             if ($turnover !== null && $this->isDate($fromDate) && $this->isDate($toDate)) {
-                // Aligné sur le P&L : même CA, même fenêtre. Les 3 KPI
-                // viennent d'UNE requête (getSalesKpis) — même périmètre.
+                // CA aligné sur le P&L (API) ; les 3 KPI tickets/panier/
+                // produits viennent d'UNE requête (getSalesKpis) — même
+                // périmètre. Le nombre de tickets est le comptage BRUT
+                // COUNT(DISTINCT ticket_key) de la base, SANS redressement :
+                // même source et même formule que le tableau de l'accueil,
+                // pour des chiffres identiques partout.
                 $ca  = $turnover;
                 $kpi = $this->shopSales->getSalesKpis($id, $fromDate, $toDate);
                 $tickets = $kpi['tickets'];
                 $basket  = $kpi['avg_basket'];
                 $ppt     = $kpi['products_per_ticket'];
-
-                // La base locale peut être PARTIELLE (CA_DB < CA_API) tout en
-                // étant représentative : les RATIOS (panier, produits/ticket)
-                // sont justes tels quels ; seul le VOLUME de tickets est
-                // redressé au prorata du CA de l'API pour retrouver le
-                // périmètre complet. Base complète → ratio 1 (aucun effet).
-                $caDb = $kpi['ca'];
-                if ($caDb > 0 && $turnover > 0) {
-                    $tickets = (int)round($tickets * ($turnover / $caDb));
-                }
 
                 // Tickets et CA couvrent toute la fenêtre du P&L → la moyenne
                 // par jour se divise par le NOMBRE DE JOURS DE LA FENÊTRE
