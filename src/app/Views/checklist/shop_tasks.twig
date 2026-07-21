@@ -55,6 +55,22 @@
     .task-by { font-size:.68rem; color:#6c757d; margin-top:4px; }
     .task-note { font-size:.72rem; color:#6c757d; background:#f8f9fa; border-radius:6px; padding:4px 8px; margin-top:4px; font-style:italic; }
     .empty-state { text-align:center; padding:32px 20px; color:#adb5bd; }
+
+    /* Accordéon : une checklist → drop-list de ses tâches */
+    .cl-group { background:#fff; border-radius:14px; margin-bottom:8px; box-shadow:0 1px 5px rgba(0,0,0,.05); overflow:hidden; }
+    .cl-head { display:flex; align-items:center; gap:8px; min-height:52px; padding:10px 12px; cursor:pointer; list-style:none; -webkit-tap-highlight-color:transparent; }
+    .cl-head::-webkit-details-marker { display:none; }
+    .cl-ico { width:30px; height:30px; border-radius:9px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:#eef2ff; color:#435ebe; }
+    .cl-name { flex:1; min-width:0; font-size:.86rem; font-weight:800; color:#212529; line-height:1.25; }
+    .cl-flag { display:inline-flex; align-items:center; gap:3px; flex-shrink:0; padding:2px 7px; border-radius:999px; font-size:.66rem; font-weight:800; background:#fee2e2; color:#991b1b; }
+    .cl-count { flex-shrink:0; padding:3px 8px; border-radius:999px; font-size:.7rem; font-weight:800; background:#f0f0f5; color:#6c757d; }
+    .cl-count.part { background:#fef3c7; color:#92400e; }
+    .cl-count.all { background:#d1fae5; color:#065f46; }
+    .cl-caret { flex-shrink:0; color:#adb5bd; transition:transform .15s ease; display:flex; }
+    .cl-group[open] .cl-caret { transform:rotate(180deg); }
+    .cl-group[open] .cl-head { border-bottom:1px solid #f1f3f5; }
+    .cl-body { padding:8px 8px 4px; background:#fafbfc; }
+    .cl-body .task-card { box-shadow:none; border:1px solid #f1f3f5; }
 </style>
 {% endblock %}
 
@@ -108,17 +124,23 @@
         </div>
     {% endif %}
 
-    {% if tasks | length > 0 %}
-        {% set mandatory_tasks = tasks | filter(t => t.is_mandatory) %}
-        {% set optional_tasks = tasks | filter(t => not t.is_mandatory) %}
-        {% if mandatory_tasks | length > 0 %}
-            <div class="section-title"><span class="text-danger me-1">{{ icons.svg('circle-alert') }}</span>{{ translations.mandatory_tasks ?? 'Tâches obligatoires' }}</div>
-            {% for t in mandatory_tasks %}{% include 'checklist/_task_item.twig' %}{% endfor %}
-        {% endif %}
-        {% if optional_tasks | length > 0 %}
-            <div class="section-title"><span class="me-1">{{ icons.svg('list-checks') }}</span>{{ translations.other_tasks ?? 'Autres tâches' }}</div>
-            {% for t in optional_tasks %}{% include 'checklist/_task_item.twig' %}{% endfor %}
-        {% endif %}
+    {% set checklist_groups = checklist_groups|default([]) %}
+    {% if checklist_groups | length > 0 %}
+        <div class="section-title"><span class="me-1">{{ icons.svg('list-checks') }}</span>{{ translations.checklists_of_day ?? 'Checklists du jour' }}</div>
+        {% for g in checklist_groups %}
+            <details class="cl-group">
+                <summary class="cl-head">
+                    <span class="cl-ico">{{ icons.svg('clipboard-check') }}</span>
+                    <span class="cl-name">{{ g.name != '' ? g.name : (translations.no_checklist ?? 'Sans checklist') }}</span>
+                    {% if g.mandatory_pending > 0 %}<span class="cl-flag" title="{{ translations.mandatory_tasks ?? 'Tâches obligatoires' }}">{{ icons.svg('circle-alert') }}{{ g.mandatory_pending }}</span>{% endif %}
+                    <span class="cl-count {{ g.done >= g.total ? 'all' : (g.done > 0 ? 'part' : '') }}">{{ g.done }}/{{ g.total }}</span>
+                    <span class="cl-caret">{{ icons.svg('chevron-down') }}</span>
+                </summary>
+                <div class="cl-body">
+                    {% for t in g.tasks %}{% include 'checklist/_task_item.twig' with { 't': t, 'hide_checklist': true } %}{% endfor %}
+                </div>
+            </details>
+        {% endfor %}
     {% else %}
         <div class="empty-state"><span style="font-size:2rem;">{{ icons.svg('check-check') }}</span><p class="mt-2 mb-0">{{ translations.none_for_day ?? 'Aucune tâche pour ce jour.' }}</p></div>
     {% endif %}

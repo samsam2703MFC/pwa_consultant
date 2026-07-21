@@ -43,13 +43,52 @@ class ChecklistController extends Controller
         );
 
         $this->view('checklist/shop_tasks', [
-            'data'       => $data,
-            'date'       => $date,
-            'shop_id'    => $shopId,
-            'id_shop'    => $shopId,
-            'today'      => date('Y-m-d'),
-            'active_nav' => 'checklists',
+            'data'             => $data,
+            'checklist_groups' => $this->groupTasksByChecklist($data['tasks'] ?? []),
+            'date'             => $date,
+            'shop_id'          => $shopId,
+            'id_shop'          => $shopId,
+            'today'            => date('Y-m-d'),
+            'active_nav'       => 'checklists',
         ]);
+    }
+
+    /**
+     * Regroupe les tâches du jour par checklist (champ checklist_name) pour
+     * l'affichage en accordéon : chaque checklist se déplie sur ses tâches.
+     * Tri : checklists par nom (les tâches sans checklist en dernier),
+     * obligatoires en tête au sein d'un groupe. Chaque groupe porte ses
+     * compteurs (faites / total, obligatoires en attente).
+     *
+     * @return array<int, array{name:string, tasks:array, total:int, done:int, mandatory_pending:int}>
+     */
+    private function groupTasksByChecklist(array $tasks): array
+    {
+        $groups = [];
+        foreach ($tasks as $t) {
+            $key = trim((string)($t['checklist_name'] ?? ''));
+            $groups[$key]['name'] = $key;
+            $groups[$key]['tasks'][] = $t;
+        }
+
+        uksort($groups, function (string $a, string $b): int {
+            if ($a === '') return 1;   // « Sans checklist » toujours en dernier
+            if ($b === '') return -1;
+            return strnatcasecmp($a, $b);
+        });
+
+        foreach ($groups as &$g) {
+            usort($g['tasks'], fn($x, $y) => empty($x['is_mandatory']) <=> empty($y['is_mandatory']));
+            $g['total'] = count($g['tasks']);
+            $g['done'] = count(array_filter($g['tasks'], fn($t) => ($t['status'] ?? '') === 'DONE'));
+            $g['mandatory_pending'] = count(array_filter(
+                $g['tasks'],
+                fn($t) => !empty($t['is_mandatory']) && ($t['status'] ?? 'PENDING') !== 'DONE'
+            ));
+        }
+        unset($g);
+
+        return array_values($groups);
     }
 
     public function submitReview(): void
