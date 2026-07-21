@@ -94,12 +94,13 @@ class ShopController extends Controller
 
             // Comparatif N vs N-1. Colonne N : CA temps réel de l'API quand il
             // existe (mois à date = turnover déjà chargé ; semaine = P&L week),
-            // car la base locale peut être alimentée avec du retard — sinon
-            // les derniers jours (donc la ligne « Semaine ») resteraient à 0.
-            // N-1 et année à date : base locale au prorata du CA API.
+            // car la base locale est alimentée avec du retard. L'HISTORIQUE
+            // (N-1, portion passée de l'année) est lu en base SANS redressement :
+            // la base est complète pour les périodes anciennes — seul le récent
+            // manque. Le prorata ne vaut que pour le mois en cours.
             $pnlWeek  = $id > 0 ? $this->shopService->getPnl($id, 'week') : [];
             $weekApi  = isset($pnlWeek['turnover']['value']) ? (float)$pnlWeek['turnover']['value'] : null;
-            $shop['compare'] = $this->buildComparison($id, $compareWindows, $scale, [
+            $shop['compare'] = $this->buildComparison($id, $compareWindows, [
                 'mtd'  => $turnover,
                 'week' => $weekApi,
             ]);
@@ -159,18 +160,29 @@ class ShopController extends Controller
      * Lignes du tableau comparatif : N-1, N, écart %, statut.
      *  ok   : ≥ année passée (vert) · warn : 0 % > écart ≥ −5 % (orange)
      *  late : < −5 % (rouge)        · na   : pas de référence N-1 (gris).
+     *
+     * Valeurs N-1 : base locale telles quelles (historique complet — AUCUN
+     * redressement : le prorata API/DB ne vaut que pour le mois en cours).
+     * Colonne N : API temps réel pour mois à date et semaine ; année à date =
+     * base (portion passée, complète) − mois courant en base (en retard)
+     * + mois à date API.
      */
-    private function buildComparison(int $shopId, array $windows, float $scale, array $apiN = []): array
+    private function buildComparison(int $shopId, array $windows, array $apiN = []): array
     {
         $sums = $shopId > 0 ? $this->shopSales->getWindowSums($shopId, $windows) : [];
 
+        // Année à date N : remplace la portion mois-courant (base en retard)
+        // par le chiffre temps réel de l'API.
+        if (isset($apiN['mtd']) && $apiN['mtd'] !== null) {
+            $apiN['ytd'] = ((float)($sums['ytd_n'] ?? 0)) - ((float)($sums['mtd_n'] ?? 0)) + (float)$apiN['mtd'];
+        }
+
         $rows = [];
         foreach (['ytd', 'mtd', 'week'] as $key) {
-            // Colonne N : valeur API temps réel si disponible, sinon base×prorata.
             $n = isset($apiN[$key]) && $apiN[$key] !== null
                 ? (float)$apiN[$key]
-                : ((float)($sums[$key . '_n'] ?? 0)) * $scale;
-            $n1 = ((float)($sums[$key . '_p'] ?? 0)) * $scale;
+                : (float)($sums[$key . '_n'] ?? 0);
+            $n1 = (float)($sums[$key . '_p'] ?? 0);
 
             $pct = $n1 > 0 ? (($n - $n1) / $n1) * 100 : null;
             $status = 'na';
