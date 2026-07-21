@@ -2,6 +2,7 @@
   "apply": "Applica",
   "avg_basket": "scontrino medio",
   "ca_month": "Fatturato del mese",
+  "ca_share": "del fatturato",
   "compare_gap": "Scarto",
   "compare_mtd": "Mese ad oggi",
   "compare_period": "Periodo",
@@ -26,6 +27,8 @@
   "subtitle": "Panoramica finanziaria · oggi",
   "tickets_per_day": "scontrini / giorno",
   "title": "Negozi",
+  "tm_legend_delta": "Area: quota del fatturato · Colore: variazione vs N-1",
+  "tm_legend_margin": "Area: quota del fatturato · Colore: livello di margine",
   "to": "Al",
   "turnover": "Fatturato"
 }

@@ -2,6 +2,7 @@
   "apply": "Toepassen",
   "avg_basket": "gemiddelde besteding",
   "ca_month": "Omzet deze maand",
+  "ca_share": "van omzet",
   "compare_gap": "Verschil",
   "compare_mtd": "Maand tot nu",
   "compare_period": "Periode",
@@ -26,6 +27,8 @@
   "subtitle": "Financieel overzicht · vandaag",
   "tickets_per_day": "tickets / dag",
   "title": "Winkels",
+  "tm_legend_delta": "Oppervlakte: aandeel in omzet · Kleur: evolutie vs N-1",
+  "tm_legend_margin": "Oppervlakte: aandeel in omzet · Kleur: margeniveau",
   "to": "Tot",
   "turnover": "Omzet"
 }
