@@ -72,7 +72,7 @@
 </div>
 
 <div id="shop-checklists-content" style="display:none;" class="page-content-loaded">
-    <a href="{{ ROOT }}/checklists?date={{ date }}" class="back-link">{{ icons.svg('arrow-left-circle') }}Powrót do rankingu</a>
+    <a href="{{ ROOT }}/checklists?date={{ date }}" class="back-link">{{ icons.svg('arrow-left-circle') }}{{ translations.back_to_ranking ?? 'Retour au classement' }}</a>
 
     {% set cr = summary.completion_rate ?? null %}
     {% set rate_class = cr is not null ? (cr >= 80 ? 'ex' : (cr >= 50 ? 'ok' : 'no')) : 'no' %}

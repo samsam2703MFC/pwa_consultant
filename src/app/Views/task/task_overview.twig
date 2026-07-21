@@ -30,6 +30,46 @@
     .photo-preview { display: none; overflow: hidden; border-radius: 14px; border: 1px solid rgba(0,0,0,.08); background: #fff; }
     .photo-preview img { display: block; width: 100%; height: auto; }
     .sticky-actions { position: sticky; bottom: 0; padding-top: 12px; background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1) 35%); }
+
+    /* Liste déroulante à cases à cocher — tâches prédéfinies de la boutique */
+    .st-toggle {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        width: 100%; min-height: 46px; padding: 10px 12px;
+        background: #fff; border: 1px solid #ced4da; border-radius: 10px;
+        font-size: .9rem; font-weight: 700; color: #212529; text-align: left;
+    }
+    .st-toggle:active { background: #f8f9fa; }
+    .st-toggle .st-caret { flex-shrink: 0; transition: transform .15s ease; color: #6c757d; }
+    .st-toggle[aria-expanded="true"] .st-caret { transform: rotate(180deg); }
+    .st-panel {
+        margin-top: 6px; border: 1px solid #dee2e6; border-radius: 12px; background: #fff;
+        box-shadow: 0 6px 18px rgba(0,0,0,.08); overflow: hidden;
+    }
+    .st-search { padding: 8px; border-bottom: 1px solid #f1f3f5; }
+    .st-search input { width: 100%; border: 1px solid #e9ecef; border-radius: 8px; padding: 8px 10px; font-size: .85rem; }
+    .st-list { max-height: 300px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .st-row {
+        display: flex; align-items: center; gap: 10px;
+        min-height: 44px; padding: 8px 12px; margin: 0; cursor: pointer;
+        font-size: .88rem; color: #212529; border-bottom: 1px solid #f8f9fa;
+    }
+    .st-row:last-child { border-bottom: 0; }
+    .st-row:active { background: #f8f9fa; }
+    .st-row input[type="checkbox"] {
+        width: 22px; height: 22px; flex-shrink: 0; margin: 0; accent-color: #0d6efd;
+    }
+    .st-empty { padding: 14px 12px; font-size: .8rem; color: #adb5bd; text-align: center; }
+    .st-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .st-tag {
+        display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+        background: rgba(13,110,253,.1); color: #0a58ca;
+        border-radius: 999px; padding: 5px 10px; font-size: .76rem; font-weight: 700;
+    }
+    .st-tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .st-tag button {
+        border: 0; background: transparent; color: inherit; padding: 0 2px;
+        font-size: 1rem; line-height: 1; font-weight: 900; cursor: pointer;
+    }
 </style>
 {% endblock %}
 
@@ -49,7 +89,7 @@
             {% if task.category_name or task.base_category_name %}<span class="task-chip">{{ icons.svg('layers') }}{{ task.category_name ?? task.base_category_name }}</span>{% endif %}
             {% if task.subcategory_name or task.base_subcategory_name %}<span class="task-chip">{{ icons.svg('tag') }}{{ task.subcategory_name ?? task.base_subcategory_name }}</span>{% endif %}
             <span class="task-chip">{{ icons.svg('flag') }}P{{ task.priority ?? 5 }}</span>
-            {% if task.is_mandatory %}<span class="task-chip">{{ icons.svg('circle-alert') }}Obowiązkowe</span>{% endif %}
+            {% if task.is_mandatory %}<span class="task-chip">{{ icons.svg('circle-alert') }}{{ translations.mandatory ?? 'Obligatoire' }}</span>{% endif %}
             {% if requires_photo %}<span class="task-chip photo">{{ icons.svg('camera') }}{{ translations.requires_photo ?? 'Photo requise' }}</span>{% endif %}
         </div>
     </div>
@@ -83,6 +123,30 @@
             <input type="hidden" name="scheduled_for_date" value="{{ scheduled_for_date }}">
             <input type="hidden" name="scheduled_time" value="{{ scheduled_time }}">
             <input type="hidden" name="status" value="DONE">
+
+            {% set shop_tasks = shop_tasks|default([]) %}
+            {% if shop_tasks|length > 0 %}
+            <div class="mb-3">
+                <label class="form-label fw-bold">{{ translations.shop_tasks_label ?? 'Tâches de la boutique' }}</label>
+                <button type="button" class="st-toggle" id="stToggle" aria-expanded="false" aria-controls="stPanel">
+                    <span id="stToggleText">{{ translations.select_tasks ?? 'Sélectionner les tâches…' }}</span>
+                    <span class="st-caret">{{ icons.svg('chevron-down') }}</span>
+                </button>
+                <div class="st-panel" id="stPanel" hidden>
+                    <div class="st-search">
+                        <input type="search" id="stSearch" placeholder="{{ translations.search_tasks_ph ?? 'Rechercher une tâche…' }}" autocomplete="off">
+                    </div>
+                    <div class="st-list" id="stList">
+                        {% for st in shop_tasks %}
+                            <label class="st-row"><input type="checkbox" class="st-check" value="{{ st.name }}"><span>{{ st.name }}</span></label>
+                        {% endfor %}
+                        <div class="st-empty" id="stEmpty" hidden>{{ translations.no_task_match ?? 'Aucune tâche ne correspond.' }}</div>
+                    </div>
+                </div>
+                <div class="st-tags" id="stTags"></div>
+                <div class="form-text">{{ translations.shop_tasks_hint ?? 'Les tâches cochées seront ajoutées à la note.' }}</div>
+            </div>
+            {% endif %}
 
             <div class="mb-3">
                 <label class="form-label fw-bold">{{ translations.note ?? 'Note' }}</label>
@@ -153,6 +217,94 @@
         }
         button.disabled = false;
     });
+})();
+
+/* Tâches prédéfinies de la boutique : drop-list cochable → tags → note. */
+(function () {
+    const toggle = document.getElementById('stToggle');
+    const panel = document.getElementById('stPanel');
+    if (!toggle || !panel) return;
+
+    const toggleText = document.getElementById('stToggleText');
+    const search = document.getElementById('stSearch');
+    const empty = document.getElementById('stEmpty');
+    const tags = document.getElementById('stTags');
+    const form = document.getElementById('completeForm');
+    const note = form ? form.querySelector('textarea[name="note"]') : null;
+    const checks = Array.prototype.slice.call(panel.querySelectorAll('.st-check'));
+    const defaultText = toggleText ? toggleText.textContent : '';
+    const selectedWord = {{ (translations.tasks_selected ?? 'sélectionnée(s)')|json_encode|raw }};
+    const noteLabel = {{ (translations.controlled_tasks ?? 'Tâches contrôlées')|json_encode|raw }};
+
+    toggle.addEventListener('click', function () {
+        const open = panel.hasAttribute('hidden');
+        if (open) { panel.removeAttribute('hidden'); } else { panel.setAttribute('hidden', ''); }
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open && search) search.focus({ preventScroll: true });
+    });
+
+    function selected() {
+        return checks.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+    }
+
+    function refresh() {
+        const names = selected();
+        if (toggleText) {
+            toggleText.textContent = names.length > 0 ? names.length + ' ' + selectedWord : defaultText;
+        }
+        if (!tags) return;
+        tags.innerHTML = '';
+        names.forEach(function (name) {
+            const tag = document.createElement('span');
+            tag.className = 'st-tag';
+            const label = document.createElement('span');
+            label.textContent = name;
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.setAttribute('aria-label', 'remove');
+            remove.textContent = '×';
+            remove.addEventListener('click', function () {
+                const box = checks.find(function (c) { return c.value === name; });
+                if (box) box.checked = false;
+                refresh();
+            });
+            tag.appendChild(label);
+            tag.appendChild(remove);
+            tags.appendChild(tag);
+        });
+    }
+
+    checks.forEach(function (c) { c.addEventListener('change', refresh); });
+
+    if (search) {
+        search.addEventListener('input', function () {
+            const q = search.value.trim().toLowerCase();
+            let visible = 0;
+            checks.forEach(function (c) {
+                const row = c.closest('.st-row');
+                const match = q === '' || c.value.toLowerCase().indexOf(q) !== -1;
+                if (row) row.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+            if (empty) {
+                if (visible === 0) { empty.removeAttribute('hidden'); } else { empty.setAttribute('hidden', ''); }
+            }
+        });
+    }
+
+    // À l'envoi : fusionne les tâches cochées en tête de note (bloc « Tâches
+    // contrôlées »). Un bloc déjà présent (re-soumission après erreur) est
+    // remplacé, jamais dupliqué.
+    if (form && note) {
+        form.addEventListener('submit', function () {
+            const names = selected();
+            const escaped = noteLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const rest = note.value.replace(new RegExp('^' + escaped + ' :\\n(?:• [^\\n]*\\n?)*\\n?'), '');
+            if (names.length === 0) { note.value = rest; return; }
+            const block = noteLabel + ' :\n' + names.map(function (n) { return '• ' + n; }).join('\n');
+            note.value = block + (rest.trim() !== '' ? '\n\n' + rest : '');
+        });
+    }
 })();
 </script>
 {% endblock %}
