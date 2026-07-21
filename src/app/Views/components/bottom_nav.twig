@@ -10,8 +10,8 @@
 {% set items = items ?? [
     {
         key: 'dashboard',
-        label: 'Accueil',
-        sub:   'Aperçu du jour',
+        label: translations.nav_home ?? 'Accueil',
+        sub:   translations.nav_home_sub ?? 'Aperçu du jour',
         icon:  'home',
         color: '#8D1D2C',
         bg:    'rgba(141,29,44,.12)',
@@ -20,8 +20,8 @@
     },
     {
         key: 'shops',
-        label: 'Boutiques',
-        sub:   'Chiffre d\'affaires et synthèse',
+        label: translations.nav_shops ?? 'Boutiques',
+        sub:   translations.nav_shops_sub ?? 'Chiffre d\'affaires et synthèse',
         icon:  'store',
         color: '#8D1D2C',
         bg:    'rgba(141,29,44,.12)',
@@ -29,8 +29,8 @@
     },
     {
         key: 'reports',
-        label: 'Rapports',
-        sub:   'Envoi de rapports PDF',
+        label: translations.nav_reports ?? 'Rapports',
+        sub:   translations.nav_reports_sub ?? 'Envoi de rapports PDF',
         icon:  'file-text',
         color: '#2D7A3E',
         bg:    'rgba(45,122,62,.12)',
@@ -38,8 +38,8 @@
     },
     {
         key: 'helpdesk',
-        label: 'Demandes',
-        sub:   'Tickets Helpdesk',
+        label: translations.nav_helpdesk ?? 'Demandes',
+        sub:   translations.nav_helpdesk_sub ?? 'Tickets Helpdesk',
         icon:  'life-buoy',
         color: '#C17A2A',
         bg:    'rgba(193,122,42,.14)',
@@ -47,8 +47,8 @@
     },
     {
         key: 'tasks',
-        label: 'Tâches',
-        sub:   'Tâches du consultant',
+        label: translations.nav_tasks ?? 'Tâches',
+        sub:   translations.nav_tasks_sub ?? 'Tâches du consultant',
         icon:  'square-check',
         color: '#1F4F6B',
         bg:    'rgba(31,79,107,.12)',
@@ -56,8 +56,8 @@
     },
     {
         key: 'claims',
-        label: 'Réclamations',
-        sub:   'Réclamations CENTRAL',
+        label: translations.nav_claims ?? 'Réclamations',
+        sub:   translations.nav_claims_sub ?? 'Réclamations CENTRAL',
         icon:  'circle-alert',
         color: '#8D1D2C',
         bg:    'rgba(141,29,44,.12)',
@@ -65,8 +65,8 @@
     },
     {
         key: 'notes',
-        label: 'Notes',
-        sub:   'Commentaires par boutique',
+        label: translations.nav_notes ?? 'Notes',
+        sub:   translations.nav_notes_sub ?? 'Commentaires par boutique',
         icon:  'square-pen',
         color: '#5C4A8A',
         bg:    'rgba(92,74,138,.12)',
@@ -74,8 +74,8 @@
     },
     {
         key: 'checklists',
-        label: 'Checklists',
-        sub:   'Réalisation des tâches en boutique',
+        label: translations.nav_checklists ?? 'Checklists',
+        sub:   translations.nav_checklists_sub ?? 'Réalisation des tâches en boutique',
         icon:  'clipboard-check',
         color: '#1F4F6B',
         bg:    'rgba(31,79,107,.12)',
@@ -83,8 +83,8 @@
     },
     {
         key: 'targets',
-        label: 'Targets',
-        sub:   'Seuils d\'évaluation des boutiques',
+        label: translations.nav_targets ?? 'Targets',
+        sub:   translations.nav_targets_sub ?? 'Seuils d\'évaluation des boutiques',
         icon:  'target',
         color: '#C17A2A',
         bg:    'rgba(193,122,42,.14)',
@@ -92,8 +92,8 @@
     },
     {
         key: 'profile',
-        label: 'Profil',
-        sub:   'Mon compte et réglages',
+        label: translations.nav_profile ?? 'Profil',
+        sub:   translations.nav_profile_sub ?? 'Mon compte et réglages',
         icon:  'user',
         color: '#8a4a24',
         bg:    'rgba(138,74,36,.12)',
@@ -107,10 +107,10 @@
      id="appNavSheet"
      role="dialog"
      aria-modal="true"
-     aria-label="{{ translations.primary_navigation ?? 'Nawigacja główna' }}">
+     aria-label="{{ translations.primary_navigation ?? 'Navigation principale' }}">
     <div class="app-nav-sheet-header">
         <p class="app-nav-sheet-title">{{ translations.menu ?? 'Menu' }}</p>
-        <button class="app-nav-sheet-close" id="appNavClose" aria-label="{{ translations.close ?? 'Zamknij' }}">
+        <button class="app-nav-sheet-close" id="appNavClose" aria-label="{{ translations.close ?? 'Fermer' }}">
             {{ icons.svg('x', 20) }}
         </button>
     </div>

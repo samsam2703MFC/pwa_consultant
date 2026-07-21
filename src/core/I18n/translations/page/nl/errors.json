@@ -1,0 +1,9 @@
+{
+  "forbidden": "Toegang geweigerd",
+  "forbidden_desc": "U hebt geen rechten om deze pagina te bekijken.",
+  "go_back": "Terug",
+  "not_found": "Pagina niet gevonden",
+  "not_found_desc": "De pagina die u zoekt bestaat niet.",
+  "server_error": "Serverfout",
+  "server_error_desc": "Er is een onverwachte fout opgetreden. Probeer opnieuw."
+}

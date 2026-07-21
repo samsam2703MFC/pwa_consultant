@@ -1,0 +1,23 @@
+{
+  "back": "Retour",
+  "cancel": "Annuler",
+  "choose_shop": "Choisir une boutique",
+  "copy": "Copier les targets",
+  "copy_btn": "Copier",
+  "copy_modal_body": "Vos targets de",
+  "copy_modal_body2": "seront chargés.",
+  "copy_prev_month": "Copier depuis le mois précédent",
+  "incomplete_thresholds": "Seuils incomplets.",
+  "lever": "Levier",
+  "load": "Charger",
+  "month": "Mois",
+  "no_shops": "Aucune boutique disponible.",
+  "save": "Enregistrer les targets",
+  "set_targets": "Définir les targets",
+  "shop_fallback": "Boutique",
+  "shops_targets": "Targets des boutiques",
+  "shops_targets_sub": "Seuils d'évaluation par boutique",
+  "six_levers": "6 Leviers de Pilotage",
+  "title": "Targets",
+  "year": "Année"
+}

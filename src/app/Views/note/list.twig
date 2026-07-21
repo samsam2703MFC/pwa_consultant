@@ -6,9 +6,9 @@
 {% set create_url = list_url ~ '/new' %}
 {% set employee_label = employee.display_name ?? employee.employee_name ?? ((employee.name ?? '') ~ ' ' ~ (employee.surname ?? ''))|trim %}
 
-{% block title %}Notatki — Consultant Panel{% endblock %}
-{% block page_title %}Notatki{% endblock %}
-{% block page_subtitle %}{{ is_employee_context ? ('Pracownik: ' ~ (employee_label ?: ('#' ~ employee_id))) : 'Lista notatek placowki' }}{% endblock %}
+{% block title %}{{ translations.title ?? 'Notes' }} — Consultant Panel{% endblock %}
+{% block page_title %}{{ translations.title ?? 'Notes' }}{% endblock %}
+{% block page_subtitle %}{{ is_employee_context ? ((translations.employee_prefix ?? 'Employé : ') ~ (employee_label ?: ('#' ~ employee_id))) : (translations.shop_notes_list ?? 'Liste des notes de la boutique') }}{% endblock %}
 
 {% block topbar_actions %}
     <a href="{{ create_url }}"
@@ -23,13 +23,13 @@
     <a href="{{ is_employee_context ? (ROOT ~ '/shops/' ~ shop_id ~ '/notes') : (ROOT ~ '/notes') }}"
        class="d-inline-flex align-items-center gap-1 text-muted mb-3"
        style="font-size:.82rem;text-decoration:none;">
-        {{ icons.svg('chevron-left') }} {{ is_employee_context ? 'Notatki sklepu' : 'Wybierz sklep' }}
+        {{ icons.svg('chevron-left') }} {{ is_employee_context ? (translations.shop_notes ?? 'Notes de la boutique') : (translations.choose_shop ?? 'Choisir une boutique') }}
     </a>
 
     {% if not is_employee_context and employees is defined and employees is not empty %}
         <div class="card border-0 shadow-sm mb-3" style="border-radius:16px;">
             <div class="card-body p-3">
-                <div class="fw-700 mb-2" style="font-size:.88rem;">Notatki pracownikow</div>
+                <div class="fw-700 mb-2" style="font-size:.88rem;">{{ translations.employee_notes ?? 'Notes des employés' }}</div>
                 <div class="d-flex flex-column gap-2">
                     {% for emp in employees %}
                         {% set emp_label = emp.display_name ?? emp.employee_name ?? ((emp.name ?? '') ~ ' ' ~ (emp.surname ?? ''))|trim %}
@@ -51,7 +51,7 @@
             <p class="mt-3 mb-2">{{ is_employee_context ? 'Brak notatek dla tego pracownika.' : 'Brak notatek dla tej placowki.' }}</p>
             <a href="{{ create_url }}"
                class="btn btn-primary btn-sm rounded-pill px-4">
-                Dodaj pierwsza notatke
+                {{ translations.add_first_note ?? 'Ajouter une première note' }}
             </a>
         </div>
     {% else %}
@@ -68,7 +68,7 @@
                                     </span>
                                 {% else %}
                                     <span class="badge rounded-pill bg-secondary bg-opacity-10 text-secondary"
-                                          style="font-size:.72rem;">Bez kategorii</span>
+                                          style="font-size:.72rem;">{{ translations.no_category ?? 'Sans catégorie' }}</span>
                                 {% endif %}
                                 <span class="text-muted flex-shrink-0" style="font-size:.72rem;">
                                     {{ note.created_at|slice(0,10) }}

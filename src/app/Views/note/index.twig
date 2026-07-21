@@ -2,7 +2,7 @@
 {% import "components/_icons.twig" as icons %}
 {% set active_nav = 'notes' %}
 
-{% block title %}Notes — Panel consultant{% endblock %}
+{% block title %}{{ translations.title ?? 'Notes' }} — Panel consultant{% endblock %}
 
 {% set mn = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'] %}
 {% set chip_colors = [
@@ -18,8 +18,8 @@
     <div class="container">
         <div class="scr-head">
             <div>
-                <div class="scr-title">Notes</div>
-                <div class="scr-sub">Commentaires par boutique</div>
+                <div class="scr-title">{{ translations.title ?? 'Notes' }}</div>
+                <div class="scr-sub">{{ translations.subtitle ?? 'Commentaires par boutique' }}</div>
             </div>
             <button class="app-hamburger" id="appHamburger" aria-label="Menu" aria-expanded="false" aria-controls="appNavSheet">
                 {{ icons.svg('menu', 22) }}
@@ -36,13 +36,13 @@
     {% set uinit = (current_user.first_name ?? '')|slice(0,1) ~ (current_user.last_name ?? '')|slice(0,1) %}
     <a href="{% if first_shop %}{{ ROOT }}/shops/{{ first_shop }}/notes/new{% else %}#nt-shops{% endif %}" class="nt-composer">
         <span class="nt-avatar">{{ uinit|upper|default('•') }}</span>
-        <span class="nt-composer-ph">Ajouter une note…</span>
+        <span class="nt-composer-ph">{{ translations.add_note ?? 'Ajouter une note…' }}</span>
         <span class="nt-composer-btn">{{ icons.svg('plus', 18) }}</span>
     </a>
 
     {# ── Récentes ── #}
     {% if recent is not empty %}
-    <div class="nt-eyebrow">Récentes</div>
+    <div class="nt-eyebrow">{{ translations.recent ?? 'Récentes' }}</div>
     <div class="nt-list">
         {% for n in recent %}
         {% set col = chip_colors[loop.index0 % 4] %}
@@ -60,7 +60,7 @@
 
     {# ── Par boutique ── #}
     {% if by_shop is not empty %}
-    <div class="nt-eyebrow" id="nt-shops">Par boutique</div>
+    <div class="nt-eyebrow" id="nt-shops">{{ translations.by_shop ?? 'Par boutique' }}</div>
     <div class="nt-shopcard">
         {% for s in by_shop %}
         <a href="{{ ROOT }}/shops/{{ s.id }}/notes" class="nt-shoprow{{ loop.last ? ' is-last' : '' }}">

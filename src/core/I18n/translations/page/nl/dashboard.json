@@ -1,0 +1,42 @@
+{
+  "alerts": "Meldingen",
+  "claims_short": "Klachten",
+  "consultant_panel": "Consultantpaneel",
+  "day_names": [
+    "zondag",
+    "maandag",
+    "dinsdag",
+    "woensdag",
+    "donderdag",
+    "vrijdag",
+    "zaterdag"
+  ],
+  "done": "Klaar",
+  "kpi_alerts": "Te behandelen meldingen",
+  "kpi_ca_today": "Omzet vandaag",
+  "kpi_checklists": "Checklists",
+  "kpi_tasks_done": "Uitgevoerde taken",
+  "month_names": [
+    "januari",
+    "februari",
+    "maart",
+    "april",
+    "mei",
+    "juni",
+    "juli",
+    "augustus",
+    "september",
+    "oktober",
+    "november",
+    "december"
+  ],
+  "notes": "Notities",
+  "pnl_detail": "P&L-detail",
+  "reports": "Rapporten",
+  "see_all": "Alles bekijken",
+  "shortcuts": "Snelkoppelingen",
+  "targets": "Targets",
+  "today_tasks": "Taken van vandaag",
+  "todo": "Te doen",
+  "your_shops": "Uw winkels"
+}

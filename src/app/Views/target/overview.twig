@@ -1,9 +1,9 @@
 {% extends "layouts/mobile_base.twig" %}
 
 {% import "components/_icons.twig" as icons %}
-{% block title %}Targety{% endblock %}
-{% block page_title %}Targety sklepów{% endblock %}
-{% block page_subtitle %}Wybierz sklep{% endblock %}
+{% block title %}{{ translations.title ?? 'Targets' }}{% endblock %}
+{% block page_title %}{{ translations.shops_targets ?? 'Targets des boutiques' }}{% endblock %}
+{% block page_subtitle %}{{ translations.choose_shop ?? 'Choisir une boutique' }}{% endblock %}
 
 {% block content %}
 <div class="page-content-loaded">
@@ -11,7 +11,7 @@
     {% if shops is empty %}
         <div class="text-center text-muted py-5">
             <span style="font-size:2.5rem;opacity:.3;">{{ icons.svg('target') }}</span>
-            <p class="mt-3">Brak dostępnych sklepów.</p>
+            <p class="mt-3">{{ translations.no_shops ?? 'Aucune boutique disponible.' }}</p>
         </div>
     {% else %}
         <div class="d-flex flex-column gap-2 px-3">
@@ -26,7 +26,7 @@
                             </div>
                             <div>
                                 <div class="fw-semibold text-dark">{{ shop.representative_name ?? shop.name ?? 'Sklep' }}</div>
-                                <small class="text-muted">Ustaw targety</small>
+                                <small class="text-muted">{{ translations.set_targets ?? 'Définir les targets' }}</small>
                             </div>
                             <span class="ms-auto text-muted">{{ icons.svg('chevron-right') }}</span>
                         </div>

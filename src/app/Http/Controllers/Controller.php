@@ -52,7 +52,7 @@ class Controller
         $splittedPathElems = explode('/', $name);
         $moduleName = $splittedPathElems[0] ?? 'login';
 
-        $langCode = GlobalRegistry::get('lang_code');
+        $langCode = GlobalRegistry::get('lang_code') ?: resolveAppLanguage();
 
         $globalTranslations = loadTranslations('page', $langCode, 'components');
         $moduleTranslations  = loadTranslations('page', $langCode, $moduleName);

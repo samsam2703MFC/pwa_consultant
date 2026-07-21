@@ -1,0 +1,12 @@
+{
+  "account": "Compte",
+  "language": "Langue",
+  "logout": "Déconnexion",
+  "membership": "Adhésion",
+  "name": "Nom",
+  "preferred_language": "Langue préférée",
+  "preferred_language_hint": "S'applique à l'affichage du panel sur cet appareil.",
+  "scope": "Périmètre",
+  "subtitle": "Mon compte",
+  "title": "Profil"
+}

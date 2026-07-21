@@ -28,7 +28,7 @@ class AuthMiddleware {
                 'scope_id'      => null,
                 'membership_id' => null,
             ]);
-            GlobalRegistry::set('lang_code', getUserLanguage());
+            GlobalRegistry::set('lang_code', resolveAppLanguage());
             return; // grants access to every route; per-route permission checks skipped
         }
 
@@ -53,7 +53,7 @@ class AuthMiddleware {
                 'membership_id'=> isset($claims['mid']) ? (int)$claims['mid'] : null,
             ]);
 
-            GlobalRegistry::set('lang_code', (string)($claims['usr_ln'] ?? getUserLanguage()));
+            GlobalRegistry::set('lang_code', resolveAppLanguage($claims['usr_ln'] ?? null));
         }
 
         // --- Sprawdzenie uprawnienia per-trasa (opcjonalne) ---

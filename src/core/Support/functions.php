@@ -56,7 +56,7 @@ function old_checkbox(string $key, string $value, string $default = ''): string
  * @param string      $defaultLang — fallback język
  * @return array
  */
-function loadTranslations(string $type, ?string $lang, ?string $module = null, string $defaultLang = 'en'): array
+function loadTranslations(string $type, ?string $lang, ?string $module = null, string $defaultLang = 'fr'): array
 {
     $lang     = $lang ?: $defaultLang;
     $basePath = __DIR__ . '/../I18n/translations/';
@@ -87,6 +87,36 @@ function getUserLanguage(): string
     $code           = substr($primary, 0, 2);
 
     return !empty($code) ? strtolower($code) : 'pl';
+}
+
+/**
+ * Langue effective de l'application, dans l'ordre de priorité :
+ *   1. préférence explicite du consultant (cookie consultant_lang, posé par
+ *      le sélecteur de langue du profil),
+ *   2. langue du compte (claim JWT usr_ln),
+ *   3. langue du navigateur.
+ * Bornée aux langues supportées par le panel ; défaut : français.
+ */
+function resolveAppLanguage(?string $accountLang = null): string
+{
+    $supported = ['fr', 'nl'];
+
+    $cookie = strtolower(substr((string)($_COOKIE['consultant_lang'] ?? ''), 0, 2));
+    if (in_array($cookie, $supported, true)) {
+        return $cookie;
+    }
+
+    $account = strtolower(substr((string)$accountLang, 0, 2));
+    if (in_array($account, $supported, true)) {
+        return $account;
+    }
+
+    $browser = strtolower(substr(getUserLanguage(), 0, 2));
+    if (in_array($browser, $supported, true)) {
+        return $browser;
+    }
+
+    return 'fr';
 }
 
 function sanitizeSlug(string $slug): string

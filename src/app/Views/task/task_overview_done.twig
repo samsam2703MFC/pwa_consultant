@@ -2,9 +2,9 @@
 {% import "components/_icons.twig" as icons %}
 {% set active_nav = 'tasks' %}
 
-{% block title %}Realizacja zadania{% endblock %}
-{% block page_title %}Realizacja zadania{% endblock %}
-{% block page_subtitle %}Podgląd wykonania{% endblock %}
+{% block title %}{{ translations.task_done_title ?? 'Réalisation de la tâche' }}{% endblock %}
+{% block page_title %}{{ translations.task_done_title ?? 'Réalisation de la tâche' }}{% endblock %}
+{% block page_subtitle %}{{ translations.done_preview ?? "Aperçu de l'exécution" }}{% endblock %}
 
 {% block head %}
 <style>
@@ -30,7 +30,7 @@
 {% set signed_url = signed.url ?? null %}
 
 {% if not completion %}
-    <div class="done-card text-center text-muted">Nie znaleziono realizacji zadania.</div>
+    <div class="done-card text-center text-muted">{{ translations.completion_not_found ?? 'Réalisation introuvable.' }}</div>
 {% else %}
     <div class="done-hero">
         <h2 class="done-title">{{ completion.task_name ?? 'Zadanie zrealizowane' }}</h2>
@@ -42,11 +42,11 @@
     </div>
 
     <div class="done-card">
-        <div class="section-title">Szczegóły</div>
+        <div class="section-title">{{ translations.details ?? 'Détails' }}</div>
         {% if completion.task_description %}
             <div class="done-desc">{{ completion.task_description }}</div>
         {% else %}
-            <div class="text-muted">Brak opisu.</div>
+            <div class="text-muted">{{ translations.no_description ?? 'Pas de description.' }}</div>
         {% endif %}
         <div class="done-chips">
             <span class="done-chip">{{ icons.svg('calendar') }}{{ completion.scheduled_for_date ?? '-' }}</span>
@@ -55,28 +55,28 @@
     </div>
 
     <div class="done-card">
-        <div class="section-title">Notatka</div>
+        <div class="section-title">{{ translations.note ?? 'Note' }}</div>
         {% if completion.note %}
             <div class="note-box">{{ completion.note }}</div>
         {% else %}
-            <div class="text-muted">Brak notatki.</div>
+            <div class="text-muted">{{ translations.no_note ?? 'Pas de note.' }}</div>
         {% endif %}
     </div>
 
     <div class="done-card">
-        <div class="section-title">Zdjęcie</div>
+        <div class="section-title">{{ translations.photo ?? 'Photo' }}</div>
         {% if signed_url %}
-            <div class="photo-box"><img src="{{ signed_url }}" alt="Zdjęcie realizacji" loading="lazy"></div>
+            <div class="photo-box"><img src="{{ signed_url }}" alt="{{ translations.realization_photo ?? 'Photo de la réalisation' }}" loading="lazy"></div>
             <a class="btn btn-light w-100 fw-bold mt-2" href="{{ signed_url }}" target="_blank" rel="noopener">
                 {{ icons.svg('external-link') }} Otwórz w nowej karcie
             </a>
         {% else %}
-            <div class="text-muted">Brak zdjęcia.</div>
+            <div class="text-muted">{{ translations.no_photo ?? 'Pas de photo.' }}</div>
         {% endif %}
     </div>
 {% endif %}
 
 <a class="btn btn-primary w-100 fw-bold mb-2" href="{{ ROOT }}/tasks">
-    {{ icons.svg('arrow-left') }} Wróć do zadań
+    {{ icons.svg('arrow-left') }} {{ translations.back_to_tasks ?? 'Retour aux tâches' }}
 </a>
 {% endblock %}
