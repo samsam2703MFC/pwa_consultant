@@ -1,6 +1,8 @@
 {
   "add_to_home": "Ajouter à l'écran d'accueil",
   "close": "Fermer",
+  "fullscreen_off": "Quitter le plein écran",
+  "fullscreen_on": "Plein écran",
   "install": "Installer",
   "install_app": "Installer l'application",
   "install_offline_hint": "Ajouter à l'écran d'accueil — fonctionne hors ligne",

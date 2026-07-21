@@ -127,8 +127,24 @@
             </a>
         {% endfor %}
     </div>
+    {# Plein écran (API Fullscreen — équivalent F11 ; masqué si non supporté) #}
+    <button type="button" class="app-nav-fs" id="appFullscreenBtn">
+        <span class="app-nav-fs-ic" id="appFullscreenIcon">{{ icons.svg('maximize', 18) }}</span>
+        <span id="appFullscreenLabel">{{ translations.fullscreen_on ?? 'Plein écran' }}</span>
+    </button>
     <div class="app-nav-sheet-handle"></div>
 </div>
+<style>
+    .app-nav-fs {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        width: calc(100% - 24px); margin: 10px 12px 4px; min-height: 44px;
+        border: 1.5px solid rgba(141,29,44,.25); border-radius: 12px;
+        background: rgba(141,29,44,.06); color: #8D1D2C;
+        font-size: .84rem; font-weight: 800; cursor: pointer;
+    }
+    .app-nav-fs:active { background: rgba(141,29,44,.12); }
+    .app-nav-fs-ic { display: inline-flex; }
+</style>
 <script>
 (function () {
     const btn      = document.getElementById('appHamburger');
@@ -167,5 +183,35 @@
     sheet.addEventListener('touchend', function (e) {
         if (startY - e.changedTouches[0].clientY > 60) closeMenu();
     }, { passive: true });
+
+    // ── Plein écran (API Fullscreen — équivalent F11, sur clic uniquement :
+    //    le navigateur interdit de le forcer sans action utilisateur).
+    //    Sortie : re-clic sur le bouton ou touche Échap (gérée par le
+    //    navigateur). Masqué si l'API n'est pas disponible (ex. iPhone).
+    const fsBtn   = document.getElementById('appFullscreenBtn');
+    const fsLabel = document.getElementById('appFullscreenLabel');
+    if (fsBtn) {
+        const root = document.documentElement;
+        const canFs = root.requestFullscreen || root.webkitRequestFullscreen;
+        if (!canFs) {
+            fsBtn.style.display = 'none';
+        } else {
+            const ON  = {{ (translations.fullscreen_on ?? 'Plein écran')|json_encode|raw }};
+            const OFF = {{ (translations.fullscreen_off ?? 'Quitter le plein écran')|json_encode|raw }};
+            const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+            const refresh = () => { if (fsLabel) fsLabel.textContent = isFs() ? OFF : ON; };
+            fsBtn.addEventListener('click', function () {
+                if (isFs()) {
+                    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+                } else {
+                    (root.requestFullscreen || root.webkitRequestFullscreen).call(root);
+                }
+                closeMenu();
+            });
+            document.addEventListener('fullscreenchange', refresh);
+            document.addEventListener('webkitfullscreenchange', refresh);
+            refresh();
+        }
+    }
 })();
 </script>

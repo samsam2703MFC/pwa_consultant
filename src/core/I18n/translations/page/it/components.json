@@ -1,6 +1,8 @@
 {
   "add_to_home": "Aggiungi alla schermata Home",
   "close": "Chiudi",
+  "fullscreen_off": "Esci da schermo intero",
+  "fullscreen_on": "Schermo intero",
   "install": "Installa",
   "install_app": "Installa l'app",
   "install_offline_hint": "Aggiungi alla schermata Home — funziona offline",

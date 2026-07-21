@@ -1,6 +1,8 @@
 {
   "add_to_home": "Toevoegen aan beginscherm",
   "close": "Sluiten",
+  "fullscreen_off": "Volledig scherm verlaten",
+  "fullscreen_on": "Volledig scherm",
   "install": "Installeren",
   "install_app": "Installeer de app",
   "install_offline_hint": "Toevoegen aan beginscherm — werkt offline",
