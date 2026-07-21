@@ -1,9 +1,65 @@
 {% extends "layouts/mobile_base.twig" %}
 
 {% import "components/_icons.twig" as icons %}
-{% block title %}{{ translations.title ?? 'Targets' }}{% endblock %}
-{% block page_title %}{{ translations.shops_targets ?? 'Targets des boutiques' }}{% endblock %}
-{% block page_subtitle %}{{ translations.choose_shop ?? 'Choisir une boutique' }}{% endblock %}
+{% set active_nav = 'targets' %}
+{% block title %}{{ translations.title ?? 'Targets' }} — Panel consultant{% endblock %}
+
+{% block topbar %}
+<div class="app-topbar">
+    <div class="container">
+        <div class="scr-head">
+            <div>
+                <div class="scr-title">{{ translations.franchise_title ?? 'Targets' }}</div>
+                <div class="scr-sub">{{ translations.franchise_sub ?? 'Les 3 objectifs du franchisé · mois en cours' }}</div>
+            </div>
+            <button class="app-hamburger" id="appHamburger" aria-label="Menu" aria-expanded="false" aria-controls="appNavSheet">
+                {{ icons.svg('menu', 22) }}
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    .tg-shopsel {
+        width: 100%; padding: 10px 12px; border: 1px solid #e7ded2; border-radius: 12px;
+        background: #fff; font-size: .82rem; font-weight: 700; color: #241f1c; margin-bottom: 12px;
+    }
+    .tg-card {
+        background: #fff; border: 1px solid #e7ded2; border-radius: 16px; padding: 4px 14px;
+        box-shadow: 0 10px 24px -18px rgba(70,40,25,.25);
+    }
+    .tg-row { border-top: 1px solid #f3ece2; }
+    .tg-row:first-child { border-top: 0; }
+    .tg-hd { display: flex; align-items: center; gap: 10px; padding: 12px 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .tg-st { font-size: 1rem; font-weight: 900; width: 22px; text-align: center; flex-shrink: 0; }
+    .tg-mid { flex: 1; min-width: 0; }
+    .tg-nm { font-size: .76rem; font-weight: 800; }
+    .tg-trio { display: flex; gap: 14px; margin-top: 3px; font-size: .62rem; color: #7a7168; }
+    .tg-trio b { color: #241f1c; font-size: .72rem; display: block; }
+    .tg-pct { text-align: right; flex-shrink: 0; }
+    .tg-pct b { font-size: 1.02rem; display: block; }
+    .tg-pct small { font-size: .56rem; color: #7a7168; }
+    .g { color: #2D7A3E; } .o { color: #e67e22; } .r { color: #c0182b; } .nd { color: #adb5bd; }
+    .tg-chart {
+        display: none; background: #fffdf9; border: 1px solid #f3ece2; border-radius: 12px;
+        padding: 10px 8px 6px; margin: 0 0 12px 32px;
+    }
+    .tg-row.open .tg-chart { display: block; }
+    .tg-chart .cap { font-size: .58rem; color: #7a7168; margin: 4px 0 2px 4px; }
+    .tg-chart .empty { font-size: .68rem; color: #adb5bd; font-style: italic; padding: 8px 4px; }
+    .tg-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 10px 0 12px; font-size: .58rem; color: #7a7168; }
+    .tg-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+    .tg-encode {
+        display: inline-flex; align-items: center; gap: 5px; margin-top: 12px;
+        font-size: .68rem; font-weight: 700; color: #8D1D2C; text-decoration: none;
+    }
+    .tg-skel { padding: 12px 0; }
+    .tg-skel .l { height: 12px; border-radius: 6px; background: rgba(0,0,0,.06); margin: 10px 0; animation: tgPulse 1.2s ease-in-out infinite; }
+    @keyframes tgPulse { 50% { opacity: .45; } }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="page-content-loaded">
@@ -14,28 +70,259 @@
             <p class="mt-3">{{ translations.no_shops ?? 'Aucune boutique disponible.' }}</p>
         </div>
     {% else %}
-        <div class="d-flex flex-column gap-2 px-3">
-            {% for shop in shops %}
-                <a href="{{ ROOT }}/targets/{{ shop.id }}?year={{ current_year }}&month={{ current_month }}"
-                   class="text-decoration-none">
-                    <div class="card border-0 shadow-sm" style="border-radius:14px;">
-                        <div class="card-body d-flex align-items-center gap-3 py-3">
-                            <div class="rounded-circle d-flex align-items-center justify-content-center"
-                                 style="width:44px;height:44px;background:#f0f4f8;flex-shrink:0;">
-                                <span style="font-size:1.3rem;color:#495057;">{{ icons.svg('target') }}</span>
-                            </div>
-                            <div>
-                                <div class="fw-semibold text-dark">{{ shop.representative_name ?? shop.name ?? 'Sklep' }}</div>
-                                <small class="text-muted">{{ translations.set_targets ?? 'Définir les targets' }}</small>
-                            </div>
-                            <span class="ms-auto text-muted">{{ icons.svg('chevron-right') }}</span>
-                        </div>
-                    </div>
-                </a>
-            {% endfor %}
-        </div>
-    {% endif %}
 
+        <select class="tg-shopsel" id="tgShop" aria-label="{{ translations.shop_fallback ?? 'Boutique' }}">
+            {% for s in shops %}
+                <option value="{{ s.id }}">{{ s.representative_name ?? s.name }}</option>
+            {% endfor %}
+        </select>
+
+        <div class="tg-card">
+            <div class="tg-skel" id="tgSkel">
+                <div class="l" style="width:85%;"></div>
+                <div class="l" style="width:70%;"></div>
+                <div class="l" style="width:78%;"></div>
+            </div>
+            <div id="tgRows"></div>
+            <div class="tg-legend">
+                <span><i style="background:#2D7A3E;"></i>✓ ≥ {{ thresholds.green|number_format(0, ',', ' ') }} % {{ translations.of_objective ?? "de l'objectif" }}</span>
+                <span><i style="background:#e67e22;"></i>⚠ {{ thresholds.orange|number_format(0, ',', ' ') }}–{{ thresholds.green|number_format(0, ',', ' ') }} %</span>
+                <span><i style="background:#c0182b;"></i>● &lt; {{ thresholds.orange|number_format(0, ',', ' ') }} %</span>
+                <span><i style="background:#adb5bd;"></i>— {{ translations.to_encode ?? 'à encoder' }}</span>
+            </div>
+        </div>
+
+        <a class="tg-encode" id="tgEncodeLink" href="{{ ROOT }}/targets/{{ shops[0].id }}?year={{ current_year }}&month={{ current_month }}">
+            {{ icons.svg('square-pen', 14) }} {{ translations.encode_targets ?? 'Encoder les targets de cette boutique' }}
+        </a>
+
+    {% endif %}
 </div>
 {% endblock %}
 
+{% block scripts %}
+{% if shops is not empty %}
+<script>
+const TG_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representative_name ?? s.name)|json_encode|raw }} }{{ loop.last ? '' : ',' }}{% endfor %}];
+const TG_THR   = {{ thresholds|json_encode|raw }};   // % de l'objectif (vert/orange) — configurables côté contrôleur
+const TG_YEAR  = {{ current_year }};
+const TG_MONTH = {{ current_month }};
+const TG_I18N = {
+    b2b:      {{ (translations.kpi_b2b ?? 'Clients B2B développés')|json_encode|raw }},
+    clients:  {{ (translations.kpi_clients ?? 'Clients en magasin vs N-1')|json_encode|raw }},
+    basket:   {{ (translations.kpi_basket ?? 'Panier moyen')|json_encode|raw }},
+    n1:       {{ (translations.lbl_n1 ?? 'N-1')|json_encode|raw }},
+    current:  {{ (translations.lbl_current ?? 'Actuel')|json_encode|raw }},
+    objective:{{ (translations.lbl_objective ?? 'Objectif')|json_encode|raw }},
+    ofObj:    {{ (translations.of_objective ?? "de l'objectif")|json_encode|raw }},
+    toEncode: {{ (translations.to_encode ?? 'à encoder')|json_encode|raw }},
+    chartCap: {{ (translations.chart_cap ?? 'Barres grises = N-1 · barres colorées = actuel (statut du mois) · pointillé = objectif')|json_encode|raw }},
+    chartB2b: {{ (translations.chart_b2b_empty ?? 'Pas de série mensuelle : valeurs B2B à encoder par le franchiseur.')|json_encode|raw }},
+    loading:  {{ (translations.load ?? 'Chargement…')|json_encode|raw }}
+};
+
+(function () {
+    'use strict';
+    const ROOT = window.__consultantRoot || '';
+    const rowsEl = document.getElementById('tgRows');
+    const skelEl = document.getElementById('tgSkel');
+    const shopSel = document.getElementById('tgShop');
+    const encodeLink = document.getElementById('tgEncodeLink');
+    if (!rowsEl) return;
+
+    const nf0 = new Intl.NumberFormat('fr-BE', { maximumFractionDigits: 0 });
+    const nf2 = new Intl.NumberFormat('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtBy = (v, unit) => v == null ? '—' : (unit === 'amount' ? nf2.format(v) + ' €' : (unit === 'pct' ? nf0.format(v) + ' %' : nf0.format(Math.round(v))));
+    const pad = n => (n < 10 ? '0' : '') + n;
+    const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+
+    // Statut vs objectif : % = valeur/objectif (objectif/valeur si « plus
+    // bas = mieux »). Seuils TG_THR configurables côté contrôleur.
+    function pctOf(v, obj, lower) {
+        if (v == null || obj == null || obj <= 0 || (lower && v <= 0)) return null;
+        return (lower ? obj / v : v / obj) * 100;
+    }
+    function stOf(pct) {
+        if (pct == null) return 'nd';
+        if (pct >= TG_THR.green) return 'g';
+        if (pct >= TG_THR.orange) return 'o';
+        return 'r';
+    }
+    const ST_ICON = { g: '✓', o: '⚠', r: '●', nd: '—' };
+    const ST_HEX  = { g: '#2D7A3E', o: '#e67e22', r: '#c0182b', nd: '#adb5bd' };
+
+    // ── Fenêtres mois-à-date N et N-1 (mêmes dates, un an plus tôt) ──
+    function mtdWindows() {
+        const now = new Date();
+        const from = new Date(now.getFullYear(), now.getMonth(), 1);
+        const fromP = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+        const toP = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        return { n: { from: iso(from), to: iso(now) }, p: { from: iso(fromP), to: iso(toP) } };
+    }
+    // Fenêtre d'un mois entier décalé de `back` mois (mois courant → MTD).
+    function monthWindow(back, yearsBack) {
+        const now = new Date();
+        const y = now.getFullYear() - (yearsBack || 0);
+        const first = new Date(y, now.getMonth() - back, 1);
+        let last = new Date(first.getFullYear(), first.getMonth() + 1, 0);
+        if (back === 0) last = new Date(y, now.getMonth(), now.getDate());
+        return { from: iso(first), to: iso(last), label: first.toLocaleDateString(document.documentElement.lang || 'fr', { month: 'short' }) };
+    }
+
+    function fetchSales(shopId, w, done) {
+        ConsultantAjax.load({
+            endpoint: '/shops/' + shopId + '/day-sales',
+            params: { from: w.from, to: w.to },
+            onSuccess: r => done((r && r.data) || null),
+            onError: () => done(null),
+        });
+    }
+
+    // ── Chargement du mois courant (les 3 lignes) ──
+    const _cache = {};   // shopId → state
+    let curShop = Number(shopSel.value);
+
+    function load(shopId) {
+        skelEl.style.display = '';
+        rowsEl.innerHTML = '';
+        const st = { fr: null, n: null, p: null, series: {} };
+        let pending = 3;
+        const step = () => { if (--pending === 0) { _cache[shopId] = st; if (shopId === curShop) render(st); } };
+
+        ConsultantAjax.load({
+            endpoint: '/targets/' + shopId + '/franchise-data',
+            params: { year: TG_YEAR, month: TG_MONTH },
+            onSuccess: r => { st.fr = ((r || {}).data || {}).kpis || null; step(); },
+            onError: step,
+        });
+        const w = mtdWindows();
+        fetchSales(shopId, w.n, d => { st.n = d; step(); });
+        fetchSales(shopId, w.p, d => { st.p = d; step(); });
+    }
+
+    function kpiModel(st) {
+        const fr = st.fr || {};
+        const un = (fr.basket && fr.basket.unit) || 'amount';
+        return [
+            { key: 'b2b', nm: TG_I18N.b2b, unit: (fr.b2b && fr.b2b.unit) || '',
+              n1: null, val: fr.b2b ? fr.b2b.value : null,
+              obj: fr.b2b ? fr.b2b.objective : null, lower: !!(fr.b2b && fr.b2b.lower) },
+            { key: 'clients', nm: TG_I18N.clients, unit: '',
+              n1: st.p ? Number(st.p.tickets) || null : null,
+              val: st.n ? Number(st.n.tickets) || null : null,
+              obj: fr.clients ? fr.clients.objective : null, lower: !!(fr.clients && fr.clients.lower) },
+            { key: 'basket', nm: TG_I18N.basket, unit: un,
+              n1: st.p && st.p.avg_basket != null ? Number(st.p.avg_basket) : null,
+              val: st.n && st.n.avg_basket != null ? Number(st.n.avg_basket) : null,
+              obj: fr.basket ? fr.basket.objective : null, lower: !!(fr.basket && fr.basket.lower) },
+        ];
+    }
+
+    function render(st) {
+        skelEl.style.display = 'none';
+        rowsEl.innerHTML = kpiModel(st).map(k => {
+            const pct = pctOf(k.val, k.obj, k.lower);
+            const s = stOf(pct);
+            const pctTxt = pct == null
+                ? '<b class="nd">—</b><small>' + TG_I18N.toEncode + '</small>'
+                : '<b class="' + s + '">' + String(Math.round(pct * 10) / 10).replace('.', ',') + ' %</b><small>' + TG_I18N.ofObj + '</small>';
+            return '<div class="tg-row" data-kpi="' + k.key + '">'
+                + '<div class="tg-hd" role="button" aria-expanded="false">'
+                + '<span class="tg-st ' + s + '">' + ST_ICON[s] + '</span>'
+                + '<div class="tg-mid"><div class="tg-nm">' + k.nm + '</div>'
+                + '<div class="tg-trio">'
+                + '<span>' + TG_I18N.n1 + '<b>' + fmtBy(k.n1, k.unit) + '</b></span>'
+                + '<span>' + TG_I18N.current + '<b class="' + s + '">' + fmtBy(k.val, k.unit) + '</b></span>'
+                + '<span>' + TG_I18N.objective + '<b>' + fmtBy(k.obj, k.unit) + '</b></span>'
+                + '</div></div>'
+                + '<div class="tg-pct">' + pctTxt + '</div>'
+                + '</div>'
+                + '<div class="tg-chart"><div class="empty">' + TG_I18N.loading + '</div></div>'
+                + '</div>';
+        }).join('');
+
+        rowsEl.querySelectorAll('.tg-hd').forEach(hd => hd.addEventListener('click', function () {
+            const row = this.closest('.tg-row');
+            const open = row.classList.toggle('open');
+            this.setAttribute('aria-expanded', open ? 'true' : 'false');
+            rowsEl.querySelectorAll('.tg-row').forEach(r2 => { if (r2 !== row) r2.classList.remove('open'); });
+            if (open) drawChart(curShop, row.dataset.kpi, row.querySelector('.tg-chart'));
+        }));
+    }
+
+    // ── Graphique V2 : barres mensuelles N (colorées) vs N-1 (grises) ──
+    // 6 derniers mois ; couleur de chaque barre N = statut du mois vs
+    // l'objectif du mois courant (ligne pointillée). B2B : pas de série
+    // POS → message tant que le franchiseur n'encode pas de mensuel.
+    const MONTHS_BACK = 6;
+
+    function drawChart(shopId, kpi, host) {
+        const st = _cache[shopId];
+        if (!st) return;
+        if (kpi === 'b2b') { host.innerHTML = '<div class="empty">' + TG_I18N.chartB2b + '</div>'; return; }
+        if (st.series[kpi]) { host.innerHTML = st.series[kpi]; return; }
+
+        const pts = [];
+        let pending = MONTHS_BACK * 2;
+        for (let i = MONTHS_BACK - 1; i >= 0; i--) {
+            (function (i) {
+                const wN = monthWindow(i, 0), wP = monthWindow(i, 1);
+                const p = { label: wN.label, n: null, p: null };
+                pts[MONTHS_BACK - 1 - i] = p;
+                fetchSales(shopId, wN, d => { p.n = metricOf(d, kpi); if (--pending === 0) finish(); });
+                fetchSales(shopId, wP, d => { p.p = metricOf(d, kpi); if (--pending === 0) finish(); });
+            })(i);
+        }
+
+        function metricOf(d, kpi) {
+            if (!d) return null;
+            if (kpi === 'clients') { const t = Number(d.tickets); return isFinite(t) && t > 0 ? t : null; }
+            const b = Number(d.avg_basket); return isFinite(b) && b > 0 ? b : null;
+        }
+
+        function finish() {
+            const fr = (st.fr || {})[kpi] || {};
+            const obj = fr.objective != null ? Number(fr.objective) : null;
+            const lower = !!fr.lower;
+            const vals = pts.flatMap(p => [p.n, p.p]).filter(v => v != null);
+            if (obj != null) vals.push(obj);
+            if (!vals.length) { host.innerHTML = '<div class="empty">' + TG_I18N.toEncode + '</div>'; st.series[kpi] = host.innerHTML; return; }
+            const max = Math.max.apply(null, vals) * 1.12;
+            const W = 320, H = 120, base = 106, top = 10, span = base - top;
+            const groupW = (W - 28) / MONTHS_BACK;
+            const bw = Math.min(13, groupW / 3);
+            let svg = '';
+            if (obj != null) {
+                const y = base - (obj / max) * span;
+                svg += '<line x1="24" y1="' + y.toFixed(1) + '" x2="' + (W - 4) + '" y2="' + y.toFixed(1) + '" stroke="#241f1c" stroke-width="1.5" stroke-dasharray="5 4"/>'
+                    + '<text x="' + (W - 4) + '" y="' + (y - 4).toFixed(1) + '" font-size="8" fill="#241f1c" text-anchor="end" font-weight="700">' + TG_I18N.objective + '</text>';
+            }
+            pts.forEach((p, idx) => {
+                const x0 = 26 + idx * groupW;
+                if (p.p != null) {
+                    const h = (p.p / max) * span;
+                    svg += '<rect x="' + x0.toFixed(1) + '" y="' + (base - h).toFixed(1) + '" width="' + bw + '" height="' + h.toFixed(1) + '" rx="3" fill="#d9d1c6"/>';
+                }
+                if (p.n != null) {
+                    const h = (p.n / max) * span;
+                    const col = ST_HEX[stOf(pctOf(p.n, obj, lower))] || ST_HEX.nd;
+                    svg += '<rect x="' + (x0 + bw + 3).toFixed(1) + '" y="' + (base - h).toFixed(1) + '" width="' + bw + '" height="' + h.toFixed(1) + '" rx="3" fill="' + col + '"/>';
+                }
+                svg += '<text x="' + (x0 + bw + 1.5).toFixed(1) + '" y="118" font-size="7.5" fill="#9a9086" text-anchor="middle">' + p.label + '</text>';
+            });
+            host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%">' + svg + '</svg>'
+                + '<div class="cap">' + TG_I18N.chartCap + '</div>';
+            st.series[kpi] = host.innerHTML;
+        }
+    }
+
+    shopSel.addEventListener('change', function () {
+        curShop = Number(this.value);
+        if (encodeLink) encodeLink.href = ROOT + '/targets/' + curShop + '?year=' + TG_YEAR + '&month=' + TG_MONTH;
+        _cache[curShop] ? render(_cache[curShop]) : load(curShop);
+    });
+    load(curShop);
+})();
+</script>
+{% endif %}
+{% endblock %}
