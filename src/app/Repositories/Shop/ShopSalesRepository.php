@@ -24,7 +24,9 @@ class ShopSalesRepository
      * lignes à 0 € (tickets pas encore enrichis, opérations de caisse) et
      * négatives (annulations) sont exclues, sinon panier écrasé et
      * tickets surévalués. Fenêtre bornée sur insert_timestamp, semi-ouverte
-     * [from 00:00, to+1j 00:00). tickets = COUNT(DISTINCT id_device,
+     * [from 00:00, to+1j 00:00). tickets = COUNT(DISTINCT ticket_key) — le
+     * numéro de ticket est unique par ticket émis AU SEIN d'un magasin, et
+     * la requête filtre déjà sur id_shop (clé effective : id_shop +
      * ticket_key) ; produits = sous-requête agrégée sur transaction_product
      * (colonnes FK/quantité détectées ; table absente → 0).
      *
@@ -67,7 +69,7 @@ class ShopSalesRepository
             }
 
             $stmt = $pdo->prepare(
-                'SELECT COUNT(DISTINCT t.id_device, t.ticket_key)                 AS tickets,
+                'SELECT COUNT(DISTINCT t.ticket_key)                              AS tickets,
                         COALESCE(SUM(t.total_gross_amount_after_discount), 0)     AS ca,
                         ' . $productsExpr . '                                     AS products
                  FROM transaction t
