@@ -101,6 +101,69 @@ class ShopSalesRepository
     }
 
     /**
+     * DIAGNOSTIC des KPI : toutes les variantes de comptage sur la fenêtre,
+     * plus un échantillon de lignes brutes — pour confronter aux chiffres
+     * POS réels et identifier la bonne définition une fois pour toutes.
+     * Exposé par /shops/{id}/day-sales?debug=1 (session connectée requise).
+     */
+    public function getSalesDebug(int $shopId, string $fromDate, string $toDate): array
+    {
+        $pdo = Database::pdo();
+        if ($pdo === null) {
+            return ['error' => 'db indisponible'];
+        }
+
+        try {
+            $from   = $fromDate . ' 00:00:00';
+            $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
+
+            $stmt = $pdo->prepare(
+                'SELECT COUNT(*)                                                        AS lignes,
+                        COUNT(DISTINCT ticket_key)                                      AS keys_toutes,
+                        COUNT(DISTINCT CASE WHEN total_gross_amount_after_discount > 0 THEN ticket_key END) AS keys_pos,
+                        COUNT(DISTINCT CASE WHEN total_gross_amount_after_discount = 0 THEN ticket_key END) AS keys_zero,
+                        COUNT(DISTINCT CASE WHEN total_gross_amount_after_discount < 0 THEN ticket_key END) AS keys_neg,
+                        COUNT(DISTINCT id_device)                                       AS devices,
+                        COALESCE(SUM(total_gross_amount_after_discount), 0)             AS ca_total,
+                        COALESCE(SUM(CASE WHEN total_gross_amount_after_discount > 0
+                                          THEN total_gross_amount_after_discount END), 0) AS ca_pos,
+                        MIN(insert_timestamp)                                           AS premier,
+                        MAX(insert_timestamp)                                           AS dernier
+                 FROM transaction
+                 WHERE id_shop = :id
+                   AND insert_timestamp >= :from
+                   AND insert_timestamp <  :toExcl'
+            );
+            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
+            $agg = $stmt->fetch() ?: [];
+
+            $stmt = $pdo->prepare(
+                'SELECT id, id_device, ticket_key, total_gross_amount_after_discount AS total, insert_timestamp
+                 FROM transaction
+                 WHERE id_shop = :id
+                   AND insert_timestamp >= :from
+                   AND insert_timestamp <  :toExcl
+                 ORDER BY insert_timestamp DESC
+                 LIMIT 8'
+            );
+            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
+            $samples = $stmt->fetchAll();
+
+            $tpCols = $this->transactionProductCols($pdo);
+
+            return [
+                'fenetre'          => [$from, $toExcl],
+                'agregats'         => $agg,
+                'kpi_calcules'     => $this->getSalesKpis($shopId, $fromDate, $toDate),
+                'colonnes_produit' => $tpCols === null ? 'table/FK introuvable' : ['fk' => $tpCols[0], 'quantite' => $tpCols[1] ?? 'COUNT(lignes)'],
+                'echantillon'      => $samples,
+            ];
+        } catch (Throwable $e) {
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Fenêtre de dates métier [from, to] (inclusives, Y-m-d) pour une période
      * standard : day = aujourd'hui · week = lundi → aujourd'hui ·
      * month = 1er du mois → aujourd'hui.
