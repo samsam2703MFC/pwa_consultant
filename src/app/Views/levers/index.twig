@@ -330,6 +330,59 @@ const SIXL_LEVERS = [
             .catch(() => null);
     }
 
+    // ── Coût matière total sur une fenêtre (MÊME source que Boutiques) ──
+    // Endpoint BACKEND product-category-groups (via le proxy) ; on somme le
+    // coût matière de chaque catégorie, une seule clé coût par entrée pour
+    // ne pas doubler (material_cost / total_cost redondants). null si rien.
+    const _catFoodCache = {};
+
+    function extractFoodTotal(node) {
+        let total = 0, found = false;
+        const numOf = v => (typeof v === 'number') ? v
+            : (typeof v === 'string' && v !== '' && isFinite(v)) ? Number(v)
+            : (v && typeof v === 'object' && typeof v.value === 'number') ? v.value : null;
+        const COST_PREFS = ['material_cost', 'materials_cost', 'food_cost', 'goods_cost', 'cost_of_goods', 'purchase_cost', 'total_cost', 'cost'];
+        const skip = k => /(pct|percent|ratio|rate|delta|margin|qty|quantity|count)/i.test(k);
+        (function walk(n) {
+            if (Array.isArray(n)) { n.forEach(walk); return; }
+            if (!n || typeof n !== 'object') return;
+            let name = null;
+            ['category_name', 'category', 'group_name', 'name', 'label'].some(k => {
+                if (typeof n[k] === 'string' && n[k].trim() !== '') { name = n[k].trim(); return true; }
+                return false;
+            });
+            if (name) {
+                let cost = null;
+                for (let p = 0; p < COST_PREFS.length && cost == null; p++) {
+                    for (const k in n) { if (skip(k)) continue; if (k.toLowerCase() === COST_PREFS[p]) { const x = numOf(n[k]); if (x != null) cost = x; break; } }
+                }
+                if (cost == null) {
+                    for (const k in n) { if (skip(k)) continue; if (/cost/i.test(k)) { const x = numOf(n[k]); if (x != null) { cost = x; break; } } }
+                }
+                if (cost != null) { total += cost; found = true; }
+            }
+            for (const k in n) {
+                if (Object.prototype.hasOwnProperty.call(n, k) && n[k] && typeof n[k] === 'object') walk(n[k]);
+            }
+        })(node);
+        return found ? total : null;
+    }
+
+    function fetchCatFoodTotal(shopId, from, to, done) {
+        const ck = shopId + '|' + from + '|' + to;
+        if (ck in _catFoodCache) { done(_catFoodCache[ck]); return; }
+        const groupings = ['category', 'group', 'month'];
+        (function attempt(i) {
+            if (i >= groupings.length) { _catFoodCache[ck] = null; done(null); return; }
+            ConsultantAjax.load({
+                endpoint: '/shops/' + shopId + '/statistics/sales/product-category-groups',
+                params: { date_from: from, date_to: to, grouping: groupings[i] },
+                onSuccess: resp => { const t = extractFoodTotal(resp); if (t != null) { _catFoodCache[ck] = t; done(t); } else attempt(i + 1); },
+                onError: () => attempt(i + 1),
+            });
+        })(0);
+    }
+
     function loadShop(shopId, period, done) {
         const m = { ticketsDay: null, avgBasket: null, foodPct: null, grossPct: null, labourPct: null, weekEvo: null, googleRating: null };
         let pending = 5;
@@ -351,13 +404,22 @@ const SIXL_LEVERS = [
                 const L = Number(d.labour && d.labour.value) || 0;
                 const OC = Number(d.overhead && d.overhead.value) || 0;
                 const R = Number(d.result && d.result.value) || 0;
-                if (T > 0) {
-                    const F = T - L - OC - R;   // même dérivation que la page Boutiques
-                    m.foodPct   = (F / T) * 100;
-                    m.grossPct  = 100 - m.foodPct;
-                    m.labourPct = (L / T) * 100;
-                }
-                step();
+                if (T <= 0) { step(); return; }
+                m.labourPct = (L / T) * 100;
+                // Food cost : MÊME source que la page Boutiques → somme des
+                // coûts matière par catégorie (product-category-groups) ;
+                // résidu T−L−OC−R seulement en repli. Garantit le même food
+                // cost / marge brute dans les deux écrans.
+                const residual = () => { const F = T - L - OC - R; m.foodPct = (F / T) * 100; m.grossPct = 100 - m.foodPct; };
+                const from = d.date_from ? String(d.date_from).slice(0, 10) : null;
+                const to   = d.date_to   ? String(d.date_to).slice(0, 10)   : null;
+                if (from && to) {
+                    fetchCatFoodTotal(shopId, from, to, cost => {
+                        if (cost != null && cost > 0) { m.foodPct = (cost / T) * 100; m.grossPct = 100 - m.foodPct; }
+                        else residual();
+                        step();
+                    });
+                } else { residual(); step(); }
             },
             onError: step,
         });
