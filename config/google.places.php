@@ -15,7 +15,7 @@ return [
     'place_ids' => [
         2 => 'ChIJPxlW5ut-wUcRr4JQ_JCcchY',   // Atelier by Berlo — Corbais
         3 => 'ChIJM9lpb6EvwkcRM2c-LVCbk_8',   // Atelier by Max & Sandra — Gosselies
+        4 => 'ChIJYfiSJtHJw0cRF9vyw1GdFMM',   // Atelier by — Halle
         5 => 'ChIJTeMheYWBwUcRR6SSNZJuvvA',   // Atelier by Harmonie — Sombreffe
-        // Halle : ChIJYfiSJtHJw0cRF9vyw1GdFMM — en attente de l'id du magasin
     ],
 ];
