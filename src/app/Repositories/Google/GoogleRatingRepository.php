@@ -47,12 +47,19 @@ class GoogleRatingRepository
         }
 
         $key = (string)$cfg['places_key'];
-        // Priorité de résolution de la fiche : Place ID de la config >
-        // Place ID du magasin > adresse Google du magasin > nom + ville.
-        $placeId = $cfg['place_ids'][$shopId] ?? ($placeId !== null && $placeId !== '' ? $placeId : null);
-        $query = trim($address) !== ''
-            ? trim($address)
-            : trim($name . ' ' . $city);
+
+        // Lecture depuis la BASE du serveur (table shops) — source de vérité.
+        [$dbPlaceId, $dbAddress] = $this->fromDb($shopId);
+
+        // Priorité de résolution de la fiche :
+        //   Place ID : override config.local > BASE > seed committé > champ API
+        //   Requête  : adresse BASE > adresse API > nom + ville
+        $placeId = ($cfg['local_place_ids'][$shopId] ?? null)
+            ?? ($dbPlaceId !== null && $dbPlaceId !== '' ? $dbPlaceId : null)
+            ?? ($cfg['place_ids'][$shopId] ?? null)
+            ?? ($placeId !== null && $placeId !== '' ? $placeId : null);
+        $addr = $dbAddress !== '' ? $dbAddress : trim($address);
+        $query = $addr !== '' ? $addr : trim($name . ' ' . $city);
 
         $res = $this->fetchNew($key, $query, $placeId)
             ?? $this->fetchLegacy($key, $query, $placeId);
@@ -193,18 +200,57 @@ class GoogleRatingRepository
             return null;
         }
 
-        // Place IDs publics committés (config/google.places.php) fusionnés :
-        // le mapping de google.local.php (hors Git) reste prioritaire.
+        // Override manuel (google.local.php, hors Git) gardé à part : il est
+        // prioritaire même sur la base. Le seed committé (google.places.php)
+        // sert de repli si la base n'a pas encore la valeur.
+        $c['local_place_ids'] = (isset($c['place_ids']) && is_array($c['place_ids'])) ? $c['place_ids'] : [];
         $committed = $base . 'google.places.php';
+        $c['place_ids'] = [];
         if (is_file($committed)) {
             $p = require $committed;
             if (is_array($p) && !empty($p['place_ids']) && is_array($p['place_ids'])) {
-                $c['place_ids'] = ($c['place_ids'] ?? []) + $p['place_ids'];
+                $c['place_ids'] = $p['place_ids'];
             }
         }
 
         $this->cfg = $c;
         return $this->cfg;
+    }
+
+    /**
+     * Place ID + adresse Google du magasin lus dans la table `shops` de la
+     * base du serveur (source de vérité). Table/colonnes absentes → ['', ''].
+     *
+     * @return array{0:?string,1:string}  [place_id, address]
+     */
+    private function fromDb(int $shopId): array
+    {
+        try {
+            $pdo = \App\Consultant\core\Db\Database::pdo();
+            if ($pdo === null) {
+                return [null, ''];
+            }
+            $cols = [];
+            foreach ($pdo->query("SHOW COLUMNS FROM `shops`")->fetchAll() as $r) {
+                $cols[strtolower((string)$r['Field'])] = (string)$r['Field'];
+            }
+            $sel = [];
+            if (isset($cols['google_place_id'])) { $sel['pid'] = $cols['google_place_id']; }
+            if (isset($cols['google_address']))  { $sel['addr'] = $cols['google_address']; }
+            if ($sel === []) {
+                return [null, ''];
+            }
+            $expr = [];
+            foreach ($sel as $alias => $col) { $expr[] = "`$col` AS `$alias`"; }
+            $st = $pdo->prepare('SELECT ' . implode(', ', $expr) . ' FROM `shops` WHERE `id` = :id LIMIT 1');
+            $st->execute([':id' => $shopId]);
+            $row = $st->fetch() ?: [];
+            $pid  = isset($row['pid']) && trim((string)$row['pid']) !== '' ? trim((string)$row['pid']) : null;
+            $addr = isset($row['addr']) ? trim((string)$row['addr']) : '';
+            return [$pid, $addr];
+        } catch (Throwable $e) {
+            return [null, ''];
+        }
     }
 
     // ── Cache fichier ────────────────────────────────────────────────────

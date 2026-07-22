@@ -126,6 +126,20 @@ jobs:
             -e "ssh -p ${{ vars.SSH_PORT || '22' }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             ./ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:$APP_DIR/"
 
+      # Migration base sur le serveur (SSH → php) : ajoute shops.google_place_id
+      # / google_address et amorce les Place IDs. Le runner GitHub NE peut PAS
+      # joindre la base directement, mais le serveur parle à sa base locale.
+      # Idempotent, ne bloque jamais le déploiement.
+      - name: Apply DB migration on server (shops google fields)
+        env:
+          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          APP_DIR='${{ vars.APP_DIR || '/var/www/app/pwa_consultant' }}'
+          sshpass -e ssh -p ${{ vars.SSH_PORT || '22' }} \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "php '$APP_DIR/bin/migrate_google.php' || true"
+
       - name: Verify served page + assets on the server
         env:
           SSHPASS: ${{ secrets.SSH_PASSWORD }}
