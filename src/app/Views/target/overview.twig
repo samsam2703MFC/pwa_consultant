@@ -239,13 +239,18 @@ const TG_I18N = {
         return unit === 'amount' ? Number(objective) : Number(objective) * P_MONTHS[period];
     }
 
+    // Routes LOCALES de la PWA (day-sales, franchise-data) : appel DIRECT
+    // (cookie de session), PAS via ConsultantAjax → /api-proxy → backend
+    // (où ces routes n'existent pas).
+    function localGet(path) {
+        return fetch(ROOT + path, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null);
+    }
+
     function fetchSales(shopId, w, done) {
-        ConsultantAjax.load({
-            endpoint: '/shops/' + shopId + '/day-sales',
-            params: { from: w.from, to: w.to },
-            onSuccess: r => done((r && r.data) || null),
-            onError: () => done(null),
-        });
+        localGet('/shops/' + shopId + '/day-sales?from=' + w.from + '&to=' + w.to)
+            .then(j => done((j && j.data) || null));
     }
 
     // ── Chargement des 3 lignes pour un magasin × une période ──
@@ -265,12 +270,8 @@ const TG_I18N = {
             }
         };
 
-        ConsultantAjax.load({
-            endpoint: '/targets/' + shopId + '/franchise-data',
-            params: { year: TG_YEAR, month: TG_MONTH },
-            onSuccess: r => { st.fr = ((r || {}).data || {}).kpis || null; step(); },
-            onError: step,
-        });
+        localGet('/targets/' + shopId + '/franchise-data?year=' + TG_YEAR + '&month=' + TG_MONTH)
+            .then(j => { st.fr = ((j || {}).data || {}).kpis || null; step(); });
         const w = curWindows(period);
         fetchSales(shopId, w.n, d => { st.n = d; step(); });
         fetchSales(shopId, w.p, d => { st.p = d; step(); });
