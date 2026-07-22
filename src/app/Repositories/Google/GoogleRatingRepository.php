@@ -182,13 +182,28 @@ class GoogleRatingRepository
             return $this->cfg;
         }
         $this->tried = true;
-        $file = __DIR__ . '/../../../../config/google.local.php';
-        if (is_file($file)) {
-            $c = require $file;
-            if (is_array($c) && !empty($c['places_key']) && $c['places_key'] !== 'REMPLACER_CLE') {
-                $this->cfg = $c;
+
+        $base = __DIR__ . '/../../../../config/';
+        $file = $base . 'google.local.php';
+        if (!is_file($file)) {
+            return null;
+        }
+        $c = require $file;
+        if (!is_array($c) || empty($c['places_key']) || $c['places_key'] === 'REMPLACER_CLE') {
+            return null;
+        }
+
+        // Place IDs publics committés (config/google.places.php) fusionnés :
+        // le mapping de google.local.php (hors Git) reste prioritaire.
+        $committed = $base . 'google.places.php';
+        if (is_file($committed)) {
+            $p = require $committed;
+            if (is_array($p) && !empty($p['place_ids']) && is_array($p['place_ids'])) {
+                $c['place_ids'] = ($c['place_ids'] ?? []) + $p['place_ids'];
             }
         }
+
+        $this->cfg = $c;
         return $this->cfg;
     }
 
