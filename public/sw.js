@@ -1,5 +1,5 @@
 /* /pwa_consultant/sw.js */
-const VERSION = "v1.0.0";
+const VERSION = "v1.1.0";
 const STATIC_CACHE = `static-${VERSION}`;
 const RUNTIME_CACHE = `runtime-${VERSION}`;
 
@@ -63,15 +63,19 @@ self.addEventListener("fetch", (event) => {
     const isSameOrigin = url.origin === self.location.origin;
     const isGoogleFonts = url.origin.includes("fonts.googleapis.com") || url.origin.includes("fonts.gstatic.com");
 
-    // 1) Cache-first dla statycznych assetów
+    // 1) Stale-while-revalidate dla statycznych assetów : on sert le
+    //    cache tout de suite MAIS on re-télécharge en arrière-plan → une
+    //    mise à jour CSS/JS arrive au rechargement suivant (le cache-first
+    //    pur gardait les anciens styles pour toujours).
     if (isSameOrigin && isStaticAsset(url)) {
         event.respondWith((async () => {
-            const cached = await caches.match(req);
-            if (cached) return cached;
-            const res = await fetch(req);
             const cache = await caches.open(RUNTIME_CACHE);
-            cache.put(req, res.clone());
-            return res;
+            const cached = await cache.match(req);
+            const refresh = fetch(req).then((res) => {
+                if (res && res.status === 200) cache.put(req, res.clone());
+                return res;
+            }).catch(() => cached);
+            return cached || refresh;
         })());
         return;
     }

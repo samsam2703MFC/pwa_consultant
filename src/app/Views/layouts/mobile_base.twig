@@ -9,8 +9,8 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/extensions/bootstrap-icons/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/compiled/css/app.css">
-    <link rel="stylesheet" href="{{ ROOT }}/assets/css/atelier-theme.css">
+    <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/compiled/css/app.css?v={{ assetv('assets/mazer/compiled/css/app.css') }}">
+    <link rel="stylesheet" href="{{ ROOT }}/assets/css/atelier-theme.css?v={{ assetv('assets/css/atelier-theme.css') }}">
 
     <link rel="manifest" href="{{ ROOT }}/manifest.webmanifest">
     <meta name="theme-color" content="#8D1D2C">
@@ -266,8 +266,8 @@
 </nav>
 
 <script>window.__consultantRoot = '{{ ROOT }}';</script>
-<script src="{{ ROOT }}/assets/mazer/compiled/js/app.js"></script>
-<script src="{{ ROOT }}/assets/js/consultant-ajax.js"></script>
+<script src="{{ ROOT }}/assets/mazer/compiled/js/app.js?v={{ assetv('assets/mazer/compiled/js/app.js') }}"></script>
+<script src="{{ ROOT }}/assets/js/consultant-ajax.js?v={{ assetv('assets/js/consultant-ajax.js') }}"></script>
 {% block scripts %}{% endblock %}
 
 <script>
