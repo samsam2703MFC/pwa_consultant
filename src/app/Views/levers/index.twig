@@ -368,16 +368,64 @@ const SIXL_LEVERS = [
         return found ? total : null;
     }
 
+    // Repli daily-summary (comme Boutiques) : UNE seule clé coût matière
+    // (material_cost prioritaire) sommée sur les buckets. Additionner des
+    // clés redondantes doublerait le food cost.
+    function extractMaterialCost(node) {
+        const SKIP = /(pct|percent|ratio|rate|delta|margin)/i;
+        const numOf = v => (typeof v === 'number') ? v
+            : (typeof v === 'string' && v !== '' && isFinite(v)) ? Number(v)
+            : (v && typeof v === 'object' && typeof v.value === 'number') ? v.value : null;
+        const names = [];
+        (function collect(n) {
+            if (Array.isArray(n)) { n.forEach(collect); return; }
+            if (!n || typeof n !== 'object') return;
+            for (const k in n) {
+                if (/(material|food)/i.test(k) && /(cost|value|amount)/i.test(k) && !SKIP.test(k) && numOf(n[k]) != null) {
+                    if (names.indexOf(k) === -1) names.push(k);
+                }
+                if (n[k] && typeof n[k] === 'object') collect(n[k]);
+            }
+        })(node);
+        if (!names.length) return null;
+        const PREFS = ['material_cost', 'materials_cost', 'food_cost', 'goods_cost', 'cost_of_goods'];
+        let key = null;
+        for (let p = 0; p < PREFS.length && !key; p++) key = names.find(n2 => n2.toLowerCase() === PREFS[p]) || null;
+        if (!key) key = names[0];
+        let sum = 0, found = false;
+        (function walk(n) {
+            if (Array.isArray(n)) { n.forEach(walk); return; }
+            if (!n || typeof n !== 'object') return;
+            for (const k in n) {
+                if (k === key) { const x = numOf(n[k]); if (x != null) { sum += x; found = true; continue; } }
+                if (n[k] && typeof n[k] === 'object') walk(n[k]);
+            }
+        })(node);
+        return found ? sum : null;
+    }
+
+    // Coût matière total d'une fenêtre : catégories (primaire) → daily-summary
+    // (repli) → null. MÊME chaîne que la page Boutiques.
     function fetchCatFoodTotal(shopId, from, to, done) {
         const ck = shopId + '|' + from + '|' + to;
         if (ck in _catFoodCache) { done(_catFoodCache[ck]); return; }
+        const finish = v => { _catFoodCache[ck] = v; done(v); };
         const groupings = ['category', 'group', 'month'];
         (function attempt(i) {
-            if (i >= groupings.length) { _catFoodCache[ck] = null; done(null); return; }
+            if (i >= groupings.length) {
+                // Repli daily-summary avant d'abandonner.
+                ConsultantAjax.load({
+                    endpoint: '/shops/' + shopId + '/statistics/daily-summary',
+                    params: { date_from: from, date_to: to, from: from, to: to },
+                    onSuccess: resp => { const c = extractMaterialCost(resp); finish(c != null && c > 0 ? c : null); },
+                    onError: () => finish(null),
+                });
+                return;
+            }
             ConsultantAjax.load({
                 endpoint: '/shops/' + shopId + '/statistics/sales/product-category-groups',
                 params: { date_from: from, date_to: to, grouping: groupings[i] },
-                onSuccess: resp => { const t = extractFoodTotal(resp); if (t != null) { _catFoodCache[ck] = t; done(t); } else attempt(i + 1); },
+                onSuccess: resp => { const t = extractFoodTotal(resp); if (t != null && t > 0) finish(t); else attempt(i + 1); },
                 onError: () => attempt(i + 1),
             });
         })(0);
