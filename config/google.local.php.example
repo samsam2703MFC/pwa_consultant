@@ -8,7 +8,9 @@ return [
     // l'IP du serveur + à l'API Places dans la console Google Cloud.
     'places_key' => 'REMPLACER_CLE',
 
-    // Optionnel : mapping explicite id_magasin → Place ID Google. Si absent,
-    // le Place ID est résolu automatiquement par nom + ville puis mis en cache.
+    // Optionnel : mapping explicite id_magasin → Place ID Google (le plus
+    // fiable). Si absent, la fiche est résolue par l'adresse Google du
+    // magasin (champ google_address de la table shop) ou, à défaut, par
+    // nom + ville, puis mise en cache.
     // 'place_ids' => [ 2 => 'ChIJ...', 3 => 'ChIJ...' ],
 ];

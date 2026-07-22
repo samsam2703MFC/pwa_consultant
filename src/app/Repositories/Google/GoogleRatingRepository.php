@@ -27,9 +27,14 @@ class GoogleRatingRepository
     private bool $tried = false;
 
     /**
+     * @param string $address adresse Google du magasin (champ google_address
+     *               de la table shop) — plus fiable que nom+ville pour trouver
+     *               la bonne fiche. Vide → repli sur nom+ville.
+     * @param string|null $placeId Place ID explicite (champ google_place_id) —
+     *               le plus fiable, court-circuite toute recherche.
      * @return array{rating:float, reviews:int}|null
      */
-    public function getRating(int $shopId, string $name, string $city = ''): ?array
+    public function getRating(int $shopId, string $name, string $city = '', string $address = '', ?string $placeId = null): ?array
     {
         $cfg = $this->config();
         if ($cfg === null || empty($cfg['places_key'])) {
@@ -42,8 +47,12 @@ class GoogleRatingRepository
         }
 
         $key = (string)$cfg['places_key'];
-        $placeId = $cfg['place_ids'][$shopId] ?? null;
-        $query = trim($name . ' ' . $city);
+        // Priorité de résolution de la fiche : Place ID de la config >
+        // Place ID du magasin > adresse Google du magasin > nom + ville.
+        $placeId = $cfg['place_ids'][$shopId] ?? ($placeId !== null && $placeId !== '' ? $placeId : null);
+        $query = trim($address) !== ''
+            ? trim($address)
+            : trim($name . ' ' . $city);
 
         $res = $this->fetchNew($key, $query, $placeId)
             ?? $this->fetchLegacy($key, $query, $placeId);
