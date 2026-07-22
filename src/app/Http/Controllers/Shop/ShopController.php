@@ -26,17 +26,27 @@ class ShopController extends Controller
     {
         $name = '';
         $city = '';
+        $address = '';
+        $placeId = null;
         foreach ($this->shopService->getAllShops() as $s) {
             if ((int)($s['id'] ?? 0) === $shopId) {
                 $name = (string)($s['representative_name'] ?? $s['name'] ?? '');
                 $city = (string)($s['city'] ?? '');
+                // Champs de la table shop commune (dès que le back-office les
+                // expose) : adresse Google et/ou Place ID. Lecture tolérante.
+                foreach (['google_address', 'address', 'full_address', 'formatted_address'] as $k) {
+                    if (!empty($s[$k])) { $address = (string)$s[$k]; break; }
+                }
+                foreach (['google_place_id', 'place_id'] as $k) {
+                    if (!empty($s[$k])) { $placeId = (string)$s[$k]; break; }
+                }
                 break;
             }
         }
-        if ($name === '') {
+        if ($name === '' && $address === '' && $placeId === null) {
             return $this->json(['ok' => true, 'data' => null]);
         }
-        return $this->json(['ok' => true, 'data' => $this->googleRating->getRating($shopId, $name, $city)]);
+        return $this->json(['ok' => true, 'data' => $this->googleRating->getRating($shopId, $name, $city, $address, $placeId)]);
     }
 
     /**
