@@ -334,8 +334,7 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
    → 1 par ligne (petit mobile). minmax(0,1fr) = colonnes d'égale largeur,
    les valeurs longues ne cassent pas la grille. */
 .dash-kpis { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:11px; }
-@media (max-width:900px) { .dash-kpis { grid-template-columns:repeat(2, minmax(0,1fr)); } }
-@media (max-width:480px) { .dash-kpis { grid-template-columns:minmax(0,1fr); } }
+@media (max-width:900px) { .dash-kpis { grid-template-columns:repeat(2, minmax(0,1fr)); gap:9px; } }
 .dash-kpi { background:#fff; border:1px solid var(--c-line); border-radius:18px; padding:15px 16px; min-width:0;
   box-shadow:0 1px 3px rgba(70,40,25,.05),0 10px 24px -18px rgba(70,40,25,.25); }
 .dash-kpi-ic { width:34px; height:34px; border-radius:11px; display:flex; align-items:center; justify-content:center;
