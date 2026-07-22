@@ -1,0 +1,14 @@
+<?php
+// Copier ce fichier en `config/google.local.php` SUR LE SERVEUR (hors Git) et
+// renseigner la clé Google Places. Généré automatiquement au déploiement à
+// partir du secret GitHub GOOGLE_PLACES_KEY (cf. .github/workflows/deploy.yml).
+// Le rsync de déploiement ne supprime pas ce fichier (pas de --delete).
+return [
+    // Clé API Google (Places API / Places API New). RESTREINDRE la clé à
+    // l'IP du serveur + à l'API Places dans la console Google Cloud.
+    'places_key' => 'REMPLACER_CLE',
+
+    // Optionnel : mapping explicite id_magasin → Place ID Google. Si absent,
+    // le Place ID est résolu automatiquement par nom + ville puis mis en cache.
+    // 'place_ids' => [ 2 => 'ChIJ...', 3 => 'ChIJ...' ],
+];

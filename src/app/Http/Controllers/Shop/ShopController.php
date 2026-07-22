@@ -2,6 +2,7 @@
 namespace App\Consultant\app\Http\Controllers\Shop;
 
 use App\Consultant\app\Http\Controllers\Controller;
+use App\Consultant\app\Repositories\Google\GoogleRatingRepository;
 use App\Consultant\app\Repositories\Shop\ShopRepository;
 use App\Consultant\app\Repositories\Shop\ShopSalesRepository;
 use App\Consultant\app\Services\Shop\ShopService;
@@ -12,7 +13,31 @@ class ShopController extends Controller
         private ShopService $shopService,
         private ShopSalesRepository $shopSales,
         private ShopRepository $shopRepository,
+        private GoogleRatingRepository $googleRating,
     ) {}
+
+    /**
+     * GET /shops/{id}/google-rating
+     * Note Google du magasin (Places API). La clé reste côté serveur ;
+     * le nom + la ville du magasin sont résolus depuis la liste des
+     * boutiques (API). Cache serveur 12 h → très en dessous du quota.
+     */
+    public function googleRatingEndpoint(int $shopId): \Symfony\Component\HttpFoundation\JsonResponse
+    {
+        $name = '';
+        $city = '';
+        foreach ($this->shopService->getAllShops() as $s) {
+            if ((int)($s['id'] ?? 0) === $shopId) {
+                $name = (string)($s['representative_name'] ?? $s['name'] ?? '');
+                $city = (string)($s['city'] ?? '');
+                break;
+            }
+        }
+        if ($name === '') {
+            return $this->json(['ok' => true, 'data' => null]);
+        }
+        return $this->json(['ok' => true, 'data' => $this->googleRating->getRating($shopId, $name, $city)]);
+    }
 
     /**
      * KPI de vente d'un magasin sur une fenêtre : API BACKEND d'abord

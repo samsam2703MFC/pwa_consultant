@@ -76,5 +76,6 @@
     "k_week_evo_why": "Growth dynamic: rising turnover mechanically dilutes fixed costs.",
     "k_payback": "Total investment / total annual margin",
     "k_payback_what": "Total investment ÷ total annual gross margin (= payback in years).",
-    "k_payback_why": "Structural financial health: in how many years the investment pays back."
+    "k_payback_why": "Structural financial health: in how many years the investment pays back.",
+    "u_rating": "/ 5"
 }

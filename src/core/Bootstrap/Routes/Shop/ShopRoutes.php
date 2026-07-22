@@ -16,5 +16,11 @@ return function (RouteCollector $r) {
         'controller' => ShopController::class,
         'method'     => 'daySales',
     ]);
+
+    // Note Google du magasin (Places API, clé côté serveur, cache 12 h).
+    $r->addRoute('GET', '/shops/{shopId:\d+}/google-rating', [
+        'controller' => ShopController::class,
+        'method'     => 'googleRatingEndpoint',
+    ]);
 };
 

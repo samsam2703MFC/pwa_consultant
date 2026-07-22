@@ -157,7 +157,7 @@ const SIXL_LEVERS = [
           nm: {{ (translations.k_tickets_day ?? 'Trafic boutique (tickets/jour)')|json_encode|raw }},
           what: {{ (translations.k_tickets_day_what ?? 'Nombre de tickets de caisse par jour (comptage POS).')|json_encode|raw }},
           why: {{ (translations.k_tickets_day_why ?? "Mesure directe de l'affluence : c'est la base de tout le CA — sans passage, pas de vente.")|json_encode|raw }} },
-        { src: null, dir: 1,
+        { src: 'googleRating', dir: 1, fmt: 'rating', unit: {{ (translations.u_rating ?? '/ 5')|json_encode|raw }},
           nm: {{ (translations.k_google ?? 'Note Google')|json_encode|raw }},
           what: {{ (translations.k_google_what ?? 'Moyenne des notes de la fiche Google Business.')|json_encode|raw }},
           why: {{ (translations.k_google_why ?? "Premier filtre d'attraction : la réputation locale décide qui pousse la porte.")|json_encode|raw }} },
@@ -278,6 +278,7 @@ const SIXL_LEVERS = [
         if (fmt === 'eur2') return nf2.format(v) + ' €';
         if (fmt === 'pct')  return String(Math.round(v * 10) / 10).replace('.', ',') + ' %';
         if (fmt === 'evo')  return (v > 0 ? '+' : '') + String(Math.round(v * 10) / 10).replace('.', ',') + ' %';
+        if (fmt === 'rating') return (Math.round(v * 10) / 10).toFixed(1).replace('.', ',') + (unit ? ' ' + unit : '');
         return nf0.format(Math.round(v)) + (unit ? ' ' + unit : '');
     }
 
@@ -321,9 +322,21 @@ const SIXL_LEVERS = [
     }
 
     function loadShop(shopId, period, done) {
-        const m = { ticketsDay: null, avgBasket: null, foodPct: null, grossPct: null, labourPct: null, weekEvo: null };
-        let pending = 4;
+        const m = { ticketsDay: null, avgBasket: null, foodPct: null, grossPct: null, labourPct: null, weekEvo: null, googleRating: null };
+        let pending = 5;
         const step = () => { if (--pending === 0) done(m); };
+
+        // Note Google (Places API, clé côté serveur, cache 12 h). Clé absente
+        // → data null → le KPI reste « données à venir » proprement.
+        ConsultantAjax.load({
+            endpoint: '/shops/' + shopId + '/google-rating',
+            onSuccess: r => {
+                const g = (r && r.data) || null;
+                if (g && g.rating != null) m.googleRating = Number(g.rating);
+                step();
+            },
+            onError: step,
+        });
 
         ConsultantAjax.load({
             endpoint: '/consultant/shops/' + shopId + '/pnl',

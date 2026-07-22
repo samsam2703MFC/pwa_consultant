@@ -76,5 +76,6 @@
     "k_week_evo_why": "Dynamique de croissance : un CA qui monte dilue mécaniquement les frais fixes.",
     "k_payback": "Investissement total / Marge totale annuelle",
     "k_payback_what": "Investissement total ÷ marge brute annuelle totale (= délai de retour en années).",
-    "k_payback_why": "Santé financière structurelle : en combien d'années l'investissement se rembourse."
+    "k_payback_why": "Santé financière structurelle : en combien d'années l'investissement se rembourse.",
+    "u_rating": "/ 5"
 }

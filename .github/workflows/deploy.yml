@@ -99,6 +99,23 @@ jobs:
           file_put_contents("config/db.local.php", "<?php\nreturn " . var_export($c, true) . ";\n");'
           echo "config/db.local.php généré ($DB_NAME @ $DB_HOST:$DB_PORT, user $DB_USER)."
 
+      # Génère config/google.local.php (hors Git) à partir du secret
+      # GOOGLE_PLACES_KEY. Absent → étape ignorée, le KPI « Note Google »
+      # reste « données à venir » (dégradation propre).
+      - name: Write Google Places key → config/google.local.php (from secret)
+        env:
+          GOOGLE_PLACES_KEY: ${{ secrets.GOOGLE_PLACES_KEY }}
+        run: |
+          if [ -z "$GOOGLE_PLACES_KEY" ]; then
+            echo "WARN: secret GOOGLE_PLACES_KEY absent — config/google.local.php non généré,"
+            echo "      KPI Note Google en 'données à venir'."
+            exit 0
+          fi
+          mkdir -p config
+          php -r '$c = ["places_key" => getenv("GOOGLE_PLACES_KEY")];
+          file_put_contents("config/google.local.php", "<?php\nreturn " . var_export($c, true) . ";\n");'
+          echo "config/google.local.php généré (clé Places présente)."
+
       - name: Deploy app → APP_DIR (rsync)
         env:
           SSHPASS: ${{ secrets.SSH_PASSWORD }}

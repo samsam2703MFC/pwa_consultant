@@ -1,2 +1,5 @@
 # Identifiants base de données — NE JAMAIS committer
 /config/db.local.php
+
+# Clé Google Places — NE JAMAIS committer
+/config/google.local.php
