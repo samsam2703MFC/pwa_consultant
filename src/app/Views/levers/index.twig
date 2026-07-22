@@ -321,23 +321,28 @@ const SIXL_LEVERS = [
         return { from: isoDate(from), to: isoDate(now) };
     }
 
+    // Routes LOCALES de la PWA (day-sales, google-rating) : appel DIRECT
+    // (cookie de session), PAS via ConsultantAjax qui passe par /api-proxy →
+    // backend (où ces routes n'existent pas). Renvoie le JSON ou null.
+    function localGet(path) {
+        return fetch(ROOT + path, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null);
+    }
+
     function loadShop(shopId, period, done) {
         const m = { ticketsDay: null, avgBasket: null, foodPct: null, grossPct: null, labourPct: null, weekEvo: null, googleRating: null };
         let pending = 5;
         const step = () => { if (--pending === 0) done(m); };
 
-        // Note Google (Places API, clé côté serveur, cache 12 h). Clé absente
-        // → data null → le KPI reste « données à venir » proprement.
-        ConsultantAjax.load({
-            endpoint: '/shops/' + shopId + '/google-rating',
-            onSuccess: r => {
-                const g = (r && r.data) || null;
-                if (g && g.rating != null) m.googleRating = Number(g.rating);
-                step();
-            },
-            onError: step,
+        // Note Google (route locale : Places API, clé serveur, cache 12 h).
+        localGet('/shops/' + shopId + '/google-rating').then(j => {
+            const g = j && j.data;
+            if (g && g.rating != null) m.googleRating = Number(g.rating);
+            step();
         });
 
+        // P&L : route BACKEND → via le proxy (ConsultantAjax ajoute le JWT).
         ConsultantAjax.load({
             endpoint: '/consultant/shops/' + shopId + '/pnl',
             params: { period: period },
@@ -356,32 +361,22 @@ const SIXL_LEVERS = [
             },
             onError: step,
         });
-        ConsultantAjax.load({
-            endpoint: '/shops/' + shopId + '/day-sales',
-            params: { period: period },
-            onSuccess: r => {
-                const k = (r && r.data) || {};
-                const t = Number(k.tickets) || 0;
-                if (t > 0) m.ticketsDay = t / elapsedDays(period);
-                if (k.avg_basket != null) m.avgBasket = Number(k.avg_basket);
-                step();
-            },
-            onError: step,
+        // Ventes (route locale) : tickets + panier de la période.
+        localGet('/shops/' + shopId + '/day-sales?period=' + period).then(j => {
+            const k = (j && j.data) || {};
+            const t = Number(k.tickets) || 0;
+            if (t > 0) m.ticketsDay = t / elapsedDays(period);
+            if (k.avg_basket != null) m.avgBasket = Number(k.avg_basket);
+            step();
         });
         const wN = weekWindow(0), wP = weekWindow(1);
         let caN = null, caP = null;
         const evo = () => { if (caN != null && caP != null && caP > 0) m.weekEvo = ((caN - caP) / caP) * 100; };
-        ConsultantAjax.load({
-            endpoint: '/shops/' + shopId + '/day-sales',
-            params: { from: wN.from, to: wN.to },
-            onSuccess: r => { caN = Number(((r || {}).data || {}).ca) || 0; evo(); step(); },
-            onError: step,
+        localGet('/shops/' + shopId + '/day-sales?from=' + wN.from + '&to=' + wN.to).then(j => {
+            caN = Number(((j || {}).data || {}).ca) || 0; evo(); step();
         });
-        ConsultantAjax.load({
-            endpoint: '/shops/' + shopId + '/day-sales',
-            params: { from: wP.from, to: wP.to },
-            onSuccess: r => { caP = Number(((r || {}).data || {}).ca) || 0; evo(); step(); },
-            onError: step,
+        localGet('/shops/' + shopId + '/day-sales?from=' + wP.from + '&to=' + wP.to).then(j => {
+            caP = Number(((j || {}).data || {}).ca) || 0; evo(); step();
         });
     }
 

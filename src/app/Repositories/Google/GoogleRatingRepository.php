@@ -26,6 +26,14 @@ class GoogleRatingRepository
     private ?array $cfg = null;
     private bool $tried = false;
 
+    /** Trace du dernier appel (mode ?debug=1) — jamais la clé API. */
+    private array $debug = [];
+
+    public function getLastDebug(): array
+    {
+        return $this->debug;
+    }
+
     /**
      * @param string $address adresse Google du magasin (champ google_address
      *               de la table shop) — plus fiable que nom+ville pour trouver
@@ -34,16 +42,22 @@ class GoogleRatingRepository
      *               le plus fiable, court-circuite toute recherche.
      * @return array{rating:float, reviews:int}|null
      */
-    public function getRating(int $shopId, string $name, string $city = '', string $address = '', ?string $placeId = null): ?array
+    public function getRating(int $shopId, string $name, string $city = '', string $address = '', ?string $placeId = null, bool $debug = false): ?array
     {
+        $this->debug = ['shop' => $shopId];
         $cfg = $this->config();
         if ($cfg === null || empty($cfg['places_key'])) {
+            $this->debug['error'] = 'config/google.local.php absent ou clé vide (secret GOOGLE_PLACES_KEY manquant côté déploiement ?)';
             return null;
         }
+        $this->debug['key_present'] = true;
 
-        $cached = $this->cacheRead($shopId);
-        if ($cached !== null) {
-            return $cached;
+        if (!$debug) {
+            $cached = $this->cacheRead($shopId);
+            if ($cached !== null) {
+                $this->debug['from_cache'] = true;
+                return $cached;
+            }
         }
 
         $key = (string)$cfg['places_key'];
@@ -60,10 +74,14 @@ class GoogleRatingRepository
             ?? ($placeId !== null && $placeId !== '' ? $placeId : null);
         $addr = $dbAddress !== '' ? $dbAddress : trim($address);
         $query = $addr !== '' ? $addr : trim($name . ' ' . $city);
+        $this->debug['place_id'] = $placeId;
+        $this->debug['query'] = $query;
+        $this->debug['db_place_id'] = $dbPlaceId;
 
         $res = $this->fetchNew($key, $query, $placeId)
             ?? $this->fetchLegacy($key, $query, $placeId);
 
+        $this->debug['result'] = $res;
         if ($res !== null) {
             $this->cacheWrite($shopId, $res);
         }
