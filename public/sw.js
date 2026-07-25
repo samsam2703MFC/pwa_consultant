@@ -1,11 +1,10 @@
 /* /pwa_consultant/sw.js */
-const VERSION = "v1.2.0";
+const VERSION = "v1.3.0";
 const STATIC_CACHE = `static-${VERSION}`;
 const RUNTIME_CACHE = `runtime-${VERSION}`;
 
 const PRECACHE_URLS = [
     "/pwa_consultant/",
-    "/pwa_consultant/assets/mazer/vendors/bootstrap-icons/bootstrap-icons.css",
 ];
 
 self.addEventListener("install", (event) => {

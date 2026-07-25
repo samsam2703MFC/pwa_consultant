@@ -89,7 +89,7 @@ const ConsultantAjax = (() => {
     function errorHtml(msg) {
         return `
         <div style="background:#fff0f0;border-radius:14px;padding:16px;text-align:center;color:#c0392b;font-size:.85rem;margin-bottom:12px;">
-            <i class="bi bi-exclamation-triangle-fill" style="font-size:1.4rem;display:block;margin-bottom:8px;"></i>
+            <svg xmlns="http://www.w3.org/2000/svg" width="1.4rem" height="1.4rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:0 auto 8px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
             Błąd ładowania danych.<br><small style="opacity:.7;">${msg}</small>
             <br><button onclick="location.reload()"
                 style="margin-top:10px;background:#c0392b;color:#fff;border:none;border-radius:20px;padding:5px 16px;font-size:.78rem;cursor:pointer;">
