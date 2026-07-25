@@ -26,6 +26,10 @@
     .live-tbl td.lt-name { font-size:.72rem; font-weight:800; }
     .live-row { cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .live-row:active td { background:#faf7f2; }
+    /* Dernière valeur connue du jour, en attente de rafraîchissement : atténuée
+       + repère « ⟳ ». Retiré dès l'arrivée des données fraîches. */
+    .live-row.is-stale td { opacity:.45; transition:opacity .25s; }
+    .live-row.is-stale .lt-bas::after { content:' ⟳'; font-size:.7em; opacity:.8; }
     .lt-skel { display:inline-block; width:34px; height:10px; border-radius:5px; background:linear-gradient(90deg,#f0ece5 25%,#e4dfd6 50%,#f0ece5 75%); background-size:200% 100%; animation:shimmer 1.4s infinite; }
     @keyframes shimmer { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
     .lt-err { color:#adb5bd; font-weight:700; }
@@ -264,7 +268,43 @@
 
     function cell(row, cls) { return row.querySelector(cls); }
     function fail(row) {
+        // Si une dernière valeur connue du JOUR est déjà affichée (mode « stale »),
+        // on la garde plutôt que d'écraser par « — » : l'utilisateur voit le
+        // dernier chiffre au lieu de rien quand l'API est momentanément muette.
+        if (row.classList.contains('is-stale')) return;
         ['.lt-res', '.lt-pct-cell', '.lt-ca', '.lt-cli', '.lt-bas'].forEach(c => { cell(row, c).innerHTML = '<span class="lt-err">—</span>'; });
+    }
+
+    // ── Cache local des dernières valeurs (SWR au niveau UI) ──
+    // Sécurité : on ne restitue QUE des valeurs du JOUR MÊME (garde-fou date
+    // locale) et récentes (< 12 h) — jamais les chiffres d'un autre jour. Elles
+    // s'affichent atténuées avec un repère « actualisation » et sont remplacées
+    // dès l'arrivée des données fraîches.
+    const CACHE_MAX_AGE = 12 * 3600 * 1000;
+    function todayKey() {
+        const d = new Date();
+        return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    }
+    function cacheGet(shopId) {
+        try {
+            const o = JSON.parse(localStorage.getItem('dashlive:' + shopId) || 'null');
+            if (!o || o.day !== todayKey() || (Date.now() - (o.t || 0)) > CACHE_MAX_AGE) return null;
+            return o;
+        } catch (e) { return null; }
+    }
+    function cacheSet(shopId, v) {
+        try {
+            localStorage.setItem('dashlive:' + shopId, JSON.stringify({
+                day: todayKey(), t: Date.now(),
+                ca: v.ca, result: v.result, clients: v.clients, basket: v.basket, approx: v.approx,
+            }));
+        } catch (e) {}
+    }
+    function showStale(row, shopId) {
+        const c = cacheGet(shopId);
+        if (!c) return;
+        render(row, c.ca, c.result, c.clients, c.basket, c.approx);
+        row.classList.add('is-stale');
     }
 
     function render(row, ca, result, clients, basket, approx) {
@@ -324,6 +364,10 @@
             window.location.href = ROOT + '/shops?focus=' + shopId + '&period=day&treemap=1';
         });
 
+        // Affiche instantanément la dernière valeur connue du jour (atténuée),
+        // le temps que les données fraîches arrivent.
+        showStale(row, shopId);
+
         pnl(shopId, 'day').then(day => {
             if (!day) { fail(row); return; }
             const ca = Number(day.turnover && day.turnover.value) || 0;
@@ -368,6 +412,10 @@
                     approx = true;
                 }
                 render(row, ca, result, clients, basket, approx);
+                // Données fraîches affichées → on retire l'état « stale » et on
+                // mémorise ces valeurs pour la prochaine ouverture (même jour).
+                row.classList.remove('is-stale');
+                cacheSet(shopId, { ca: ca, result: result, clients: clients, basket: basket, approx: approx });
             });
         });
     });
