@@ -7,6 +7,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}{{ translations.consultant_panel ?? 'Consultant Panel' }}{% endblock %}</title>
 
+    {# Ouvre la connexion aux serveurs de polices en amont (DNS+TLS) pendant que
+       le HTML se parse → la police bloque moins le premier rendu. #}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/extensions/bootstrap-icons/font/bootstrap-icons.css">
     <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/compiled/css/app.css?v={{ assetv('assets/mazer/compiled/css/app.css') }}">
@@ -268,6 +272,24 @@
 <script>window.__consultantRoot = '{{ ROOT }}';</script>
 <script src="{{ ROOT }}/assets/mazer/compiled/js/app.js?v={{ assetv('assets/mazer/compiled/js/app.js') }}"></script>
 <script src="{{ ROOT }}/assets/js/consultant-ajax.js?v={{ assetv('assets/js/consultant-ajax.js') }}"></script>
+
+{# ── Prefetch spéculatif de la page suivante ──
+   Sur les navigateurs qui le supportent, le HTML de la page pointée est
+   pré-téléchargé au survol / pointerdown (eagerness « moderate ») → le clic
+   sur un onglet est quasi instantané. `prefetch` seulement (pas `prerender`) :
+   le document est récupéré mais son JS n'est PAS exécuté à l'avance, donc aucun
+   appel API dupliqué. Les navigateurs sans support ignorent ce bloc. #}
+<script type="speculationrules">
+{
+  "prefetch": [
+    {
+      "source": "document",
+      "where": { "href_matches": "/pwa_consultant/*" },
+      "eagerness": "moderate"
+    }
+  ]
+}
+</script>
 {% block scripts %}{% endblock %}
 
 <script>

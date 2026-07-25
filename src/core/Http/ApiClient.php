@@ -17,14 +17,38 @@ class ApiClient
      * → navigation sans attente API. Toute mutation (POST/PATCH/PUT/DELETE)
      * purge le cache de l'utilisateur pour ne jamais montrer d'état périmé.
      */
-    private const CACHE_TTL    = 60;   // secondes
+    private const CACHE_TTL    = 60;   // secondes (défaut)
     private const CACHE_PREFIX = 'pwacons_';
+
+    /**
+     * TTL par endpoint (préfixe → secondes). Les données quasi statiques (liste
+     * des magasins) vivent plus longtemps ; le P&L / les stats du jour restent
+     * courts. Le premier préfixe qui matche gagne → ranger du plus spécifique au
+     * plus général. Ce qui n'est pas listé prend CACHE_TTL. Toute mutation purge
+     * de toute façon le cache de l'utilisateur.
+     */
+    private const CACHE_TTL_MAP = [
+        '/consultant/shops/' => 60,    // .../pnl, .../stats… — volatil
+        '/consultant/shops'  => 300,   // liste des magasins — stable
+        '/shops/'            => 120,
+    ];
+
+    /** Poignée cURL réutilisée dans la requête → keep-alive (pas de handshake TCP/TLS par appel). */
+    private ?\CurlHandle $handle = null;
 
     public function __construct(
         private string $baseUrl,
         private CookieManager $cookieManager,
         private UserHeaderProvider $userHeaderProvider
     ) {
+    }
+
+    public function __destruct()
+    {
+        if ($this->handle !== null) {
+            curl_close($this->handle);
+            $this->handle = null;
+        }
     }
 
     private function getHeaders(): array
@@ -64,20 +88,19 @@ class ApiClient
             }
         }
 
-        $url  = $this->baseUrl . $endpoint;
-        $ch   = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $this->getHeaders());
-        curl_setopt($ch, CURLOPT_HEADER, true);
+        // Poignée réutilisée (keep-alive) : la connexion TCP/TLS vers l'API est
+        // conservée entre les appels d'une même requête au lieu d'être
+        // renégociée à chaque fois.
+        $ch = $this->sharedHandle();
+        $this->configureGet($ch, $this->baseUrl . $endpoint);
 
         $result        = curl_exec($ch);
         $response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $header_size   = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-        $header        = substr($result, 0, $header_size);
-        $body          = substr($result, $header_size);
-        curl_close($ch);
+        $header        = substr((string)$result, 0, $header_size);
+        $body          = substr((string)$result, $header_size);
+        // Pas de curl_close : la poignée est réutilisée (fermée au __destruct).
+
         $response = ['data' => [], 'success' => false, 'error' => [], 'filename' => ''];
 
         if (in_array($response_code, [200, 201, 204])) {
@@ -96,6 +119,111 @@ class ApiClient
         }
 
         return $response;
+    }
+
+    /**
+     * Récupère PLUSIEURS endpoints GET EN PARALLÈLE (curl_multi).
+     *
+     * C'est le remède au N+1 séquentiel : au lieu de payer N × (latence réseau)
+     * en bouclant `get()`, on lance tous les appels manquants en même temps →
+     * ~1 × latence. Les endpoints déjà en cache ne repartent pas sur le réseau ;
+     * les réponses fraîches sont écrites en cache comme via `get()`.
+     *
+     * @param string[] $endpoints
+     * @return array<string, array> map endpoint => réponse (même forme que get()).
+     */
+    public function getMany(array $endpoints): array
+    {
+        $endpoints = array_values(array_unique($endpoints));
+        $out     = [];
+        $toFetch = [];
+
+        foreach ($endpoints as $ep) {
+            $cached = $this->cacheRead($ep);
+            if ($cached !== null) {
+                $out[$ep] = $cached;
+            } else {
+                $toFetch[] = $ep;
+            }
+        }
+
+        if ($toFetch === []) {
+            return $out;
+        }
+
+        // Un seul manquant : le parallélisme n'apporte rien, on réutilise get()
+        // (et sa poignée keep-alive).
+        if (count($toFetch) === 1) {
+            $out[$toFetch[0]] = $this->get($toFetch[0]);
+            return $out;
+        }
+
+        $mh      = curl_multi_init();
+        $handles = [];
+        foreach ($toFetch as $ep) {
+            $ch = curl_init();
+            $this->configureGet($ch, $this->baseUrl . $ep);
+            curl_multi_add_handle($mh, $ch);
+            $handles[$ep] = $ch;
+        }
+
+        do {
+            $status = curl_multi_exec($mh, $running);
+            if ($running) {
+                curl_multi_select($mh, 1.0);
+            }
+        } while ($running && $status === CURLM_OK);
+
+        foreach ($handles as $ep => $ch) {
+            $result        = curl_multi_getcontent($ch);
+            $response_code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $header_size   = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+            $header        = substr((string)$result, 0, $header_size);
+            $body          = substr((string)$result, $header_size);
+
+            $response = ['data' => [], 'success' => false, 'error' => [], 'filename' => ''];
+            if (in_array($response_code, [200, 201, 204], true)) {
+                $response['data']    = json_decode($body, true);
+                $response['success'] = true;
+                if (preg_match('/content-disposition:.*filename="([^"]+)"/i', $header, $m)) {
+                    $response['filename'] = $m[1];
+                }
+                $this->cacheWrite($ep, $response);
+            } else {
+                $response['error'] = $response_code;
+            }
+
+            $out[$ep] = $response;
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+        curl_multi_close($mh);
+
+        return $out;
+    }
+
+    /** Poignée cURL partagée pour la requête (keep-alive). */
+    private function sharedHandle(): \CurlHandle
+    {
+        if ($this->handle === null) {
+            $this->handle = curl_init();
+        } else {
+            curl_reset($this->handle);
+        }
+        return $this->handle;
+    }
+
+    /** Options communes à tous les GET (timeouts, en-têtes, gzip, keep-alive). */
+    private function configureGet(\CurlHandle $ch, string $url): void
+    {
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $this->getHeaders());
+        curl_setopt($ch, CURLOPT_HEADER, true);
+        curl_setopt($ch, CURLOPT_ENCODING, '');       // gzip/deflate/br négociés → réponses compressées
+        curl_setopt($ch, CURLOPT_TCP_KEEPALIVE, 1);
     }
 
     // ── Cache GET par utilisateur ───────────────────────────────────────────
@@ -139,6 +267,17 @@ class ApiClient
         return $this->cacheDir() . '/' . self::CACHE_PREFIX . $this->cacheUserKey() . '_' . md5($endpoint) . '.json';
     }
 
+    /** TTL applicable à un endpoint (cf. CACHE_TTL_MAP), défaut CACHE_TTL. */
+    private function ttlFor(string $endpoint): int
+    {
+        foreach (self::CACHE_TTL_MAP as $prefix => $ttl) {
+            if (str_starts_with($endpoint, $prefix)) {
+                return $ttl;
+            }
+        }
+        return self::CACHE_TTL;
+    }
+
     private function cacheRead(string $endpoint): ?array
     {
         $path = $this->cachePath($endpoint);
@@ -147,7 +286,10 @@ class ApiClient
         }
         $raw = @file_get_contents($path);
         $entry = $raw !== false ? json_decode($raw, true) : null;
-        if (!is_array($entry) || !isset($entry['t'], $entry['r']) || (time() - (int)$entry['t']) > self::CACHE_TTL) {
+        // TTL lu dans l'entrée (écrit au moment du cache) ; repli sur CACHE_TTL
+        // pour les anciennes entrées sans champ ttl.
+        $ttl = isset($entry['ttl']) ? (int)$entry['ttl'] : self::CACHE_TTL;
+        if (!is_array($entry) || !isset($entry['t'], $entry['r']) || (time() - (int)$entry['t']) > $ttl) {
             @unlink($path);
             return null;
         }
@@ -158,7 +300,7 @@ class ApiClient
     {
         @file_put_contents(
             $this->cachePath($endpoint),
-            json_encode(['t' => time(), 'r' => $response]),
+            json_encode(['t' => time(), 'ttl' => $this->ttlFor($endpoint), 'r' => $response]),
             LOCK_EX
         );
     }

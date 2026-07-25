@@ -10,6 +10,29 @@ RewriteBase /pwa_consultant/
 # Consultant backend API base (hosted on a separate host).
 SetEnv CONSULTANT_API_BASE https://atelierby.tfbuddy.com/api/v1
 
+# APP_DEBUG — affichage des erreurs PHP + mode debug Twig. OFF par défaut
+# (cf. config/app.php). À n'activer qu'en dev :
+# SetEnv APP_DEBUG 1
+
+# ── Compression des réponses texte (gzip) ──
+# HTML, CSS, JS, JSON, SVG servis compressés → moins d'octets sur le réseau.
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml \
+        application/javascript application/json application/xml image/svg+xml
+</IfModule>
+
+# ── Cache navigateur « immutable » pour les assets VERSIONNÉS (…?v=mtime) ──
+# Leur URL change à chaque déploiement (le v=mtime bouge), donc les mettre en
+# cache un an sans revalidation est sûr. Les pages HTML ne portent pas de ?v=
+# et ne sont donc jamais visées par cette règle.
+<IfModule mod_rewrite.c>
+    RewriteCond %{QUERY_STRING} (^|&)v= [NC]
+    RewriteRule \.(css|js|png|jpe?g|svg|webp|woff2?|ttf|ico)$ - [E=VERSIONED_ASSET:1]
+</IfModule>
+<IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=31536000, immutable" env=VERSIONED_ASSET
+</IfModule>
+
 # Login diagnostic — disabled. Uncomment to re-enable /auth?diag=1 for debugging.
 # SetEnv AUTH_DIAG 1
 

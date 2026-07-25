@@ -1,5 +1,5 @@
 /* /pwa_consultant/sw.js */
-const VERSION = "v1.1.0";
+const VERSION = "v1.2.0";
 const STATIC_CACHE = `static-${VERSION}`;
 const RUNTIME_CACHE = `runtime-${VERSION}`;
 
@@ -54,6 +54,13 @@ function isApiGET(url) {
     );
 }
 
+// Asset "immuable" : son URL porte une version (?v=mtime) qui change à chaque
+// déploiement → on peut le servir depuis le cache SANS jamais le re-télécharger
+// (contrairement au stale-while-revalidate qui re-fetchait à chaque visite).
+function isVersionedAsset(url) {
+    return url.searchParams.has("v");
+}
+
 self.addEventListener("fetch", (event) => {
     const req = event.request;
     if (!isGET(req)) return;
@@ -68,6 +75,25 @@ self.addEventListener("fetch", (event) => {
     //    mise à jour CSS/JS arrive au rechargement suivant (le cache-first
     //    pur gardait les anciens styles pour toujours).
     if (isSameOrigin && isStaticAsset(url)) {
+        // a) Asset versionné (?v=…) → CACHE-FIRST immuable : servi depuis le
+        //    cache sans re-fetch. La nouvelle version arrive via une nouvelle
+        //    URL (?v change) au déploiement → aucune bande passante gaspillée
+        //    sur les gros bundles (app.css ~332 Ko, app.js ~172 Ko) à chaque
+        //    navigation.
+        if (isVersionedAsset(url)) {
+            event.respondWith((async () => {
+                const cache = await caches.open(RUNTIME_CACHE);
+                const cached = await cache.match(req);
+                if (cached) return cached;
+                const res = await fetch(req);
+                if (res && res.status === 200) cache.put(req, res.clone());
+                return res;
+            })());
+            return;
+        }
+
+        // b) Asset non versionné → stale-while-revalidate (sert vite, met à jour
+        //    au chargement suivant).
         event.respondWith((async () => {
             const cache = await caches.open(RUNTIME_CACHE);
             const cached = await cache.match(req);
@@ -113,10 +139,17 @@ self.addEventListener("fetch", (event) => {
         return;
     }
 
-    // 4) Domyślnie: network, fallback na cache, a przy nawigacji — offline page
+    // 4) Navigation / défaut : NETWORK-FIRST (contenu frais — sûr pour les pages
+    //    authentifiées). Les navigations réussies sont mises en cache pour offrir
+    //    un vrai repli hors-ligne (au lieu de la seule page offline).
     event.respondWith((async () => {
         try {
-            return await fetch(req);
+            const res = await fetch(req);
+            if (req.mode === "navigate" && res && res.status === 200) {
+                const cache = await caches.open(RUNTIME_CACHE);
+                cache.put(req, res.clone());
+            }
+            return res;
         } catch (e) {
             const cached = await caches.match(req);
             if (cached) return cached;

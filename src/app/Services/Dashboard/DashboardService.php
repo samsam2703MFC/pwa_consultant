@@ -96,19 +96,25 @@ class DashboardService
      */
     private function computeCaToday(): array
     {
-        $shops    = $this->shopService->getAllShops();
-        $totalCA  = 0.0;
+        $shops     = $this->shopService->getAllShops();
+        $totalCA   = 0.0;
         $totalPrev = 0.0;
-        $hasValue = false;
-        $hasDelta = false;
+        $hasValue  = false;
+        $hasDelta  = false;
 
+        // Ids des magasins → un SEUL appel parallèle pour tous les P&L du jour
+        // (avant : une requête API séquentielle et bloquante par magasin).
+        $shopIds = [];
         foreach ($shops as $shop) {
             $shopId = (int)($shop['id'] ?? 0);
-            if ($shopId === 0) {
-                continue;
+            if ($shopId !== 0) {
+                $shopIds[] = $shopId;
             }
+        }
 
-            $pnl = $this->shopService->getPnl($shopId, 'day');
+        $pnls = $this->shopService->getPnlMany($shopIds, 'day');
+
+        foreach ($pnls as $pnl) {
             $val = $pnl['turnover']['value'] ?? null;
             if ($val === null) {
                 continue;

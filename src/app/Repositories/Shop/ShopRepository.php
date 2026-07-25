@@ -29,6 +29,36 @@ class ShopRepository
     }
 
     /**
+     * P&L de PLUSIEURS magasins pour une période, en UN SEUL aller-retour
+     * parallèle (curl_multi) au lieu de N appels séquentiels. Remède au N+1 du
+     * dashboard (« CA du jour »).
+     *
+     * @param int[] $shopIds
+     * @return array<int, array> map shopId => données P&L (ou [] si indisponible).
+     */
+    public function getPnlMany(array $shopIds, string $period = 'day'): array
+    {
+        if ($shopIds === []) {
+            return [];
+        }
+
+        $byEndpoint = [];
+        foreach ($shopIds as $id) {
+            $id = (int)$id;
+            $byEndpoint[$id] = '/consultant/shops/' . $id . '/pnl?period=' . urlencode($period);
+        }
+
+        $responses = $this->apiClient->getMany(array_values($byEndpoint));
+
+        $out = [];
+        foreach ($byEndpoint as $id => $ep) {
+            $r = $responses[$ep] ?? [];
+            $out[$id] = (!empty($r['success']) && isset($r['data']) && is_array($r['data'])) ? $r['data'] : [];
+        }
+        return $out;
+    }
+
+    /**
      * KPI de vente d'un magasin depuis l'API BACKEND (source de vérité
      * demandée) : GET /shops/{id}/statistics/sales/kpis?date_from&date_to
      * → { tickets, ca, products, avg_basket, products_per_ticket }.
