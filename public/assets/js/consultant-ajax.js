@@ -15,7 +15,26 @@
 
 const ConsultantAjax = (() => {
 
-    const PROXY = (window.__consultantRoot || '') + '/api-proxy';
+    const PROXY       = (window.__consultantRoot || '') + '/api-proxy';
+    const PROXY_BATCH = (window.__consultantRoot || '') + '/api-proxy-batch';
+
+    /**
+     * Récupère PLUSIEURS endpoints en UNE requête (proxy groupé, parallèle
+     * côté serveur). Résout vers un objet { "<endpoint>": <payload|null> }.
+     * Ne rejette jamais : en cas d'échec réseau, résout vers {} → l'appelant
+     * retombe sur ses appels individuels.
+     */
+    function batch(endpoints) {
+        return fetch(PROXY_BATCH, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ endpoints: endpoints || [] }),
+        })
+        .then(res => res.ok ? res.json() : null)
+        .then(json => (json && json.success && json.data) ? json.data : {})
+        .catch(() => ({}));
+    }
 
     function load({ endpoint, params = {}, skeleton, target, onSuccess, onError }) {
         const qs = new URLSearchParams({ endpoint, ...params }).toString();
@@ -98,6 +117,6 @@ const ConsultantAjax = (() => {
         </div>`;
     }
 
-    return { load, loadAll, skeletonLines, skeletonCard, errorHtml };
+    return { load, loadAll, batch, skeletonLines, skeletonCard, errorHtml };
 })();
 

@@ -514,7 +514,7 @@
                 });
                 setFeedback('reply', json.message || '{{ translations.reply_saved ?? 'Réponse enregistrée.' }}', true);
             }
-            setTimeout(() => window.location.reload(), 700);
+            setTimeout(() => window.location.reload(), 250);
         } catch (err) {
             setFeedback(action, err.message, false);
         }

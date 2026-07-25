@@ -286,6 +286,34 @@
         onError: () => resolve(null),
     })));
 
+    // ── Préchargement GROUPÉ des P&L (jour + mois) de TOUS les magasins en UNE
+    //    requête (proxy /api-proxy-batch, parallèle côté serveur), au lieu de 2
+    //    appels par magasin. Chaque ligne lit ensuite la valeur préchargée ;
+    //    repli transparent sur l'appel individuel si le lot échoue ou qu'une
+    //    entrée manque → aucune régression possible. ──
+    const PNL = Object.create(null);
+    const pnlKey = (id, period) => id + '|' + period;
+    const pnlEp  = (id, period) => '/consultant/shops/' + id + '/pnl?period=' + period;
+    const shopIds = Array.from(rows).map(r => parseInt(r.dataset.shopId, 10)).filter(Boolean);
+
+    const batchEndpoints = [];
+    shopIds.forEach(id => { batchEndpoints.push(pnlEp(id, 'day'), pnlEp(id, 'month')); });
+
+    const warm = (ConsultantAjax.batch ? ConsultantAjax.batch(batchEndpoints) : Promise.resolve({}))
+        .then(map => {
+            shopIds.forEach(id => ['day', 'month'].forEach(period => {
+                const v = map[pnlEp(id, period)];
+                if (v !== undefined && v !== null) PNL[pnlKey(id, period)] = v;
+            }));
+        })
+        .catch(() => {});
+
+    // P&L d'un magasin : valeur préchargée si présente, sinon appel individuel.
+    const pnl = (id, period) => warm.then(() => {
+        const k = pnlKey(id, period);
+        return (k in PNL) ? PNL[k] : ajax({ endpoint: '/consultant/shops/' + id + '/pnl', params: { period: period } });
+    });
+
     rows.forEach(row => {
         const shopId = parseInt(row.dataset.shopId, 10);
         if (!shopId) { fail(row); return; }
@@ -296,14 +324,14 @@
             window.location.href = ROOT + '/shops?focus=' + shopId + '&period=day&treemap=1';
         });
 
-        ajax({ endpoint: '/consultant/shops/' + shopId + '/pnl', params: { period: 'day' } }).then(day => {
+        pnl(shopId, 'day').then(day => {
             if (!day) { fail(row); return; }
             const ca = Number(day.turnover && day.turnover.value) || 0;
             const labour = Number(day.labour && day.labour.value) || 0;
             const from = day.date_from ? String(day.date_from).slice(0, 10) : null;
             const to = day.date_to ? String(day.date_to).slice(0, 10) : null;
 
-            const pMonth = ajax({ endpoint: '/consultant/shops/' + shopId + '/pnl', params: { period: 'month' } });
+            const pMonth = pnl(shopId, 'month');
             const pFood = (from && to)
                 ? ajax({ endpoint: '/shops/' + shopId + '/statistics/daily-summary', params: { date_from: from, date_to: to, from: from, to: to } }).then(s => s ? extractFood(s) : null)
                 : Promise.resolve(null);
