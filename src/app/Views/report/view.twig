@@ -41,6 +41,13 @@
     .rpt-lev-kpi i { display:block; color:#7a7168; font-style:normal; font-size:.66rem; }
     .rpt-lev-kpi b { color:#241f1c; font-weight:800; font-size:.86rem; }
     .rpt-lev-soon { font-size:.72rem; color:#b8b0a6; font-style:italic; }
+    /* Statut ✓ bon / ⚠ attention / ● danger vs moyenne réseau (comme HEXm). */
+    .rpt-lev-st { flex-shrink:0; width:18px; text-align:center; font-size:.9rem; font-weight:900; line-height:1; }
+    .rpt-v-ok, .rpt-lev.rpt-st-ok .rpt-lev-st   { color:#2D7A3E; }
+    .rpt-v-mid, .rpt-lev.rpt-st-mid .rpt-lev-st { color:#e67e22; }
+    .rpt-v-bad, .rpt-lev.rpt-st-bad .rpt-lev-st { color:#c0182b; }
+    .rpt-hexm-legend { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:7px; font-size:.66rem; color:#7a7168; }
+    .rpt-hexm-legend .rpt-st-ok { color:#2D7A3E; } .rpt-hexm-legend .rpt-st-mid { color:#e67e22; } .rpt-hexm-legend .rpt-st-bad { color:#c0182b; }
 
     .rpt-tbl { width:100%; border-collapse:collapse; font-size:.82rem; }
     .rpt-tbl th, .rpt-tbl td { text-align:left; padding:6px 8px; border-bottom:1px solid rgba(0,0,0,.07); }
@@ -130,24 +137,33 @@
                         </div>
                     </div>
 
-                    {# Les 6 leviers HEXm (vrais tags/couleurs officiels) et leur résultat sur la période #}
+                    {# Les 6 leviers HEXm (vrais tags/couleurs officiels), résultat de la
+                       période et statut ✓/⚠/● vs moyenne réseau (comme l'écran HEXm). #}
                     {% if shop.hexm.levers is defined %}
+                        {% set st_icon = {'ok': '✓', 'mid': '⚠', 'bad': '●'} %}
                         <div class="rpt-hexm">
                             {% for lev in shop.hexm.levers %}
                                 {% set shown = false %}
                                 {% for k in lev.kpis %}{% if k.value is not null %}{% set shown = true %}{% endif %}{% endfor %}
-                                <div class="rpt-lev{{ shown ? '' : ' rpt-lev--soon' }}">
+                                <div class="rpt-lev rpt-st-{{ lev.status }}{{ shown ? '' : ' rpt-lev--soon' }}">
                                     <span class="rpt-lev-badge" style="background:{{ lev.color }};">{{ lev.num }}</span>
                                     <span class="rpt-lev-nm">{{ lev.tag_name ?? lev.name }}</span>
                                     <span class="rpt-lev-kpis">
                                         {% if shown %}
-                                            {% for k in lev.kpis %}{% if k.value is not null %}<span class="rpt-lev-kpi"><i>{{ k.label }}</i><b>{{ k.value }}</b></span>{% endif %}{% endfor %}
+                                            {% for k in lev.kpis %}{% if k.value is not null %}<span class="rpt-lev-kpi"><i>{{ k.label }}</i><b class="rpt-v-{{ k.status }}">{{ k.value }}</b></span>{% endif %}{% endfor %}
                                         {% else %}
                                             <span class="rpt-lev-soon">{{ translations.data_soon ?? 'données à venir' }}</span>
                                         {% endif %}
                                     </span>
+                                    <span class="rpt-lev-st">{{ shown ? (st_icon[lev.status] ?? '') : '' }}</span>
                                 </div>
                             {% endfor %}
+                        </div>
+                        <div class="rpt-hexm-legend">
+                            <span class="rpt-st-ok">✓ {{ translations.legend_good ?? 'bon' }}</span>
+                            <span class="rpt-st-mid">⚠ {{ translations.legend_mid ?? 'attention' }}</span>
+                            <span class="rpt-st-bad">● {{ translations.legend_bad ?? 'danger' }}</span>
+                            <span>{{ translations.legend_vs ?? 'vs moyenne réseau' }}</span>
                         </div>
                     {% endif %}
                 </div>
