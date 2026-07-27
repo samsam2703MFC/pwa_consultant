@@ -1,0 +1,73 @@
+{% extends "layouts/mobile_base.twig" %}
+{% import "components/_icons.twig" as icons %}
+{% set active_nav = 'agenda' %}
+{% block title %}{{ translations.shop_agenda ?? 'Agenda boutique' }} — Consultant Panel{% endblock %}
+{% block page_title %}{{ shop.representative_name ?? shop.name ?? (translations.shop_agenda ?? 'Agenda boutique') }}{% endblock %}
+
+{% block head %}
+<style>
+  .sa-sub { font-size:.72rem; color:#7a7168; margin-bottom:12px; }
+  .sa-sec { font-size:.64rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#8D1D2C; margin:16px 2px 9px; }
+  .sa-v { display:flex; gap:11px; background:#fff; border:1px solid #ece4d8; border-radius:13px; padding:11px 12px; margin-bottom:9px; }
+  .sa-vt { flex-shrink:0; width:48px; text-align:center; }
+  .sa-vt .d { font-size:1.05rem; font-weight:800; color:#8D1D2C; line-height:1; }
+  .sa-vt .h { font-size:.62rem; color:#9a9086; margin-top:2px; }
+  .sa-vc { flex:1; min-width:0; }
+  .sa-vc .who { font-size:.85rem; font-weight:800; color:#241f1c; }
+  .sa-vc .who .me { color:#8D1D2C; font-weight:700; font-size:.72rem; }
+  .sa-vc .g { font-size:.74rem; color:#7a7168; margin-top:2px; }
+  .st { display:inline-block; font-size:.62rem; font-weight:800; border-radius:8px; padding:2px 8px; margin-top:5px; }
+  .st.plan { background:rgba(26,115,232,.12); color:#1a73e8; } .st.done { background:rgba(45,122,62,.13); color:#2D7A3E; } .st.cancel { background:#f1f3f5; color:#adb5bd; }
+  .lev-grp { background:#fff; border:1px solid #ece4d8; border-radius:13px; padding:10px 12px; margin-bottom:9px; }
+  .lev-grp .h { display:flex; align-items:center; gap:9px; font-size:.82rem; font-weight:800; color:#241f1c; }
+  .lev-badge { width:24px; height:24px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:.74rem; font-weight:800; background:#8a827a; }
+  .lev-act { display:flex; gap:8px; align-items:baseline; font-size:.8rem; color:#3a352f; padding:5px 0 5px 33px; }
+  .lev-act .dot { flex-shrink:0; }
+  .empty { font-size:.82rem; color:#adb5bd; font-style:italic; padding:6px 2px; }
+  .plan-btn { display:inline-flex; align-items:center; gap:7px; background:#8D1D2C; color:#fff; border-radius:999px; padding:10px 16px; font-size:.82rem; font-weight:800; text-decoration:none; margin-top:6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-content-loaded px-3 pb-4">
+  <a href="{{ ROOT }}/agenda" class="app-back-btn" style="margin-bottom:12px;">{{ icons.svg('chevron-left', 16) }}<span>{{ translations.back ?? 'Agenda' }}</span></a>
+
+  <div class="sa-sub">{{ translations.all_consultants ?? 'Visites de tous les consultants' }} · {{ translations.anti_dup ?? 'évite les doublons' }} · <b>{{ month_label }}</b></div>
+
+  <div class="sa-sec">{{ translations.visits ?? 'Visites' }}</div>
+  {% if visits is empty %}
+    <div class="empty">{{ translations.no_visits ?? 'Aucune visite ce mois-ci.' }}</div>
+  {% else %}
+    {% for v in visits %}
+      <div class="sa-v">
+        <div class="sa-vt"><div class="d">{{ v.date|slice(8,2) }}</div><div class="h">{{ v.time }}</div></div>
+        <div class="sa-vc">
+          <div class="who">{{ v.consultant_name ?? '—' }} {% if v.id_consultant == current_user.membership_id or v.id_consultant == current_user.id %}<span class="me">({{ translations.you ?? 'vous' }})</span>{% endif %}</div>
+          {% if v.goal %}<div class="g">{{ v.goal }}</div>{% endif %}
+          <span class="st {{ v.status_class }}">{{ v.status == 'done' ? (translations.done ?? 'faite') : (v.status == 'cancelled' ? (translations.cancelled ?? 'annulée') : (translations.planned ?? 'planifiée')) }}</span>
+        </div>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="sa-sec">{{ translations.lever_actions ?? 'À travailler par levier' }}</div>
+  {% set has_actions = false %}
+  {% for lev in levers %}
+    {% set acts = actions_by_lever[lev.key] ?? [] %}
+    {% if acts is not empty %}
+      {% set has_actions = true %}
+      <div class="lev-grp">
+        <div class="h"><span class="lev-badge">{{ lev.letter }}</span> {{ lev.name }}</div>
+        {% for a in acts %}
+          <div class="lev-act"><span class="dot">{{ a.status == 'done' ? '✓' : (a.status == 'doing' ? '◐' : '○') }}</span> {{ a.action }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endfor %}
+  {% if not has_actions %}
+    <div class="empty">{{ translations.no_actions ?? 'Aucune action définie pour cette boutique.' }}</div>
+  {% endif %}
+
+  <a class="plan-btn" href="{{ ROOT }}/agenda/new?shop_id={{ shop_id }}">＋ {{ translations.plan_visit ?? 'Planifier une visite' }}</a>
+</div>
+{% endblock %}
