@@ -52,6 +52,19 @@
                 </div>
             {% endif %}
             <p class="mb-0" style="font-size:.92rem;line-height:1.6;white-space:pre-wrap;">{{ note.content }}</p>
+            {# Photos attachées à la note (si le backend les renvoie). #}
+            {% if note.photos is defined and note.photos|length > 0 %}
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    {% for photo in note.photos %}
+                        {% if photo.presigned_url %}
+                            <a href="{{ photo.presigned_url }}" target="_blank">
+                                <img src="{{ photo.presigned_url }}" alt="{{ translations.photo_alt ?? 'photo' }}"
+                                     style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
         </div>
     </div>
 

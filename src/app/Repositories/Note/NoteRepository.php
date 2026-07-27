@@ -100,14 +100,49 @@ class NoteRepository
     }
 
     /**
-     * Dodaje komentarz z opcjonalnymi zdjęciami (multipart).
-     * $files = ['photos' => $_FILES['photos']]  (multi-file structure)
+     * Ajoute un commentaire avec photos optionnelles (multipart).
+     * $files = ['photos' => $_FILES['photos']]  (structure multi-fichiers)
      */
     public function addComment(int $noteId, array $data, array $files = []): array
     {
-        // Normalizuj $_FILES['photos'] (multi-file) na indexed CURLFile-friendly format
-        // postMultipart oczekuje ['photos[0]' => singleFile, 'photos[1]' => singleFile, ...]
-        $normalizedFiles = [];
+        return $this->apiClient->postMultipart(
+            "/consultant/notes/{$noteId}/comments",
+            $data,
+            $this->normalizePhotos($files)
+        );
+    }
+
+    /**
+     * Création de note AVEC photos (multipart) — même mécanisme que les
+     * commentaires. Les valeurs nulles du payload sont converties en '' (les
+     * champs multipart doivent être des scalaires).
+     */
+    public function createNoteWithPhotos(int $shopId, array $data, array $files): array
+    {
+        return $this->apiClient->postMultipart(
+            "/consultant/shops/{$shopId}/notes",
+            $this->stringifyFields($data),
+            $this->normalizePhotos($files)
+        );
+    }
+
+    /** Idem pour une note d'employé. */
+    public function createEmployeeNoteWithPhotos(int $shopId, int $employeeId, array $data, array $files): array
+    {
+        return $this->apiClient->postMultipart(
+            "/consultant/shops/{$shopId}/employees/{$employeeId}/notes",
+            $this->stringifyFields($data),
+            $this->normalizePhotos($files)
+        );
+    }
+
+    /**
+     * Normalise $_FILES['photos'] (multi-fichiers) vers le format attendu par
+     * postMultipart : ['photos[0]' => fichier, 'photos[1]' => fichier, …].
+     */
+    private function normalizePhotos(array $files): array
+    {
+        $out = [];
         if (!empty($files['photos']) && isset($files['photos']['name'])) {
             $rawPhotos = $files['photos'];
             $names     = (array)($rawPhotos['name'] ?? []);
@@ -115,7 +150,7 @@ class NoteRepository
 
             for ($i = 0; $i < $limit; $i++) {
                 if (($rawPhotos['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-                    $normalizedFiles["photos[{$i}]"] = [
+                    $out["photos[{$i}]"] = [
                         'name'     => $rawPhotos['name'][$i] ?? '',
                         'type'     => $rawPhotos['type'][$i] ?? 'application/octet-stream',
                         'tmp_name' => $rawPhotos['tmp_name'][$i] ?? '',
@@ -125,12 +160,13 @@ class NoteRepository
                 }
             }
         }
+        return $out;
+    }
 
-        return $this->apiClient->postMultipart(
-            "/consultant/notes/{$noteId}/comments",
-            $data,
-            $normalizedFiles
-        );
+    /** Convertit les valeurs nulles en '' pour un envoi multipart. */
+    private function stringifyFields(array $data): array
+    {
+        return array_map(fn($v) => $v === null ? '' : $v, $data);
     }
 
     public function deleteComment(int $id): array
