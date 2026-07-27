@@ -81,6 +81,26 @@
 
     .rpt-actions { display:flex; gap:10px; margin-bottom:16px; }
 
+    /* ── Vue RÉSEAU « toutes les boutiques » : 3 onglets (toggle) ── */
+    .rpt-tabs { display:flex; gap:5px; margin-bottom:14px; background:#f2ede5; border-radius:12px; padding:4px; }
+    .rpt-tab { flex:1; border:0; background:transparent; border-radius:9px; padding:8px 6px; font-size:.72rem; font-weight:800; color:#7a7168; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .rpt-tab.is-active { background:#fff; color:#8D1D2C; box-shadow:0 1px 4px rgba(0,0,0,.10); }
+    .rpt-tabview[hidden] { display:none; }
+    /* Pastille de statut (carré arrondi lettré) */
+    .rpt-dot { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:6px; color:#fff; font-size:.7rem; font-weight:900; }
+    .rpt-dot.st-ok { background:#2D7A3E; } .rpt-dot.st-mid { background:#e67e22; } .rpt-dot.st-bad { background:#c0182b; } .rpt-dot.st-nd { background:#c9c2b8; }
+    /* Heatmap boutiques × leviers */
+    .rpt-heat { border-collapse:separate; border-spacing:3px; font-size:.72rem; }
+    .rpt-heat th { font-size:.64rem; color:#6c757d; font-weight:800; padding:2px 3px; text-align:center; }
+    .rpt-heat td.nm { text-align:left; font-weight:700; white-space:nowrap; padding-right:6px; font-size:.72rem; }
+    .rpt-heat-cell { display:flex; align-items:center; justify-content:center; width:26px; height:22px; border-radius:5px; color:#fff; font-weight:800; }
+    .rpt-heat-cell.st-ok { background:#2D7A3E; } .rpt-heat-cell.st-mid { background:#e67e22; } .rpt-heat-cell.st-bad { background:#c0182b; } .rpt-heat-cell.st-nd { background:#efe9e0; color:#c9c2b8; }
+    /* Synthèse dirigeant */
+    .rpt-syn-h { font-size:.74rem; font-weight:800; margin:14px 0 6px; }
+    .rpt-syn-item { display:flex; gap:8px; align-items:baseline; font-size:.82rem; padding:3px 0; }
+    .rpt-syn-item b { color:#212529; }
+    .rpt-chip { flex-shrink:0; font-size:.66rem; font-weight:800; border-radius:8px; padding:2px 8px; background:rgba(141,29,44,.09); color:#8D1D2C; }
+
     /* Impression / « Enregistrer en PDF » : on ne garde que le rapport. */
     @media print {
         .app-topbar, .app-tabbar-bar, .app-nav-sheet, .app-nav-backdrop,
@@ -124,6 +144,126 @@
             </div>
         </div>
 
+        {% if report.network %}
+        {# ══ Vue RÉSEAU consolidée (toutes les boutiques) — 3 onglets ══ #}
+        {% set net = report.network %}
+        {% set st_icon = {'ok': '✓', 'mid': '⚠', 'bad': '●', 'nd': '·'} %}
+        <div class="rpt-tabs rpt-noprint" role="tablist">
+            <button type="button" class="rpt-tab is-active" data-tab="dash">{{ translations.tab_dashboard ?? 'Tableau de bord' }}</button>
+            <button type="button" class="rpt-tab" data-tab="heat">{{ translations.tab_heatmap ?? 'Heatmap' }}</button>
+            <button type="button" class="rpt-tab" data-tab="synth">{{ translations.tab_summary ?? 'Synthèse' }}</button>
+        </div>
+
+        {# KPI réseau — communs, en tête de chaque onglet à l'impression #}
+        {% set net_kpis %}
+            <div class="rpt-kpis">
+                <div class="rpt-kpi"><div class="rpt-kpi-v">{{ (net.kpis.ca ?? 0)|number_format(0, ',', ' ') }} {{ currency_symbol }}</div><div class="rpt-kpi-l">{{ translations.turnover ?? "Chiffre d'affaires" }}</div></div>
+                <div class="rpt-kpi"><div class="rpt-kpi-v">{{ (net.kpis.tickets ?? 0)|number_format(0, ',', ' ') }}</div><div class="rpt-kpi-l">{{ translations.tickets ?? 'Tickets' }}</div></div>
+                <div class="rpt-kpi"><div class="rpt-kpi-v">{{ net.kpis.basket is not null ? (net.kpis.basket|number_format(2, ',', ' ') ~ ' ' ~ currency_symbol) : '—' }}</div><div class="rpt-kpi-l">{{ translations.avg_basket ?? 'Panier moyen' }}</div></div>
+                <div class="rpt-kpi"><div class="rpt-kpi-v {{ net.kpis.evo is not null ? (net.kpis.evo >= 0 ? 'rpt-up' : 'rpt-down') }}">{{ net.kpis.evo is not null ? ((net.kpis.evo >= 0 ? '+' : '') ~ (net.kpis.evo|number_format(1, ',', ' ')) ~ ' %') : '—' }}</div><div class="rpt-kpi-l">{{ translations.ca ?? 'CA' }} vs N-1</div></div>
+            </div>
+        {% endset %}
+
+        {# ── Onglet 1 : Tableau de bord + classement ── #}
+        <div class="rpt-tabview" data-tab="dash">
+            {{ net_kpis }}
+            <div class="rpt-tbl-wrap" style="margin-top:12px;">
+                <table class="rpt-tbl">
+                    <thead><tr>
+                        <th class="num">{{ translations.health ?? 'Santé' }}</th>
+                        <th>{{ translations.shop ?? 'Boutique' }}</th>
+                        <th class="num">{{ translations.ca ?? 'CA' }}</th>
+                        <th class="num">{{ translations.n1 ?? 'N-1' }}</th>
+                        <th class="num">{{ translations.avg_basket ?? 'Panier' }}</th>
+                        <th class="num">{{ translations.network ?? 'Réseau' }}</th>
+                    </tr></thead>
+                    <tbody>
+                    {% for s in net.shops %}
+                        <tr>
+                            <td class="num"><span class="rpt-dot st-{{ s.status }}">{{ st_icon[s.status] ?? '·' }}</span></td>
+                            <td>{{ s.name }}</td>
+                            <td class="num">{{ s.ca|number_format(0, ',', ' ') }} {{ currency_symbol }}</td>
+                            <td class="num">{% if s.evo is not null %}<span class="{{ s.evo >= 0 ? 'rpt-up' : 'rpt-down' }}">{{ s.evo >= 0 ? '▲ +' : '▼ −' }}{{ (s.evo < 0 ? -s.evo : s.evo)|number_format(1, ',', ' ') }} %</span>{% else %}—{% endif %}</td>
+                            <td class="num">{{ s.basket is not null ? (s.basket|number_format(2, ',', ' ') ~ ' ' ~ currency_symbol) : '—' }}</td>
+                            <td class="num">{% if s.delta_basket is not null %}<span class="{{ s.delta_basket >= 0 ? 'rpt-up' : 'rpt-down' }}">{{ s.delta_basket >= 0 ? '▲ +' : '▼ −' }}{{ (s.delta_basket < 0 ? -s.delta_basket : s.delta_basket)|number_format(0, ',', ' ') }} %</span>{% else %}—{% endif %}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="rpt-hexm-legend" style="margin-top:8px;">
+                <span>{{ translations.objectives_reached ?? 'Objectifs atteints' }} — {{ translations.tickets ?? 'Clients' }} {{ net.objectives.clients }} · {{ translations.avg_basket ?? 'Panier' }} {{ net.objectives.basket }} · B2B {{ net.objectives.b2b }}</span>
+            </div>
+        </div>
+
+        {# ── Onglet 2 : Heatmap santé (boutiques × leviers) ── #}
+        <div class="rpt-tabview" data-tab="heat" hidden>
+            {{ net_kpis }}
+            <div class="rpt-tbl-wrap" style="margin-top:12px;">
+                <table class="rpt-heat">
+                    <thead><tr><th class="nm"></th>{% for d in net.lever_defs %}<th title="{{ d.name }}">{{ d.letter }}</th>{% endfor %}</tr></thead>
+                    <tbody>
+                    {% for s in net.shops %}
+                        <tr>
+                            <td class="nm">{{ s.name }}</td>
+                            {% for d in net.lever_defs %}
+                                {% set stt = s.levers[d.key] ?? 'nd' %}
+                                <td><div class="rpt-heat-cell st-{{ stt }}">{{ st_icon[stt] ?? '·' }}</div></td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="rpt-hexm-legend" style="margin-top:8px;">
+                {% for d in net.lever_defs %}<span>{{ d.letter }} = {{ d.name }}</span>{% endfor %}
+            </div>
+            <div class="rpt-hexm-legend">
+                <span class="rpt-st-ok">✓ {{ translations.legend_good ?? 'bon' }}</span>
+                <span class="rpt-st-mid">⚠ {{ translations.legend_mid ?? 'attention' }}</span>
+                <span class="rpt-st-bad">● {{ translations.legend_bad ?? 'danger' }}</span>
+                <span>{{ translations.legend_vs ?? 'vs moyenne réseau' }}</span>
+            </div>
+        </div>
+
+        {# ── Onglet 3 : Synthèse dirigeant ── #}
+        <div class="rpt-tabview" data-tab="synth" hidden>
+            {{ net_kpis }}
+            {% if net.attention is not empty %}
+                <div class="rpt-syn-h rpt-st-bad">⚠ {{ translations.attention_points ?? "Points d'attention" }}</div>
+                {% for a in net.attention %}
+                    <div class="rpt-syn-item"><span class="rpt-dot st-bad">●</span><div><b>{{ a.name }}</b> — {{ a.reasons|join(' · ') }}</div></div>
+                {% endfor %}
+            {% endif %}
+            {% if net.strong is not empty %}
+                <div class="rpt-syn-h rpt-st-ok">✓ {{ translations.strong_points ?? 'Points forts' }}</div>
+                {% for s in net.strong %}
+                    <div class="rpt-syn-item"><span class="rpt-dot st-ok">▲</span><div><b>{{ s.name }}</b> — {{ translations.turnover ?? 'CA' }} {{ s.evo >= 0 ? '+' : '' }}{{ s.evo|number_format(1, ',', ' ') }} %</div></div>
+                {% endfor %}
+            {% endif %}
+            {% if net.top is not empty %}
+                <div class="rpt-syn-h">{{ translations.ranking ?? 'Palmarès' }}</div>
+                <div class="rpt-syn-item"><span class="rpt-chip">Top</span><div>{% for t in net.top %}{{ t.name }} ({{ t.evo >= 0 ? '+' : '' }}{{ t.evo|number_format(1, ',', ' ') }} %){{ loop.last ? '' : ' · ' }}{% endfor %}</div></div>
+                <div class="rpt-syn-item"><span class="rpt-chip">Flop</span><div>{% for t in net.flop %}{{ t.name }} ({{ t.evo >= 0 ? '+' : '' }}{{ t.evo|number_format(1, ',', ' ') }} %){{ loop.last ? '' : ' · ' }}{% endfor %}</div></div>
+            {% endif %}
+        </div>
+
+        {# ── Réclamations réseau (résumé) ── #}
+        <div class="rpt-shop">
+            <div class="rpt-shop-name">{{ icons.svg('circle-alert', 15) }} {{ translations.supplier_claims ?? 'Réclamations fournisseurs' }} — {{ translations.network ?? 'Réseau' }} ({{ net.claims_total }})</div>
+            <div class="rpt-shop-body">
+                {% if net.claims_top is empty %}
+                    <div class="rpt-empty">{{ translations.no_claims ?? 'Aucune réclamation sur la période.' }}</div>
+                {% else %}
+                    <table class="rpt-tbl"><tbody>
+                    {% for sup, cnt in net.claims_top %}
+                        <tr><td>{{ icons.svg('package', 13) }} {{ sup }}</td><td class="num"><span class="rpt-badge">{{ cnt }}</span></td></tr>
+                    {% endfor %}
+                    </tbody></table>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
         {# ── Sections par boutique ── #}
         {% for shop in report.shops %}
         <div class="rpt-shop">
@@ -296,6 +436,7 @@
             </div>
         </div>
         {% endfor %}
+        {% endif %}
 
         {# ── Demandes (Helpdesk) ── #}
         <div class="rpt-shop">
@@ -358,4 +499,20 @@
     {% endif %}
 
 </div>
+
+{# Onglets de la vue réseau : bascule client-side (toggle). #}
+<script>
+(function () {
+    var tabs = document.querySelectorAll('.rpt-tab');
+    if (!tabs.length) return;
+    var views = document.querySelectorAll('.rpt-tabview');
+    tabs.forEach(function (t) {
+        t.addEventListener('click', function () {
+            var name = t.getAttribute('data-tab');
+            tabs.forEach(function (x) { x.classList.toggle('is-active', x === t); });
+            views.forEach(function (v) { v.hidden = v.getAttribute('data-tab') !== name; });
+        });
+    });
+})();
+</script>
 {% endblock %}

@@ -129,28 +129,38 @@ class ReportService
             'b2b'     => null,
         ];
 
+        // « Toutes les boutiques » → une vue RÉSEAU consolidée (3 onglets :
+        // tableau de bord + classement, heatmap, synthèse) au lieu d'empiler la
+        // fiche complète de chaque boutique. « Une boutique » → sa fiche détaillée.
         $shopSections = [];
-        foreach ($scopeShops as $shop) {
-            $shopId = (int)($shop['id'] ?? 0);
-            if ($shopId <= 0) {
-                continue;
+        $network      = null;
+        if ($scopeMode === 'all') {
+            $network = $this->buildNetworkView(
+                $allShops, $period, $tgt, $kpisByShop, $metricsByShop, $netAvg, $netFranchise, $ofTags, $fromT, $toT
+            );
+        } else {
+            foreach ($scopeShops as $shop) {
+                $shopId = (int)($shop['id'] ?? 0);
+                if ($shopId <= 0) {
+                    continue;
+                }
+                $shopName = (string)($shop['representative_name'] ?? $shop['name'] ?? ('#' . $shopId));
+
+                $kpis      = $kpisByShop[$shopId] ?? $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
+                $metrics   = $metricsByShop[$shopId] ?? $this->hexmMetrics($shopId, $period, $kpis);
+                $franchise = $this->franchiseKpisForShop($shopId, $period, $tgt, $kpis, $netFranchise);
+
+                $shopSections[] = [
+                    'id'                 => $shopId,
+                    'name'               => $shopName,
+                    'kpis'               => $kpis,
+                    'hexm'               => $this->hexmDisplay($metrics, $netAvg, $ofTags),
+                    'franchise'          => $franchise['kpis'],
+                    'targets_label'      => $franchise['label'],
+                    'notes'              => $this->noteService->getNotesForPeriod($shopId, $period['from'], $period['to']),
+                    'claims_by_supplier' => $this->claimsBySupplier($shopId, $fromT, $toT),
+                ];
             }
-            $shopName = (string)($shop['representative_name'] ?? $shop['name'] ?? ('#' . $shopId));
-
-            $kpis      = $kpisByShop[$shopId] ?? $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
-            $metrics   = $metricsByShop[$shopId] ?? $this->hexmMetrics($shopId, $period, $kpis);
-            $franchise = $this->franchiseKpisForShop($shopId, $period, $tgt, $kpis, $netFranchise);
-
-            $shopSections[] = [
-                'id'                 => $shopId,
-                'name'               => $shopName,
-                'kpis'               => $kpis,
-                'hexm'               => $this->hexmDisplay($metrics, $netAvg, $ofTags),
-                'franchise'          => $franchise['kpis'],
-                'targets_label'      => $franchise['label'],
-                'notes'              => $this->noteService->getNotesForPeriod($shopId, $period['from'], $period['to']),
-                'claims_by_supplier' => $this->claimsBySupplier($shopId, $fromT, $toT),
-            ];
         }
 
         $user = GlobalRegistry::get('user') ?? [];
@@ -164,8 +174,175 @@ class ReportService
             'consultant'    => (string)($user['display_name'] ?? ''),
             'generated_at'  => date('Y-m-d H:i'),
             'shops'         => $shopSections,
+            'network'       => $network,
             'demandes'      => $this->demandesForPeriod($fromT, $toT, $shopFilter),
             'tasks_done'    => $this->tasksDoneForPeriod($fromT, $toT),
+        ];
+    }
+
+    /**
+     * Vue RÉSEAU consolidée (périmètre « toutes les boutiques ») alimentant les
+     * 3 onglets du rapport, à partir des données déjà calculées par boutique :
+     *   - kpis        : totaux réseau (CA, tickets, panier pondéré, évo CA vs N-1) ;
+     *   - shops       : une ligne par boutique (CA, évo, panier, écart panier vs
+     *                   réseau, statut HEXm global, statut de chaque levier) ;
+     *   - objectives  : nombre de boutiques atteignant l'objectif (clients/panier/b2b) ;
+     *   - attention   : boutiques en difficulté (leviers ● danger et/ou CA en baisse) ;
+     *   - strong      : boutiques en forme (CA en hausse, aucun levier ●) ;
+     *   - top / flop  : 3 meilleures / 3 moins bonnes par évolution ;
+     *   - claims      : réclamations réseau (total + top fournisseurs).
+     */
+    private function buildNetworkView(
+        array $allShops, array $period, array $tgt, array $kpisByShop, array $metricsByShop,
+        array $netAvg, array $netFranchise, array $ofTags, int $fromT, int $toT
+    ): array {
+        $leverDefs = [
+            ['key' => 'trafic',     'letter' => 'T', 'name' => 'Trafic'],
+            ['key' => 'recurrence', 'letter' => 'R', 'name' => 'Récurrence'],
+            ['key' => 'xp',         'letter' => 'E', 'name' => 'Expérience'],
+            ['key' => 'food',       'letter' => 'F', 'name' => 'Food Cost'],
+            ['key' => 'labour',     'letter' => 'L', 'name' => 'Labour'],
+            ['key' => 'overhead',   'letter' => 'O', 'name' => 'Overhead'],
+        ];
+
+        $shops   = [];
+        $sumCa   = 0.0;
+        $sumTk   = 0;
+        $objMet  = ['clients' => 0, 'basket' => 0, 'b2b' => 0];
+        $objTot  = ['clients' => 0, 'basket' => 0, 'b2b' => 0];
+        $netB    = $netFranchise['basket'] ?? null;
+
+        foreach ($allShops as $shop) {
+            $sid = (int)($shop['id'] ?? 0);
+            if ($sid <= 0 || !isset($kpisByShop[$sid])) {
+                continue;
+            }
+            $k       = $kpisByShop[$sid];
+            $ca      = (float)($k['ca'] ?? 0);
+            $tickets = (int)($k['tickets'] ?? 0);
+            $basket  = isset($k['avg_basket']) && $k['avg_basket'] !== null ? (float)$k['avg_basket'] : null;
+            $metrics = $metricsByShop[$sid] ?? [];
+            $evo     = isset($metrics['evo']) && $metrics['evo'] !== null ? (float)$metrics['evo'] : null;
+
+            // Statut de chaque levier vs moyenne réseau (comme la fiche boutique).
+            $display     = $this->hexmDisplay($metrics, $netAvg, $ofTags);
+            $leverStatus = [];
+            $badLevers   = [];
+            foreach ($display['levers'] as $lev) {
+                $leverStatus[$lev['key']] = $lev['status'];
+                if ($lev['status'] === 'bad') {
+                    $badLevers[] = (string)($lev['tag_name'] ?? $lev['name']);
+                }
+            }
+            $overall = $this->worstStatus(array_values($leverStatus));
+
+            // Atteinte des objectifs franchisé (comptage réseau).
+            $fr = $this->franchiseKpisForShop($sid, $period, $tgt, $k, $netFranchise);
+            foreach ($fr['kpis'] as $fk) {
+                $key = $fk['label'] === 'Clients' ? 'clients' : ($fk['label'] === 'Panier moyen' ? 'basket' : 'b2b');
+                if (($fk['obj'] ?? null) !== null && ($fk['val'] ?? null) !== null) {
+                    $objTot[$key]++;
+                    if (($fk['pct'] ?? 0) >= 95.0) {
+                        $objMet[$key]++;
+                    }
+                }
+            }
+
+            $deltaBasket = ($netB !== null && $netB > 0 && $basket !== null)
+                ? (($basket - $netB) / $netB) * 100 : null;
+
+            $shops[] = [
+                'id'           => $sid,
+                'name'         => (string)($shop['representative_name'] ?? $shop['name'] ?? ('#' . $sid)),
+                'ca'           => $ca,
+                'tickets'      => $tickets,
+                'basket'       => $basket,
+                'evo'          => $evo,
+                'delta_basket' => $deltaBasket,
+                'status'       => $overall,
+                'levers'       => $leverStatus,
+                'bad_levers'   => $badLevers,
+            ];
+            $sumCa += $ca;
+            $sumTk += $tickets;
+        }
+
+        // Évolution CA réseau : somme des CA vs somme des CA N-1.
+        $fromN1  = date('Y-m-d', (int)strtotime($period['from'] . ' -1 year'));
+        $toN1    = date('Y-m-d', (int)strtotime($period['to'] . ' -1 year'));
+        $sumCaN1 = 0.0;
+        foreach ($shops as $s) {
+            $sumCaN1 += (float)($this->shopService->getSalesKpis($s['id'], $fromN1, $toN1)['ca'] ?? 0);
+        }
+        $netEvo    = $sumCaN1 > 0 ? (($sumCa - $sumCaN1) / $sumCaN1) * 100 : null;
+        $netBasket = $sumTk > 0 ? $sumCa / $sumTk : null;
+
+        // Classement par CA décroissant.
+        usort($shops, fn($a, $b) => $b['ca'] <=> $a['ca']);
+
+        // Top / flop par évolution (boutiques sans N-1 exclues du palmarès).
+        $withEvo = array_values(array_filter($shops, fn($s) => $s['evo'] !== null));
+        usort($withEvo, fn($a, $b) => $b['evo'] <=> $a['evo']);
+        $top  = array_slice($withEvo, 0, 3);
+        $flop = array_slice(array_reverse($withEvo), 0, 3);
+
+        // Points d'attention (leviers ● et/ou CA en baisse), triés par gravité.
+        $attention = [];
+        $strong    = [];
+        foreach ($shops as $s) {
+            $reasons = [];
+            if ($s['bad_levers'] !== []) {
+                $reasons[] = implode(', ', $s['bad_levers']);
+            }
+            $caDown = $s['evo'] !== null && $s['evo'] < 0;
+            if ($caDown) {
+                $reasons[] = 'CA ' . $this->fmtEvo($s['evo']);
+            }
+            if ($reasons !== []) {
+                $attention[] = [
+                    'name'    => $s['name'],
+                    'reasons' => $reasons,
+                    'sev'     => count($s['bad_levers']) + ($caDown ? 1 : 0),
+                ];
+            } elseif ($s['evo'] !== null && $s['evo'] > 0) {
+                $strong[] = ['name' => $s['name'], 'evo' => $s['evo']];
+            }
+        }
+        usort($attention, fn($a, $b) => $b['sev'] <=> $a['sev']);
+        usort($strong, fn($a, $b) => $b['evo'] <=> $a['evo']);
+
+        // Réclamations réseau : total + top fournisseurs.
+        $claimsTotal = 0;
+        $bySupplier  = [];
+        foreach ($shops as $s) {
+            foreach ($this->claimsBySupplier($s['id'], $fromT, $toT) as $sup => $cl) {
+                $claimsTotal   += count($cl);
+                $bySupplier[$sup] = ($bySupplier[$sup] ?? 0) + count($cl);
+            }
+        }
+        arsort($bySupplier);
+
+        return [
+            'kpis' => [
+                'ca'         => $sumCa,
+                'tickets'    => $sumTk,
+                'basket'     => $netBasket,
+                'evo'        => $netEvo,
+                'shop_count' => count($shops),
+            ],
+            'lever_defs'   => $leverDefs,
+            'shops'        => $shops,
+            'objectives'   => [
+                'clients' => $objMet['clients'] . '/' . $objTot['clients'],
+                'basket'  => $objMet['basket'] . '/' . $objTot['basket'],
+                'b2b'     => $objMet['b2b'] . '/' . $objTot['b2b'],
+            ],
+            'attention'    => $attention,
+            'strong'       => $strong,
+            'top'          => $top,
+            'flop'         => $flop,
+            'claims_total' => $claimsTotal,
+            'claims_top'   => array_slice($bySupplier, 0, 5, true),
         ];
     }
 
