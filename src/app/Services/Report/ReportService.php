@@ -92,8 +92,7 @@ class ReportService
         $toT   = strtotime($period['to'] . ' 23:59:59');
 
         // Tags OFFICIELS des leviers (of_tag) — mêmes couleurs/identité que l'écran HEXm.
-        $ofTags     = $this->consultantUsers->getOfficialTags();
-        $metricDefs = $this->targetService->getMetricDefinitions();
+        $ofTags = $this->consultantUsers->getOfficialTags();
 
         // Métriques HEXm de TOUTES les boutiques → moyenne réseau, référence du
         // statut ✓ bon / ⚠ attention / ● danger (comme l'écran HEXm). Même en
@@ -119,17 +118,17 @@ class ReportService
             }
             $shopName = (string)($shop['representative_name'] ?? $shop['name'] ?? ('#' . $shopId));
 
-            $kpis    = $kpisByShop[$shopId] ?? $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
-            $metrics = $metricsByShop[$shopId] ?? $this->hexmMetrics($shopId, $period, $kpis);
-            [$targetsView, $targetsLabel] = $this->targetsForShop($shopId, $tgt, $metricDefs);
+            $kpis      = $kpisByShop[$shopId] ?? $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
+            $metrics   = $metricsByShop[$shopId] ?? $this->hexmMetrics($shopId, $period, $kpis);
+            $franchise = $this->franchiseKpisForShop($shopId, $period, $tgt, $kpis);
 
             $shopSections[] = [
                 'id'                 => $shopId,
                 'name'               => $shopName,
                 'kpis'               => $kpis,
                 'hexm'               => $this->hexmDisplay($metrics, $netAvg, $ofTags),
-                'targets_view'       => $targetsView,
-                'targets_label'      => $targetsLabel,
+                'franchise'          => $franchise['kpis'],
+                'targets_label'      => $franchise['label'],
                 'notes'              => $this->noteService->getNotesForPeriod($shopId, $period['from'], $period['to']),
                 'claims_by_supplier' => $this->claimsBySupplier($shopId, $fromT, $toT),
             ];
@@ -187,83 +186,180 @@ class ReportService
     }
 
     /**
-     * Objectifs (targets) d'une boutique pour le rapport : d'abord le mois de
-     * référence (mois précédent pour le mensuel = image figée) ; si aucun
-     * objectif n'y est défini, repli sur le mois COURANT puis le mois précédent
-     * (objectifs actifs), pour ne pas afficher « aucun target » alors que des
-     * objectifs existent. Renvoie [liste_targets, libellé_du_mois_affiché].
+     * Les 3 objectifs franchisé d'une boutique (comme l'écran /targets) :
+     * Clients (tickets), Panier moyen, B2B — chacun avec le réalisé de la
+     * PÉRIODE, la même période un an avant (N-1) et l'OBJECTIF, plus un statut
+     * ✓/⚠/● (% de l'objectif). Réalisé/N-1 depuis les ventes ; objectif depuis
+     * les targets du mois (source active), mis à l'échelle de la période pour
+     * les compteurs (le panier moyen, une moyenne, reste inchangé).
+     *
+     * @return array{label:string, kpis:array}
+     */
+    private function franchiseKpisForShop(int $shopId, array $period, array $tgt, array $kpis): array
+    {
+        $ticketsN = (int)($kpis['tickets'] ?? 0);
+        $basketN  = isset($kpis['avg_basket']) && $kpis['avg_basket'] !== null ? (float)$kpis['avg_basket'] : null;
+
+        $fromN1 = date('Y-m-d', (int)strtotime($period['from'] . ' -1 year'));
+        $toN1   = date('Y-m-d', (int)strtotime($period['to'] . ' -1 year'));
+        $kpisN1 = $this->shopService->getSalesKpis($shopId, $fromN1, $toN1);
+        $ticketsN1 = (int)($kpisN1['tickets'] ?? 0);
+        $basketN1  = isset($kpisN1['avg_basket']) && $kpisN1['avg_basket'] !== null ? (float)$kpisN1['avg_basket'] : null;
+
+        [$targets, $label] = $this->bestTargets($shopId, $tgt);
+
+        // Objectif de compteur mis à l'échelle de la période (targets mensuels).
+        $days  = max(1, (int)round((strtotime($period['to']) - strtotime($period['from'])) / 86400) + 1);
+        $scale = $days / 30.44;
+
+        $mClients = $this->findFranchiseMetric($targets, ['client', 'ticket', 'trafic', 'traffic', 'visit']);
+        $mBasket  = $this->findFranchiseMetric($targets, ['basket', 'panier', 'koszyk', 'avg_ticket']);
+        $mB2b     = $this->findFranchiseMetric($targets, ['b2b']);
+
+        $objClients = $mClients ? $this->scaleCount($this->objectiveOfEntry($mClients), $scale) : null;
+        $objBasket  = $mBasket  ? $this->objectiveOfEntry($mBasket) : null;
+        $objB2b     = $mB2b     ? $this->scaleCount($this->objectiveOfEntry($mB2b), $scale) : null;
+        $valB2b     = $mB2b     ? $this->encodedValueOf($mB2b) : null;
+
+        $kpisOut = [
+            ['label' => 'Clients',      'unit' => 'count',  'n1' => $ticketsN1 ?: null, 'val' => $ticketsN ?: null, 'obj' => $objClients],
+            ['label' => 'Panier moyen', 'unit' => 'amount', 'n1' => $basketN1,          'val' => $basketN,          'obj' => $objBasket],
+            ['label' => 'B2B',          'unit' => 'count',  'n1' => null,               'val' => $valB2b,           'obj' => $objB2b],
+        ];
+        foreach ($kpisOut as &$k) {
+            $k['status'] = $this->targetStatus($k['val'], $k['obj']);
+            $k['evo']    = ($k['n1'] !== null && $k['n1'] > 0 && $k['val'] !== null)
+                ? (($k['val'] - $k['n1']) / $k['n1']) * 100 : null;
+        }
+        unset($k);
+
+        return ['label' => $label, 'kpis' => $kpisOut];
+    }
+
+    /**
+     * Targets bruts du mois de référence, avec repli mois courant → précédent
+     * (pour ne pas rester vide alors que des objectifs existent). Renvoie
+     * [targets, libellé_du_mois].
      *
      * @return array{0: array, 1: string}
      */
-    private function targetsForShop(int $shopId, array $tgt, array $metricDefs): array
+    private function bestTargets(int $shopId, array $tgt): array
     {
-        $view = $this->targetsView($this->targetService->getTargets($shopId, $tgt['year'], $tgt['month']), $metricDefs);
-        if ($view !== []) {
-            return [$view, $tgt['label']];
-        }
+        $get = function (int $y, int $m): ?array {
+            $t = $this->targetService->getTargets($shopId, $y, $m);
+            return (is_array($t) && $this->hasAnyThreshold($t)) ? $t : null;
+        };
 
+        if (($t = $get($tgt['year'], $tgt['month'])) !== null) {
+            return [$t, $tgt['label']];
+        }
         $prev = strtotime('first day of -1 month');
-        $candidates = [
-            [(int)date('Y'), (int)date('n')],
-            [(int)date('Y', $prev), (int)date('n', $prev)],
-        ];
-        foreach ($candidates as [$fy, $fm]) {
-            if ($fy === $tgt['year'] && $fm === $tgt['month']) {
+        foreach ([[(int)date('Y'), (int)date('n')], [(int)date('Y', $prev), (int)date('n', $prev)]] as [$y, $m]) {
+            if ($y === $tgt['year'] && $m === $tgt['month']) {
                 continue;
             }
-            $v = $this->targetsView($this->targetService->getTargets($shopId, $fy, $fm), $metricDefs);
-            if ($v !== []) {
-                return [$v, $this->monthName($fm) . ' ' . $fy];
+            if (($t = $get($y, $m)) !== null) {
+                return [$t, $this->monthName($m) . ' ' . $y];
             }
         }
         return [[], $tgt['label']];
     }
 
-    /**
-     * Targets prêts pour la vue : liste [{label, t1, t2, t3, unit}] des leviers
-     * ayant au moins un seuil. Les seuils vivent dans la SOURCE ACTIVE de
-     * chaque entrée — `active` désigne 'consultant' | 'admin' | 'default', et
-     * seule cette sous-clé (ou la 1re non nulle) porte t1/t2/t3. Vide → la vue
-     * affiche « aucun objectif » sans en-tête orphelin.
-     *
-     * @return array<int, array{label:string, t1:mixed, t2:mixed, t3:mixed, unit:string}>
-     */
-    private function targetsView(array $targets, array $metricDefs): array
+    private function hasAnyThreshold(array $targets): bool
     {
-        $out = [];
-        foreach ($targets as $key => $t) {
-            if (!is_array($t)) {
+        foreach ($targets as $e) {
+            if (is_array($e) && $this->objectiveOfEntry($e) !== null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Sous-clé de seuils ACTIVE d'une entrée target (active → consultant → admin → default). */
+    private function activeSource(array $entry): ?array
+    {
+        $active = is_string($entry['active'] ?? null) ? $entry['active'] : null;
+        foreach ([$active, 'consultant', 'admin', 'default'] as $src) {
+            if ($src !== null && isset($entry[$src]) && is_array($entry[$src])) {
+                return $entry[$src];
+            }
+        }
+        if (isset($entry['t1']) || isset($entry['t2']) || isset($entry['t3'])) {
+            return $entry; // ancienne forme à plat
+        }
+        return null;
+    }
+
+    /** Objectif = meilleur seuil de la source active (max, ou min si « plus bas = mieux »). */
+    private function objectiveOfEntry(array $entry): ?float
+    {
+        $src = $this->activeSource($entry);
+        if ($src === null) {
+            return null;
+        }
+        $vals = [];
+        foreach (['t1', 't2', 't3'] as $k) {
+            if (isset($src[$k]) && is_numeric($src[$k])) {
+                $vals[] = (float)$src[$k];
+            }
+        }
+        if ($vals === []) {
+            return null;
+        }
+        return !empty($entry['lower_is_better']) ? min($vals) : max($vals);
+    }
+
+    /** Valeur réalisée éventuellement encodée (ex. B2B, hors POS). */
+    private function encodedValueOf(array $entry): ?float
+    {
+        $src = $this->activeSource($entry) ?? [];
+        foreach (['value', 'actual', 'current', 'result', 'realised', 'realized'] as $k) {
+            if (isset($entry[$k]) && is_numeric($entry[$k])) {
+                return (float)$entry[$k];
+            }
+            if (isset($src[$k]) && is_numeric($src[$k])) {
+                return (float)$src[$k];
+            }
+        }
+        return null;
+    }
+
+    /** Métrique target dont la clé/le libellé contient l'un des fragments. */
+    private function findFranchiseMetric(array $targets, array $frags): ?array
+    {
+        foreach ($targets as $key => $entry) {
+            if (!is_array($entry)) {
                 continue;
             }
-
-            // Seuils = source active (puis repli), en ignorant les null.
-            $tt     = null;
-            $active = is_string($t['active'] ?? null) ? $t['active'] : null;
-            foreach ([$active, 'consultant', 'admin', 'default'] as $src) {
-                if ($src !== null && isset($t[$src]) && is_array($t[$src])) {
-                    $tt = $t[$src];
-                    break;
+            $hay = mb_strtolower((string)$key . ' ' . (string)($entry['label'] ?? ''));
+            foreach ($frags as $f) {
+                if (mb_strpos($hay, $f) !== false) {
+                    return $entry;
                 }
             }
-            if ($tt === null) {
-                $tt = $t; // ancienne forme éventuelle (t1/t2/t3 à plat)
-            }
-
-            $t1 = $tt['t1'] ?? null;
-            $t2 = $tt['t2'] ?? null;
-            $t3 = $tt['t3'] ?? null;
-            if ($t1 === null && $t2 === null && $t3 === null) {
-                continue;
-            }
-
-            $label   = $t['label'] ?? $metricDefs[$key]['label'] ?? $t['metric_key'] ?? (string)$key;
-            $rawUnit = strtolower((string)($t['unit'] ?? $metricDefs[$key]['unit'] ?? ''));
-            $unit    = (str_contains($rawUnit, 'pct') || str_contains($rawUnit, 'percent') || str_ends_with((string)$key, '_pct')) ? 'pct'
-                     : ((str_contains($rawUnit, 'amount') || str_contains($rawUnit, 'eur') || str_contains($rawUnit, 'money')) ? 'amount' : '');
-
-            $out[] = ['label' => $label, 't1' => $t1, 't2' => $t2, 't3' => $t3, 'unit' => $unit];
         }
-        return $out;
+        return null;
+    }
+
+    private function scaleCount(?float $v, float $scale): ?float
+    {
+        return $v === null ? null : $v * $scale;
+    }
+
+    /** Statut vs objectif : ✓ ≥ 95 % · ⚠ ≥ 80 % · ● en dessous (comme /targets). */
+    private function targetStatus(?float $val, ?float $obj): string
+    {
+        if ($val === null || $obj === null || $obj <= 0) {
+            return 'nd';
+        }
+        $pct = ($val / $obj) * 100;
+        if ($pct >= 95.0) {
+            return 'ok';
+        }
+        if ($pct >= 80.0) {
+            return 'mid';
+        }
+        return 'bad';
     }
 
     /** Réclamations de la période, groupées par fournisseur. */

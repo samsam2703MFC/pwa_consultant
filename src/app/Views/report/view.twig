@@ -173,29 +173,38 @@
                     {% endif %}
                 </div>
 
-                {# Objectifs (targets) du mois #}
+                {# Objectifs franchisé : Clients / Panier / B2B — réalisé vs N-1 vs objectif #}
                 <div class="rpt-sec">
-                    <div class="rpt-sec-h">{{ icons.svg('target', 14) }}{{ translations.targets ?? 'Objectifs' }} — {{ shop.targets_label ?? report.targets_month.label }}</div>
-                    {% if shop.targets_view is not empty %}
+                    <div class="rpt-sec-h">{{ icons.svg('target', 14) }}{{ translations.targets ?? 'Objectifs' }}{% if shop.targets_label %} — {{ shop.targets_label }}{% endif %}</div>
+                    {% if shop.franchise is defined and shop.franchise is not empty %}
                         <table class="rpt-tbl">
                             <thead><tr>
-                                <th>{{ translations.lever ?? 'Levier' }}</th>
-                                <th class="num">🟢</th><th class="num">🟡</th><th class="num">🟠</th>
+                                <th>{{ translations.kpi ?? 'Indicateur' }}</th>
+                                <th class="num">{{ translations.n1 ?? 'N-1' }}</th>
+                                <th class="num">{{ translations.actual ?? 'Réalisé' }}</th>
+                                <th class="num">{{ translations.objective ?? 'Objectif' }}</th>
                             </tr></thead>
                             <tbody>
-                            {% for t in shop.targets_view %}
-                                {% set u = (t.unit == 'pct') ? ' %' : ((t.unit == 'amount') ? ' ' ~ currency_symbol : '') %}
+                            {% for k in shop.franchise %}
+                                {% set dec = (k.unit == 'amount') ? 2 : 0 %}
+                                {% set u = (k.unit == 'amount') ? ' ' ~ currency_symbol : (k.unit == 'pct' ? ' %' : '') %}
                                 <tr>
-                                    <td>{{ t.label }}</td>
-                                    <td class="num">{{ t.t1 is not null ? t.t1 ~ u : '—' }}</td>
-                                    <td class="num">{{ t.t2 is not null ? t.t2 ~ u : '—' }}</td>
-                                    <td class="num">{{ t.t3 is not null ? t.t3 ~ u : '—' }}</td>
+                                    <td>{{ k.label }}</td>
+                                    <td class="num">{{ k.n1 is not null ? (k.n1|number_format(dec, ',', ' ') ~ u) : '—' }}</td>
+                                    <td class="num rpt-v-{{ k.status }}">{{ k.val is not null ? (k.val|number_format(dec, ',', ' ') ~ u) : '—' }}</td>
+                                    <td class="num">{{ k.obj is not null ? (k.obj|number_format(dec, ',', ' ') ~ u) : '—' }}</td>
                                 </tr>
                             {% endfor %}
                             </tbody>
                         </table>
+                        <div class="rpt-hexm-legend">
+                            <span class="rpt-st-ok">✓ {{ translations.legend_good ?? 'bon' }}</span>
+                            <span class="rpt-st-mid">⚠ {{ translations.legend_mid ?? 'attention' }}</span>
+                            <span class="rpt-st-bad">● {{ translations.legend_bad ?? 'danger' }}</span>
+                            <span>{{ translations.legend_vs_obj ?? 'vs objectif' }}</span>
+                        </div>
                     {% else %}
-                        <div class="rpt-empty">{{ translations.no_targets ?? 'Aucun target défini pour ce mois.' }}</div>
+                        <div class="rpt-empty">{{ translations.no_targets ?? 'Aucun objectif défini.' }}</div>
                     {% endif %}
                 </div>
 
