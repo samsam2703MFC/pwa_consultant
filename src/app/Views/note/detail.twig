@@ -5,6 +5,32 @@
 {% block page_title %}{{ translations.note_title ?? 'Note' }}{% endblock %}
 {% block page_subtitle %}{{ translations.note_details_subtitle ?? 'Détails et commentaires' }}{% endblock %}
 
+{% block head %}
+<style>
+    /* Fil de discussion des commentaires : avatar + nom, bulle, continuité. */
+    .nt-thread { position:relative; display:flex; flex-direction:column; gap:14px; }
+    .nt-thread-item { display:flex; gap:10px; position:relative; }
+    .nt-thread-item:not(:last-child)::before {
+        content:''; position:absolute; left:16px; top:40px; bottom:-14px; width:2px;
+        background:rgba(141,29,44,.12);
+    }
+    .nt-thread-avatar {
+        position:relative; z-index:1; flex-shrink:0; width:34px; height:34px; border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        font-size:.72rem; font-weight:800; color:#fff;
+    }
+    .nt-thread-bubble {
+        flex:1; min-width:0; background:#fff; border-radius:4px 14px 14px 14px;
+        box-shadow:0 2px 8px rgba(0,0,0,.05); padding:9px 12px 11px;
+    }
+    .nt-thread-head { display:flex; align-items:center; gap:8px; margin-bottom:3px; }
+    .nt-thread-author { font-weight:800; font-size:.8rem; color:#212529; }
+    .nt-thread-time { font-size:.68rem; color:#adb5bd; }
+    .nt-thread-del { margin-left:auto; }
+    .nt-thread-text { margin:0; font-size:.88rem; line-height:1.5; white-space:pre-wrap; color:#333; word-break:break-word; }
+</style>
+{% endblock %}
+
 {% block topbar_actions %}
     {# Soft delete de la note #}
     <form method="POST" action="{{ ROOT }}/notes/{{ note.id }}/delete"
@@ -77,35 +103,41 @@
         {% if comments is empty %}
             <p class="text-muted" style="font-size:.84rem;">{{ translations.no_comments ?? 'Aucun commentaire. Ajoutez le premier ci-dessous.' }}</p>
         {% else %}
-            <div class="d-flex flex-column gap-2">
+            <div class="nt-thread">
+                {% set _pal = ['#8D1D2C', '#C17A2A', '#1F4F6B', '#5C4A8A', '#2D7A3E'] %}
                 {% for comment in comments %}
-                    <div class="card border-0 shadow-sm" style="border-radius:12px;">
-                        <div class="card-body p-3">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="text-muted" style="font-size:.72rem;">
-                                    {{ comment.created_at|slice(0,16)|replace({'T': ' '}) }}
-                                </span>
-                                {# Usuń komentarz #}
+                    {# Auteur : détecté de façon tolérante (l'API peut nommer le champ
+                       différemment) ; repli sur « Consultant ». #}
+                    {% set c_author = comment.consultant_name
+                        ?? comment.author_name
+                        ?? comment.author
+                        ?? ((comment.consultant_first_name ?? comment.first_name ?? '') ~ ' ' ~ (comment.consultant_last_name ?? comment.last_name ?? ''))|trim %}
+                    {% set c_author = c_author ?: (translations.consultant ?? 'Consultant') %}
+                    {% set _p  = c_author|trim|split(' ') %}
+                    {% set c_ini = ((_p[0]|default('')|slice(0,1)) ~ (_p[1]|default('')|slice(0,1)))|upper %}
+                    {% set c_col = _pal[(c_author|length) % 5] %}
+                    <div class="nt-thread-item">
+                        <div class="nt-thread-avatar" style="background:{{ c_col }};">{{ c_ini ?: '•' }}</div>
+                        <div class="nt-thread-bubble">
+                            <div class="nt-thread-head">
+                                <span class="nt-thread-author">{{ c_author }}</span>
+                                <span class="nt-thread-time">{{ comment.created_at|slice(0,16)|replace({'T': ' '}) }}</span>
                                 <form method="POST" action="{{ ROOT }}/comments/{{ comment.id }}/delete"
-                                      onsubmit="return confirm('{{ (translations.delete_comment_confirm ?? 'Supprimer le commentaire ?')|e('js') }}')" class="mb-0">
+                                      onsubmit="return confirm('{{ (translations.delete_comment_confirm ?? 'Supprimer le commentaire ?')|e('js') }}')"
+                                      class="nt-thread-del mb-0">
                                     <input type="hidden" name="note_id" value="{{ note.id }}">
-                                    <button type="submit"
-                                            class="btn btn-sm p-0 text-danger border-0 bg-transparent"
-                                            style="font-size:.8rem;">
-                                        {{ icons.svg('circle-x') }}
+                                    <button type="submit" class="btn btn-sm p-0 text-danger border-0 bg-transparent" style="font-size:.85rem;line-height:1;">
+                                        {{ icons.svg('circle-x', 16) }}
                                     </button>
                                 </form>
                             </div>
-                            <p class="mb-0" style="font-size:.88rem;line-height:1.5;white-space:pre-wrap;">{{ comment.content }}</p>
-
-                            {# Zdjęcia do komentarza #}
+                            {% if comment.content %}<p class="nt-thread-text">{{ comment.content }}</p>{% endif %}
                             {% if comment.photos is defined and comment.photos|length > 0 %}
                                 <div class="d-flex flex-wrap gap-2 mt-2">
                                     {% for photo in comment.photos %}
                                         {% if photo.presigned_url %}
                                             <a href="{{ photo.presigned_url }}" target="_blank">
-                                                <img src="{{ photo.presigned_url }}"
-                                                     alt="{{ translations.photo_alt ?? 'photo' }}"
+                                                <img src="{{ photo.presigned_url }}" alt="{{ translations.photo_alt ?? 'photo' }}"
                                                      style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
                                             </a>
                                         {% endif %}

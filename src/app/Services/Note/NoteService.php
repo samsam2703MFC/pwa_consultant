@@ -139,11 +139,48 @@ class NoteService
         }
 
         usort($recent, fn($a, $b) => strcmp((string)($b['created_at'] ?? ''), (string)($a['created_at'] ?? '')));
+        $recent = array_slice($recent, 0, $recentLimit);
+
+        // Miniature = 1re photo de la note. Les photos vivent sur les commentaires,
+        // absents de la liste : on récupère le détail des notes affichées EN
+        // PARALLÈLE et on en extrait la première image (le cas échéant).
+        $ids = [];
+        foreach ($recent as $r) {
+            $id = (int)($r['id'] ?? 0);
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+        if ($ids !== []) {
+            $details = $this->noteRepository->getNotesByIdsBulk($ids);
+            foreach ($recent as &$r) {
+                $r['thumb'] = $this->firstPhotoUrl($details[(int)($r['id'] ?? 0)] ?? []);
+            }
+            unset($r);
+        }
 
         return [
-            'recent'  => array_slice($recent, 0, $recentLimit),
+            'recent'  => $recent,
             'by_shop' => $byShop,
         ];
+    }
+
+    /** Première URL de photo d'une note (photo directe ou 1re photo d'un commentaire). */
+    private function firstPhotoUrl(array $note): ?string
+    {
+        foreach (($note['photos'] ?? []) as $p) {
+            if (!empty($p['presigned_url'])) {
+                return $p['presigned_url'];
+            }
+        }
+        foreach (($note['comments'] ?? []) as $c) {
+            foreach (($c['photos'] ?? []) as $p) {
+                if (!empty($p['presigned_url'])) {
+                    return $p['presigned_url'];
+                }
+            }
+        }
+        return null;
     }
 
     public function createNote(int $shopId, array $postData, array $files = []): array

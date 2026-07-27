@@ -51,7 +51,10 @@
                 <span class="nt-shopchip" style="color:{{ col.c }};background:{{ col.bg }}">{{ n.shop_name }}</span>
                 {% if n.created_at %}<span class="nt-date">{{ n.created_at|date('j') }} {{ mn[n.created_at|date('n') - 1] }} · {{ n.created_at|date('H:i') }}</span>{% endif %}
             </div>
-            <p class="nt-note-body">{{ n.content }}</p>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+                <p class="nt-note-body" style="flex:1;min-width:0;margin:0;">{{ n.content }}</p>
+                {% if n.thumb %}<img src="{{ n.thumb }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy" style="width:46px;height:46px;object-fit:cover;border-radius:9px;flex-shrink:0;">{% endif %}
+            </div>
             {% if n.author %}<div class="nt-note-author">{{ n.author }}</div>{% endif %}
         </a>
         {% endfor %}
