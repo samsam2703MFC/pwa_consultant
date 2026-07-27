@@ -27,17 +27,20 @@
     .rpt-kpi-v { font-size:1.15rem; font-weight:800; color:#212529; line-height:1.1; }
     .rpt-kpi-l { font-size:.72rem; color:#6c757d; margin-top:3px; }
 
-    /* Leviers HEXm (mêmes identité/couleurs que l'écran HEXm). */
-    .rpt-hexm { margin-top:12px; display:flex; flex-direction:column; gap:7px; }
-    .rpt-lev { display:flex; align-items:center; gap:10px; padding:8px 11px; border:1px solid rgba(0,0,0,.08); border-radius:12px; background:#fff; }
-    .rpt-lev--soon { background:#fbfaf8; }
-    .rpt-lev-badge { width:24px; height:24px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:.76rem; font-weight:800; }
-    .rpt-lev-nm { font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.02em; color:#241f1c; flex-shrink:0; }
-    .rpt-lev-kpis { flex:1; display:flex; flex-direction:column; align-items:flex-end; gap:2px; text-align:right; }
-    .rpt-lev-kpi { font-size:.8rem; color:#241f1c; white-space:nowrap; }
-    .rpt-lev-kpi i { color:#7a7168; font-style:normal; font-size:.72rem; margin-right:5px; }
-    .rpt-lev-kpi b { color:#241f1c; font-weight:800; }
-    .rpt-lev-soon { font-size:.72rem; color:#c4bcb2; font-style:italic; }
+    /* Leviers HEXm : une seule carte, lignes séparées par un filet (mêmes
+       identité/couleurs officielles que l'écran HEXm). */
+    .rpt-hexm { margin-top:14px; background:#fff; border:1px solid rgba(0,0,0,.09); border-radius:14px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+    .rpt-lev { display:flex; align-items:center; gap:11px; padding:11px 14px; }
+    .rpt-lev + .rpt-lev { border-top:1px solid #f2ede5; }
+    .rpt-lev--soon { background:#fcfbf9; }
+    .rpt-lev-badge { width:26px; height:26px; border-radius:8px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:.8rem; font-weight:800; }
+    .rpt-lev-nm { flex:1; min-width:0; font-size:.74rem; font-weight:800; text-transform:uppercase; letter-spacing:.02em; color:#241f1c; }
+    .rpt-lev--soon .rpt-lev-nm { color:#8a827a; }
+    .rpt-lev-kpis { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:5px; }
+    .rpt-lev-kpi { text-align:right; line-height:1.2; }
+    .rpt-lev-kpi i { display:block; color:#7a7168; font-style:normal; font-size:.66rem; }
+    .rpt-lev-kpi b { color:#241f1c; font-weight:800; font-size:.86rem; }
+    .rpt-lev-soon { font-size:.72rem; color:#b8b0a6; font-style:italic; }
 
     .rpt-tbl { width:100%; border-collapse:collapse; font-size:.82rem; }
     .rpt-tbl th, .rpt-tbl td { text-align:left; padding:6px 8px; border-bottom:1px solid rgba(0,0,0,.07); }
