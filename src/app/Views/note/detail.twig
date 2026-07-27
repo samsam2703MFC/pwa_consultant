@@ -28,6 +28,42 @@
     .nt-thread-time { font-size:.68rem; color:#adb5bd; }
     .nt-thread-del { margin-left:auto; }
     .nt-thread-text { margin:0; font-size:.88rem; line-height:1.5; white-space:pre-wrap; color:#333; word-break:break-word; }
+    .nt-thread-role { font-weight:600; color:#8D1D2C; }
+
+    /* Bouton « retour » (tap-target clair, à la charte). */
+    .nt-back-btn {
+        display:inline-flex; align-items:center; gap:6px;
+        padding:7px 14px 7px 10px; margin-bottom:14px;
+        border:1.5px solid rgba(141,29,44,.18); border-radius:999px; background:#fff;
+        color:#8D1D2C; font-size:.82rem; font-weight:700; text-decoration:none;
+        box-shadow:0 1px 4px rgba(0,0,0,.05);
+        transition:background .15s, border-color .15s, transform .1s;
+        -webkit-tap-highlight-color:transparent;
+    }
+    .nt-back-btn:active { background:rgba(141,29,44,.06); border-color:rgba(141,29,44,.4); transform:scale(.98); }
+
+    /* Signature de l'auteur connecté au-dessus du formulaire de réponse. */
+    .nt-me-sig { display:flex; align-items:center; gap:9px; margin-bottom:12px; }
+    .nt-me-sig-avatar {
+        flex-shrink:0; width:34px; height:34px; border-radius:50%; background:#8D1D2C;
+        display:flex; align-items:center; justify-content:center;
+        font-size:.72rem; font-weight:800; color:#fff;
+    }
+    .nt-me-sig-name { font-weight:800; font-size:.82rem; color:#212529; line-height:1.2; }
+    .nt-me-sig-role { font-size:.72rem; font-weight:600; color:#8D1D2C; }
+
+    /* Boutons photo (mêmes que la création de note). */
+    .nt-photo-actions { display:flex; gap:10px; }
+    .nt-photo-btn {
+        flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+        margin:0; padding:12px 8px;
+        border:1.5px solid rgba(141,29,44,.18); border-radius:14px; background:#fff;
+        color:#8D1D2C; font-size:.76rem; font-weight:700; text-align:center; line-height:1.2;
+        cursor:pointer; transition:background .15s, border-color .15s, transform .1s;
+        -webkit-tap-highlight-color:transparent;
+    }
+    .nt-photo-btn:active { background:rgba(141,29,44,.06); border-color:rgba(141,29,44,.4); transform:scale(.98); }
+    .nt-photo-btn svg { width:22px; height:22px; }
 </style>
 {% endblock %}
 
@@ -48,10 +84,9 @@
 <div class="page-content-loaded">
 
     {% if note.shop_id is defined %}
-        <a href="{{ back_url }}"
-           class="d-inline-flex align-items-center gap-1 text-muted mb-3"
-           style="font-size:.82rem;text-decoration:none;">
-            {{ icons.svg('chevron-left') }} {{ is_employee_context ? (translations.employee_notes_back ?? "Notes de l'employé") : (translations.shop_notes ?? 'Notes de la boutique') }}
+        <a href="{{ back_url }}" class="nt-back-btn">
+            {{ icons.svg('chevron-left', 16) }}
+            <span>{{ is_employee_context ? (translations.employee_notes_back ?? "Notes de l'employé") : (translations.shop_notes ?? 'Notes de la boutique') }}</span>
         </a>
     {% endif %}
 
@@ -120,11 +155,14 @@
                     {% set _p  = c_author|trim|split(' ') %}
                     {% set c_ini = ((_p[0]|default('')|slice(0,1)) ~ (_p[1]|default('')|slice(0,1)))|upper %}
                     {% set c_col = _pal[(c_author|length) % 5] %}
+                    {# « À moi » : l'auteur correspond à l'utilisateur connecté → on
+                       affiche aussi son rôle (« — Consultant Stratégie »). #}
+                    {% set c_is_mine = (me_name ?? '')|trim != '' and c_author|trim|lower == (me_name|trim|lower) %}
                     <div class="nt-thread-item">
                         <div class="nt-thread-avatar" style="background:{{ c_col }};">{{ c_ini ?: '•' }}</div>
                         <div class="nt-thread-bubble">
                             <div class="nt-thread-head">
-                                <span class="nt-thread-author">{{ c_author }}</span>
+                                <span class="nt-thread-author">{{ c_author }}{% if c_is_mine and (me_role ?? '') %}<span class="nt-thread-role"> — {{ me_role }}</span>{% endif %}</span>
                                 <span class="nt-thread-time">{{ comment.created_at|slice(0,16)|replace({'T': ' '}) }}</span>
                                 <form method="POST" action="{{ ROOT }}/comments/{{ comment.id }}/delete"
                                       onsubmit="return confirm('{{ (translations.delete_comment_confirm ?? 'Supprimer le commentaire ?')|e('js') }}')"
@@ -164,6 +202,20 @@
     <div class="card border-0 shadow-sm" style="border-radius:16px;">
         <div class="card-body p-3">
             <h6 class="fw-700 mb-3" style="font-size:.88rem;">{{ translations.add_comment ?? 'Ajouter un commentaire' }}</h6>
+
+            {# Signature : l'utilisateur voit sous quel nom/rôle il publie. #}
+            {% if (me_name ?? '')|trim != '' %}
+                {% set _mp = me_name|trim|split(' ') %}
+                {% set me_ini = ((_mp[0]|default('')|slice(0,1)) ~ (_mp[1]|default('')|slice(0,1)))|upper %}
+                <div class="nt-me-sig">
+                    <div class="nt-me-sig-avatar">{{ me_ini ?: '•' }}</div>
+                    <div>
+                        <div class="nt-me-sig-name">{{ me_name }}</div>
+                        {% if (me_role ?? '') %}<div class="nt-me-sig-role">{{ me_role }}</div>{% endif %}
+                    </div>
+                </div>
+            {% endif %}
+
             <form method="POST" action="{{ ROOT }}/notes/{{ note.id }}/comments"
                   enctype="multipart/form-data" novalidate>
 
@@ -174,15 +226,25 @@
                               style="font-size:.88rem;" required></textarea>
                 </div>
 
-                {# Zdjęcia (max 4) #}
+                {# Photos : « Prendre une photo » (caméra) OU « Choisir » (galerie). Max 4. #}
                 <div class="mb-3">
-                    <label class="form-label" style="font-size:.82rem;color:#6c757d;">
+                    <div class="form-label" style="font-size:.82rem;color:#6c757d;">
                         <span class="me-1">{{ icons.svg('camera') }}</span>{{ translations.photos ?? 'Photos' }}
                         <span class="text-muted">{{ translations.attachments_hint ?? '(optionnel, max 4 × 10 Mo, jpg/png/webp)' }}</span>
-                    </label>
-                    <input type="file" name="photos[]" accept="image/*" multiple
-                           class="form-control form-control-sm rounded-3"
-                           style="font-size:.82rem;">
+                    </div>
+                    <div class="nt-photo-actions">
+                        <label class="nt-photo-btn">
+                            {{ icons.svg('camera', 22) }}
+                            <span>{{ translations.take_photo ?? 'Prendre une photo' }}</span>
+                            <input type="file" name="photos[]" accept="image/*" capture="environment" style="display:none" onchange="ntPhotoNames(this)">
+                        </label>
+                        <label class="nt-photo-btn">
+                            {{ icons.svg('paperclip', 22) }}
+                            <span>{{ translations.choose_photo ?? 'Choisir' }}</span>
+                            <input type="file" name="photos[]" accept="image/*" multiple style="display:none" onchange="ntPhotoNames(this)">
+                        </label>
+                    </div>
+                    <div id="ntPhotoNames" class="mt-2" style="font-size:.76rem;font-weight:700;color:#2D7A3E;"></div>
                 </div>
 
                 <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 fw-700">
@@ -193,5 +255,66 @@
     </div>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Photos : redimensionnement + ré-encodage JPEG côté navigateur avant l'envoi.
+ * Les photos prises par l'appareil sont souvent très lourdes (plusieurs Mo) et
+ * parfois en HEIC (iOS) → rejetées par la limite d'upload ou non affichables.
+ * On les ramène à ~800px / JPEG qualité .82, ce qui règle les deux et allège
+ * l'envoi. La FileList de l'input est remplacée par les versions compressées. */
+function ntCompress(file, maxDim, quality) {
+    return new Promise(function (resolve) {
+        if (!(file.type || '').match(/^image\//) && !(file.name || '').match(/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i)) {
+            return resolve(file); // pas une image → tel quel
+        }
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+            URL.revokeObjectURL(url);
+            var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+            if (!w || !h) return resolve(file);
+            var scale = Math.min(1, maxDim / Math.max(w, h));
+            var cw = Math.round(w * scale), ch = Math.round(h * scale);
+            var canvas = document.createElement('canvas');
+            canvas.width = cw; canvas.height = ch;
+            try {
+                canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
+            } catch (e) { return resolve(file); }
+            canvas.toBlob(function (blob) {
+                if (!blob) return resolve(file);
+                var name = (file.name || 'photo').replace(/\.(heic|heif|png|webp|bmp|gif|avif)$/i, '.jpg');
+                if (!name.match(/\.jpe?g$/i)) name += '.jpg';
+                try {
+                    resolve(new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }));
+                } catch (e) { resolve(blob); }
+            }, 'image/jpeg', quality);
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+        img.src = url;
+    });
+}
+
+function ntPhotoNames(input) {
+    var box = document.getElementById('ntPhotoNames');
+    var files = Array.prototype.slice.call(input.files || []);
+    if (!files.length) return;
+    if (box) box.textContent = '…';
+    if (typeof DataTransfer === 'undefined' || typeof File === 'undefined') {
+        if (box) box.textContent = '✓ ' + files.map(function (f) { return f.name; }).join(', ');
+        return; // navigateur ancien : envoi tel quel
+    }
+    Promise.all(files.slice(0, 4).map(function (f) { return ntCompress(f, 800, 0.82); }))
+        .then(function (out) {
+            try {
+                var dt = new DataTransfer();
+                out.forEach(function (f) { dt.items.add(f); });
+                input.files = dt.files;
+            } catch (e) { /* si le remplacement échoue, on garde les fichiers d'origine */ }
+            if (box) box.textContent = '✓ ' + out.map(function (f) { return f.name; }).join(', ');
+        });
+}
+</script>
 {% endblock %}
 
