@@ -29,6 +29,34 @@ class NoteController extends Controller
             ['recent' => [], 'by_shop' => []]
         );
 
+        // ── DIAGNOSTIC TEMPORAIRE (?dbg=1) ──────────────────────────────────
+        // Expose la forme RÉELLE renvoyée par l'API pour les notes récentes :
+        // valeur de la miniature (thumb) + structure des commentaires et de
+        // leurs pièces jointes. Ne concerne que les propres notes de l'usager
+        // connecté. À RETIRER une fois le format des pièces jointes confirmé.
+        if (($_GET['dbg'] ?? '') === '1') {
+            $ids = [];
+            foreach ($overview['recent'] as $r) {
+                $id = (int)($r['id'] ?? 0);
+                if ($id > 0) {
+                    $ids[] = $id;
+                }
+            }
+            $payload = [
+                'recent' => array_map(fn($r) => [
+                    'id'      => $r['id'] ?? null,
+                    'shop'    => $r['shop_name'] ?? null,
+                    'thumb'   => $r['thumb'] ?? null,
+                    'content' => mb_substr((string)($r['content'] ?? ''), 0, 40),
+                ], $overview['recent']),
+                'structures' => $ids !== [] ? $this->noteService->debugNoteStructures($ids) : [],
+            ];
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+        // ── FIN DIAGNOSTIC TEMPORAIRE ───────────────────────────────────────
+
         $this->view('note/index', [
             'shops'      => $shops,
             'recent'     => $overview['recent'],
