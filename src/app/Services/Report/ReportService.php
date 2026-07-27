@@ -30,6 +30,14 @@ class ReportService
     /** Garde-fou : nombre max de complétions de tâches inspectées par rapport. */
     private const MAX_COMPLETIONS = 120;
 
+    /**
+     * Seuils de statut vs moyenne réseau, en % RELATIFS — MÊMES valeurs que
+     * l'écran HEXm : score = sens × (valeur − moyenne) / |moyenne| × 100 ;
+     * ✓ bon ≥ GOOD · ⚠ attention ∈ [DANGER, GOOD[ · ● danger < DANGER.
+     */
+    private const THRESHOLD_GOOD   = -5.0;
+    private const THRESHOLD_DANGER = -15.0;
+
     public function __construct(
         private ShopService $shopService,
         private NoteService $noteService,
@@ -87,6 +95,22 @@ class ReportService
         $ofTags     = $this->consultantUsers->getOfficialTags();
         $metricDefs = $this->targetService->getMetricDefinitions();
 
+        // Métriques HEXm de TOUTES les boutiques → moyenne réseau, référence du
+        // statut ✓ bon / ⚠ attention / ● danger (comme l'écran HEXm). Même en
+        // périmètre « une boutique », on a besoin du réseau pour situer.
+        $metricsByShop = [];
+        $kpisByShop    = [];
+        foreach ($allShops as $shop) {
+            $sid = (int)($shop['id'] ?? 0);
+            if ($sid <= 0) {
+                continue;
+            }
+            $k = $this->shopService->getSalesKpis($sid, $period['from'], $period['to']);
+            $kpisByShop[$sid]    = $k;
+            $metricsByShop[$sid] = $this->hexmMetrics($sid, $period, $k);
+        }
+        $netAvg = $this->networkAverages($metricsByShop);
+
         $shopSections = [];
         foreach ($scopeShops as $shop) {
             $shopId = (int)($shop['id'] ?? 0);
@@ -95,14 +119,15 @@ class ReportService
             }
             $shopName = (string)($shop['representative_name'] ?? $shop['name'] ?? ('#' . $shopId));
 
-            $kpis    = $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
+            $kpis    = $kpisByShop[$shopId] ?? $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
+            $metrics = $metricsByShop[$shopId] ?? $this->hexmMetrics($shopId, $period, $kpis);
             $targets = $this->targetService->getTargets($shopId, $tgt['year'], $tgt['month']);
 
             $shopSections[] = [
                 'id'                 => $shopId,
                 'name'               => $shopName,
                 'kpis'               => $kpis,
-                'hexm'               => $this->hexmForShop($shopId, $period, $kpis, $ofTags),
+                'hexm'               => $this->hexmDisplay($metrics, $netAvg, $ofTags),
                 'targets_view'       => $this->targetsView($targets, $metricDefs),
                 'notes'              => $this->noteService->getNotesForPeriod($shopId, $period['from'], $period['to']),
                 'claims_by_supplier' => $this->claimsBySupplier($shopId, $fromT, $toT),
@@ -301,18 +326,15 @@ class ReportService
     }
 
     /**
-     * Résultat des 6 leviers HEXm d'un magasin sur la période — mêmes leviers,
-     * numéros et couleurs que l'écran HEXm (couleur officielle of_tag par
-     * correspondance de nom). Chaque levier porte ses KPI CALCULABLES côté
-     * serveur pour une période passée (les autres restent « à venir », comme à
-     * l'écran) :
-     *   Trafic → tickets/jour · Récurrence → panier moyen ·
-     *   Food Cost → coût matière % + marge brute % · Overhead → évolution CA vs N-1.
-     *   (Labour et Expérience client : pas de source par période côté serveur.)
+     * Métriques HEXm BRUTES d'un magasin sur la période (nombres, pour la
+     * moyenne réseau et le statut) : tickets/jour, panier moyen, coût matière
+     * %, marge brute %, évolution CA vs N-1. Food cost = même source que
+     * l'écran HEXm. null quand la donnée n'est pas disponible.
      *
      * @param array $kpis résultat de ShopService::getSalesKpis (période)
+     * @return array{ticketsDay:?float, avgBasket:?float, foodPct:?float, grossPct:?float, evo:?float}
      */
-    private function hexmForShop(int $shopId, array $period, array $kpis, array $ofTags): array
+    private function hexmMetrics(int $shopId, array $period, array $kpis): array
     {
         $ca      = (float)($kpis['ca'] ?? 0);
         $tickets = (int)($kpis['tickets'] ?? 0);
@@ -325,29 +347,87 @@ class ReportService
         $foodPct  = ($material !== null && $ca > 0) ? ($material / $ca) * 100 : null;
         $grossPct = $foodPct !== null ? 100 - $foodPct : null;
 
-        // Évolution CA vs N-1 : même période, un an plus tôt.
         $fromN1 = date('Y-m-d', (int)strtotime($period['from'] . ' -1 year'));
         $toN1   = date('Y-m-d', (int)strtotime($period['to'] . ' -1 year'));
         $caN1   = (float)($this->shopService->getSalesKpis($shopId, $fromN1, $toN1)['ca'] ?? 0);
         $evo    = $caN1 > 0 ? (($ca - $caN1) / $caN1) * 100 : null;
 
-        $levers = [
+        return [
+            'ticketsDay' => $ticketsDay,
+            'avgBasket'  => $basket !== null ? (float)$basket : null,
+            'foodPct'    => $foodPct,
+            'grossPct'   => $grossPct,
+            'evo'        => $evo,
+        ];
+    }
+
+    /** Moyenne réseau de chaque métrique (boutiques ayant une valeur). */
+    private function networkAverages(array $metricsByShop): array
+    {
+        $avg = [];
+        foreach (['ticketsDay', 'avgBasket', 'foodPct', 'grossPct', 'evo'] as $k) {
+            $vals = [];
+            foreach ($metricsByShop as $m) {
+                if (isset($m[$k]) && $m[$k] !== null && is_finite((float)$m[$k])) {
+                    $vals[] = (float)$m[$k];
+                }
+            }
+            $avg[$k] = $vals !== [] ? array_sum($vals) / count($vals) : null;
+        }
+        return $avg;
+    }
+
+    /**
+     * Affichage des 6 leviers HEXm d'un magasin : mêmes leviers/numéros/couleurs
+     * (couleur officielle of_tag par nom), KPI formatés de la période, et STATUT
+     * ✓ bon / ⚠ attention / ● danger vs moyenne réseau (comme l'écran HEXm ; le
+     * statut du levier = le pire de ses KPI). Labour et Expérience client
+     * restent « à venir » (pas de source par période côté serveur).
+     */
+    private function hexmDisplay(array $metrics, array $netAvg, array $ofTags): array
+    {
+        // metric, sens (dir), libellé, format.
+        $defs = [
             ['num' => 4, 'key' => 'trafic',     'name' => 'Trafic',            'color' => '#1F4F6B', 'kpis' => [
-                ['label' => 'Trafic (tickets/jour)', 'value' => $ticketsDay !== null ? $this->fmtInt($ticketsDay) : null],
+                ['metric' => 'ticketsDay', 'dir' => 1,  'label' => 'Trafic (tickets/jour)', 'fmt' => 'int'],
             ]],
             ['num' => 3, 'key' => 'recurrence', 'name' => 'Récurrence',        'color' => '#8a4a24', 'kpis' => [
-                ['label' => 'Panier moyen', 'value' => $basket !== null ? $this->fmtEur((float)$basket) : null],
+                ['metric' => 'avgBasket',  'dir' => 1,  'label' => 'Panier moyen', 'fmt' => 'eur'],
             ]],
             ['num' => 2, 'key' => 'xp',         'name' => 'Expérience client', 'color' => '#2D7A3E', 'kpis' => []],
             ['num' => 5, 'key' => 'food',       'name' => 'Food Cost',         'color' => '#C9A227', 'kpis' => [
-                ['label' => 'Coût matière (% CA)', 'value' => $foodPct !== null ? $this->fmtPct($foodPct) : null],
-                ['label' => 'Marge brute (% CA)',  'value' => $grossPct !== null ? $this->fmtPct($grossPct) : null],
+                ['metric' => 'foodPct',    'dir' => -1, 'label' => 'Coût matière (% CA)', 'fmt' => 'pct'],
+                ['metric' => 'grossPct',   'dir' => 1,  'label' => 'Marge brute (% CA)',  'fmt' => 'pct'],
             ]],
             ['num' => 6, 'key' => 'labour',     'name' => 'Labour Cost',       'color' => '#8D1D2C', 'kpis' => []],
             ['num' => 7, 'key' => 'overhead',   'name' => 'Overhead Cost',     'color' => '#7a7168', 'kpis' => [
-                ['label' => 'Évolution CA vs N-1', 'value' => $evo !== null ? $this->fmtEvo($evo) : null],
+                ['metric' => 'evo',        'dir' => 1,  'label' => 'Évolution CA vs N-1', 'fmt' => 'evo'],
             ]],
         ];
+
+        $levers = [];
+        foreach ($defs as $def) {
+            $kpis     = [];
+            $statuses = [];
+            foreach ($def['kpis'] as $k) {
+                $v      = isset($metrics[$k['metric']]) && $metrics[$k['metric']] !== null ? (float)$metrics[$k['metric']] : null;
+                $status = $this->statusOf($v, $netAvg[$k['metric']] ?? null, (int)$k['dir']);
+                $statuses[] = $status;
+                $kpis[] = [
+                    'label'  => $k['label'],
+                    'value'  => $v !== null ? $this->fmtMetric($v, $k['fmt']) : null,
+                    'status' => $status,
+                ];
+            }
+            $levers[] = [
+                'num'    => $def['num'],
+                'key'    => $def['key'],
+                'name'   => $def['name'],
+                'color'  => $def['color'],
+                'status' => $this->worstStatus($statuses),
+                'kpis'   => $kpis,
+            ];
+        }
 
         // Couleur/nom officiels of_tag (correspondance de nom, comme l'écran HEXm).
         foreach ($levers as &$lev) {
@@ -365,7 +445,47 @@ class ReportService
         }
         unset($lev);
 
-        return ['ca' => $ca, 'tickets' => $tickets, 'levers' => $levers];
+        return ['levers' => $levers];
+    }
+
+    /** Statut d'une valeur vs moyenne réseau : ok / mid / bad, ou nd si indécidable. */
+    private function statusOf(?float $v, ?float $avg, int $dir): string
+    {
+        if ($v === null || $avg === null || $avg == 0.0 || !is_finite($v) || !is_finite($avg)) {
+            return 'nd';
+        }
+        $score = $dir * (($v - $avg) / abs($avg)) * 100;
+        if ($score >= self::THRESHOLD_GOOD) {
+            return 'ok';
+        }
+        if ($score >= self::THRESHOLD_DANGER) {
+            return 'mid';
+        }
+        return 'bad';
+    }
+
+    /** Pire statut d'une liste (bad > mid > ok) ; nd si aucun décidable. */
+    private function worstStatus(array $statuses): string
+    {
+        $rank = ['ok' => 1, 'mid' => 2, 'bad' => 3];
+        $worst = 'nd';
+        foreach ($statuses as $s) {
+            if (isset($rank[$s]) && ($worst === 'nd' || $rank[$s] > $rank[$worst])) {
+                $worst = $s;
+            }
+        }
+        return $worst;
+    }
+
+    private function fmtMetric(float $v, string $fmt): string
+    {
+        return match ($fmt) {
+            'int'   => $this->fmtInt($v),
+            'eur'   => $this->fmtEur($v),
+            'pct'   => $this->fmtPct($v),
+            'evo'   => $this->fmtEvo($v),
+            default => (string)$v,
+        };
     }
 
     private function fmtInt(float $v): string
