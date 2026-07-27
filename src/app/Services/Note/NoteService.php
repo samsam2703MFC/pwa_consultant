@@ -322,5 +322,42 @@ class NoteService
     {
         return $this->noteRepository->getAttachmentPreviewUrl($attachmentId);
     }
+
+    /**
+     * DIAGNOSTIC TEMPORAIRE — structure brute des notes (détail API) pour une
+     * liste d'ids : clés de la note, pièces jointes de la note, id de la 1re
+     * photo détectée, et pour chaque commentaire ses clés + champs de pièces
+     * jointes candidats. Sert à confirmer le format réel renvoyé par l'API
+     * (nom du champ, objet vs id brut). À RETIRER ensuite.
+     *
+     * @param int[] $ids
+     */
+    public function debugNoteStructures(array $ids): array
+    {
+        $details = $this->noteRepository->getNotesByIdsBulk($ids);
+        $out = [];
+        foreach ($details as $id => $note) {
+            $note = (array)$note;
+            $comments = [];
+            foreach (($note['comments'] ?? []) as $c) {
+                $comments[] = is_array($c) ? [
+                    'keys'        => array_keys($c),
+                    'content'     => $c['content'] ?? null,
+                    'attachments' => $c['attachments'] ?? null,
+                    'photos'      => $c['photos'] ?? null,
+                    'files'       => $c['files'] ?? null,
+                    'images'      => $c['images'] ?? null,
+                ] : ['scalar' => $c];
+            }
+            $out[$id] = [
+                'note_keys'        => array_keys($note),
+                'note_attachments' => $note['attachments'] ?? ($note['photos'] ?? null),
+                'first_photo_id'   => $this->firstPhotoAttachmentId($note),
+                'comment_count'    => count($note['comments'] ?? []),
+                'comments'         => $comments,
+            ];
+        }
+        return $out;
+    }
 }
 
