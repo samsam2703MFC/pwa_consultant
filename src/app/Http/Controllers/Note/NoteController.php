@@ -29,50 +29,53 @@ class NoteController extends Controller
         header('Content-Type: text/html; charset=utf-8');
         header('Cache-Control: no-store');
 
-        $user  = GlobalRegistry::get('user') ?? [];
-        $shops = $this->shopService->getAllShops();
-
         $esc = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $j   = fn($v) => htmlspecialchars((string)json_encode($v, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), ENT_QUOTES, 'UTF-8');
 
-        $rows = '';
-        foreach ($shops as $shop) {
-            $id   = (int)($shop['id'] ?? 0);
-            $name = $esc($shop['representative_name'] ?? $shop['name'] ?? ('#' . $id));
-
-            $resp  = $this->apiClient->get("/consultant/shops/{$id}/notes");
-            $ok    = !empty($resp['success']);
-            $data  = is_array($resp['data'] ?? null) ? $resp['data'] : [];
-            $count = count($data);
-            $http  = $ok ? '200 OK' : ('FAIL — ' . $esc(json_encode($resp['error'] ?? null)));
-            $first = $count > 0 ? $j($data[0]) : '(vide)';
-
-            $rows .= "<tr><td>{$id}</td><td>{$name}</td><td>{$http}</td><td><b>{$count}</b></td><td><pre>{$first}</pre></td></tr>";
-        }
-
-        $overview   = $this->noteService->getNotesOverview($shops);
-        $recentN    = count($overview['recent'] ?? []);
-        $byShopN    = count($overview['by_shop'] ?? []);
-        $recentDump = $j($overview['recent'] ?? []);
-        $byShopDump = $j($overview['by_shop'] ?? []);
-        $uid        = $j(['id' => $user['id'] ?? null, 'membership_id' => $user['membership_id'] ?? null]);
-
+        // En-tête affiché EN PREMIER → la page montre toujours quelque chose,
+        // même si un appel échoue ensuite (erreur capturée et affichée).
         echo '<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
            . '<title>Notes — diagnostic</title><style>'
            . 'body{font:13px/1.4 system-ui,sans-serif;padding:14px;max-width:960px;margin:auto;color:#222}'
            . 'h2{color:#8D1D2C}table{border-collapse:collapse;width:100%;margin:8px 0}'
            . 'td,th{border:1px solid #ccc;padding:6px;vertical-align:top;text-align:left}'
            . 'pre{white-space:pre-wrap;word-break:break-word;margin:0;font-size:11px;max-height:180px;overflow:auto}'
-           . '.note{color:#888;font-size:12px}</style></head><body>';
+           . '.err{color:#b00;font-weight:700}.note{color:#888;font-size:12px}</style></head><body>';
         echo '<h2>Notes — diagnostic</h2>';
-        echo '<p><b>Utilisateur :</b> <code>' . $uid . '</code></p>';
-        echo '<p><b>Boutiques actives (getAllShops) :</b> ' . count($shops) . '</p>';
-        echo '<h3>GET /consultant/shops/{id}/notes — réponse brute par boutique</h3>';
-        echo '<table><tr><th>id</th><th>boutique</th><th>HTTP</th><th>nb notes</th><th>1ʳᵉ note (brut)</th></tr>' . $rows . '</table>';
-        echo '<h3>getNotesOverview() — ce que l\'accueil reçoit</h3>';
-        echo '<p><b>recent :</b> ' . $recentN . ' &nbsp; · &nbsp; <b>by_shop :</b> ' . $byShopN . '</p>';
-        echo '<p>recent (échantillon) :</p><pre>' . $recentDump . '</pre>';
-        echo '<p>by_shop :</p><pre>' . $byShopDump . '</pre>';
+
+        try {
+            $user = GlobalRegistry::get('user') ?? [];
+            echo '<p><b>Utilisateur :</b> <code>' . $j(['id' => $user['id'] ?? null, 'membership_id' => $user['membership_id'] ?? null]) . '</code></p>';
+
+            $shops = $this->shopService->getAllShops();
+            echo '<p><b>Boutiques actives (getAllShops) :</b> ' . count($shops) . '</p>';
+
+            $rows = '';
+            foreach ($shops as $shop) {
+                $id    = (int)($shop['id'] ?? 0);
+                $name  = $esc($shop['representative_name'] ?? $shop['name'] ?? ('#' . $id));
+                $resp  = $this->apiClient->get("/consultant/shops/{$id}/notes");
+                $ok    = !empty($resp['success']);
+                $data  = is_array($resp['data'] ?? null) ? $resp['data'] : [];
+                $count = count($data);
+                $http  = $ok ? '200 OK' : ('FAIL — ' . $esc(json_encode($resp['error'] ?? null)));
+                $first = $count > 0 ? $j($data[0]) : '(vide)';
+                $rows .= "<tr><td>{$id}</td><td>{$name}</td><td>{$http}</td><td><b>{$count}</b></td><td><pre>{$first}</pre></td></tr>";
+            }
+            echo '<h3>GET /consultant/shops/{id}/notes — réponse brute par boutique</h3>';
+            echo '<table><tr><th>id</th><th>boutique</th><th>HTTP</th><th>nb notes</th><th>1ʳᵉ note (brut)</th></tr>'
+               . ($rows ?: '<tr><td colspan="5">(aucune boutique active)</td></tr>') . '</table>';
+
+            $overview = $this->noteService->getNotesOverview($shops);
+            echo '<h3>getNotesOverview() — ce que l\'accueil reçoit</h3>';
+            echo '<p><b>recent :</b> ' . count($overview['recent'] ?? []) . ' &nbsp; · &nbsp; <b>by_shop :</b> ' . count($overview['by_shop'] ?? []) . '</p>';
+            echo '<p>recent (échantillon) :</p><pre>' . $j($overview['recent'] ?? []) . '</pre>';
+            echo '<p>by_shop :</p><pre>' . $j($overview['by_shop'] ?? []) . '</pre>';
+        } catch (\Throwable $e) {
+            echo '<p class="err">Erreur pendant le diagnostic :</p><pre class="err">'
+               . $esc($e->getMessage() . "\n" . $e->getFile() . ':' . $e->getLine()) . '</pre>';
+        }
+
         echo '<p class="note">Page temporaire de diagnostic — sera retirée après analyse.</p>';
         echo '</body></html>';
         exit;
