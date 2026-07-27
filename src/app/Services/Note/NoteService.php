@@ -154,8 +154,28 @@ class NoteService
         if ($ids !== []) {
             $details = $this->noteRepository->getNotesByIdsBulk($ids);
             foreach ($recent as &$r) {
-                $first = $this->firstPhoto($details[(int)($r['id'] ?? 0)] ?? []);
+                $detail = $details[(int)($r['id'] ?? 0)] ?? [];
+
+                $first = $this->firstPhoto($detail);
                 $r['thumb_url'] = $first['url'] ?? null;
+
+                // Dernière réponse (commentaire) : la tuile la met en avant, avec
+                // sa mini-photo → la photo a enfin son contexte. Le clic ouvre le
+                // fil complet (page de la note).
+                $comments = is_array($detail['comments'] ?? null) ? $detail['comments'] : [];
+                $r['reply_count'] = 0;
+                $r['last_reply']  = null;
+                $last = $this->latestComment($comments);
+                if ($last !== null) {
+                    $photos = $this->imageAttachments($last);
+                    $r['reply_count'] = count(array_filter($comments, fn($c) => is_array($c) && empty($c['deleted_at'])));
+                    $r['last_reply']  = [
+                        'author'     => $this->commentAuthor($last),
+                        'content'    => (string)($last['content'] ?? ''),
+                        'created_at' => $last['created_at'] ?? null,
+                        'photo_url'  => $photos[0]['url'] ?? null,
+                    ];
+                }
             }
             unset($r);
         }
@@ -247,6 +267,35 @@ class NoteService
             }
         }
         return null;
+    }
+
+    /** Commentaire le plus récent (non supprimé) d'une liste, ou null. */
+    private function latestComment(array $comments): ?array
+    {
+        $best = null;
+        $bestT = -1;
+        foreach ($comments as $c) {
+            if (!is_array($c) || !empty($c['deleted_at'])) {
+                continue;
+            }
+            $t = !empty($c['created_at']) ? (int)strtotime((string)$c['created_at']) : 0;
+            if ($t >= $bestT) {
+                $bestT = $t;
+                $best  = $c;
+            }
+        }
+        return $best;
+    }
+
+    /** Nom d'auteur d'un commentaire (champs tolérants), '' si introuvable. */
+    private function commentAuthor(array $c): string
+    {
+        $name = $c['consultant_name']
+            ?? $c['author_name']
+            ?? $c['author']
+            ?? trim(((string)($c['consultant_first_name'] ?? $c['first_name'] ?? '')) . ' '
+                  . ((string)($c['consultant_last_name'] ?? $c['last_name'] ?? '')));
+        return trim((string)$name);
     }
 
     public function createNote(int $shopId, array $postData, array $files = []): array

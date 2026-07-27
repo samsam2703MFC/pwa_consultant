@@ -497,6 +497,17 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
 .nt-date { font-size:11px; color:#a89e93; margin-left:auto; }
 .nt-note-body { font-size:13.5px; color:var(--c-ink); line-height:1.5; margin:0; }
 .nt-note-author { font-size:11px; color:var(--c-muted); margin-top:8px; }
+/* Dernière réponse mise en avant sur la tuile (note = sujet, réponse = corps). */
+.nt-note-subject { font-size:12.5px; color:var(--c-muted); font-weight:600; line-height:1.4; margin:0 0 8px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.nt-reply { display:flex; align-items:flex-start; gap:8px; }
+.nt-reply-arrow { color:var(--c-primary); font-weight:800; line-height:1.35; flex-shrink:0; }
+.nt-reply-body { flex:1; min-width:0; }
+.nt-reply-author { display:block; font-size:12px; font-weight:800; color:var(--c-ink); }
+.nt-reply-text { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  font-size:13px; color:var(--c-ink); line-height:1.45; }
+.nt-reply-thumb { width:46px; height:46px; object-fit:cover; border-radius:9px; flex-shrink:0; }
+.nt-reply-more { margin-top:8px; font-size:11px; font-weight:700; color:var(--c-primary); }
 .nt-shopcard { background:#fff; border:1px solid var(--c-line); border-radius:16px; overflow:hidden;
   box-shadow:0 10px 24px -18px rgba(70,40,25,.25); }
 .nt-shoprow { display:flex; align-items:center; gap:12px; padding:13px 16px; border-bottom:1px solid rgba(36,26,22,.06);

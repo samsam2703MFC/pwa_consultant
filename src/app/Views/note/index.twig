@@ -46,16 +46,33 @@
     <div class="nt-list">
         {% for n in recent %}
         {% set col = chip_colors[loop.index0 % 4] %}
+        {% set tdate = n.last_reply ? (n.last_reply.created_at ?? n.created_at) : n.created_at %}
         <a href="{{ ROOT }}/notes/{{ n.id }}" class="nt-note">
             <div class="nt-note-head">
                 <span class="nt-shopchip" style="color:{{ col.c }};background:{{ col.bg }}">{{ n.shop_name }}</span>
-                {% if n.created_at %}<span class="nt-date">{{ n.created_at|date('j') }} {{ mn[n.created_at|date('n') - 1] }} · {{ n.created_at|date('H:i') }}</span>{% endif %}
+                {% if tdate %}<span class="nt-date">{{ tdate|date('j') }} {{ mn[tdate|date('n') - 1] }} · {{ tdate|date('H:i') }}</span>{% endif %}
             </div>
-            <div style="display:flex;gap:10px;align-items:flex-start;">
-                <p class="nt-note-body" style="flex:1;min-width:0;margin:0;">{{ n.content }}</p>
-                {% if n.thumb_url %}<img src="{{ n.thumb_url }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy" style="width:46px;height:46px;object-fit:cover;border-radius:9px;flex-shrink:0;">{% endif %}
-            </div>
-            {% if n.author %}<div class="nt-note-author">{{ n.author }}</div>{% endif %}
+
+            {% if n.last_reply %}
+                {# La note = sujet (contexte) ; la dernière réponse est mise en avant,
+                   avec sa mini-photo. Le clic sur la tuile ouvre le fil complet. #}
+                <p class="nt-note-subject">{{ n.content }}</p>
+                <div class="nt-reply">
+                    <span class="nt-reply-arrow">↳</span>
+                    <div class="nt-reply-body">
+                        <span class="nt-reply-author">{{ n.last_reply.author ?: (translations.consultant ?? 'Consultant') }}</span>
+                        {% if n.last_reply.content %}<span class="nt-reply-text">{{ n.last_reply.content }}</span>{% endif %}
+                    </div>
+                    {% if n.last_reply.photo_url %}<img class="nt-reply-thumb" src="{{ n.last_reply.photo_url }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy">{% endif %}
+                </div>
+                {% if n.reply_count > 1 %}<div class="nt-reply-more">{{ n.reply_count }} {{ translations.replies ?? 'réponses' }}</div>{% endif %}
+            {% else %}
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <p class="nt-note-body" style="flex:1;min-width:0;margin:0;">{{ n.content }}</p>
+                    {% if n.thumb_url %}<img src="{{ n.thumb_url }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy" style="width:46px;height:46px;object-fit:cover;border-radius:9px;flex-shrink:0;">{% endif %}
+                </div>
+                {% if n.author %}<div class="nt-note-author">{{ n.author }}</div>{% endif %}
+            {% endif %}
         </a>
         {% endfor %}
     </div>
