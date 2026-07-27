@@ -4,13 +4,79 @@ namespace App\Consultant\app\Http\Controllers\Note;
 use App\Consultant\app\Http\Controllers\Controller;
 use App\Consultant\app\Services\Note\NoteService;
 use App\Consultant\app\Services\Shop\ShopService;
+use App\Consultant\core\Http\ApiClient;
+use App\Consultant\core\Support\GlobalRegistry;
 
 class NoteController extends Controller
 {
     public function __construct(
         private NoteService $noteService,
-        private ShopService $shopService
+        private ShopService $shopService,
+        private ApiClient $apiClient
     ) {}
+
+    /**
+     * GET /notes/_diag — page de DIAGNOSTIC TEMPORAIRE.
+     *
+     * Affiche, pour l'utilisateur connecté, la réponse BRUTE de l'API notes
+     * boutique par boutique (/consultant/shops/{id}/notes) + le résultat de
+     * l'agrégat d'accueil (getNotesOverview). Permet de voir si le backend
+     * renvoie les notes (→ bug d'affichage) ou pas (→ backend). À RETIRER
+     * ensuite. Accès protégé par l'auth consultant (données de l'utilisateur).
+     */
+    public function diag(): void
+    {
+        header('Content-Type: text/html; charset=utf-8');
+        header('Cache-Control: no-store');
+
+        $user  = GlobalRegistry::get('user') ?? [];
+        $shops = $this->shopService->getAllShops();
+
+        $esc = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $j   = fn($v) => htmlspecialchars((string)json_encode($v, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), ENT_QUOTES, 'UTF-8');
+
+        $rows = '';
+        foreach ($shops as $shop) {
+            $id   = (int)($shop['id'] ?? 0);
+            $name = $esc($shop['representative_name'] ?? $shop['name'] ?? ('#' . $id));
+
+            $resp  = $this->apiClient->get("/consultant/shops/{$id}/notes");
+            $ok    = !empty($resp['success']);
+            $data  = is_array($resp['data'] ?? null) ? $resp['data'] : [];
+            $count = count($data);
+            $http  = $ok ? '200 OK' : ('FAIL — ' . $esc(json_encode($resp['error'] ?? null)));
+            $first = $count > 0 ? $j($data[0]) : '(vide)';
+
+            $rows .= "<tr><td>{$id}</td><td>{$name}</td><td>{$http}</td><td><b>{$count}</b></td><td><pre>{$first}</pre></td></tr>";
+        }
+
+        $overview   = $this->noteService->getNotesOverview($shops);
+        $recentN    = count($overview['recent'] ?? []);
+        $byShopN    = count($overview['by_shop'] ?? []);
+        $recentDump = $j($overview['recent'] ?? []);
+        $byShopDump = $j($overview['by_shop'] ?? []);
+        $uid        = $j(['id' => $user['id'] ?? null, 'membership_id' => $user['membership_id'] ?? null]);
+
+        echo '<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+           . '<title>Notes — diagnostic</title><style>'
+           . 'body{font:13px/1.4 system-ui,sans-serif;padding:14px;max-width:960px;margin:auto;color:#222}'
+           . 'h2{color:#8D1D2C}table{border-collapse:collapse;width:100%;margin:8px 0}'
+           . 'td,th{border:1px solid #ccc;padding:6px;vertical-align:top;text-align:left}'
+           . 'pre{white-space:pre-wrap;word-break:break-word;margin:0;font-size:11px;max-height:180px;overflow:auto}'
+           . '.note{color:#888;font-size:12px}</style></head><body>';
+        echo '<h2>Notes — diagnostic</h2>';
+        echo '<p><b>Utilisateur :</b> <code>' . $uid . '</code></p>';
+        echo '<p><b>Boutiques actives (getAllShops) :</b> ' . count($shops) . '</p>';
+        echo '<h3>GET /consultant/shops/{id}/notes — réponse brute par boutique</h3>';
+        echo '<table><tr><th>id</th><th>boutique</th><th>HTTP</th><th>nb notes</th><th>1ʳᵉ note (brut)</th></tr>' . $rows . '</table>';
+        echo '<h3>getNotesOverview() — ce que l\'accueil reçoit</h3>';
+        echo '<p><b>recent :</b> ' . $recentN . ' &nbsp; · &nbsp; <b>by_shop :</b> ' . $byShopN . '</p>';
+        echo '<p>recent (échantillon) :</p><pre>' . $recentDump . '</pre>';
+        echo '<p>by_shop :</p><pre>' . $byShopDump . '</pre>';
+        echo '<p class="note">Page temporaire de diagnostic — sera retirée après analyse.</p>';
+        echo '</body></html>';
+        exit;
+    }
 
     /**
      * GET /notes
