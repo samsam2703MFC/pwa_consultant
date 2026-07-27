@@ -64,6 +64,23 @@ class ShopService
     }
 
     /**
+     * KPI de vente d'un magasin sur une FENÊTRE DE DATES [from, to] (Y-m-d,
+     * inclusives) — pour les rapports hebdo/mensuel sur une période passée.
+     * Source de vérité l'API backend ; repli sur le calcul local identique si
+     * l'endpoint n'est pas disponible (même mécanisme que Boutiques/day-sales).
+     *
+     * @return array{tickets:int, ca:float, products:int, avg_basket:?float, products_per_ticket:?float}
+     */
+    public function getSalesKpis(int $shopId, string $from, string $to): array
+    {
+        $api = $this->shopRepository->getSalesKpisFromApi($shopId, $from, $to);
+        if ($api !== null) {
+            return $api;
+        }
+        return $this->shopSales->getSalesKpis($shopId, $from, $to);
+    }
+
+    /**
      * P&L de plusieurs magasins en parallèle (un seul aller-retour réseau).
      *
      * @param int[] $shopIds

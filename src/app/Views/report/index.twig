@@ -1,0 +1,87 @@
+{% extends "layouts/mobile_base.twig" %}
+{% import "components/_icons.twig" as icons %}
+{% set active_nav = 'reports' %}
+
+{% block title %}{{ translations.title ?? 'Rapports' }} — Consultant Panel{% endblock %}
+{% block page_title %}{{ translations.title ?? 'Rapports' }}{% endblock %}
+{% block page_subtitle %}{{ translations.subtitle ?? 'Rapport hebdomadaire ou mensuel' }}{% endblock %}
+
+{% block head %}
+<style>
+    .rp-seg { display:flex; gap:8px; }
+    .rp-seg label {
+        flex:1; margin:0; cursor:pointer; text-align:center;
+        border:1.5px solid rgba(141,29,44,.18); border-radius:14px; background:#fff;
+        padding:14px 8px; font-size:.86rem; font-weight:700; color:#8D1D2C;
+        transition:background .15s, border-color .15s;
+        -webkit-tap-highlight-color:transparent;
+    }
+    .rp-seg input { position:absolute; opacity:0; pointer-events:none; }
+    .rp-seg label .rp-seg-sub { display:block; font-size:.7rem; font-weight:600; color:#9a8f88; margin-top:2px; }
+    .rp-seg input:checked + span, .rp-seg label:has(input:checked) { }
+    .rp-seg input:checked ~ * { }
+    .rp-seg label.is-on { background:rgba(141,29,44,.08); border-color:#8D1D2C; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-content-loaded">
+
+    <a href="{{ ROOT }}/dashboard" class="app-back-btn">
+        {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_home ?? 'Accueil' }}</span>
+    </a>
+
+    <form method="GET" action="{{ ROOT }}/reports/view">
+        <div class="card border-0 shadow-sm mb-3" style="border-radius:16px;">
+            <div class="card-body p-3">
+
+                <div class="fw-700 mb-2" style="font-size:.82rem;">{{ translations.choose_type ?? 'Type de rapport' }}</div>
+                <div class="rp-seg mb-3" id="rpType">
+                    <label class="is-on">
+                        <input type="radio" name="type" value="week" checked>
+                        {{ translations.last_week ?? 'Semaine dernière' }}
+                        <span class="rp-seg-sub">{{ translations.last_week_sub ?? 'lundi → dimanche' }}</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="type" value="month">
+                        {{ translations.last_month ?? 'Mois dernier' }}
+                        <span class="rp-seg-sub">{{ translations.last_month_sub ?? 'mois civil précédent' }}</span>
+                    </label>
+                </div>
+
+                <div class="fw-700 mb-2" style="font-size:.82rem;">{{ translations.choose_scope ?? 'Périmètre' }}</div>
+                <select name="scope" class="form-select form-select-sm rounded-3 mb-1" style="font-size:.9rem;">
+                    <option value="all">{{ translations.all_shops ?? 'Toutes les boutiques' }}</option>
+                    {% for s in shops %}
+                        <option value="{{ s.id }}">{{ s.representative_name ?? s.name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="text-muted" style="font-size:.72rem;">{{ translations.report_hint ?? 'Le rapport couvre la semaine ou le mois précédent (données figées).' }}</div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 fw-700">
+            <span class="me-2">{{ icons.svg('file-text') }}</span>{{ translations.generate ?? 'Voir le rapport' }}
+        </button>
+    </form>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Met en évidence le type sélectionné (segmented control). */
+(function () {
+    var seg = document.getElementById('rpType');
+    if (!seg) return;
+    function refresh() {
+        seg.querySelectorAll('label').forEach(function (l) {
+            var input = l.querySelector('input');
+            l.classList.toggle('is-on', !!(input && input.checked));
+        });
+    }
+    seg.addEventListener('change', refresh);
+    refresh();
+})();
+</script>
+{% endblock %}

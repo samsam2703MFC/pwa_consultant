@@ -24,6 +24,54 @@ class NoteService
     }
 
     /**
+     * Notes (niveau boutique) créées sur une fenêtre [from, to] (Y-m-d), avec
+     * leurs photos — pour le module Rapport. Les photos vivent sur les
+     * commentaires : on récupère le détail des notes de la période EN PARALLÈLE
+     * et on agrège les images (note + commentaires) dans `photos_view`.
+     *
+     * @return array<int, array> notes de la période, plus récente d'abord
+     */
+    public function getNotesForPeriod(int $shopId, string $from, string $to): array
+    {
+        $fromT = strtotime($from . ' 00:00:00');
+        $toT   = strtotime($to . ' 23:59:59');
+
+        $inPeriod = [];
+        foreach ($this->noteRepository->getNotesForShop($shopId) as $n) {
+            if (!is_array($n) || !empty($n['deleted_at']) || empty($n['created_at'])) {
+                continue;
+            }
+            $t = strtotime((string)$n['created_at']);
+            if ($t !== false && $t >= $fromT && $t <= $toT) {
+                $inPeriod[] = $n;
+            }
+        }
+        if ($inPeriod === []) {
+            return [];
+        }
+
+        usort($inPeriod, fn($a, $b) => strcmp((string)($b['created_at'] ?? ''), (string)($a['created_at'] ?? '')));
+
+        $ids = array_values(array_filter(array_map(fn($n) => (int)($n['id'] ?? 0), $inPeriod)));
+        $details = $this->noteRepository->getNotesByIdsBulk($ids);
+        foreach ($inPeriod as &$n) {
+            $d = $details[(int)($n['id'] ?? 0)] ?? [];
+            $photos = is_array($d) ? $this->imageAttachments($d) : [];
+            foreach (($d['comments'] ?? []) as $c) {
+                if (is_array($c)) {
+                    foreach ($this->imageAttachments($c) as $p) {
+                        $photos[] = $p;
+                    }
+                }
+            }
+            $n['photos_view'] = $photos;
+        }
+        unset($n);
+
+        return $inPeriod;
+    }
+
+    /**
      * Agreguje notatki wszystkich sklepów konsultanta:
      *   - 'recent'  : najnowsze notatki (z nazwą sklepu), posortowane malejąco
      *   - 'by_shop' : sklepy z liczbą notatek
