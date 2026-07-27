@@ -208,9 +208,12 @@ class ReportService
 
         [$targets, $label] = $this->bestTargets($shopId, $tgt);
 
-        // Objectif de compteur mis à l'échelle de la période (targets mensuels).
+        // Objectif de compteur mis à l'échelle de la période (targets mensuels) :
+        // un mois complet = objectif mensuel tel quel (comme /targets) ; une
+        // semaine = objectif mensuel prorata des jours. Le panier moyen (une
+        // moyenne) n'est jamais mis à l'échelle.
         $days  = max(1, (int)round((strtotime($period['to']) - strtotime($period['from'])) / 86400) + 1);
-        $scale = $days / 30.44;
+        $scale = $days >= 28 ? 1.0 : $days / 30.44;
 
         $mClients = $this->findFranchiseMetric($targets, ['client', 'ticket', 'trafic', 'traffic', 'visit']);
         $mBasket  = $this->findFranchiseMetric($targets, ['basket', 'panier', 'koszyk', 'avg_ticket']);
@@ -278,32 +281,38 @@ class ReportService
         return false;
     }
 
-    /** Sous-clé de seuils ACTIVE d'une entrée target (active → consultant → admin → default). */
-    private function activeSource(array $entry): ?array
+    /**
+     * Sous-tableau de seuils RETENU d'une entrée target — exactement comme
+     * l'écran /targets (franchiseData) : seuils ENCODÉS par le consultant,
+     * sinon par l'admin. Le défaut franchiseur (sous-clé `default`) est
+     * volontairement IGNORÉ : ce sont des gabarits non calibrés par boutique,
+     * qui produisent des pourcentages absurdes (ex. 1500 clients/mois pour une
+     * boutique qui en fait 8500). À défaut d'override → l'entrée à plat (forme
+     * legacy t1/t2/t3), qui ne contient aucun seuil quand seul `default` existe.
+     */
+    private function overrideSource(array $entry): array
     {
-        $active = is_string($entry['active'] ?? null) ? $entry['active'] : null;
-        foreach ([$active, 'consultant', 'admin', 'default'] as $src) {
-            if ($src !== null && isset($entry[$src]) && is_array($entry[$src])) {
-                return $entry[$src];
-            }
+        if (isset($entry['consultant']) && is_array($entry['consultant'])) {
+            return $entry['consultant'];
         }
-        if (isset($entry['t1']) || isset($entry['t2']) || isset($entry['t3'])) {
-            return $entry; // ancienne forme à plat
+        if (isset($entry['admin']) && is_array($entry['admin'])) {
+            return $entry['admin'];
         }
-        return null;
+        return $entry;
     }
 
-    /** Objectif = meilleur seuil de la source active (max, ou min si « plus bas = mieux »). */
+    /**
+     * Objectif = meilleur seuil ENCODÉ (max, ou min si « plus bas = mieux »),
+     * repéré par clé threshold/seuil/tN — mêmes règles que /targets::objectiveOf.
+     * Renvoie null quand la boutique n'a pas de target encodée (défaut ignoré).
+     */
     private function objectiveOfEntry(array $entry): ?float
     {
-        $src = $this->activeSource($entry);
-        if ($src === null) {
-            return null;
-        }
+        $src  = $this->overrideSource($entry);
         $vals = [];
-        foreach (['t1', 't2', 't3'] as $k) {
-            if (isset($src[$k]) && is_numeric($src[$k])) {
-                $vals[] = (float)$src[$k];
+        foreach ($src as $k => $v) {
+            if (is_numeric($v) && preg_match('/threshold|seuil|t\d|target|objective|goal/i', (string)$k)) {
+                $vals[] = (float)$v;
             }
         }
         if ($vals === []) {
@@ -315,7 +324,7 @@ class ReportService
     /** Valeur réalisée éventuellement encodée (ex. B2B, hors POS). */
     private function encodedValueOf(array $entry): ?float
     {
-        $src = $this->activeSource($entry) ?? [];
+        $src = $this->overrideSource($entry);
         foreach (['value', 'actual', 'current', 'result', 'realised', 'realized'] as $k) {
             if (isset($entry[$k]) && is_numeric($entry[$k])) {
                 return (float)$entry[$k];
