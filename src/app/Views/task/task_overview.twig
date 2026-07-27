@@ -165,8 +165,8 @@
                 <button class="btn btn-primary w-100 fw-bold" type="submit" id="doneBtn"{% if requires_photo %} disabled{% endif %}>
                     {{ icons.svg('check-circle') }} {{ translations.mark_done ?? 'Marquer comme faite' }}
                 </button>
-                <a class="btn btn-light w-100 fw-bold mt-2" href="{{ ROOT }}/tasks">
-                    {{ icons.svg('arrow-left') }} {{ translations.back_to_tasks ?? 'Retour aux tâches' }}
+                <a class="app-back-btn app-back-btn--block mt-2" href="{{ ROOT }}/tasks">
+                    {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_to_tasks ?? 'Retour aux tâches' }}</span>
                 </a>
             </div>
         </form>

@@ -166,37 +166,63 @@ class NoteService
     }
 
     /**
-     * Id de la 1re pièce jointe IMAGE d'une note (attachments de la note, sinon
-     * des commentaires). Renvoie l'id — la vue construit l'URL via l'endpoint
-     * /notes/attachments/{id}/preview. Champs tolérants (attachments|photos).
+     * Tous les id de pièces jointes IMAGE d'un conteneur (note OU commentaire).
+     *
+     * L'API peut nommer le champ différemment (attachments|photos|files|…) et
+     * renvoyer soit des OBJETS {id, mime_type, original_name}, soit des id BRUTS
+     * (scalaires). On balaye donc plusieurs champs et on tolère les deux formes.
+     * Les pièces jointes des notes sont des photos : sans métadonnée exploitable
+     * on suppose une image. La vue construit l'URL via
+     * /notes/attachments/{id}/preview.
+     *
+     * @return int[] ids uniques, dans l'ordre de rencontre
+     */
+    private function imageAttachmentIds(array $container): array
+    {
+        $isImage = static function ($a): bool {
+            if (!is_array($a)) {
+                return is_numeric($a);           // id brut → pièce photo de note
+            }
+            $mime = strtolower((string)($a['mime_type'] ?? $a['content_type'] ?? $a['mime'] ?? ''));
+            $name = strtolower((string)($a['original_name'] ?? $a['name'] ?? $a['filename'] ?? ''));
+            return str_starts_with($mime, 'image/')
+                || (bool)preg_match('/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/', $name)
+                || ($mime === '' && $name === '');
+        };
+        $idOf = static function ($a): ?int {
+            if (is_array($a)) {
+                $id = $a['id'] ?? $a['attachment_id'] ?? $a['id_attachment'] ?? $a['file_id'] ?? null;
+                return ($id !== null && (int)$id > 0) ? (int)$id : null;
+            }
+            return (is_numeric($a) && (int)$a > 0) ? (int)$a : null;
+        };
+
+        $ids = [];
+        foreach (['attachments', 'photos', 'files', 'images', 'media', 'documents'] as $field) {
+            foreach ((array)($container[$field] ?? []) as $a) {
+                if ($isImage($a) && ($id = $idOf($a)) !== null) {
+                    $ids[$id] = true;            // dédoublonnage
+                }
+            }
+        }
+        return array_keys($ids);
+    }
+
+    /**
+     * Id de la 1re pièce jointe IMAGE d'une note (celles de la note, sinon de
+     * ses commentaires) — sert de miniature aux tuiles « Récentes ».
      */
     private function firstPhotoAttachmentId(array $note): ?int
     {
-        $isImage = function (array $a): bool {
-            $mime = strtolower((string)($a['mime_type'] ?? $a['content_type'] ?? $a['mime'] ?? ''));
-            $name = strtolower((string)($a['original_name'] ?? $a['name'] ?? ''));
-            return str_starts_with($mime, 'image/')
-                || (bool)preg_match('/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/', $name)
-                || ($mime === '' && $name === '');  // pas de méta → on suppose une image (les pièces de note sont des photos)
-        };
-        $scan = function ($list) use ($isImage): ?int {
-            foreach ((array)$list as $a) {
-                if (is_array($a) && !empty($a['id']) && $isImage($a)) {
-                    return (int)$a['id'];
-                }
-            }
-            return null;
-        };
-
-        foreach (['attachments', 'photos'] as $f) {
-            if ($id = $scan($note[$f] ?? [])) {
-                return $id;
-            }
+        $ids = $this->imageAttachmentIds($note);
+        if ($ids !== []) {
+            return $ids[0];
         }
         foreach (($note['comments'] ?? []) as $c) {
-            foreach (['attachments', 'photos'] as $f) {
-                if ($id = $scan($c[$f] ?? [])) {
-                    return $id;
+            if (is_array($c)) {
+                $cids = $this->imageAttachmentIds($c);
+                if ($cids !== []) {
+                    return $cids[0];
                 }
             }
         }
@@ -243,7 +269,26 @@ class NoteService
 
     public function getNote(int $id): array
     {
-        return $this->noteRepository->getNote($id);
+        $note = $this->noteRepository->getNote($id);
+        if ($note === []) {
+            return $note;
+        }
+
+        // Normalise les photos (note + chaque commentaire) en un simple tableau
+        // d'ids : la vue n'a plus à deviner le nom du champ ni la forme (objet
+        // ou id brut) renvoyée par l'API. URL construite via
+        // /notes/attachments/{id}/preview.
+        $note['photo_ids'] = $this->imageAttachmentIds($note);
+        if (!empty($note['comments']) && is_array($note['comments'])) {
+            foreach ($note['comments'] as &$c) {
+                if (is_array($c)) {
+                    $c['photo_ids'] = $this->imageAttachmentIds($c);
+                }
+            }
+            unset($c);
+        }
+
+        return $note;
     }
 
     public function deleteNote(int $id): array

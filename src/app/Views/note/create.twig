@@ -24,18 +24,6 @@
     .nt-ctx select { font-size:.9rem; }
     .nt-ctx-row + .nt-ctx-row { margin-top:10px; }
 
-    /* Bouton « retour » (tap-target clair, à la charte). */
-    .nt-back-btn {
-        display:inline-flex; align-items:center; gap:6px;
-        padding:7px 14px 7px 10px; margin-bottom:14px;
-        border:1.5px solid rgba(141,29,44,.18); border-radius:999px; background:#fff;
-        color:#8D1D2C; font-size:.82rem; font-weight:700; text-decoration:none;
-        box-shadow:0 1px 4px rgba(0,0,0,.05);
-        transition:background .15s, border-color .15s, transform .1s;
-        -webkit-tap-highlight-color:transparent;
-    }
-    .nt-back-btn:active { background:rgba(141,29,44,.06); border-color:rgba(141,29,44,.4); transform:scale(.98); }
-
     /* Boutons photo : tuiles icône + libellé, à la charte (accent #8D1D2C). */
     .nt-photo-actions { display:flex; gap:10px; }
     .nt-photo-btn {
@@ -54,7 +42,7 @@
 {% block content %}
 <div class="page-content-loaded">
 
-    <a href="{{ back_url }}" class="nt-back-btn">
+    <a href="{{ back_url }}" class="app-back-btn">
         {{ icons.svg('chevron-left', 16) }}
         <span>{{ translations.notes_back ?? 'Notes' }}</span>
     </a>

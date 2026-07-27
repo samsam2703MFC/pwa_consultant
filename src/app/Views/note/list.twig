@@ -20,10 +20,9 @@
 {% block content %}
 <div class="page-content-loaded">
 
-    <a href="{{ is_employee_context ? (ROOT ~ '/shops/' ~ shop_id ~ '/notes') : (ROOT ~ '/notes') }}"
-       class="d-inline-flex align-items-center gap-1 text-muted mb-3"
-       style="font-size:.82rem;text-decoration:none;">
-        {{ icons.svg('chevron-left') }} {{ is_employee_context ? (translations.shop_notes ?? 'Notes de la boutique') : (translations.choose_shop ?? 'Choisir une boutique') }}
+    <a href="{{ is_employee_context ? (ROOT ~ '/shops/' ~ shop_id ~ '/notes') : (ROOT ~ '/notes') }}" class="app-back-btn">
+        {{ icons.svg('chevron-left', 16) }}
+        <span>{{ is_employee_context ? (translations.shop_notes ?? 'Notes de la boutique') : (translations.choose_shop ?? 'Choisir une boutique') }}</span>
     </a>
 
     {% if not is_employee_context and employees is defined and employees is not empty %}

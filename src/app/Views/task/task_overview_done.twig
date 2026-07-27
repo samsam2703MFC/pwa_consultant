@@ -76,7 +76,7 @@
     </div>
 {% endif %}
 
-<a class="btn btn-primary w-100 fw-bold mb-2" href="{{ ROOT }}/tasks">
-    {{ icons.svg('arrow-left') }} {{ translations.back_to_tasks ?? 'Retour aux tâches' }}
+<a class="app-back-btn app-back-btn--block mb-2" href="{{ ROOT }}/tasks">
+    {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_to_tasks ?? 'Retour aux tâches' }}</span>
 </a>
 {% endblock %}
