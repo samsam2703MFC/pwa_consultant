@@ -138,6 +138,22 @@ class ShopController extends Controller
     {
         $compareWindows = $this->compareWindows();
 
+        // Préchauffage PARALLÈLE des P&L (mois + semaine) de TOUS les magasins,
+        // en 2 rafales curl_multi, AVANT la boucle. Les appels getPnl() ci-dessous
+        // deviennent alors de simples lectures de cache : on remplace un N+1
+        // séquentiel (2 appels API bloquants par magasin) par 2 allers-retours.
+        $ids = [];
+        foreach ($shops as $s) {
+            $sid = (int)($s['id'] ?? 0);
+            if ($sid > 0) {
+                $ids[] = $sid;
+            }
+        }
+        if ($ids !== []) {
+            $this->shopService->getPnlMany($ids, 'month');
+            $this->shopService->getPnlMany($ids, 'week');
+        }
+
         foreach ($shops as &$shop) {
             $id = (int)($shop['id'] ?? 0);
 

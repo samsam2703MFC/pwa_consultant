@@ -7,8 +7,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}{{ translations.consultant_panel ?? 'Consultant Panel' }}{% endblock %}</title>
 
+    {# Ouvre la connexion aux serveurs de polices en amont (DNS+TLS) pendant que
+       le HTML se parse → la police bloque moins le premier rendu. #}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/extensions/bootstrap-icons/font/bootstrap-icons.css">
+    {# bootstrap-icons (police, ~98 Ko bloquant) retiré : les icônes sont en SVG
+       inline (_icons.twig) ; les rares icônes générées en JS le sont aussi. #}
     <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/compiled/css/app.css?v={{ assetv('assets/mazer/compiled/css/app.css') }}">
     <link rel="stylesheet" href="{{ ROOT }}/assets/css/atelier-theme.css?v={{ assetv('assets/css/atelier-theme.css') }}">
 
@@ -216,9 +221,38 @@
             from { opacity: 0; transform: translateY(6px); }
             to   { opacity: 1; transform: translateY(0); }
         }
+
+        /* ── Transitions de page (View Transitions API — navigateurs compatibles,
+           ignoré ailleurs). Fondu doux entre pages au lieu du flash blanc ; la
+           barre du haut et la tabbar gardent leur place (mêmes noms → pas de
+           scintillement). Couplé au prefetch spéculatif → navigation fluide. ── */
+        @view-transition { navigation: auto; }
+        ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; }
+        .app-topbar     { view-transition-name: app-topbar; }
+        .app-tabbar-bar { view-transition-name: app-tabbar; }
+        @media (prefers-reduced-motion: reduce) {
+            ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+        }
+
+        /* ── Barre de progression de navigation : le tap est acquitté
+           instantanément, même avant que la page suivante s'affiche. ── */
+        #nav-progress {
+            position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 3000;
+            transform: scaleX(0); transform-origin: 0 50%;
+            background: linear-gradient(90deg, #8D1D2C, #b2455a);
+            opacity: 0; transition: transform .2s ease, opacity .2s ease; pointer-events: none;
+        }
+        #nav-progress.is-active { opacity: 1; }
+
+        /* ── Allègement du rendu des longues listes (le navigateur ne peint que
+           ce qui est visible). contain-intrinsic-size réserve la hauteur pour
+           éviter les sauts de scroll. ── */
+        .tk-card { content-visibility: auto; contain-intrinsic-size: auto 120px; }
     </style>
 </head>
 <body>
+
+<div id="nav-progress" aria-hidden="true"></div>
 
 {% if dev_no_auth %}
 <div style="position:sticky;top:0;z-index:2000;background:#8D1D2C;color:#fff;font-family:'Gotham',sans-serif;font-size:.72rem;font-weight:600;text-align:center;padding:4px 8px;letter-spacing:.04em;">
@@ -268,7 +302,57 @@
 <script>window.__consultantRoot = '{{ ROOT }}';</script>
 <script src="{{ ROOT }}/assets/mazer/compiled/js/app.js?v={{ assetv('assets/mazer/compiled/js/app.js') }}"></script>
 <script src="{{ ROOT }}/assets/js/consultant-ajax.js?v={{ assetv('assets/js/consultant-ajax.js') }}"></script>
+
+{# ── Prefetch spéculatif de la page suivante ──
+   Sur les navigateurs qui le supportent, le HTML de la page pointée est
+   pré-téléchargé au survol / pointerdown (eagerness « moderate ») → le clic
+   sur un onglet est quasi instantané. `prefetch` seulement (pas `prerender`) :
+   le document est récupéré mais son JS n'est PAS exécuté à l'avance, donc aucun
+   appel API dupliqué. Les navigateurs sans support ignorent ce bloc. #}
+<script type="speculationrules">
+{
+  "prefetch": [
+    {
+      "source": "document",
+      "where": { "href_matches": "/pwa_consultant/*" },
+      "eagerness": "moderate"
+    }
+  ]
+}
+</script>
 {% block scripts %}{% endblock %}
+
+<script>
+/* Barre de progression : démarre au clic sur un lien interne ou à la soumission
+ * d'un formulaire (filtres), se termine quand la page suivante s'affiche (ou
+ * revient du cache bfcache). Donne un retour immédiat au tap. */
+(function () {
+    var bar = document.getElementById('nav-progress');
+    if (!bar) return;
+    function start() {
+        bar.classList.add('is-active');
+        bar.style.transform = 'scaleX(0.08)';
+        requestAnimationFrame(function () { bar.style.transform = 'scaleX(0.85)'; });
+    }
+    function done() {
+        bar.style.transform = 'scaleX(1)';
+        setTimeout(function () { bar.classList.remove('is-active'); bar.style.transform = 'scaleX(0)'; }, 200);
+    }
+    document.addEventListener('click', function (e) {
+        var a = e.target.closest ? e.target.closest('a[href]') : null;
+        if (!a) return;
+        if (a.target === '_blank' || a.hasAttribute('download')) return;
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        var href = a.getAttribute('href') || '';
+        if (href.charAt(0) === '#' || href.indexOf('javascript:') === 0) return;
+        if (a.origin && a.origin !== location.origin) return;
+        start();
+    }, true);
+    document.addEventListener('submit', function () { start(); }, true);
+    window.addEventListener('pagehide', start);
+    window.addEventListener('pageshow', done);
+})();
+</script>
 
 <script>
     (function () {

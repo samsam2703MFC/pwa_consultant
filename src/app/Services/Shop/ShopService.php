@@ -62,4 +62,15 @@ class ShopService
     {
         return $this->shopRepository->getPnl($shopId, $period);
     }
+
+    /**
+     * P&L de plusieurs magasins en parallèle (un seul aller-retour réseau).
+     *
+     * @param int[] $shopIds
+     * @return array<int, array> map shopId => données P&L.
+     */
+    public function getPnlMany(array $shopIds, string $period = 'day'): array
+    {
+        return $this->shopRepository->getPnlMany($shopIds, $period);
+    }
 }

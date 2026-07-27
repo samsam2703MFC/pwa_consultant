@@ -82,18 +82,55 @@ class Controller
         }
     }
 
+    /** Moteur Twig partagé pour toute la requête (évite de le reconstruire à chaque view()). */
+    private static ?Environment $twig = null;
+
     private function render(string $baseViewPath, string $twigTemplate, array $data): void
     {
+        echo $this->twig($baseViewPath)->render($twigTemplate, $data);
+    }
+
+    /**
+     * Moteur Twig avec CACHE DES TEMPLATES COMPILÉS.
+     *
+     * Avant : un `new Environment(cache=false)` par page → Twig recompilait
+     * chaque .twig en PHP à CHAQUE requête. Ici le cache disque persiste entre
+     * les requêtes ; `auto_reload` re-stat le mtime et recompile seulement si le
+     * template a changé (déploiement) — coût négligeable vs recompilation.
+     *
+     * `debug` (dump(), DebugExtension) est aligné sur la constante DEBUG : off
+     * en production. Répertoire de cache hors dépôt et inscriptible (même
+     * stratégie que le cache API) ; s'il n'est pas inscriptible on retombe
+     * proprement sur `cache=false` sans casser le rendu.
+     */
+    private function twig(string $baseViewPath): Environment
+    {
+        if (self::$twig !== null) {
+            return self::$twig;
+        }
+
+        $debug = defined('DEBUG') && DEBUG;
+
+        $cacheDir = sys_get_temp_dir() . '/pwa_consultant_twig';
+        if (!is_dir($cacheDir)) {
+            @mkdir($cacheDir, 0700, true);
+        }
+        $cache = (is_dir($cacheDir) && is_writable($cacheDir)) ? $cacheDir : false;
+
         $loader = new FilesystemLoader($baseViewPath);
         $twig   = new Environment($loader, [
-            'cache'    => false,
-            'autoescape' => 'html',
-            'debug'    => true,
+            'cache'       => $cache,
+            'autoescape'  => 'html',
+            'debug'       => $debug,
+            'auto_reload' => true,
         ]);
 
-        $twig->addExtension(new DebugExtension());
+        if ($debug) {
+            $twig->addExtension(new DebugExtension());
+        }
         $twig->addExtension(new AppExtension($_POST));
-        echo $twig->render($twigTemplate, $data);
+
+        return self::$twig = $twig;
     }
 
     protected function getJson(Request $request): array

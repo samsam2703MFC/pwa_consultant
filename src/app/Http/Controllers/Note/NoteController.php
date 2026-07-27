@@ -74,65 +74,63 @@ class NoteController extends Controller
     }
 
     /**
-     * GET  /shops/{shopId}/notes/new  - formularz nowej notatki sklepu
-     * POST /shops/{shopId}/notes/new  - zapis
+     * Formulaire de nouvelle note — UNIFIÉ.
+     *
+     * La cible (boutique + personne éventuelle) vient soit de l'URL
+     * (/shops/{id}/notes/new, /shops/{id}/employees/{eid}/notes/new), soit,
+     * depuis le formulaire neutre /notes/new, des champs shop_id/employee_id du
+     * POST. L'URL a priorité ; sinon on lit le corps. Le formulaire affiche
+     * toujours les sélecteurs Boutique (obligatoire) et Personne (optionnel),
+     * de sorte que la cible n'est jamais implicite.
+     *
+     * Routes : GET|POST /notes/new · /shops/{shopId}/notes/new
+     *          · /shops/{shopId}/employees/{employeeId}/notes/new
      */
-    public function create(int $shopId): void
+    public function create(?int $shopId = null, ?int $employeeId = null): void
     {
-        $noteTypes = $this->noteService->getNoteTypes();
-
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Cible : priorité à l'URL, repli sur le corps du formulaire neutre.
+            if ($shopId === null) {
+                $s = (int)($_POST['shop_id'] ?? 0);
+                $shopId = $s > 0 ? $s : null;
+            }
+            if ($employeeId === null) {
+                $e = (int)($_POST['employee_id'] ?? 0);
+                $employeeId = $e > 0 ? $e : null;
+            }
+
+            if ($shopId === null) {
+                $this->errors['shop'] = 'Choisissez une boutique.';
+            }
             if (empty(trim($_POST['content'] ?? ''))) {
                 $this->errors['content'] = 'Tresc notatki jest wymagana.';
             }
 
             if (empty($this->errors)) {
-                $result = $this->noteService->createNote($shopId, $_POST);
+                $result = $employeeId !== null
+                    ? $this->noteService->createEmployeeNote($shopId, $employeeId, $_POST)
+                    : $this->noteService->createNote($shopId, $_POST);
 
                 if ($result['success'] ?? false) {
+                    if ($employeeId !== null) {
+                        redirect("/shops/{$shopId}/employees/{$employeeId}/notes");
+                    }
                     redirect("/shops/{$shopId}/notes");
                 }
                 $this->errors['save'] = $result['description'] ?? 'Blad zapisu notatki.';
             }
         }
 
-        $this->view('note/create', [
-            'shop_id'    => $shopId,
-            'note_types' => $noteTypes,
-            'active_nav' => 'notes',
-        ]);
-    }
-
-    /**
-     * GET  /shops/{shopId}/employees/{employeeId}/notes/new
-     * POST /shops/{shopId}/employees/{employeeId}/notes/new
-     */
-    public function createForEmployee(int $shopId, int $employeeId): void
-    {
-        $noteTypes = $this->noteService->getNoteTypes();
-        $employees = $this->noteService->getEmployeesForShop($shopId);
-        $employee  = $this->findEmployee($employees, $employeeId);
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            if (empty(trim($_POST['content'] ?? ''))) {
-                $this->errors['content'] = 'Tresc notatki jest wymagana.';
-            }
-
-            if (empty($this->errors)) {
-                $result = $this->noteService->createEmployeeNote($shopId, $employeeId, $_POST);
-
-                if ($result['success'] ?? false) {
-                    redirect("/shops/{$shopId}/employees/{$employeeId}/notes");
-                }
-                $this->errors['save'] = $result['description'] ?? 'Blad zapisu notatki.';
-            }
-        }
+        // Rendu (GET, ou POST en erreur) : listes pour les sélecteurs.
+        $employees = $shopId !== null ? $this->noteService->getEmployeesForShop($shopId) : [];
 
         $this->view('note/create', [
+            'shops'       => $this->shopService->getAllShops(),
             'shop_id'     => $shopId,
             'employee_id' => $employeeId,
-            'employee'    => $employee,
-            'note_types'  => $noteTypes,
+            'employee'    => ($shopId !== null && $employeeId !== null) ? $this->findEmployee($employees, $employeeId) : null,
+            'employees'   => $employees,
+            'note_types'  => $this->noteService->getNoteTypes(),
             'active_nav'  => 'notes',
         ]);
     }

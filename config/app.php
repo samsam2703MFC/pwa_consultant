@@ -42,7 +42,13 @@ define('APP_CURRENCY_SYMBOL', $_ENV['CURRENCY_SYMBOL']);
 define('APP_NAME', $_ENV['APP_NAME']);
 define('APP_DESC', $_ENV['APP_DESC']);
 
-const DEBUG = true;
+// DEBUG piloté par l'environnement — OFF par défaut (production).
+// Active l'affichage des erreurs PHP + le mode debug Twig (dump(), auto-reload
+// verbeux). À n'activer qu'en dev via `SetEnv APP_DEBUG 1` (.htaccess) ou la
+// variable d'env APP_DEBUG=1. Laisser OFF en production : sinon Twig tourne en
+// mode debug (plus lent) et les erreurs fuitent à l'écran.
+define('DEBUG',
+    (($_SERVER['APP_DEBUG'] ?? $_ENV['APP_DEBUG'] ?? getenv('APP_DEBUG') ?: '0') === '1'));
 
 /*
  * DEV_NO_AUTH — TEMPORARY test mode that BYPASSES authentication.

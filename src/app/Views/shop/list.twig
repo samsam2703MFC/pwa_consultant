@@ -643,7 +643,7 @@ const CMP_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representat
         // 1. TurnOver — sans % (toujours 100%). Reste dépliable (catégories).
         rows.push(`
             <div class="pnl-row is-expandable" id="pnl-to-row-${shopId}">
-                <span class="pnl-row-label"><i class="bi bi-chevron-right"></i>${I18N.turnover}</span>
+                <span class="pnl-row-label"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.125em"><path d="m9 6 6 6-6 6"/></svg>${I18N.turnover}</span>
                 <span class="pnl-row-value">${fmt(T)}</span>
                 <span class="pnl-row-pct"></span>
             </div>
@@ -1065,7 +1065,7 @@ const CMP_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representat
         const skel = document.getElementById('pnl-skel-' + shopId);
         if (skel) {
             skel.innerHTML = `<div style="color:#c0392b;font-size:.78rem;text-align:center;padding:8px 0;">
-                <i class="bi bi-exclamation-triangle-fill"></i> ${I18N.loadError}<br>
+                <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.125em"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> ${I18N.loadError}<br>
                 <small style="opacity:.7;">${escHtml(msg)}</small>
             </div>`;
         }

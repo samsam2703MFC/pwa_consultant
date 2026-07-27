@@ -34,7 +34,7 @@
 
     {# ── Composer ── #}
     {% set uinit = (current_user.first_name ?? '')|slice(0,1) ~ (current_user.last_name ?? '')|slice(0,1) %}
-    <a href="{% if first_shop %}{{ ROOT }}/shops/{{ first_shop }}/notes/new{% else %}#nt-shops{% endif %}" class="nt-composer">
+    <a href="{{ ROOT }}/notes/new" class="nt-composer">
         <span class="nt-avatar">{{ uinit|upper|default('•') }}</span>
         <span class="nt-composer-ph">{{ translations.add_note ?? 'Ajouter une note…' }}</span>
         <span class="nt-composer-btn">{{ icons.svg('plus', 18) }}</span>

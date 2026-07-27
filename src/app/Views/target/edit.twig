@@ -248,8 +248,8 @@ document.getElementById('btn-copy-confirm').addEventListener('click', async () =
     });
     const json = await res.json();
     if (res.ok) {
-        showToast('Skopiowano. Odświeżam...', true);
-        setTimeout(() => location.reload(), 1500);
+        showToast('Skopiowano.', true);
+        setTimeout(() => location.reload(), 400);
     } else {
         showToast('Błąd: ' + (json.description ?? ''), false);
     }

@@ -23,7 +23,18 @@ return function (RouteCollector $r) {
         'method'     => 'listForEmployee',
     ]);
 
-    // Nowa notatka sklepu
+    // Nouvelle note — formulaire NEUTRE (boutique + personne choisies dans le
+    // formulaire). Point d'entrée du bouton « Ajouter une note » de l'accueil.
+    $r->addRoute('GET', '/notes/new', [
+        'controller' => NoteController::class,
+        'method'     => 'create',
+    ]);
+    $r->addRoute('POST', '/notes/new', [
+        'controller' => NoteController::class,
+        'method'     => 'create',
+    ]);
+
+    // Nowa notatka sklepu (boutique pré-remplie via l'URL)
     $r->addRoute('GET', '/shops/{shopId:\d+}/notes/new', [
         'controller' => NoteController::class,
         'method'     => 'create',
@@ -33,14 +44,14 @@ return function (RouteCollector $r) {
         'method'     => 'create',
     ]);
 
-    // Nowa notatka pracownika sklepu
+    // Nowa notatka pracownika sklepu (boutique + personne pré-remplies via l'URL)
     $r->addRoute('GET', '/shops/{shopId:\d+}/employees/{employeeId:\d+}/notes/new', [
         'controller' => NoteController::class,
-        'method'     => 'createForEmployee',
+        'method'     => 'create',
     ]);
     $r->addRoute('POST', '/shops/{shopId:\d+}/employees/{employeeId:\d+}/notes/new', [
         'controller' => NoteController::class,
-        'method'     => 'createForEmployee',
+        'method'     => 'create',
     ]);
 
     // Szczegoly notatki

@@ -10,5 +10,11 @@ return function (RouteCollector $r) {
         'method'     => 'handle',
     ]);
 
+    // Proxy groupé : plusieurs endpoints en parallèle, une seule réponse.
+    $r->addRoute('POST', '/api-proxy-batch', [
+        'controller' => ApiProxyController::class,
+        'method'     => 'handleBatch',
+    ]);
+
 };
 
