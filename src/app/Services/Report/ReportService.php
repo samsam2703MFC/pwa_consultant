@@ -245,7 +245,7 @@ class ReportService
      */
     private function bestTargets(int $shopId, array $tgt): array
     {
-        $get = function (int $y, int $m): ?array {
+        $get = function (int $y, int $m) use ($shopId): ?array {
             $t = $this->targetService->getTargets($shopId, $y, $m);
             return (is_array($t) && $this->hasAnyThreshold($t)) ? $t : null;
         };
