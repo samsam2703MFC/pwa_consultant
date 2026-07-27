@@ -32,39 +32,96 @@ class NoteService
      */
     public function getNotesOverview(array $shops, int $recentLimit = 6): array
     {
-        $recent = [];
-        $byShop = [];
-
+        // Ids + métadonnées des boutiques.
+        $shopIds  = [];
+        $shopMeta = [];
         foreach ($shops as $shop) {
             $shopId = (int)($shop['id'] ?? 0);
             if ($shopId === 0) {
                 continue;
             }
+            $shopIds[] = $shopId;
+            $shopMeta[$shopId] = [
+                'name'    => $shop['representative_name'] ?? $shop['name'] ?? '',
+                'address' => $shop['address'] ?? $shop['city'] ?? '',
+            ];
+        }
 
-            $shopName = $shop['representative_name'] ?? $shop['name'] ?? '';
-            $notes    = $this->noteRepository->getNotesForShop($shopId);
-            $count    = 0;
+        if ($shopIds === []) {
+            return ['recent' => [], 'by_shop' => []];
+        }
 
-            foreach ($notes as $n) {
+        // Récupérations PARALLÈLES : notes niveau boutique + employés de chaque
+        // boutique, puis notes de chaque employé. Les notes « employé » vivent
+        // sur un endpoint séparé (/employees/{id}/notes) : sans les agréger ici,
+        // elles n'apparaissaient ni dans « Récentes » ni dans les compteurs.
+        $shopNotesByShop = $this->noteRepository->getNotesForShopsBulk($shopIds);
+        $empsByShop      = $this->noteRepository->getEmployeesForShopsBulk($shopIds);
+
+        $pairs    = [];
+        $empLabel = [];
+        foreach ($empsByShop as $sid => $emps) {
+            foreach ($emps as $emp) {
+                $eid = (int)($emp['id'] ?? 0);
+                if ($eid <= 0) {
+                    continue;
+                }
+                $pairs[] = [$sid, $eid];
+                $empLabel[$sid . ':' . $eid] = $emp['display_name'] ?? $emp['employee_name']
+                    ?? trim(((string)($emp['name'] ?? '')) . ' ' . ((string)($emp['surname'] ?? '')));
+            }
+        }
+        $empNotes = $pairs !== [] ? $this->noteRepository->getNotesForEmployeesBulk($pairs) : [];
+
+        $recent = [];
+        $byShop = [];
+
+        $push = function (array $n, int $shopId, string $shopName, string $author) use (&$recent) {
+            $recent[] = [
+                'id'         => $n['id'] ?? null,
+                'content'    => $n['content'] ?? '',
+                'created_at' => $n['created_at'] ?? null,
+                'type_name'  => $n['type_name'] ?? null,
+                'author'     => $author,
+                'shop_id'    => $shopId,
+                'shop_name'  => $shopName,
+            ];
+        };
+
+        foreach ($shopIds as $sid) {
+            $name  = $shopMeta[$sid]['name'];
+            $count = 0;
+
+            // Notes niveau boutique.
+            foreach (($shopNotesByShop[$sid] ?? []) as $n) {
                 if (!empty($n['deleted_at'])) {
                     continue;
                 }
                 $count++;
-                $recent[] = [
-                    'id'         => $n['id'] ?? null,
-                    'content'    => $n['content'] ?? '',
-                    'created_at' => $n['created_at'] ?? null,
-                    'type_name'  => $n['type_name'] ?? null,
-                    'author'     => $n['employee_name'] ?? trim(($n['employee_first_name'] ?? '') . ' ' . ($n['employee_last_name'] ?? '')),
-                    'shop_id'    => $shopId,
-                    'shop_name'  => $shopName,
-                ];
+                $author = $n['employee_name'] ?? trim(((string)($n['employee_first_name'] ?? '')) . ' ' . ((string)($n['employee_last_name'] ?? '')));
+                $push($n, $sid, $name, $author);
+            }
+
+            // Notes des employés de la boutique.
+            foreach (($empsByShop[$sid] ?? []) as $emp) {
+                $eid = (int)($emp['id'] ?? 0);
+                if ($eid <= 0) {
+                    continue;
+                }
+                $key = $sid . ':' . $eid;
+                foreach (($empNotes[$key] ?? []) as $n) {
+                    if (!empty($n['deleted_at'])) {
+                        continue;
+                    }
+                    $count++;
+                    $push($n, $sid, $name, (string)($empLabel[$key] ?? ''));
+                }
             }
 
             $byShop[] = [
-                'id'      => $shopId,
-                'name'    => $shopName,
-                'address' => $shop['address'] ?? $shop['city'] ?? '',
+                'id'      => $sid,
+                'name'    => $name,
+                'address' => $shopMeta[$sid]['address'],
                 'count'   => $count,
             ];
         }

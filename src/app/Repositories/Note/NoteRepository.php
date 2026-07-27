@@ -30,6 +30,53 @@ class NoteRepository
         return ($res['success'] && isset($res['data'])) ? $res['data'] : [];
     }
 
+    // ── Récupérations GROUPÉES (parallèle, curl_multi) pour l'agrégat d'accueil ──
+
+    /** @param int[] $shopIds @return array<int, array> shopId => notes[] (niveau boutique) */
+    public function getNotesForShopsBulk(array $shopIds): array
+    {
+        $map = [];
+        foreach ($shopIds as $id) {
+            $map[(int)$id] = '/consultant/shops/' . (int)$id . '/notes';
+        }
+        return $this->unwrapMany($map, $this->apiClient->getMany(array_values($map)));
+    }
+
+    /** @param int[] $shopIds @return array<int, array> shopId => employees[] */
+    public function getEmployeesForShopsBulk(array $shopIds): array
+    {
+        $map = [];
+        foreach ($shopIds as $id) {
+            $map[(int)$id] = '/shops/' . (int)$id . '/employees';
+        }
+        return $this->unwrapMany($map, $this->apiClient->getMany(array_values($map)));
+    }
+
+    /**
+     * Notes des employés pour une liste de couples (boutique, employé).
+     * @param array<int, array{0:int,1:int}> $pairs  [ [shopId, employeeId], … ]
+     * @return array<string, array>  "shopId:employeeId" => notes[]
+     */
+    public function getNotesForEmployeesBulk(array $pairs): array
+    {
+        $map = [];
+        foreach ($pairs as [$sid, $eid]) {
+            $map[(int)$sid . ':' . (int)$eid] = '/consultant/shops/' . (int)$sid . '/employees/' . (int)$eid . '/notes';
+        }
+        return $this->unwrapMany($map, $this->apiClient->getMany(array_values(array_unique($map))));
+    }
+
+    /** Déballe une réponse getMany (endpoint => réponse) selon une map clé => endpoint. */
+    private function unwrapMany(array $keyToEndpoint, array $responses): array
+    {
+        $out = [];
+        foreach ($keyToEndpoint as $key => $ep) {
+            $r = $responses[$ep] ?? [];
+            $out[$key] = (!empty($r['success']) && is_array($r['data'] ?? null)) ? $r['data'] : [];
+        }
+        return $out;
+    }
+
     public function getNotesForEmployee(int $shopId, int $employeeId): array
     {
         $res = $this->apiClient->get("/consultant/shops/{$shopId}/employees/{$employeeId}/notes");
