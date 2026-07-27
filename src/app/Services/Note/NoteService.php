@@ -55,16 +55,28 @@ class NoteService
         $ids = array_values(array_filter(array_map(fn($n) => (int)($n['id'] ?? 0), $inPeriod)));
         $details = $this->noteRepository->getNotesByIdsBulk($ids);
         foreach ($inPeriod as &$n) {
-            $d = $details[(int)($n['id'] ?? 0)] ?? [];
-            $photos = is_array($d) ? $this->imageAttachments($d) : [];
+            $d = is_array($details[(int)($n['id'] ?? 0)] ?? null) ? $details[(int)($n['id'] ?? 0)] : [];
+
+            // Photos de la NOTE (mère) uniquement — les photos des commentaires
+            // vivent désormais sous chaque commentaire (fille).
+            $n['photos_view'] = $this->imageAttachments($d);
+
+            // Commentaires (filles) : auteur + contenu + date + photos, en ordre
+            // chronologique — pour le fil « mère-fille » du rapport.
+            $comments = [];
             foreach (($d['comments'] ?? []) as $c) {
-                if (is_array($c)) {
-                    foreach ($this->imageAttachments($c) as $p) {
-                        $photos[] = $p;
-                    }
+                if (!is_array($c) || !empty($c['deleted_at'])) {
+                    continue;
                 }
+                $comments[] = [
+                    'author'      => $this->commentAuthor($c),
+                    'content'     => (string)($c['content'] ?? ''),
+                    'created_at'  => $c['created_at'] ?? null,
+                    'photos_view' => $this->imageAttachments($c),
+                ];
             }
-            $n['photos_view'] = $photos;
+            usort($comments, fn($a, $b) => strcmp((string)($a['created_at'] ?? ''), (string)($b['created_at'] ?? '')));
+            $n['comments_view'] = $comments;
         }
         unset($n);
 

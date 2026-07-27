@@ -60,6 +60,11 @@
     .rpt-thumbs { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
     .rpt-thumb { width:64px; height:64px; object-fit:cover; border-radius:8px; border:1px solid rgba(0,0,0,.1); }
 
+    /* Commentaires (filles) sous une note (mère). */
+    .rpt-replies { margin:7px 0 0 6px; padding-left:11px; border-left:2px solid #ece3d8; display:flex; flex-direction:column; gap:8px; }
+    .rpt-reply-meta { font-size:.68rem; font-weight:700; color:#7a7168; }
+    .rpt-reply-text { font-size:.8rem; color:#333; margin:1px 0 0; white-space:pre-wrap; word-break:break-word; }
+
     .rpt-supplier { font-weight:800; font-size:.82rem; color:#212529; margin:8px 0 3px; }
     .rpt-empty { font-size:.82rem; color:#adb5bd; font-style:italic; }
     .rpt-badge { display:inline-block; font-size:.66rem; font-weight:700; border-radius:8px; padding:1px 7px; background:rgba(67,94,190,.12); color:#435ebe; }
@@ -168,9 +173,9 @@
                     {% endif %}
                 </div>
 
-                {# Targets (image du mois) #}
+                {# Objectifs (targets) du mois #}
                 <div class="rpt-sec">
-                    <div class="rpt-sec-h">{{ icons.svg('target', 14) }}{{ translations.targets ?? 'Targets' }} — {{ report.targets_month.label }}</div>
+                    <div class="rpt-sec-h">{{ icons.svg('target', 14) }}{{ translations.targets ?? 'Objectifs' }} — {{ shop.targets_label ?? report.targets_month.label }}</div>
                     {% if shop.targets_view is not empty %}
                         <table class="rpt-tbl">
                             <thead><tr>
@@ -209,6 +214,22 @@
                             {% if n.photos_view is not empty %}
                                 <div class="rpt-thumbs">
                                     {% for p in n.photos_view %}<img class="rpt-thumb" src="{{ p.url }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy">{% endfor %}
+                                </div>
+                            {% endif %}
+                            {# Commentaires (filles) de la note #}
+                            {% if n.comments_view is defined and n.comments_view is not empty %}
+                                <div class="rpt-replies">
+                                    {% for c in n.comments_view %}
+                                    <div class="rpt-reply">
+                                        <div class="rpt-reply-meta">{{ c.author ?: (translations.consultant ?? 'Consultant') }} · {{ (c.created_at ?? '')|slice(0,16)|replace({'T': ' '}) }}</div>
+                                        {% if c.content %}<p class="rpt-reply-text">{{ c.content }}</p>{% endif %}
+                                        {% if c.photos_view is not empty %}
+                                            <div class="rpt-thumbs">
+                                                {% for p in c.photos_view %}<img class="rpt-thumb" src="{{ p.url }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy">{% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
                                 </div>
                             {% endif %}
                         </div>
