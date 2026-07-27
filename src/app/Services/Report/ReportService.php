@@ -84,7 +84,8 @@ class ReportService
         $toT   = strtotime($period['to'] . ' 23:59:59');
 
         // Tags OFFICIELS des leviers (of_tag) — mêmes couleurs/identité que l'écran HEXm.
-        $ofTags = $this->consultantUsers->getOfficialTags();
+        $ofTags     = $this->consultantUsers->getOfficialTags();
+        $metricDefs = $this->targetService->getMetricDefinitions();
 
         $shopSections = [];
         foreach ($scopeShops as $shop) {
@@ -94,14 +95,15 @@ class ReportService
             }
             $shopName = (string)($shop['representative_name'] ?? $shop['name'] ?? ('#' . $shopId));
 
-            $kpis = $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
+            $kpis    = $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
+            $targets = $this->targetService->getTargets($shopId, $tgt['year'], $tgt['month']);
 
             $shopSections[] = [
                 'id'                 => $shopId,
                 'name'               => $shopName,
                 'kpis'               => $kpis,
                 'hexm'               => $this->hexmForShop($shopId, $period, $kpis, $ofTags),
-                'targets'            => $this->targetService->getTargets($shopId, $tgt['year'], $tgt['month']),
+                'targets_view'       => $this->targetsView($targets, $metricDefs),
                 'notes'              => $this->noteService->getNotesForPeriod($shopId, $period['from'], $period['to']),
                 'claims_by_supplier' => $this->claimsBySupplier($shopId, $fromT, $toT),
             ];
@@ -117,7 +119,6 @@ class ReportService
             'scope'         => ['mode' => $scopeMode, 'shop_id' => $scopeId, 'label' => $scopeLabel],
             'consultant'    => (string)($user['display_name'] ?? ''),
             'generated_at'  => date('Y-m-d H:i'),
-            'metric_defs'   => $this->targetService->getMetricDefinitions(),
             'shops'         => $shopSections,
             'demandes'      => $this->demandesForPeriod($fromT, $toT, $shopFilter),
             'tasks_done'    => $this->tasksDoneForPeriod($fromT, $toT),
@@ -157,6 +158,33 @@ class ReportService
             'month' => (int)$ref->format('n'),
             'label' => $this->monthName((int)$ref->format('n')) . ' ' . $ref->format('Y'),
         ];
+    }
+
+    /**
+     * Targets prêts pour la vue : liste [{label, t1, t2, t3}] des leviers qui
+     * ont AU MOINS un seuil défini (label résolu via les définitions de
+     * métriques). Vide → la vue affiche « aucun target » sans en-tête orphelin.
+     *
+     * @return array<int, array{label:string, t1:mixed, t2:mixed, t3:mixed}>
+     */
+    private function targetsView(array $targets, array $metricDefs): array
+    {
+        $out = [];
+        foreach ($targets as $key => $t) {
+            if (!is_array($t)) {
+                continue;
+            }
+            $tt = $t['consultant'] ?? $t['admin'] ?? $t;
+            $t1 = $tt['t1'] ?? null;
+            $t2 = $tt['t2'] ?? null;
+            $t3 = $tt['t3'] ?? null;
+            if ($t1 === null && $t2 === null && $t3 === null) {
+                continue;
+            }
+            $label = $metricDefs[$key]['label'] ?? $t['label'] ?? $t['metric_key'] ?? (string)$key;
+            $out[] = ['label' => $label, 't1' => $t1, 't2' => $t2, 't3' => $t3];
+        }
+        return $out;
     }
 
     /** Réclamations de la période, groupées par fournisseur. */
