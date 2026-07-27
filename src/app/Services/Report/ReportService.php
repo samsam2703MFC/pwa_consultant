@@ -6,6 +6,7 @@ use App\Consultant\app\Services\Note\NoteService;
 use App\Consultant\app\Services\Claim\ClaimService;
 use App\Consultant\app\Services\Target\ShopMetricTargetService;
 use App\Consultant\app\Services\Task\TaskService;
+use App\Consultant\app\Services\Campaign\CampaignService;
 use App\Consultant\app\Repositories\Consultant\ConsultantUserRepository;
 use App\Consultant\core\Support\GlobalRegistry;
 
@@ -44,7 +45,8 @@ class ReportService
         private ClaimService $claimService,
         private ShopMetricTargetService $targetService,
         private TaskService $taskService,
-        private ConsultantUserRepository $consultantUsers
+        private ConsultantUserRepository $consultantUsers,
+        private CampaignService $campaignService
     ) {}
 
     /**
@@ -138,6 +140,20 @@ class ReportService
             $network = $this->buildNetworkView(
                 $allShops, $period, $tgt, $kpisByShop, $metricsByShop, $netAvg, $netFranchise, $ofTags, $fromT, $toT
             );
+            // Résultats des campagnes commerciales — rapport MENSUEL uniquement,
+            // agrégées par nom sur le réseau (+ totaux CA target/réalisé).
+            if ($type === 'month') {
+                $lists = [];
+                foreach ($allShops as $shop) {
+                    $sid = (int)($shop['id'] ?? 0);
+                    if ($sid > 0) {
+                        $lists[] = $this->campaignService->forShop($sid, $period['from'], $period['to']);
+                    }
+                }
+                $merged = $this->campaignService->mergeByName($lists);
+                $network['campaigns']       = $merged;
+                $network['campaigns_totals'] = $this->campaignService->totals($merged);
+            }
         } else {
             foreach ($scopeShops as $shop) {
                 $shopId = (int)($shop['id'] ?? 0);
@@ -159,6 +175,10 @@ class ReportService
                     'targets_label'      => $franchise['label'],
                     'notes'              => $this->noteService->getNotesForPeriod($shopId, $period['from'], $period['to']),
                     'claims_by_supplier' => $this->claimsBySupplier($shopId, $fromT, $toT),
+                    // Campagnes commerciales — rapport MENSUEL uniquement.
+                    'campaigns'          => $type === 'month'
+                        ? $this->campaignService->forShop($shopId, $period['from'], $period['to'])
+                        : [],
                 ];
             }
         }

@@ -75,6 +75,18 @@
     .rpt-reply-meta { font-size:.68rem; font-weight:700; color:#7a7168; }
     .rpt-reply-text { font-size:.8rem; color:#333; margin:1px 0 0; white-space:pre-wrap; word-break:break-word; }
 
+    /* Campagnes commerciales : CA réalisé vs target (barre) + leads/conversion. */
+    .rpt-camp { border:1px solid rgba(0,0,0,.08); border-radius:12px; padding:9px 11px; margin-bottom:8px; }
+    .rpt-camp-h { display:flex; align-items:baseline; gap:8px; }
+    .rpt-camp-nm { font-weight:800; font-size:.85rem; color:#212529; }
+    .rpt-camp-type { font-size:.6rem; font-weight:800; text-transform:uppercase; letter-spacing:.03em; color:#7a7168; }
+    .rpt-camp-pct { margin-left:auto; font-weight:800; font-size:.85rem; }
+    .rpt-camp-bar { height:8px; border-radius:5px; background:#f0e9df; margin:6px 0 4px; position:relative; overflow:hidden; }
+    .rpt-camp-bar i { position:absolute; left:0; top:0; bottom:0; border-radius:5px; }
+    .rpt-fill-ok { background:#2D7A3E; } .rpt-fill-mid { background:#e67e22; } .rpt-fill-bad { background:#c0182b; } .rpt-fill-nd { background:#cfc7bb; }
+    .rpt-camp-meta { font-size:.72rem; color:#7a7168; }
+    .rpt-camp-meta b { color:#241f1c; font-weight:800; }
+
     .rpt-supplier { font-weight:800; font-size:.82rem; color:#212529; margin:8px 0 3px; }
     .rpt-empty { font-size:.82rem; color:#adb5bd; font-style:italic; }
     .rpt-badge { display:inline-block; font-size:.66rem; font-weight:700; border-radius:8px; padding:1px 7px; background:rgba(67,94,190,.12); color:#435ebe; }
@@ -287,6 +299,32 @@
                 {% endif %}
             </div>
         </div>
+
+        {# ── Campagnes commerciales réseau (rapport mensuel) ── #}
+        {% if net.campaigns is defined and net.campaigns is not empty %}
+        <div class="rpt-shop">
+            <div class="rpt-shop-name">{{ icons.svg('tag', 15) }} {{ translations.campaigns ?? 'Campagnes commerciales' }} — {{ translations.network ?? 'Réseau' }}{% if net.campaigns_totals.pct is not null %} · {{ net.campaigns_totals.pct|number_format(0, ',', ' ') }} %{% endif %}</div>
+            <div class="rpt-shop-body">
+                {% for c in net.campaigns %}
+                    {% set cst = c.pct is null ? 'nd' : (c.pct >= 95 ? 'ok' : (c.pct >= 80 ? 'mid' : 'bad')) %}
+                    <div class="rpt-camp">
+                        <div class="rpt-camp-h">
+                            <span class="rpt-camp-nm">{{ c.name }}</span>
+                            {% if c.type %}<span class="rpt-camp-type">{{ c.type }}</span>{% endif %}
+                            <span class="rpt-camp-pct rpt-v-{{ cst }}">{{ c.pct is not null ? (c.pct|number_format(0, ',', ' ') ~ ' %') : '—' }}</span>
+                        </div>
+                        {% if c.target is not null %}
+                            <div class="rpt-camp-bar"><i class="rpt-fill-{{ cst }}" style="width:{{ c.pct is null ? 0 : (c.pct > 100 ? 100 : c.pct)|round }}%;"></i></div>
+                            <div class="rpt-camp-meta">{{ translations.turnover ?? 'CA' }} <b>{{ (c.actual ?? 0)|number_format(0, ',', ' ') }} {{ currency_symbol }}</b> / {{ c.target|number_format(0, ',', ' ') }} {{ currency_symbol }} · {{ c.shops }} {{ translations.shop ?? 'boutique' }}(s)</div>
+                        {% endif %}
+                        {% if c.leads_generated is not null %}
+                            <div class="rpt-camp-meta">{{ translations.leads ?? 'Leads' }} <b>{{ c.leads_generated }}</b> → <b>{{ c.leads_opened ?? 0 }}</b>{% if c.conv is not null %} ({{ c.conv|number_format(0, ',', ' ') }} % {{ translations.conversion ?? 'conversion' }}){% endif %}</div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         {% else %}
         {# ── Sections par boutique ── #}
         {% for shop in report.shops %}
@@ -456,6 +494,30 @@
                         {% endfor %}
                     {% endif %}
                 </div>
+
+                {# Campagnes commerciales (rapport mensuel) #}
+                {% if shop.campaigns is defined and shop.campaigns is not empty %}
+                <div class="rpt-sec">
+                    <div class="rpt-sec-h">{{ icons.svg('tag', 14) }}{{ translations.campaigns ?? 'Campagnes commerciales' }}</div>
+                    {% for c in shop.campaigns %}
+                        {% set cst = c.pct is null ? 'nd' : (c.pct >= 95 ? 'ok' : (c.pct >= 80 ? 'mid' : 'bad')) %}
+                        <div class="rpt-camp">
+                            <div class="rpt-camp-h">
+                                <span class="rpt-camp-nm">{{ c.name }}</span>
+                                {% if c.type %}<span class="rpt-camp-type">{{ c.type }}</span>{% endif %}
+                                <span class="rpt-camp-pct rpt-v-{{ cst }}">{{ c.pct is not null ? (c.pct|number_format(0, ',', ' ') ~ ' %') : '—' }}</span>
+                            </div>
+                            {% if c.target is not null %}
+                                <div class="rpt-camp-bar"><i class="rpt-fill-{{ cst }}" style="width:{{ c.pct is null ? 0 : (c.pct > 100 ? 100 : c.pct)|round }}%;"></i></div>
+                                <div class="rpt-camp-meta">{{ translations.turnover ?? 'CA' }} <b>{{ (c.actual ?? 0)|number_format(0, ',', ' ') }} {{ currency_symbol }}</b> / {{ c.target|number_format(0, ',', ' ') }} {{ currency_symbol }}</div>
+                            {% endif %}
+                            {% if c.leads_generated is not null %}
+                                <div class="rpt-camp-meta">{{ translations.leads ?? 'Leads' }} <b>{{ c.leads_generated }}</b> → <b>{{ c.leads_opened ?? 0 }}</b>{% if c.conv is not null %} ({{ c.conv|number_format(0, ',', ' ') }} % {{ translations.conversion ?? 'conversion' }}){% endif %}</div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
 
             </div>
         </div>
