@@ -66,6 +66,20 @@ class NoteRepository
         return $this->unwrapMany($map, $this->apiClient->getMany(array_values(array_unique($map))));
     }
 
+    /**
+     * Détail de plusieurs notes par id, en parallèle (pour la miniature photo
+     * des tuiles récentes). Chaque détail inclut les commentaires + photos.
+     * @param int[] $ids  @return array<int, array> id => note détaillée
+     */
+    public function getNotesByIdsBulk(array $ids): array
+    {
+        $map = [];
+        foreach ($ids as $id) {
+            $map[(int)$id] = '/consultant/notes/' . (int)$id;
+        }
+        return $this->unwrapMany($map, $this->apiClient->getMany(array_values(array_unique($map))));
+    }
+
     /** Déballe une réponse getMany (endpoint => réponse) selon une map clé => endpoint. */
     private function unwrapMany(array $keyToEndpoint, array $responses): array
     {
