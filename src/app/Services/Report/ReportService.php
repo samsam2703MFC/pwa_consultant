@@ -228,7 +228,10 @@ class ReportService
         ];
         foreach ($kpisOut as &$k) {
             $k['status'] = $this->targetStatus($k['val'], $k['obj']);
-            $k['evo']    = ($k['n1'] !== null && $k['n1'] > 0 && $k['val'] !== null)
+            // Taux d'atteinte de l'objectif en % (réalisé ÷ objectif).
+            $k['pct'] = ($k['val'] !== null && $k['obj'] !== null && $k['obj'] > 0)
+                ? ($k['val'] / $k['obj']) * 100 : null;
+            $k['evo'] = ($k['n1'] !== null && $k['n1'] > 0 && $k['val'] !== null)
                 ? (($k['val'] - $k['n1']) / $k['n1']) * 100 : null;
         }
         unset($k);
