@@ -78,16 +78,20 @@
                 </div>
             {% endif %}
             <p class="mb-0" style="font-size:.92rem;line-height:1.6;white-space:pre-wrap;">{{ note.content }}</p>
-            {# Photos attachées à la note (si le backend les renvoie). #}
-            {% if note.photos is defined and note.photos|length > 0 %}
+            {# Photos attachées directement à la note (si le backend en renvoie). #}
+            {% set n_atts = note.attachments ?? note.photos ?? [] %}
+            {% set n_imgs = n_atts|filter(a =>
+                ((a.mime_type ?? a.content_type ?? a.mime ?? '')|lower starts with 'image/')
+                or ((a.original_name ?? a.name ?? '')|lower matches '/\\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/')
+            ) %}
+            {% if n_imgs|length > 0 %}
                 <div class="d-flex flex-wrap gap-2 mt-2">
-                    {% for photo in note.photos %}
-                        {% if photo.presigned_url %}
-                            <a href="{{ photo.presigned_url }}" target="_blank">
-                                <img src="{{ photo.presigned_url }}" alt="{{ translations.photo_alt ?? 'photo' }}"
-                                     style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
-                            </a>
-                        {% endif %}
+                    {% for photo in n_imgs %}
+                        {% set purl = ROOT ~ '/notes/attachments/' ~ photo.id ~ '/preview' %}
+                        <a href="{{ purl }}" target="_blank" rel="noopener">
+                            <img src="{{ purl }}" alt="{{ photo.original_name ?? (translations.photo_alt ?? 'photo') }}" loading="lazy"
+                                 style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
+                        </a>
                     {% endfor %}
                 </div>
             {% endif %}
@@ -132,15 +136,20 @@
                                 </form>
                             </div>
                             {% if comment.content %}<p class="nt-thread-text">{{ comment.content }}</p>{% endif %}
-                            {% if comment.photos is defined and comment.photos|length > 0 %}
+                            {% set c_atts = comment.attachments ?? comment.photos ?? [] %}
+                            {% set c_imgs = c_atts|filter(a =>
+                                ((a.mime_type ?? a.content_type ?? a.mime ?? '')|lower starts with 'image/')
+                                or ((a.original_name ?? a.name ?? '')|lower matches '/\\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/')
+                                or ((a.mime_type ?? a.content_type ?? a.mime ?? '') == '' and (a.original_name ?? a.name ?? '') == '')
+                            ) %}
+                            {% if c_imgs|length > 0 %}
                                 <div class="d-flex flex-wrap gap-2 mt-2">
-                                    {% for photo in comment.photos %}
-                                        {% if photo.presigned_url %}
-                                            <a href="{{ photo.presigned_url }}" target="_blank">
-                                                <img src="{{ photo.presigned_url }}" alt="{{ translations.photo_alt ?? 'photo' }}"
-                                                     style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
-                                            </a>
-                                        {% endif %}
+                                    {% for photo in c_imgs %}
+                                        {% set purl = ROOT ~ '/notes/attachments/' ~ photo.id ~ '/preview' %}
+                                        <a href="{{ purl }}" target="_blank" rel="noopener">
+                                            <img src="{{ purl }}" alt="{{ photo.original_name ?? (translations.photo_alt ?? 'photo') }}" loading="lazy"
+                                                 style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
+                                        </a>
                                     {% endfor %}
                                 </div>
                             {% endif %}

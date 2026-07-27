@@ -187,6 +187,17 @@ class NoteRepository
     {
         return $this->apiClient->delete("/consultant/comments/{$id}");
     }
+
+    /**
+     * URL présignée d'une pièce jointe (même mécanisme que les réclamations) :
+     * l'API renvoie l'URL réelle sous data.url. Les photos de note/commentaire
+     * ne sont référencées que par leur id ; c'est ici qu'on obtient l'URL.
+     */
+    public function getAttachmentPreviewUrl(int $attachmentId): ?string
+    {
+        $res = $this->apiClient->get("/attachments/{$attachmentId}/presigned-url");
+        return (!empty($res['success']) && !empty($res['data']['url'])) ? $res['data']['url'] : null;
+    }
 }
 
 

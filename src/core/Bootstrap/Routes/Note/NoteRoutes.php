@@ -54,6 +54,12 @@ return function (RouteCollector $r) {
         'method'     => 'create',
     ]);
 
+    // Aperçu d'une pièce jointe (redirige vers l'URL présignée)
+    $r->addRoute('GET', '/notes/attachments/{attachmentId:\d+}/preview', [
+        'controller' => NoteController::class,
+        'method'     => 'previewAttachment',
+    ]);
+
     // Szczegoly notatki
     $r->addRoute('GET', '/notes/{id:\d+}', [
         'controller' => NoteController::class,

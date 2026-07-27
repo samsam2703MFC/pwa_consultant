@@ -154,7 +154,7 @@ class NoteService
         if ($ids !== []) {
             $details = $this->noteRepository->getNotesByIdsBulk($ids);
             foreach ($recent as &$r) {
-                $r['thumb'] = $this->firstPhotoUrl($details[(int)($r['id'] ?? 0)] ?? []);
+                $r['thumb'] = $this->firstPhotoAttachmentId($details[(int)($r['id'] ?? 0)] ?? []);
             }
             unset($r);
         }
@@ -165,18 +165,38 @@ class NoteService
         ];
     }
 
-    /** Première URL de photo d'une note (photo directe ou 1re photo d'un commentaire). */
-    private function firstPhotoUrl(array $note): ?string
+    /**
+     * Id de la 1re pièce jointe IMAGE d'une note (attachments de la note, sinon
+     * des commentaires). Renvoie l'id — la vue construit l'URL via l'endpoint
+     * /notes/attachments/{id}/preview. Champs tolérants (attachments|photos).
+     */
+    private function firstPhotoAttachmentId(array $note): ?int
     {
-        foreach (($note['photos'] ?? []) as $p) {
-            if (!empty($p['presigned_url'])) {
-                return $p['presigned_url'];
+        $isImage = function (array $a): bool {
+            $mime = strtolower((string)($a['mime_type'] ?? $a['content_type'] ?? $a['mime'] ?? ''));
+            $name = strtolower((string)($a['original_name'] ?? $a['name'] ?? ''));
+            return str_starts_with($mime, 'image/')
+                || (bool)preg_match('/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/', $name)
+                || ($mime === '' && $name === '');  // pas de méta → on suppose une image (les pièces de note sont des photos)
+        };
+        $scan = function ($list) use ($isImage): ?int {
+            foreach ((array)$list as $a) {
+                if (is_array($a) && !empty($a['id']) && $isImage($a)) {
+                    return (int)$a['id'];
+                }
+            }
+            return null;
+        };
+
+        foreach (['attachments', 'photos'] as $f) {
+            if ($id = $scan($note[$f] ?? [])) {
+                return $id;
             }
         }
         foreach (($note['comments'] ?? []) as $c) {
-            foreach (($c['photos'] ?? []) as $p) {
-                if (!empty($p['presigned_url'])) {
-                    return $p['presigned_url'];
+            foreach (['attachments', 'photos'] as $f) {
+                if ($id = $scan($c[$f] ?? [])) {
+                    return $id;
                 }
             }
         }
@@ -251,6 +271,11 @@ class NoteService
     public function deleteComment(int $id): array
     {
         return $this->noteRepository->deleteComment($id);
+    }
+
+    public function getAttachmentPreviewUrl(int $attachmentId): ?string
+    {
+        return $this->noteRepository->getAttachmentPreviewUrl($attachmentId);
     }
 }
 

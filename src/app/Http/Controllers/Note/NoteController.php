@@ -223,6 +223,23 @@ class NoteController extends Controller
         redirect('/notes');
     }
 
+    /**
+     * GET /notes/attachments/{id}/preview
+     * Redirige vers l'URL présignée de la pièce jointe (les photos de note/
+     * commentaire ne sont référencées que par leur id). Calqué sur les
+     * réclamations. Sert de src aux <img> et vignettes.
+     */
+    public function previewAttachment(int $attachmentId): void
+    {
+        $url = $this->noteService->getAttachmentPreviewUrl($attachmentId);
+        if (!$url) {
+            $this->view('errors/404', ['active_nav' => 'notes']);
+            return;
+        }
+        header('Location: ' . $url);
+        exit;
+    }
+
     /** Vrai si au moins un fichier a été réellement téléversé dans $_FILES['photos']. */
     private function hasUploadedPhoto(): bool
     {
