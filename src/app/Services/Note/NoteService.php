@@ -134,10 +134,12 @@ class NoteService
         ];
     }
 
-    public function createNote(int $shopId, array $postData): array
+    public function createNote(int $shopId, array $postData, array $files = []): array
     {
         $data = $this->buildNotePayload($postData);
-        return $this->noteRepository->createNote($shopId, $data);
+        return !empty($files['photos'])
+            ? $this->noteRepository->createNoteWithPhotos($shopId, $data, $files)
+            : $this->noteRepository->createNote($shopId, $data);
     }
 
     public function getEmployeesForShop(int $shopId): array
@@ -150,10 +152,12 @@ class NoteService
         return $this->noteRepository->getNotesForEmployee($shopId, $employeeId);
     }
 
-    public function createEmployeeNote(int $shopId, int $employeeId, array $postData): array
+    public function createEmployeeNote(int $shopId, int $employeeId, array $postData, array $files = []): array
     {
         $data = $this->buildNotePayload($postData);
-        return $this->noteRepository->createEmployeeNote($shopId, $employeeId, $data);
+        return !empty($files['photos'])
+            ? $this->noteRepository->createEmployeeNoteWithPhotos($shopId, $employeeId, $data, $files)
+            : $this->noteRepository->createEmployeeNote($shopId, $employeeId, $data);
     }
 
     private function buildNotePayload(array $postData): array

@@ -111,9 +111,10 @@ class NoteController extends Controller
             }
 
             if (empty($this->errors)) {
+                $files = !empty($_FILES['photos']) ? ['photos' => $_FILES['photos']] : [];
                 $result = $employeeId !== null
-                    ? $this->noteService->createEmployeeNote($shopId, $employeeId, $_POST)
-                    : $this->noteService->createNote($shopId, $_POST);
+                    ? $this->noteService->createEmployeeNote($shopId, $employeeId, $_POST, $files)
+                    : $this->noteService->createNote($shopId, $_POST, $files);
 
                 if ($result['success'] ?? false) {
                     if ($employeeId !== null) {

@@ -109,6 +109,16 @@
             {% endif %}
         </div>
 
+        {# Photos (mêmes règles que les commentaires : max 4). #}
+        <div class="mb-3">
+            <label class="form-label" style="font-size:.82rem;color:#6c757d;">
+                <span class="me-1">{{ icons.svg('camera') }}</span>{{ translations.photos ?? 'Photos' }}
+                <span class="text-muted">{{ translations.attachments_hint ?? '(optionnel, max 4 × 10 Mo, jpg/png/webp)' }}</span>
+            </label>
+            <input type="file" name="photos[]" accept="image/*" multiple
+                   class="form-control form-control-sm rounded-3" style="font-size:.82rem;">
+        </div>
+
         <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 fw-700">
             <span class="me-2">{{ icons.svg('check') }}</span>{{ translations.save_note ?? 'Enregistrer la note' }}
         </button>
