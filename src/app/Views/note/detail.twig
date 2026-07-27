@@ -101,13 +101,12 @@
                 </div>
             {% endif %}
             <p class="mb-0" style="font-size:.92rem;line-height:1.6;white-space:pre-wrap;">{{ note.content }}</p>
-            {# Photos de la note (ids normalisés côté serveur : photo_ids). #}
-            {% if note.photo_ids is defined and note.photo_ids|length > 0 %}
+            {# Photos de la note (normalisées côté serveur : {id, url}). #}
+            {% if note.photos_view is defined and note.photos_view|length > 0 %}
                 <div class="d-flex flex-wrap gap-2 mt-2">
-                    {% for pid in note.photo_ids %}
-                        {% set purl = ROOT ~ '/notes/attachments/' ~ pid ~ '/preview' %}
-                        <a href="{{ purl }}" target="_blank" rel="noopener">
-                            <img src="{{ purl }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy"
+                    {% for photo in note.photos_view %}
+                        <a href="{{ photo.url }}" target="_blank" rel="noopener">
+                            <img src="{{ photo.url }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy"
                                  style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
                         </a>
                     {% endfor %}
@@ -157,13 +156,12 @@
                                 </form>
                             </div>
                             {% if comment.content %}<p class="nt-thread-text">{{ comment.content }}</p>{% endif %}
-                            {# Photos du commentaire (ids normalisés côté serveur : photo_ids). #}
-                            {% if comment.photo_ids is defined and comment.photo_ids|length > 0 %}
+                            {# Photos du commentaire (normalisées côté serveur : {id, url}). #}
+                            {% if comment.photos_view is defined and comment.photos_view|length > 0 %}
                                 <div class="d-flex flex-wrap gap-2 mt-2">
-                                    {% for pid in comment.photo_ids %}
-                                        {% set purl = ROOT ~ '/notes/attachments/' ~ pid ~ '/preview' %}
-                                        <a href="{{ purl }}" target="_blank" rel="noopener">
-                                            <img src="{{ purl }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy"
+                                    {% for photo in comment.photos_view %}
+                                        <a href="{{ photo.url }}" target="_blank" rel="noopener">
+                                            <img src="{{ photo.url }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy"
                                                  style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
                                         </a>
                                     {% endfor %}
@@ -194,7 +192,7 @@
                 </div>
             {% endif %}
 
-            <form method="POST" action="{{ ROOT }}/notes/{{ note.id }}/comments{{ dbg ?? false ? '?dbg=1' : '' }}"
+            <form method="POST" action="{{ ROOT }}/notes/{{ note.id }}/comments"
                   enctype="multipart/form-data" novalidate>
 
                 <div class="mb-3">
