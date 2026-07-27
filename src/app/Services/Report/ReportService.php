@@ -52,10 +52,11 @@ class ReportService
         $allShops = $this->shopService->getAllShops();
 
         // Périmètre : une boutique précise ou toutes.
-        $scopeShops = $allShops;
-        $scopeLabel = 'Toutes les boutiques';
-        $scopeMode  = 'all';
-        $scopeId    = null;
+        $scopeShops     = $allShops;
+        $scopeLabel     = 'Toutes les boutiques';
+        $scopeMode      = 'all';
+        $scopeId        = null;
+        $scopeShopNames = [];
         if ($scope !== 'all' && ctype_digit($scope)) {
             $sid = (int)$scope;
             $one = array_values(array_filter($allShops, fn($s) => (int)($s['id'] ?? 0) === $sid));
@@ -64,8 +65,20 @@ class ReportService
                 $scopeMode  = 'shop';
                 $scopeId    = $sid;
                 $scopeLabel = (string)($one[0]['representative_name'] ?? $one[0]['name'] ?? ('#' . $sid));
+                foreach ([$one[0]['representative_name'] ?? null, $one[0]['name'] ?? null] as $nm) {
+                    $nm = mb_strtolower(trim((string)$nm));
+                    if ($nm !== '') {
+                        $scopeShopNames[] = $nm;
+                    }
+                }
             }
         }
+
+        // Filtre boutique pour les demandes : appliqué uniquement quand une
+        // boutique précise est choisie (sinon toutes les demandes).
+        $shopFilter = $scopeMode === 'shop'
+            ? ['id' => $scopeId, 'names' => $scopeShopNames]
+            : null;
 
         $fromT = strtotime($period['from'] . ' 00:00:00');
         $toT   = strtotime($period['to'] . ' 23:59:59');
@@ -106,7 +119,7 @@ class ReportService
             'generated_at'  => date('Y-m-d H:i'),
             'metric_defs'   => $this->targetService->getMetricDefinitions(),
             'shops'         => $shopSections,
-            'demandes'      => $this->demandesForPeriod($fromT, $toT),
+            'demandes'      => $this->demandesForPeriod($fromT, $toT, $shopFilter),
             'tasks_done'    => $this->tasksDoneForPeriod($fromT, $toT),
         ];
     }
@@ -165,8 +178,16 @@ class ReportService
         return $out;
     }
 
-    /** Demandes (Helpdesk) créées sur la période — niveau consultant. */
-    private function demandesForPeriod(int $fromT, int $toT): array
+    /**
+     * Demandes (Helpdesk) créées sur la période. Quand une boutique précise est
+     * choisie ($shopFilter non null), on ne garde que ses demandes ; sinon
+     * toutes. Le cas n'expose que `shop_name` : filtrage par id si présent,
+     * sinon par nom normalisé (égalité ou inclusion pour tolérer les formes
+     * courtes « Corbais » vs « Atelier by Berlo - Corbais »).
+     *
+     * @param array{id:?int, names:string[]}|null $shopFilter
+     */
+    private function demandesForPeriod(int $fromT, int $toT, ?array $shopFilter = null): array
     {
         $hd = $this->taskService->getHelpdeskTasks([]);
         $cases = is_array($hd['cases'] ?? null) ? $hd['cases'] : [];
@@ -180,10 +201,40 @@ class ReportService
             if ($t === false || $t < $fromT || $t > $toT) {
                 continue;
             }
+            if ($shopFilter !== null && !$this->caseMatchesShop($case, $shopFilter)) {
+                continue;
+            }
             $out[] = $case;
         }
         usort($out, fn($a, $b) => strcmp((string)($b['created_at'] ?? ''), (string)($a['created_at'] ?? '')));
         return $out;
+    }
+
+    /**
+     * Une demande appartient-elle à la boutique filtrée ? Par id si le cas en
+     * porte un, sinon par nom (normalisé, égalité ou inclusion). Sans aucune
+     * info boutique exploitable → exclue (le rapport est limité à cette boutique).
+     *
+     * @param array{id:?int, names:string[]} $filter
+     */
+    private function caseMatchesShop(array $case, array $filter): bool
+    {
+        foreach (['shop_id', 'id_shop', 'id_boutique', 'store_id'] as $k) {
+            if (isset($case[$k]) && (int)$case[$k] > 0) {
+                return (int)$case[$k] === (int)($filter['id'] ?? 0);
+            }
+        }
+
+        $cn = mb_strtolower(trim((string)($case['shop_name'] ?? '')));
+        if ($cn === '') {
+            return false;
+        }
+        foreach ($filter['names'] as $nm) {
+            if ($nm !== '' && ($cn === $nm || mb_strpos($cn, $nm) !== false || mb_strpos($nm, $cn) !== false)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Tâches réalisées (complétions) sur la période — niveau consultant. */
