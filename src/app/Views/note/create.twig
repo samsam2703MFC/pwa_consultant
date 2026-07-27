@@ -109,14 +109,23 @@
             {% endif %}
         </div>
 
-        {# Photos (mêmes règles que les commentaires : max 4). #}
+        {# Photos : « Prendre une photo » (capture caméra) OU « Choisir » (galerie). Max 4. #}
         <div class="mb-3">
-            <label class="form-label" style="font-size:.82rem;color:#6c757d;">
+            <div class="form-label" style="font-size:.82rem;color:#6c757d;">
                 <span class="me-1">{{ icons.svg('camera') }}</span>{{ translations.photos ?? 'Photos' }}
                 <span class="text-muted">{{ translations.attachments_hint ?? '(optionnel, max 4 × 10 Mo, jpg/png/webp)' }}</span>
-            </label>
-            <input type="file" name="photos[]" accept="image/*" multiple
-                   class="form-control form-control-sm rounded-3" style="font-size:.82rem;">
+            </div>
+            <div class="d-flex gap-2">
+                <label class="btn btn-outline-secondary btn-sm rounded-3 flex-fill d-flex align-items-center justify-content-center gap-1 mb-0" style="font-size:.8rem;">
+                    {{ icons.svg('camera', 16) }} {{ translations.take_photo ?? 'Prendre une photo' }}
+                    <input type="file" name="photos[]" accept="image/*" capture="environment" class="d-none" onchange="ntPhotoNames(this)">
+                </label>
+                <label class="btn btn-outline-secondary btn-sm rounded-3 flex-fill d-flex align-items-center justify-content-center gap-1 mb-0" style="font-size:.8rem;">
+                    {{ icons.svg('paperclip', 16) }} {{ translations.choose_photo ?? 'Choisir' }}
+                    <input type="file" name="photos[]" accept="image/*" multiple class="d-none" onchange="ntPhotoNames(this)">
+                </label>
+            </div>
+            <div id="ntPhotoNames" class="text-success mt-2" style="font-size:.76rem;font-weight:600;"></div>
         </div>
 
         <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 fw-700">
@@ -128,6 +137,18 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+/* Retour visuel : affiche le(s) nom(s) du/des fichier(s) pris ou choisis. */
+function ntPhotoNames(input) {
+    var box = document.getElementById('ntPhotoNames');
+    if (!box) return;
+    var files = input.files || [];
+    if (!files.length) return;
+    var names = [];
+    for (var i = 0; i < files.length && i < 4; i++) names.push(files[i].name);
+    box.textContent = '✓ ' + names.join(', ');
+}
+</script>
 <script>
 /* Charge la liste du personnel de la boutique choisie (via le proxy) et
  * repeuple le select « Personne ». Endpoint déjà autorisé : /shops/{id}/employees. */
