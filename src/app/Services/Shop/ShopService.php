@@ -80,6 +80,12 @@ class ShopService
         return $this->shopSales->getSalesKpis($shopId, $from, $to);
     }
 
+    /** Coût matière total sur [from, to] (Y-m-d) — pour le levier Food Cost. */
+    public function getMaterialCost(int $shopId, string $from, string $to): ?float
+    {
+        return $this->shopRepository->getMaterialCost($shopId, $from, $to);
+    }
+
     /**
      * P&L de plusieurs magasins en parallèle (un seul aller-retour réseau).
      *

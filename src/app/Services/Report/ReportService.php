@@ -6,6 +6,7 @@ use App\Consultant\app\Services\Note\NoteService;
 use App\Consultant\app\Services\Claim\ClaimService;
 use App\Consultant\app\Services\Target\ShopMetricTargetService;
 use App\Consultant\app\Services\Task\TaskService;
+use App\Consultant\app\Repositories\Consultant\ConsultantUserRepository;
 use App\Consultant\core\Support\GlobalRegistry;
 
 /**
@@ -34,7 +35,8 @@ class ReportService
         private NoteService $noteService,
         private ClaimService $claimService,
         private ShopMetricTargetService $targetService,
-        private TaskService $taskService
+        private TaskService $taskService,
+        private ConsultantUserRepository $consultantUsers
     ) {}
 
     /**
@@ -68,6 +70,9 @@ class ReportService
         $fromT = strtotime($period['from'] . ' 00:00:00');
         $toT   = strtotime($period['to'] . ' 23:59:59');
 
+        // Tags OFFICIELS des leviers (of_tag) — mêmes couleurs/identité que l'écran HEXm.
+        $ofTags = $this->consultantUsers->getOfficialTags();
+
         $shopSections = [];
         foreach ($scopeShops as $shop) {
             $shopId = (int)($shop['id'] ?? 0);
@@ -76,10 +81,13 @@ class ReportService
             }
             $shopName = (string)($shop['representative_name'] ?? $shop['name'] ?? ('#' . $shopId));
 
+            $kpis = $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
+
             $shopSections[] = [
                 'id'                 => $shopId,
                 'name'               => $shopName,
-                'kpis'               => $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']),
+                'kpis'               => $kpis,
+                'hexm'               => $this->hexmForShop($shopId, $period, $kpis, $ofTags),
                 'targets'            => $this->targetService->getTargets($shopId, $tgt['year'], $tgt['month']),
                 'notes'              => $this->noteService->getNotesForPeriod($shopId, $period['from'], $period['to']),
                 'claims_by_supplier' => $this->claimsBySupplier($shopId, $fromT, $toT),
@@ -211,6 +219,94 @@ class ReportService
         }
         usort($out, fn($a, $b) => strcmp((string)($b['completed_at'] ?? ''), (string)($a['completed_at'] ?? '')));
         return $out;
+    }
+
+    /**
+     * Résultat des 6 leviers HEXm d'un magasin sur la période — mêmes leviers,
+     * numéros et couleurs que l'écran HEXm (couleur officielle of_tag par
+     * correspondance de nom). Chaque levier porte ses KPI CALCULABLES côté
+     * serveur pour une période passée (les autres restent « à venir », comme à
+     * l'écran) :
+     *   Trafic → tickets/jour · Récurrence → panier moyen ·
+     *   Food Cost → coût matière % + marge brute % · Overhead → évolution CA vs N-1.
+     *   (Labour et Expérience client : pas de source par période côté serveur.)
+     *
+     * @param array $kpis résultat de ShopService::getSalesKpis (période)
+     */
+    private function hexmForShop(int $shopId, array $period, array $kpis, array $ofTags): array
+    {
+        $ca      = (float)($kpis['ca'] ?? 0);
+        $tickets = (int)($kpis['tickets'] ?? 0);
+        $basket  = $kpis['avg_basket'] ?? null;
+
+        $days       = max(1, (int)round((strtotime($period['to']) - strtotime($period['from'])) / 86400) + 1);
+        $ticketsDay = $tickets > 0 ? $tickets / $days : null;
+
+        $material = $this->shopService->getMaterialCost($shopId, $period['from'], $period['to']);
+        $foodPct  = ($material !== null && $ca > 0) ? ($material / $ca) * 100 : null;
+        $grossPct = $foodPct !== null ? 100 - $foodPct : null;
+
+        // Évolution CA vs N-1 : même période, un an plus tôt.
+        $fromN1 = date('Y-m-d', (int)strtotime($period['from'] . ' -1 year'));
+        $toN1   = date('Y-m-d', (int)strtotime($period['to'] . ' -1 year'));
+        $caN1   = (float)($this->shopService->getSalesKpis($shopId, $fromN1, $toN1)['ca'] ?? 0);
+        $evo    = $caN1 > 0 ? (($ca - $caN1) / $caN1) * 100 : null;
+
+        $levers = [
+            ['num' => 4, 'key' => 'trafic',     'name' => 'Trafic',            'color' => '#1F4F6B', 'kpis' => [
+                ['label' => 'Trafic (tickets/jour)', 'value' => $ticketsDay !== null ? $this->fmtInt($ticketsDay) : null],
+            ]],
+            ['num' => 3, 'key' => 'recurrence', 'name' => 'Récurrence',        'color' => '#8a4a24', 'kpis' => [
+                ['label' => 'Panier moyen', 'value' => $basket !== null ? $this->fmtEur((float)$basket) : null],
+            ]],
+            ['num' => 2, 'key' => 'xp',         'name' => 'Expérience client', 'color' => '#2D7A3E', 'kpis' => []],
+            ['num' => 5, 'key' => 'food',       'name' => 'Food Cost',         'color' => '#C9A227', 'kpis' => [
+                ['label' => 'Coût matière (% CA)', 'value' => $foodPct !== null ? $this->fmtPct($foodPct) : null],
+                ['label' => 'Marge brute (% CA)',  'value' => $grossPct !== null ? $this->fmtPct($grossPct) : null],
+            ]],
+            ['num' => 6, 'key' => 'labour',     'name' => 'Labour Cost',       'color' => '#8D1D2C', 'kpis' => []],
+            ['num' => 7, 'key' => 'overhead',   'name' => 'Overhead Cost',     'color' => '#7a7168', 'kpis' => [
+                ['label' => 'Évolution CA vs N-1', 'value' => $evo !== null ? $this->fmtEvo($evo) : null],
+            ]],
+        ];
+
+        // Couleur/nom officiels of_tag (correspondance de nom, comme l'écran HEXm).
+        foreach ($levers as &$lev) {
+            foreach ($ofTags as $tag) {
+                $tn = strtolower(trim((string)($tag['name'] ?? '')));
+                if ($tn === '' || empty($tag['color'])) {
+                    continue;
+                }
+                if (strpos($tn, $lev['key']) !== false || strpos($tn, strtolower($lev['name'])) !== false) {
+                    $lev['color']    = (string)$tag['color'];
+                    $lev['tag_name'] = (string)$tag['name'];
+                    break;
+                }
+            }
+        }
+        unset($lev);
+
+        return ['ca' => $ca, 'tickets' => $tickets, 'levers' => $levers];
+    }
+
+    private function fmtInt(float $v): string
+    {
+        return number_format(round($v), 0, ',', ' ');
+    }
+
+    private function fmtEur(float $v): string
+    {
+        return number_format($v, 2, ',', ' ') . ' €';
+    }
+
+    private function fmtPct(float $v): string
+    {
+        return str_replace('.', ',', (string)round($v, 1)) . ' %';
+    }
+
+    private function fmtEvo(float $v): string
+    {
+        return ($v > 0 ? '+' : '') . str_replace('.', ',', (string)round($v, 1)) . ' %';
     }
 
     private function monthName(int $m): string
