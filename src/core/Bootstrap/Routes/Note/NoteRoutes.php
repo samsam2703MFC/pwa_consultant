@@ -23,12 +23,6 @@ return function (RouteCollector $r) {
         'method'     => 'listForEmployee',
     ]);
 
-    // DIAGNOSTIC TEMPORAIRE — réponse brute de l'API notes (à retirer).
-    $r->addRoute('GET', '/notes/_diag', [
-        'controller' => NoteController::class,
-        'method'     => 'diag',
-    ]);
-
     // Nouvelle note — formulaire NEUTRE (boutique + personne choisies dans le
     // formulaire). Point d'entrée du bouton « Ajouter une note » de l'accueil.
     $r->addRoute('GET', '/notes/new', [

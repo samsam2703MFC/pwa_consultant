@@ -6,9 +6,9 @@
 {% block page_subtitle %}{{ translations.note_details_subtitle ?? 'Détails et commentaires' }}{% endblock %}
 
 {% block topbar_actions %}
-    {# Soft delete notatki #}
+    {# Soft delete de la note #}
     <form method="POST" action="{{ ROOT }}/notes/{{ note.id }}/delete"
-          onsubmit="return confirm('Usunąć notatkę?')" class="mb-0">
+          onsubmit="return confirm('{{ (translations.delete_note_confirm ?? 'Supprimer la note ?')|e('js') }}')" class="mb-0">
         <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">
             {{ icons.svg('trash') }}
         </button>
@@ -48,7 +48,7 @@
             </div>
             {% if is_employee_context %}
                 <div class="text-muted mb-2" style="font-size:.78rem;">
-                    <span class="me-1">{{ icons.svg('user') }}</span>{{ note_employee ?: ('Pracownik #' ~ note.employee_id) }}
+                    <span class="me-1">{{ icons.svg('user') }}</span>{{ note_employee ?: ((translations.staff_hash ?? 'Personnel') ~ ' #' ~ note.employee_id) }}
                 </div>
             {% endif %}
             <p class="mb-0" style="font-size:.92rem;line-height:1.6;white-space:pre-wrap;">{{ note.content }}</p>
@@ -58,7 +58,7 @@
     {# ── Komentarze ── #}
     <div class="mb-3">
         <h6 class="text-muted fw-700 mb-2" style="font-size:.8rem;letter-spacing:.04em;text-transform:uppercase;">
-            Komentarze ({{ comments|length }})
+            {{ translations.comments ?? 'Commentaires' }} ({{ comments|length }})
         </h6>
 
         {% if comments is empty %}
@@ -74,7 +74,7 @@
                                 </span>
                                 {# Usuń komentarz #}
                                 <form method="POST" action="{{ ROOT }}/comments/{{ comment.id }}/delete"
-                                      onsubmit="return confirm('Usunąć komentarz?')" class="mb-0">
+                                      onsubmit="return confirm('{{ (translations.delete_comment_confirm ?? 'Supprimer le commentaire ?')|e('js') }}')" class="mb-0">
                                     <input type="hidden" name="note_id" value="{{ note.id }}">
                                     <button type="submit"
                                             class="btn btn-sm p-0 text-danger border-0 bg-transparent"
@@ -92,7 +92,7 @@
                                         {% if photo.presigned_url %}
                                             <a href="{{ photo.presigned_url }}" target="_blank">
                                                 <img src="{{ photo.presigned_url }}"
-                                                     alt="zdjęcie"
+                                                     alt="{{ translations.photo_alt ?? 'photo' }}"
                                                      style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
                                             </a>
                                         {% endif %}
@@ -123,7 +123,7 @@
                 {# Zdjęcia (max 4) #}
                 <div class="mb-3">
                     <label class="form-label" style="font-size:.82rem;color:#6c757d;">
-                        <span class="me-1">{{ icons.svg('camera') }}</span>Zdjęcia
+                        <span class="me-1">{{ icons.svg('camera') }}</span>{{ translations.photos ?? 'Photos' }}
                         <span class="text-muted">{{ translations.attachments_hint ?? '(optionnel, max 4 × 10 Mo, jpg/png/webp)' }}</span>
                     </label>
                     <input type="file" name="photos[]" accept="image/*" multiple

@@ -40,10 +40,6 @@
         <span class="nt-composer-btn">{{ icons.svg('plus', 18) }}</span>
     </a>
 
-    {# Lien TEMPORAIRE de diagnostic (fonctionne dans la PWA installée, sans
-       barre d'adresse). À retirer après analyse. #}
-    <a href="{{ ROOT }}/notes/_diag" style="display:inline-block;margin:0 2px 12px;font-size:.75rem;color:#8D1D2C;text-decoration:underline;">🔧 Diagnostic notes (temporaire)</a>
-
     {# ── Récentes ── #}
     {% if recent is not empty %}
     <div class="nt-eyebrow">{{ translations.recent ?? 'Récentes' }}</div>
