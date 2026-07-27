@@ -14,6 +14,6 @@ return function (RouteCollector $r) {
     // Rapport imprimable (hebdomadaire ou mensuel), lu depuis ?type=&scope=.
     $r->addRoute('GET', '/reports/view', [
         'controller' => RapportController::class,
-        'method'     => 'view',
+        'method'     => 'show',
     ]);
 };
