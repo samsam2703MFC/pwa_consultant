@@ -130,12 +130,7 @@
         <a href="{{ ROOT }}/reports" class="app-back-btn" style="margin-bottom:0;">
             {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back ?? 'Rapports' }}</span>
         </a>
-        <a href="#" id="rpt-wa"
-           data-share="{{ (report.type == 'month' ? (translations.report_monthly ?? 'Rapport mensuel') : (translations.report_weekly ?? 'Rapport hebdomadaire')) ~ ' — ' ~ (report.period.label ?? '') ~ ' · ' ~ (report.scope.label ?? '') }}"
-           class="btn rounded-pill px-3 fw-700 ms-auto d-inline-flex align-items-center" style="font-size:.82rem;background:#25D366;color:#fff;">
-            <span class="me-1 d-inline-flex">{{ icons.svg('send', 16) }}</span>{{ translations.share_whatsapp ?? 'WhatsApp' }}
-        </a>
-        <button type="button" onclick="window.print()" class="btn btn-primary rounded-pill px-3 fw-700" style="font-size:.82rem;">
+        <button type="button" onclick="window.print()" class="btn btn-primary rounded-pill px-3 fw-700 ms-auto" style="font-size:.82rem;">
             <span class="me-1">{{ icons.svg('download', 16) }}</span>{{ translations.print_pdf ?? 'Imprimer / PDF' }}
         </button>
     </div>
@@ -541,17 +536,6 @@
             views.forEach(function (v) { v.hidden = v.getAttribute('data-tab') !== name; });
         });
     });
-
-    // Partage WhatsApp : titre du rapport + lien de la page.
-    var wa = document.getElementById('rpt-wa');
-    if (wa) {
-        wa.addEventListener('click', function (e) {
-            e.preventDefault();
-            var base = wa.getAttribute('data-share') || document.title;
-            var msg = base + '\n' + location.href;
-            window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank', 'noopener');
-        });
-    }
 })();
 </script>
 {% endblock %}
