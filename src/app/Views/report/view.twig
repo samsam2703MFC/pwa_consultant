@@ -49,6 +49,7 @@
     .rpt-hexm-legend { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:7px; font-size:.66rem; color:#7a7168; }
     .rpt-hexm-legend .rpt-st-ok { color:#2D7A3E; } .rpt-hexm-legend .rpt-st-mid { color:#e67e22; } .rpt-hexm-legend .rpt-st-bad { color:#c0182b; }
 
+    .rpt-tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
     .rpt-tbl { width:100%; border-collapse:collapse; font-size:.82rem; }
     .rpt-tbl th, .rpt-tbl td { text-align:left; padding:6px 8px; border-bottom:1px solid rgba(0,0,0,.07); }
     .rpt-tbl th { font-size:.7rem; text-transform:uppercase; letter-spacing:.03em; color:#6c757d; font-weight:700; }
@@ -186,35 +187,40 @@
                 <div class="rpt-sec">
                     <div class="rpt-sec-h">{{ icons.svg('target', 14) }}{{ translations.targets ?? 'Objectifs' }}{% if shop.targets_label %} — {{ shop.targets_label }}{% endif %}</div>
                     {% if shop.franchise is defined and shop.franchise is not empty %}
+                        <div class="rpt-tbl-wrap">
                         <table class="rpt-tbl">
                             <thead><tr>
                                 <th>{{ translations.kpi ?? 'Indicateur' }}</th>
                                 <th class="num">{{ translations.n1 ?? 'N-1' }}</th>
                                 <th class="num">{{ translations.actual ?? 'Réalisé' }}</th>
+                                <th class="num">{{ translations.network ?? 'Réseau' }}</th>
                                 <th class="num">{{ translations.objective ?? 'Objectif' }}</th>
                             </tr></thead>
                             <tbody>
                             {% for k in shop.franchise %}
                                 {% set dec = (k.unit == 'amount') ? 2 : 0 %}
                                 {% set u = (k.unit == 'amount') ? ' ' ~ currency_symbol : (k.unit == 'pct' ? ' %' : '') %}
-                                {# Ligne 1 — les données : N-1, réalisé, cible. #}
+                                {# Ligne 1 — les données : N-1, réalisé, moyenne réseau, cible. #}
                                 <tr class="rpt-fr-data">
                                     <td rowspan="2" class="rpt-fr-label">{{ k.label }}</td>
                                     <td class="num">{{ k.n1 is not null ? (k.n1|number_format(dec, ',', ' ') ~ u) : '—' }}</td>
                                     <td class="num rpt-cell-main">{{ k.val is not null ? (k.val|number_format(dec, ',', ' ') ~ u) : '—' }}</td>
+                                    <td class="num">{{ k.net is not null ? (k.net|number_format(dec, ',', ' ') ~ u) : '—' }}</td>
                                     <td class="num">{{ k.obj is not null ? (k.obj|number_format(dec, ',', ' ') ~ u) : '—' }}</td>
                                 </tr>
-                                {# Ligne 2 — les pourcentages : évolution vs N-1, niveau vs objectif. #}
+                                {# Ligne 2 — les pourcentages : évolution vs N-1, écart vs réseau, niveau vs objectif. #}
                                 <tr class="rpt-fr-pct">
                                     <td class="num"></td>
                                     <td class="num">{% if k.evo is not null %}<span class="{{ k.evo >= 0 ? 'rpt-up' : 'rpt-down' }}">{{ k.evo >= 0 ? '▲ +' : '▼ −' }}{{ (k.evo < 0 ? -k.evo : k.evo)|number_format(1, ',', ' ') }} %</span>{% else %}<span class="rpt-fr-dash">—</span>{% endif %}</td>
+                                    <td class="num">{% if k.delta is not null %}<span class="{{ k.delta >= 0 ? 'rpt-up' : 'rpt-down' }}">{{ k.delta >= 0 ? '▲ +' : '▼ −' }}{{ (k.delta < 0 ? -k.delta : k.delta)|number_format(0, ',', ' ') }} %</span>{% else %}<span class="rpt-fr-dash">—</span>{% endif %}</td>
                                     <td class="num">{% if k.pct is not null %}<span class="rpt-v-{{ k.status }}">{{ k.pct|number_format(0, ',', ' ') }} %</span>{% else %}<span class="rpt-fr-dash">—</span>{% endif %}</td>
                                 </tr>
                             {% endfor %}
                             </tbody>
                         </table>
+                        </div>
                         <div class="rpt-hexm-legend">
-                            <span><span class="rpt-up">▲</span>/<span class="rpt-down">▼</span> {{ translations.legend_evo ?? 'évol. vs N-1' }}</span>
+                            <span><span class="rpt-up">▲</span>/<span class="rpt-down">▼</span> {{ translations.legend_evo ?? 'évol. vs N-1' }} · {{ translations.legend_vs ?? 'vs moyenne réseau' }}</span>
                             <span class="rpt-st-ok">✓ {{ translations.legend_good ?? 'bon' }}</span>
                             <span class="rpt-st-mid">⚠ {{ translations.legend_mid ?? 'attention' }}</span>
                             <span class="rpt-st-bad">● {{ translations.legend_bad ?? 'danger' }}</span>

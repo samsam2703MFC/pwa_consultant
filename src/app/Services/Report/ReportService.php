@@ -110,6 +110,25 @@ class ReportService
         }
         $netAvg = $this->networkAverages($metricsByShop);
 
+        // Moyennes RÉSEAU des KPI franchisé, pour situer chaque boutique :
+        // clients = moyenne des tickets du réseau ; panier = moyenne des paniers.
+        // (Le B2B n'a pas de source POS fiable → pas de moyenne réseau.)
+        $netTickets = [];
+        $netBasket  = [];
+        foreach ($kpisByShop as $k) {
+            if (isset($k['tickets']) && (int)$k['tickets'] > 0) {
+                $netTickets[] = (int)$k['tickets'];
+            }
+            if (isset($k['avg_basket']) && $k['avg_basket'] !== null && (float)$k['avg_basket'] > 0) {
+                $netBasket[] = (float)$k['avg_basket'];
+            }
+        }
+        $netFranchise = [
+            'clients' => $netTickets !== [] ? array_sum($netTickets) / count($netTickets) : null,
+            'basket'  => $netBasket  !== [] ? array_sum($netBasket)  / count($netBasket)  : null,
+            'b2b'     => null,
+        ];
+
         $shopSections = [];
         foreach ($scopeShops as $shop) {
             $shopId = (int)($shop['id'] ?? 0);
@@ -120,7 +139,7 @@ class ReportService
 
             $kpis      = $kpisByShop[$shopId] ?? $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
             $metrics   = $metricsByShop[$shopId] ?? $this->hexmMetrics($shopId, $period, $kpis);
-            $franchise = $this->franchiseKpisForShop($shopId, $period, $tgt, $kpis);
+            $franchise = $this->franchiseKpisForShop($shopId, $period, $tgt, $kpis, $netFranchise);
 
             $shopSections[] = [
                 'id'                 => $shopId,
@@ -195,7 +214,7 @@ class ReportService
      *
      * @return array{label:string, kpis:array}
      */
-    private function franchiseKpisForShop(int $shopId, array $period, array $tgt, array $kpis): array
+    private function franchiseKpisForShop(int $shopId, array $period, array $tgt, array $kpis, array $netFranchise): array
     {
         $ticketsN = (int)($kpis['tickets'] ?? 0);
         $basketN  = isset($kpis['avg_basket']) && $kpis['avg_basket'] !== null ? (float)$kpis['avg_basket'] : null;
@@ -225,17 +244,21 @@ class ReportService
         $valB2b     = $mB2b     ? $this->encodedValueOf($mB2b) : null;
 
         $kpisOut = [
-            ['label' => 'Clients',      'unit' => 'count',  'n1' => $ticketsN1 ?: null, 'val' => $ticketsN ?: null, 'obj' => $objClients],
-            ['label' => 'Panier moyen', 'unit' => 'amount', 'n1' => $basketN1,          'val' => $basketN,          'obj' => $objBasket],
-            ['label' => 'B2B',          'unit' => 'count',  'n1' => null,               'val' => $valB2b,           'obj' => $objB2b],
+            ['label' => 'Clients',      'unit' => 'count',  'n1' => $ticketsN1 ?: null, 'val' => $ticketsN ?: null, 'obj' => $objClients, 'net' => $netFranchise['clients'] ?? null],
+            ['label' => 'Panier moyen', 'unit' => 'amount', 'n1' => $basketN1,          'val' => $basketN,          'obj' => $objBasket,  'net' => $netFranchise['basket']  ?? null],
+            ['label' => 'B2B',          'unit' => 'count',  'n1' => null,               'val' => $valB2b,           'obj' => $objB2b,     'net' => $netFranchise['b2b']     ?? null],
         ];
         foreach ($kpisOut as &$k) {
             $k['status'] = $this->targetStatus($k['val'], $k['obj']);
             // Taux d'atteinte de l'objectif en % (réalisé ÷ objectif).
             $k['pct'] = ($k['val'] !== null && $k['obj'] !== null && $k['obj'] > 0)
                 ? ($k['val'] / $k['obj']) * 100 : null;
+            // Évolution vs N-1 en %.
             $k['evo'] = ($k['n1'] !== null && $k['n1'] > 0 && $k['val'] !== null)
                 ? (($k['val'] - $k['n1']) / $k['n1']) * 100 : null;
+            // Écart de la boutique vs la moyenne RÉSEAU en %.
+            $k['delta'] = ($k['net'] !== null && $k['net'] > 0 && $k['val'] !== null)
+                ? (($k['val'] - $k['net']) / $k['net']) * 100 : null;
         }
         unset($k);
 
