@@ -389,7 +389,15 @@ class ReportService
             $supplier = trim((string)($c['supplier_name'] ?? '')) ?: 'Fournisseur inconnu';
             $out[$supplier][] = $c;
         }
-        ksort($out, SORT_NATURAL | SORT_FLAG_CASE);
+        // Les plus récentes d'abord : à l'intérieur de chaque fournisseur, puis
+        // les fournisseurs eux-mêmes (celui dont la réclamation la plus récente
+        // est la plus récente en tête).
+        $recent = fn($a, $b) => strcmp((string)($b['reported_at'] ?? ''), (string)($a['reported_at'] ?? ''));
+        foreach ($out as &$claims) {
+            usort($claims, $recent);
+        }
+        unset($claims);
+        uasort($out, fn($a, $b) => strcmp((string)($b[0]['reported_at'] ?? ''), (string)($a[0]['reported_at'] ?? '')));
         return $out;
     }
 
