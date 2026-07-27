@@ -121,14 +121,15 @@ class ReportService
 
             $kpis    = $kpisByShop[$shopId] ?? $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
             $metrics = $metricsByShop[$shopId] ?? $this->hexmMetrics($shopId, $period, $kpis);
-            $targets = $this->targetService->getTargets($shopId, $tgt['year'], $tgt['month']);
+            [$targetsView, $targetsLabel] = $this->targetsForShop($shopId, $tgt, $metricDefs);
 
             $shopSections[] = [
                 'id'                 => $shopId,
                 'name'               => $shopName,
                 'kpis'               => $kpis,
                 'hexm'               => $this->hexmDisplay($metrics, $netAvg, $ofTags),
-                'targets_view'       => $this->targetsView($targets, $metricDefs),
+                'targets_view'       => $targetsView,
+                'targets_label'      => $targetsLabel,
                 'notes'              => $this->noteService->getNotesForPeriod($shopId, $period['from'], $period['to']),
                 'claims_by_supplier' => $this->claimsBySupplier($shopId, $fromT, $toT),
             ];
@@ -183,6 +184,39 @@ class ReportService
             'month' => (int)$ref->format('n'),
             'label' => $this->monthName((int)$ref->format('n')) . ' ' . $ref->format('Y'),
         ];
+    }
+
+    /**
+     * Objectifs (targets) d'une boutique pour le rapport : d'abord le mois de
+     * référence (mois précédent pour le mensuel = image figée) ; si aucun
+     * objectif n'y est défini, repli sur le mois COURANT puis le mois précédent
+     * (objectifs actifs), pour ne pas afficher « aucun target » alors que des
+     * objectifs existent. Renvoie [liste_targets, libellé_du_mois_affiché].
+     *
+     * @return array{0: array, 1: string}
+     */
+    private function targetsForShop(int $shopId, array $tgt, array $metricDefs): array
+    {
+        $view = $this->targetsView($this->targetService->getTargets($shopId, $tgt['year'], $tgt['month']), $metricDefs);
+        if ($view !== []) {
+            return [$view, $tgt['label']];
+        }
+
+        $prev = strtotime('first day of -1 month');
+        $candidates = [
+            [(int)date('Y'), (int)date('n')],
+            [(int)date('Y', $prev), (int)date('n', $prev)],
+        ];
+        foreach ($candidates as [$fy, $fm]) {
+            if ($fy === $tgt['year'] && $fm === $tgt['month']) {
+                continue;
+            }
+            $v = $this->targetsView($this->targetService->getTargets($shopId, $fy, $fm), $metricDefs);
+            if ($v !== []) {
+                return [$v, $this->monthName($fm) . ' ' . $fy];
+            }
+        }
+        return [[], $tgt['label']];
     }
 
     /**
