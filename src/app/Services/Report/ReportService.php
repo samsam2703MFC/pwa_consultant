@@ -151,6 +151,56 @@ class ReportService
         ];
     }
 
+    /**
+     * DIAGNOSTIC TEMPORAIRE — structure brute renvoyée par l'API des targets,
+     * pour comprendre pourquoi la section Objectifs reste vide (données
+     * présentes ? forme des clés de seuil ?). À RETIRER ensuite.
+     */
+    public function debugTargets(string $scope): array
+    {
+        $allShops = $this->shopService->getAllShops();
+        $shops = $allShops;
+        if ($scope !== 'all' && ctype_digit($scope)) {
+            $sid = (int)$scope;
+            $one = array_values(array_filter($allShops, fn($s) => (int)($s['id'] ?? 0) === $sid));
+            if ($one !== []) {
+                $shops = $one;
+            }
+        }
+
+        $prev = strtotime('first day of -1 month');
+        $months = [
+            [(int)date('Y'), (int)date('n')],
+            [(int)date('Y', $prev), (int)date('n', $prev)],
+        ];
+
+        $out = [];
+        foreach ($shops as $shop) {
+            $sid = (int)($shop['id'] ?? 0);
+            if ($sid <= 0) {
+                continue;
+            }
+            $entry = ['id' => $sid, 'shop' => (string)($shop['representative_name'] ?? $shop['name'] ?? $sid), 'months' => []];
+            foreach ($months as [$y, $m]) {
+                $raw = $this->targetService->getTargets($sid, $y, $m);
+                $entry['months']["$y-$m"] = [
+                    'type'   => gettype($raw),
+                    'count'  => is_array($raw) ? count($raw) : 0,
+                    'keys'   => is_array($raw) ? array_slice(array_keys($raw), 0, 25) : [],
+                    'sample' => is_array($raw) ? array_slice($raw, 0, 2, true) : $raw,
+                ];
+            }
+            $out[] = $entry;
+        }
+
+        $defs = $this->targetService->getMetricDefinitions();
+        return [
+            'metric_defs_count'  => is_array($defs) ? count($defs) : 0,
+            'metric_defs_sample' => is_array($defs) ? array_slice($defs, 0, 3, true) : $defs,
+            'shops'              => $out,
+        ];
+    }
+
     /** Fenêtre de la période : semaine précédente (lun→dim) ou mois précédent. */
     private function computePeriod(string $type): array
     {
