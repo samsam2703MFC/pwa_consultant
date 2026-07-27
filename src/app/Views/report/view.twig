@@ -28,15 +28,16 @@
     .rpt-kpi-l { font-size:.72rem; color:#6c757d; margin-top:3px; }
 
     /* Leviers HEXm (mêmes identité/couleurs que l'écran HEXm). */
-    .rpt-hexm { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
-    .rpt-lev { display:flex; align-items:center; gap:8px; padding:7px 9px; border:1px solid rgba(0,0,0,.08); border-radius:10px; }
-    .rpt-lev-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
-    .rpt-lev-nm { font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.02em; color:#212529; flex-shrink:0; min-width:118px; }
-    .rpt-lev-kpis { flex:1; display:flex; flex-wrap:wrap; gap:2px 14px; justify-content:flex-end; }
-    .rpt-lev-kpi { font-size:.78rem; color:#333; white-space:nowrap; }
-    .rpt-lev-kpi i { color:#6c757d; font-style:normal; font-size:.72rem; margin-right:3px; }
-    .rpt-lev-kpi b { color:#212529; }
-    .rpt-lev-soon { font-size:.72rem; color:#adb5bd; font-style:italic; }
+    .rpt-hexm { margin-top:12px; display:flex; flex-direction:column; gap:7px; }
+    .rpt-lev { display:flex; align-items:center; gap:10px; padding:8px 11px; border:1px solid rgba(0,0,0,.08); border-radius:12px; background:#fff; }
+    .rpt-lev--soon { background:#fbfaf8; }
+    .rpt-lev-badge { width:24px; height:24px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:.76rem; font-weight:800; }
+    .rpt-lev-nm { font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.02em; color:#241f1c; flex-shrink:0; }
+    .rpt-lev-kpis { flex:1; display:flex; flex-direction:column; align-items:flex-end; gap:2px; text-align:right; }
+    .rpt-lev-kpi { font-size:.8rem; color:#241f1c; white-space:nowrap; }
+    .rpt-lev-kpi i { color:#7a7168; font-style:normal; font-size:.72rem; margin-right:5px; }
+    .rpt-lev-kpi b { color:#241f1c; font-weight:800; }
+    .rpt-lev-soon { font-size:.72rem; color:#c4bcb2; font-style:italic; }
 
     .rpt-tbl { width:100%; border-collapse:collapse; font-size:.82rem; }
     .rpt-tbl th, .rpt-tbl td { text-align:left; padding:6px 8px; border-bottom:1px solid rgba(0,0,0,.07); }
@@ -130,18 +131,17 @@
                     {% if shop.hexm.levers is defined %}
                         <div class="rpt-hexm">
                             {% for lev in shop.hexm.levers %}
-                                <div class="rpt-lev">
-                                    <span class="rpt-lev-dot" style="background:{{ lev.color }};"></span>
-                                    <span class="rpt-lev-nm">{{ lev.num }} · {{ lev.tag_name ?? lev.name }}</span>
+                                {% set shown = false %}
+                                {% for k in lev.kpis %}{% if k.value is not null %}{% set shown = true %}{% endif %}{% endfor %}
+                                <div class="rpt-lev{{ shown ? '' : ' rpt-lev--soon' }}">
+                                    <span class="rpt-lev-badge" style="background:{{ lev.color }};">{{ lev.num }}</span>
+                                    <span class="rpt-lev-nm">{{ lev.tag_name ?? lev.name }}</span>
                                     <span class="rpt-lev-kpis">
-                                        {% set shown = false %}
-                                        {% for k in lev.kpis %}
-                                            {% if k.value is not null %}
-                                                {% set shown = true %}
-                                                <span class="rpt-lev-kpi"><i>{{ k.label }}</i><b>{{ k.value }}</b></span>
-                                            {% endif %}
-                                        {% endfor %}
-                                        {% if not shown %}<span class="rpt-lev-soon">{{ translations.data_soon ?? 'données à venir' }}</span>{% endif %}
+                                        {% if shown %}
+                                            {% for k in lev.kpis %}{% if k.value is not null %}<span class="rpt-lev-kpi"><i>{{ k.label }}</i><b>{{ k.value }}</b></span>{% endif %}{% endfor %}
+                                        {% else %}
+                                            <span class="rpt-lev-soon">{{ translations.data_soon ?? 'données à venir' }}</span>
+                                        {% endif %}
                                     </span>
                                 </div>
                             {% endfor %}
@@ -152,30 +152,26 @@
                 {# Targets (image du mois) #}
                 <div class="rpt-sec">
                     <div class="rpt-sec-h">{{ icons.svg('target', 14) }}{{ translations.targets ?? 'Targets' }} — {{ report.targets_month.label }}</div>
-                    {% set has_t = false %}
-                    {% if shop.targets is iterable and shop.targets is not empty %}
+                    {% if shop.targets_view is not empty %}
                         <table class="rpt-tbl">
                             <thead><tr>
                                 <th>{{ translations.lever ?? 'Levier' }}</th>
                                 <th class="num">🟢</th><th class="num">🟡</th><th class="num">🟠</th>
                             </tr></thead>
                             <tbody>
-                            {% for key, t in shop.targets %}
-                                {% set tt = t.consultant ?? t.admin ?? t %}
-                                {% if tt.t1 is defined or tt.t2 is defined or tt.t3 is defined %}
-                                    {% set has_t = true %}
-                                    <tr>
-                                        <td>{{ report.metric_defs[key].label ?? t.label ?? t.metric_key ?? key }}</td>
-                                        <td class="num">{{ tt.t1 ?? '—' }}</td>
-                                        <td class="num">{{ tt.t2 ?? '—' }}</td>
-                                        <td class="num">{{ tt.t3 ?? '—' }}</td>
-                                    </tr>
-                                {% endif %}
+                            {% for t in shop.targets_view %}
+                                <tr>
+                                    <td>{{ t.label }}</td>
+                                    <td class="num">{{ t.t1 ?? '—' }}</td>
+                                    <td class="num">{{ t.t2 ?? '—' }}</td>
+                                    <td class="num">{{ t.t3 ?? '—' }}</td>
+                                </tr>
                             {% endfor %}
                             </tbody>
                         </table>
+                    {% else %}
+                        <div class="rpt-empty">{{ translations.no_targets ?? 'Aucun target défini pour ce mois.' }}</div>
                     {% endif %}
-                    {% if not has_t %}<div class="rpt-empty">{{ translations.no_targets ?? 'Aucun target défini pour ce mois.' }}</div>{% endif %}
                 </div>
 
                 {# Notes & photos #}
