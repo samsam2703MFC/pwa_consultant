@@ -73,6 +73,35 @@ class NoteController extends Controller
                 echo '</div>';
             }
 
+            // ── Test note EMPLOYÉ (?testemp=<shopId>) : crée une note pour le 1er
+            //    employé de la boutique, puis vérifie où elle réapparaît — liste
+            //    de l'employé (/employees/{eid}/notes) vs liste de la boutique
+            //    (/shops/{id}/notes, celle qu'utilise l'accueil). ──
+            $testEmpShop = (int)($_GET['testemp'] ?? 0);
+            if ($testEmpShop > 0) {
+                echo '<div style="border:2px solid #8D1D2C;border-radius:10px;padding:12px;margin:12px 0">';
+                echo '<h3 style="margin-top:0">🧪 Test note EMPLOYÉ — boutique ' . $testEmpShop . '</h3>';
+                $emps = $this->noteService->getEmployeesForShop($testEmpShop);
+                $emp  = $emps[0] ?? null;
+                $eid  = $emp ? (int)($emp['id'] ?? 0) : 0;
+                if ($eid <= 0) {
+                    echo '<p class="err">Aucun employé renvoyé pour cette boutique (getEmployeesForShop vide).</p>';
+                } else {
+                    $elabel   = $esc($emp['display_name'] ?? $emp['employee_name'] ?? (trim((string)($emp['name'] ?? '') . ' ' . (string)($emp['surname'] ?? '')) ?: ('#' . $eid)));
+                    $content  = 'TEST EMP ' . date('Y-m-d H:i:s');
+                    $postResp = $this->noteService->createEmployeeNote($testEmpShop, $eid, ['content' => $content]);
+                    $empData  = ($r = $this->apiClient->get("/consultant/shops/{$testEmpShop}/employees/{$eid}/notes")) && is_array($r['data'] ?? null) ? $r['data'] : [];
+                    $shopData = ($r2 = $this->apiClient->get("/consultant/shops/{$testEmpShop}/notes")) && is_array($r2['data'] ?? null) ? $r2['data'] : [];
+                    $inEmp = false;  foreach ($empData as $n)  { if (($n['content'] ?? '') === $content) { $inEmp = true;  break; } }
+                    $inShop = false; foreach ($shopData as $n) { if (($n['content'] ?? '') === $content) { $inShop = true; break; } }
+                    echo '<p>Employé : <b>' . $elabel . '</b> (id ' . $eid . ') · contenu : <code>' . $esc($content) . '</code></p>';
+                    echo '<p><b>Réponse du POST :</b></p><pre>' . $j($postResp) . '</pre>';
+                    echo '<p>Liste EMPLOYÉ (/employees/' . $eid . '/notes) : ' . count($empData) . ' notes · retrouvée : ' . ($inEmp ? '<b style="color:#0a0">OUI ✅</b>' : '<b class="err">NON ❌</b>') . '</p>';
+                    echo '<p>Liste BOUTIQUE (/shops/' . $testEmpShop . '/notes, = accueil) : ' . count($shopData) . ' notes · retrouvée : ' . ($inShop ? '<b style="color:#0a0">OUI ✅</b>' : '<b class="err">NON ❌</b>') . '</p>';
+                }
+                echo '</div>';
+            }
+
             $rows = '';
             foreach ($shops as $shop) {
                 $id    = (int)($shop['id'] ?? 0);
@@ -83,7 +112,8 @@ class NoteController extends Controller
                 $count = count($data);
                 $http  = $ok ? '200 OK' : ('FAIL — ' . $esc(json_encode($resp['error'] ?? null)));
                 $first = $count > 0 ? $j($data[0]) : '(vide)';
-                $test  = '<a href="' . $esc(ROOT . '/notes/_diag?test=' . $id) . '">🧪 test</a>';
+                $test  = '<a href="' . $esc(ROOT . '/notes/_diag?test=' . $id) . '">🧪 boutique</a><br>'
+                       . '<a href="' . $esc(ROOT . '/notes/_diag?testemp=' . $id) . '">🧪 perso</a>';
                 $rows .= "<tr><td>{$id}</td><td>{$name}</td><td>{$http}</td><td><b>{$count}</b></td><td>{$test}</td><td><pre>{$first}</pre></td></tr>";
             }
             echo '<h3>GET /consultant/shops/{id}/notes — réponse brute par boutique</h3>';
