@@ -1,19 +1,35 @@
 {% extends "layouts/mobile_base.twig" %}
 
 {% import "components/_icons.twig" as icons %}
-{% set is_employee_context = employee_id is defined and employee_id %}
-{% set list_url = is_employee_context ? (ROOT ~ '/shops/' ~ shop_id ~ '/employees/' ~ employee_id ~ '/notes') : (ROOT ~ '/shops/' ~ shop_id ~ '/notes') %}
-{% set create_url = list_url ~ '/new' %}
+
 {% set employee_label = employee.display_name ?? employee.employee_name ?? ((employee.name ?? '') ~ ' ' ~ (employee.surname ?? ''))|trim %}
+{% set back_url = shop_id
+    ? (employee_id
+        ? (ROOT ~ '/shops/' ~ shop_id ~ '/employees/' ~ employee_id ~ '/notes')
+        : (ROOT ~ '/shops/' ~ shop_id ~ '/notes'))
+    : (ROOT ~ '/notes') %}
 
 {% block title %}{{ translations.new_note ?? 'Nouvelle note' }} — Consultant Panel{% endblock %}
 {% block page_title %}{{ translations.new_note ?? 'Nouvelle note' }}{% endblock %}
-{% block page_subtitle %}{{ is_employee_context ? ((translations.add_note_for_employee ?? "Ajouter une note pour l'employé : ") ~ (employee_label ?: ('#' ~ employee_id))) : (translations.add_note_to_shop ?? 'Ajouter une note à la boutique') }}{% endblock %}
+{% block page_subtitle %}{{ translations.note_target_hint ?? 'Choisissez la boutique et, au besoin, la personne concernée' }}{% endblock %}
+
+{% block head %}
+<style>
+    .nt-ctx {
+        background:#fff; border:1px solid rgba(141,29,44,.14); border-radius:16px;
+        padding:14px; margin-bottom:16px; box-shadow:0 2px 8px rgba(0,0,0,.05);
+    }
+    .nt-ctx-title { font-size:.7rem; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#8D1D2C; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+    .nt-ctx .form-label { font-size:.8rem; font-weight:700; color:#495057; margin-bottom:4px; }
+    .nt-ctx select { font-size:.9rem; }
+    .nt-ctx-row + .nt-ctx-row { margin-top:10px; }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="page-content-loaded">
 
-    <a href="{{ list_url }}"
+    <a href="{{ back_url }}"
        class="d-inline-flex align-items-center gap-1 text-muted mb-3"
        style="font-size:.82rem;text-decoration:none;">
         {{ icons.svg('chevron-left') }} {{ translations.notes_back ?? 'Notes' }}
@@ -25,11 +41,49 @@
         </div>
     {% endif %}
 
-    <form method="POST" action="{{ create_url }}"
+    <form method="POST" action="{{ ROOT }}/notes/new"
           enctype="multipart/form-data" novalidate>
 
+        {# ── Cible de la note : toujours visible et modifiable ── #}
+        <div class="nt-ctx">
+            <div class="nt-ctx-title">{{ icons.svg('map-pin', 14) }}{{ translations.note_target ?? 'Cible de la note' }}</div>
+
+            <div class="nt-ctx-row">
+                <label class="form-label" for="ntShop">{{ translations.shop ?? 'Boutique' }} <span class="text-danger">*</span></label>
+                <select name="shop_id" id="ntShop" required
+                        class="form-select form-select-sm rounded-3 {{ errors.shop is defined ? 'is-invalid' : '' }}">
+                    <option value="">{{ translations.choose_shop ?? '— Choisir une boutique —' }}</option>
+                    {% for s in shops %}
+                        <option value="{{ s.id }}" {{ shop_id == s.id ? 'selected' : '' }}>
+                            {{ s.representative_name ?? s.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                {% if errors.shop is defined %}
+                    <div class="invalid-feedback">{{ errors.shop }}</div>
+                {% endif %}
+            </div>
+
+            <div class="nt-ctx-row">
+                <label class="form-label" for="ntEmployee">
+                    {{ icons.svg('user', 13) }} {{ translations.staff_member ?? 'Personne' }}
+                    <span class="text-muted" style="font-weight:400;">{{ translations.optional ?? '(optionnel)' }}</span>
+                </label>
+                <select name="employee_id" id="ntEmployee" class="form-select form-select-sm rounded-3"
+                        data-selected="{{ employee_id ?? '' }}">
+                    <option value="">{{ translations.whole_shop ?? 'Toute la boutique' }}</option>
+                    {% for e in employees %}
+                        {% set enm = e.display_name ?? e.employee_name ?? ((e.name ?? '') ~ ' ' ~ (e.surname ?? ''))|trim %}
+                        <option value="{{ e.id }}" {{ employee_id == e.id ? 'selected' : '' }}>
+                            {{ enm ?: ('#' ~ e.id) }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
         <div class="mb-3">
-            <label class="form-label fw-600" style="font-size:.88rem;">Kategoria
+            <label class="form-label fw-600" style="font-size:.88rem;">{{ translations.category ?? 'Catégorie' }}
                 <span class="text-muted fw-400">{{ translations.optional ?? '(optionnelle)' }}</span>
             </label>
             <select name="note_type_id" class="form-select form-select-sm rounded-3">
@@ -45,7 +99,7 @@
 
         <div class="mb-3">
             <label class="form-label fw-600" style="font-size:.88rem;">
-                Tresc notatki <span class="text-danger">*</span>
+                {{ translations.note_content ?? 'Contenu de la note' }} <span class="text-danger">*</span>
             </label>
             <textarea name="content" rows="5"
                       class="form-control rounded-3 {{ errors.content is defined ? 'is-invalid' : '' }}"
@@ -61,4 +115,61 @@
     </form>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Charge la liste du personnel de la boutique choisie (via le proxy) et
+ * repeuple le select « Personne ». Endpoint déjà autorisé : /shops/{id}/employees. */
+(function () {
+    'use strict';
+    var shopSel = document.getElementById('ntShop');
+    var empSel  = document.getElementById('ntEmployee');
+    if (!shopSel || !empSel || typeof ConsultantAjax === 'undefined') return;
+
+    var WHOLE = empSel.options.length ? empSel.options[0].textContent : 'Toute la boutique';
+
+    function label(e) {
+        var n = e.display_name || e.employee_name
+            || ((e.name || '') + ' ' + (e.surname || '')).trim();
+        return n || ('#' + e.id);
+    }
+
+    function fillEmployees(list, selectedId) {
+        empSel.innerHTML = '';
+        var opt0 = document.createElement('option');
+        opt0.value = ''; opt0.textContent = WHOLE;
+        empSel.appendChild(opt0);
+        (list || []).forEach(function (e) {
+            if (e == null || e.id == null) return;
+            var o = document.createElement('option');
+            o.value = e.id;
+            o.textContent = label(e);
+            if (selectedId && String(selectedId) === String(e.id)) o.selected = true;
+            empSel.appendChild(o);
+        });
+    }
+
+    function loadEmployees(shopId, selectedId) {
+        if (!shopId) { fillEmployees([], null); return; }
+        empSel.disabled = true;
+        ConsultantAjax.load({
+            endpoint: '/shops/' + shopId + '/employees',
+            onSuccess: function (data) { fillEmployees(data || [], selectedId); empSel.disabled = false; },
+            onError:   function ()     { fillEmployees([], null); empSel.disabled = false; },
+        });
+    }
+
+    // Au changement de boutique → recharge le personnel (aucune sélection reprise).
+    shopSel.addEventListener('change', function () {
+        loadEmployees(shopSel.value, null);
+    });
+
+    // Les employés de la boutique déjà choisie sont rendus côté serveur ; on ne
+    // recharge donc que si aucune option n'est présente (ex. retour arrière).
+    if (shopSel.value && empSel.options.length <= 1) {
+        loadEmployees(shopSel.value, empSel.dataset.selected || null);
+    }
+})();
+</script>
 {% endblock %}
