@@ -34,6 +34,13 @@ class RapportController extends Controller
         $type  = ($_GET['type'] ?? 'week') === 'month' ? 'month' : 'week';
         $scope = (string)($_GET['scope'] ?? 'all');
 
+        // DIAGNOSTIC TEMPORAIRE (?dbg=targets) : structure brute des targets.
+        if (($_GET['dbg'] ?? '') === 'targets') {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($this->reportService->debugTargets($scope), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
         $report = $this->safeFetch(
             [$this->reportService, 'generate'],
             $this->errors,
