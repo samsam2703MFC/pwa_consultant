@@ -29,7 +29,7 @@ class RapportController extends Controller
      * GET /reports/view?type=week|month&scope=all|{shopId}
      * Rapport imprimable (optimisé impression / « Enregistrer en PDF »).
      */
-    public function view(): void
+    public function show(): void
     {
         $type  = ($_GET['type'] ?? 'week') === 'month' ? 'month' : 'week';
         $scope = (string)($_GET['scope'] ?? 'all');
