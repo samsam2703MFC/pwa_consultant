@@ -18,6 +18,7 @@
   "last_week": "Last week",
   "last_week_sub": "Monday → Sunday",
   "legend_bad": "danger",
+  "legend_evo": "change vs N-1",
   "legend_good": "good",
   "legend_mid": "attention",
   "legend_vs": "vs network average",
