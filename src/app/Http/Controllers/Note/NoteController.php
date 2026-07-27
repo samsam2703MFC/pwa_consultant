@@ -4,13 +4,15 @@ namespace App\Consultant\app\Http\Controllers\Note;
 use App\Consultant\app\Http\Controllers\Controller;
 use App\Consultant\app\Services\Note\NoteService;
 use App\Consultant\app\Services\Shop\ShopService;
+use App\Consultant\app\Repositories\Consultant\ConsultantUserRepository;
 use App\Consultant\core\Support\GlobalRegistry;
 
 class NoteController extends Controller
 {
     public function __construct(
         private NoteService $noteService,
-        private ShopService $shopService
+        private ShopService $shopService,
+        private ConsultantUserRepository $consultantUsers
     ) {}
 
     /**
@@ -160,12 +162,44 @@ class NoteController extends Controller
             return;
         }
 
+        $user = GlobalRegistry::get('user');
+
         $this->view('note/detail', [
             'note'       => $note,
             'comments'   => $note['comments'] ?? [],
             'shop_id'    => $note['shop_id'] ?? null,
+            'me_name'    => (string)($user['display_name'] ?? ''),
+            'me_role'    => $this->currentUserRole(),
             'active_nav' => 'notes',
         ]);
+    }
+
+    /**
+     * Libellé du poste du consultant connecté (ex. « Consultant Stratégie »),
+     * lu dans les tables de référence locales via le membership du JWT. Repli
+     * sur le scope_type du jeton, puis sur « Consultant ». Sert à signer les
+     * notes et commentaires de l'utilisateur (« Sam V. — Consultant Stratégie »).
+     */
+    private function currentUserRole(): string
+    {
+        $t       = loadTranslations('page', GlobalRegistry::get('lang_code') ?: resolveAppLanguage(), 'note');
+        $default = $t['consultant'] ?? 'Consultant';
+        $user    = GlobalRegistry::get('user');
+
+        $membershipId = (int)($user['membership_id'] ?? 0);
+        if ($membershipId > 0) {
+            $position = $this->consultantUsers->getConsultantData($membershipId)['position'] ?? [];
+            foreach (['name', 'title', 'label', 'position_name'] as $key) {
+                foreach ($position as $col => $val) {
+                    if (strcasecmp((string)$col, $key) === 0 && is_string($val) && trim($val) !== '') {
+                        return trim($val);
+                    }
+                }
+            }
+        }
+
+        $scope = trim((string)($user['scope_type'] ?? ''));
+        return $scope !== '' ? $scope : $default;
     }
 
     /**
