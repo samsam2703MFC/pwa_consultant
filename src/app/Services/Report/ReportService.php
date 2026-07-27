@@ -117,7 +117,11 @@ class ReportService
         // (Le B2B n'a pas de source POS fiable → pas de moyenne réseau.)
         $netTickets = [];
         $netBasket  = [];
+        $netCa      = [];
         foreach ($kpisByShop as $k) {
+            if (isset($k['ca']) && (float)$k['ca'] > 0) {
+                $netCa[] = (float)$k['ca'];
+            }
             if (isset($k['tickets']) && (int)$k['tickets'] > 0) {
                 $netTickets[] = (int)$k['tickets'];
             }
@@ -126,10 +130,17 @@ class ReportService
             }
         }
         $netFranchise = [
+            'ca'      => $netCa      !== [] ? array_sum($netCa)      / count($netCa)      : null,
             'clients' => $netTickets !== [] ? array_sum($netTickets) / count($netTickets) : null,
             'basket'  => $netBasket  !== [] ? array_sum($netBasket)  / count($netBasket)  : null,
             'b2b'     => null,
         ];
+
+        // Fenêtre des campagnes commerciales : année-à-ce-jour (1er janvier de
+        // l'année de la période → fin de période), comme l'écran Targets — les
+        // campagnes sont saisonnières et souvent définies sur l'année entière.
+        $campFrom = date('Y-01-01', (int)strtotime($period['to']));
+        $campTo   = $period['to'];
 
         // « Toutes les boutiques » → une vue RÉSEAU consolidée (3 onglets :
         // tableau de bord + classement, heatmap, synthèse) au lieu d'empiler la
@@ -147,7 +158,7 @@ class ReportService
                 foreach ($allShops as $shop) {
                     $sid = (int)($shop['id'] ?? 0);
                     if ($sid > 0) {
-                        $lists[] = $this->campaignService->forShop($sid, $period['from'], $period['to']);
+                        $lists[] = $this->campaignService->forShop($sid, $campFrom, $campTo);
                     }
                 }
                 $merged = $this->campaignService->mergeByName($lists);
@@ -175,10 +186,12 @@ class ReportService
                     'targets_label'      => $franchise['label'],
                     'notes'              => $this->noteService->getNotesForPeriod($shopId, $period['from'], $period['to']),
                     'claims_by_supplier' => $this->claimsBySupplier($shopId, $fromT, $toT),
-                    // Campagnes commerciales — rapport MENSUEL uniquement.
+                    // Campagnes commerciales — rapport MENSUEL uniquement, fenêtre
+                    // année-à-ce-jour (comme l'écran Targets) ; null en hebdo → section
+                    // masquée, tableau vide en mensuel → « aucune campagne ».
                     'campaigns'          => $type === 'month'
-                        ? $this->campaignService->forShop($shopId, $period['from'], $period['to'])
-                        : [],
+                        ? $this->campaignService->forShop($shopId, $campFrom, $campTo)
+                        : null,
                 ];
             }
         }
@@ -256,10 +269,15 @@ class ReportService
             }
             $overall = $this->worstStatus(array_values($leverStatus));
 
-            // Atteinte des objectifs franchisé (comptage réseau).
+            // Atteinte des objectifs franchisé (comptage réseau). Le CA n'est
+            // pas un objectif franchisé → exclu du décompte.
+            $labelKey = ['Clients' => 'clients', 'Panier moyen' => 'basket', 'Clients B2B' => 'b2b'];
             $fr = $this->franchiseKpisForShop($sid, $period, $tgt, $k, $netFranchise);
             foreach ($fr['kpis'] as $fk) {
-                $key = $fk['label'] === 'Clients' ? 'clients' : ($fk['label'] === 'Panier moyen' ? 'basket' : 'b2b');
+                $key = $labelKey[$fk['label']] ?? null;
+                if ($key === null) {
+                    continue;
+                }
                 if (($fk['obj'] ?? null) !== null && ($fk['val'] ?? null) !== null) {
                     $objTot[$key]++;
                     if (($fk['pct'] ?? 0) >= 95.0) {
@@ -413,12 +431,14 @@ class ReportService
      */
     private function franchiseKpisForShop(int $shopId, array $period, array $tgt, array $kpis, array $netFranchise): array
     {
+        $caN      = (float)($kpis['ca'] ?? 0);
         $ticketsN = (int)($kpis['tickets'] ?? 0);
         $basketN  = isset($kpis['avg_basket']) && $kpis['avg_basket'] !== null ? (float)$kpis['avg_basket'] : null;
 
         $fromN1 = date('Y-m-d', (int)strtotime($period['from'] . ' -1 year'));
         $toN1   = date('Y-m-d', (int)strtotime($period['to'] . ' -1 year'));
         $kpisN1 = $this->shopService->getSalesKpis($shopId, $fromN1, $toN1);
+        $caN1      = (float)($kpisN1['ca'] ?? 0);
         $ticketsN1 = (int)($kpisN1['tickets'] ?? 0);
         $basketN1  = isset($kpisN1['avg_basket']) && $kpisN1['avg_basket'] !== null ? (float)$kpisN1['avg_basket'] : null;
 
@@ -431,19 +451,24 @@ class ReportService
         $days  = max(1, (int)round((strtotime($period['to']) - strtotime($period['from'])) / 86400) + 1);
         $scale = $days >= 28 ? 1.0 : $days / 30.44;
 
+        $mCa      = $this->findFranchiseMetric($targets, ['revenue', 'turnover', 'chiffre', 'sales', 'obrot', 'sprzeda']);
         $mClients = $this->findFranchiseMetric($targets, ['client', 'ticket', 'trafic', 'traffic', 'visit']);
         $mBasket  = $this->findFranchiseMetric($targets, ['basket', 'panier', 'koszyk', 'avg_ticket']);
         $mB2b     = $this->findFranchiseMetric($targets, ['b2b']);
 
+        $objCa      = $mCa      ? $this->scaleCount($this->objectiveOfEntry($mCa), $scale) : null;
         $objClients = $mClients ? $this->scaleCount($this->objectiveOfEntry($mClients), $scale) : null;
         $objBasket  = $mBasket  ? $this->objectiveOfEntry($mBasket) : null;
         $objB2b     = $mB2b     ? $this->scaleCount($this->objectiveOfEntry($mB2b), $scale) : null;
         $valB2b     = $mB2b     ? $this->encodedValueOf($mB2b) : null;
 
+        // Ordre demandé : Chiffre d'affaires · Clients · Panier moyen · Clients B2B.
+        // `dec` = nombre de décimales d'affichage (CA en entier, panier à 2 déc.).
         $kpisOut = [
-            ['label' => 'Clients',      'unit' => 'count',  'n1' => $ticketsN1 ?: null, 'val' => $ticketsN ?: null, 'obj' => $objClients, 'net' => $netFranchise['clients'] ?? null],
-            ['label' => 'Panier moyen', 'unit' => 'amount', 'n1' => $basketN1,          'val' => $basketN,          'obj' => $objBasket,  'net' => $netFranchise['basket']  ?? null],
-            ['label' => 'B2B',          'unit' => 'count',  'n1' => null,               'val' => $valB2b,           'obj' => $objB2b,     'net' => $netFranchise['b2b']     ?? null],
+            ['label' => "Chiffre d'affaires", 'unit' => 'amount', 'dec' => 0, 'n1' => $caN1 ?: null,      'val' => $caN ?: null,      'obj' => $objCa,      'net' => $netFranchise['ca']      ?? null],
+            ['label' => 'Clients',            'unit' => 'count',  'dec' => 0, 'n1' => $ticketsN1 ?: null, 'val' => $ticketsN ?: null, 'obj' => $objClients, 'net' => $netFranchise['clients'] ?? null],
+            ['label' => 'Panier moyen',       'unit' => 'amount', 'dec' => 2, 'n1' => $basketN1,          'val' => $basketN,          'obj' => $objBasket,  'net' => $netFranchise['basket']  ?? null],
+            ['label' => 'Clients B2B',        'unit' => 'count',  'dec' => 0, 'n1' => null,               'val' => $valB2b,           'obj' => $objB2b,     'net' => $netFranchise['b2b']     ?? null],
         ];
         foreach ($kpisOut as &$k) {
             $k['status'] = $this->targetStatus($k['val'], $k['obj']);
