@@ -29,34 +29,6 @@ class NoteController extends Controller
             ['recent' => [], 'by_shop' => []]
         );
 
-        // ── DIAGNOSTIC TEMPORAIRE (?dbg=1) ──────────────────────────────────
-        // Expose la forme RÉELLE renvoyée par l'API pour les notes récentes :
-        // valeur de la miniature (thumb) + structure des commentaires et de
-        // leurs pièces jointes. Ne concerne que les propres notes de l'usager
-        // connecté. À RETIRER une fois le format des pièces jointes confirmé.
-        if (($_GET['dbg'] ?? '') === '1') {
-            $ids = [];
-            foreach ($overview['recent'] as $r) {
-                $id = (int)($r['id'] ?? 0);
-                if ($id > 0) {
-                    $ids[] = $id;
-                }
-            }
-            $payload = [
-                'recent' => array_map(fn($r) => [
-                    'id'      => $r['id'] ?? null,
-                    'shop'    => $r['shop_name'] ?? null,
-                    'thumb'   => $r['thumb'] ?? null,
-                    'content' => mb_substr((string)($r['content'] ?? ''), 0, 40),
-                ], $overview['recent']),
-                'structures' => $ids !== [] ? $this->noteService->debugNoteStructures($ids) : [],
-            ];
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            exit;
-        }
-        // ── FIN DIAGNOSTIC TEMPORAIRE ───────────────────────────────────────
-
         $this->view('note/index', [
             'shops'      => $shops,
             'recent'     => $overview['recent'],
@@ -198,7 +170,6 @@ class NoteController extends Controller
             'shop_id'    => $note['shop_id'] ?? null,
             'me_name'    => (string)($user['display_name'] ?? ''),
             'me_role'    => $this->currentUserRole(),
-            'dbg'        => ($_GET['dbg'] ?? '') === '1', // DIAG TEMP
             'active_nav' => 'notes',
         ]);
     }
@@ -237,8 +208,6 @@ class NoteController extends Controller
      */
     public function addComment(int $noteId): void
     {
-        $dbg = ($_GET['dbg'] ?? '') === '1'; // DIAG TEMP
-
         if (empty(trim($_POST['content'] ?? '')) && !$this->hasUploadedPhoto()) {
             redirect("/notes/{$noteId}");
         }
@@ -248,56 +217,8 @@ class NoteController extends Controller
             $files['photos'] = $_FILES['photos'];
         }
 
-        $result = $this->noteService->addComment($noteId, $_POST, $files);
-
-        // ── DIAGNOSTIC TEMPORAIRE (?dbg=1) : tout le trajet d'un upload photo ──
-        // Ce que le navigateur a envoyé + la réponse de l'API + l'état des
-        // commentaires après coup. Révèle si l'upload arrive et sous quelle
-        // forme l'API renvoie les photos. À RETIRER ensuite.
-        if ($dbg) {
-            $note = $this->noteService->getNote($noteId);
-            $comments = array_map(
-                fn($c) => is_array($c) ? [
-                    'id'        => $c['id'] ?? null,
-                    'content'   => $c['content'] ?? null,
-                    'photos'    => $c['photos'] ?? null,
-                    'photo_ids' => $c['photo_ids'] ?? null,
-                ] : $c,
-                $note['comments'] ?? []
-            );
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode([
-                'files_received'      => $this->debugFilesSummary($_FILES['photos'] ?? null),
-                'upload_result'       => $result,
-                'note_comments_after' => $comments,
-            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            exit;
-        }
-        // ── FIN DIAGNOSTIC TEMPORAIRE ─────────────────────────────────────────
-
+        $this->noteService->addComment($noteId, $_POST, $files);
         redirect("/notes/{$noteId}");
-    }
-
-    /** DIAG TEMP — résumé des fichiers reçus dans $_FILES['photos']. */
-    private function debugFilesSummary($photos): array
-    {
-        if (!is_array($photos)) {
-            return ['present' => false];
-        }
-        $names  = (array)($photos['name'] ?? []);
-        $types  = (array)($photos['type'] ?? []);
-        $errors = (array)($photos['error'] ?? []);
-        $sizes  = (array)($photos['size'] ?? []);
-        $files  = [];
-        foreach ($names as $i => $n) {
-            $files[] = [
-                'name'  => $n,
-                'type'  => $types[$i] ?? null,
-                'error' => $errors[$i] ?? null,
-                'size'  => $sizes[$i] ?? null,
-            ];
-        }
-        return ['present' => true, 'count' => count($files), 'files' => $files];
     }
 
     /**
