@@ -87,6 +87,7 @@
     .rpt-tab.is-active { background:#fff; color:#8D1D2C; box-shadow:0 1px 4px rgba(0,0,0,.10); }
     .rpt-tabview { margin-bottom:26px; }
     .rpt-tabview[hidden] { display:none; }
+    .rpt-print-title { display:none; font-size:.95rem; font-weight:800; color:#8D1D2C; border-bottom:1px solid rgba(141,29,44,.2); padding-bottom:5px; margin:2px 0 12px; }
     /* Pastille de statut (carré arrondi lettré) */
     .rpt-dot { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:6px; color:#fff; font-size:.7rem; font-weight:900; }
     .rpt-dot.st-ok { background:#2D7A3E; } .rpt-dot.st-mid { background:#e67e22; } .rpt-dot.st-bad { background:#c0182b; } .rpt-dot.st-nd { background:#c9c2b8; }
@@ -114,6 +115,9 @@
         main.app-content, .app-content { padding:0 !important; }
         .rpt-shop { break-inside:avoid; box-shadow:none; }
         a[href] { color:inherit; text-decoration:none; }
+        /* À l'impression : on déplie les 3 onglets réseau et on titre chacun. */
+        .rpt-tabview, .rpt-tabview[hidden] { display:block !important; break-inside:avoid; }
+        .rpt-print-title { display:block !important; }
         @page { margin:14mm 12mm; }
     }
 </style>
@@ -126,7 +130,12 @@
         <a href="{{ ROOT }}/reports" class="app-back-btn" style="margin-bottom:0;">
             {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back ?? 'Rapports' }}</span>
         </a>
-        <button type="button" onclick="window.print()" class="btn btn-primary rounded-pill px-3 fw-700 ms-auto" style="font-size:.82rem;">
+        <a href="#" id="rpt-wa"
+           data-share="{{ (report.type == 'month' ? (translations.report_monthly ?? 'Rapport mensuel') : (translations.report_weekly ?? 'Rapport hebdomadaire')) ~ ' — ' ~ (report.period.label ?? '') ~ ' · ' ~ (report.scope.label ?? '') }}"
+           class="btn rounded-pill px-3 fw-700 ms-auto d-inline-flex align-items-center" style="font-size:.82rem;background:#25D366;color:#fff;">
+            <span class="me-1 d-inline-flex">{{ icons.svg('send', 16) }}</span>{{ translations.share_whatsapp ?? 'WhatsApp' }}
+        </a>
+        <button type="button" onclick="window.print()" class="btn btn-primary rounded-pill px-3 fw-700" style="font-size:.82rem;">
             <span class="me-1">{{ icons.svg('download', 16) }}</span>{{ translations.print_pdf ?? 'Imprimer / PDF' }}
         </button>
     </div>
@@ -171,6 +180,7 @@
 
         {# ── Onglet 1 : Tableau de bord + classement ── #}
         <div class="rpt-tabview" data-tab="dash">
+            <div class="rpt-print-title">{{ translations.tab_dashboard ?? 'Tableau de bord' }}</div>
             {{ net_kpis }}
             <div class="rpt-tbl-wrap" style="margin-top:12px;">
                 <table class="rpt-tbl">
@@ -203,6 +213,7 @@
 
         {# ── Onglet 2 : Heatmap santé (boutiques × leviers) ── #}
         <div class="rpt-tabview" data-tab="heat" hidden>
+            <div class="rpt-print-title">{{ translations.tab_heatmap ?? 'Heatmap' }}</div>
             {{ net_kpis }}
             <div class="rpt-tbl-wrap" style="margin-top:12px;">
                 <table class="rpt-heat">
@@ -233,6 +244,7 @@
 
         {# ── Onglet 3 : Synthèse dirigeant ── #}
         <div class="rpt-tabview" data-tab="synth" hidden>
+            <div class="rpt-print-title">{{ translations.tab_summary ?? 'Synthèse' }}</div>
             {{ net_kpis }}
             {% if net.attention is not empty %}
                 <div class="rpt-syn-h rpt-st-bad">⚠ {{ translations.attention_points ?? "Points d'attention" }}</div>
@@ -521,7 +533,6 @@
 <script>
 (function () {
     var tabs = document.querySelectorAll('.rpt-tab');
-    if (!tabs.length) return;
     var views = document.querySelectorAll('.rpt-tabview');
     tabs.forEach(function (t) {
         t.addEventListener('click', function () {
@@ -530,6 +541,17 @@
             views.forEach(function (v) { v.hidden = v.getAttribute('data-tab') !== name; });
         });
     });
+
+    // Partage WhatsApp : titre du rapport + lien de la page.
+    var wa = document.getElementById('rpt-wa');
+    if (wa) {
+        wa.addEventListener('click', function (e) {
+            e.preventDefault();
+            var base = wa.getAttribute('data-share') || document.title;
+            var msg = base + '\n' + location.href;
+            window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank', 'noopener');
+        });
+    }
 })();
 </script>
 {% endblock %}
