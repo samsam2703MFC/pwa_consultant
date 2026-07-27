@@ -151,56 +151,6 @@ class ReportService
         ];
     }
 
-    /**
-     * DIAGNOSTIC TEMPORAIRE — structure brute renvoyée par l'API des targets,
-     * pour comprendre pourquoi la section Objectifs reste vide (données
-     * présentes ? forme des clés de seuil ?). À RETIRER ensuite.
-     */
-    public function debugTargets(string $scope): array
-    {
-        $allShops = $this->shopService->getAllShops();
-        $shops = $allShops;
-        if ($scope !== 'all' && ctype_digit($scope)) {
-            $sid = (int)$scope;
-            $one = array_values(array_filter($allShops, fn($s) => (int)($s['id'] ?? 0) === $sid));
-            if ($one !== []) {
-                $shops = $one;
-            }
-        }
-
-        $prev = strtotime('first day of -1 month');
-        $months = [
-            [(int)date('Y'), (int)date('n')],
-            [(int)date('Y', $prev), (int)date('n', $prev)],
-        ];
-
-        $out = [];
-        foreach ($shops as $shop) {
-            $sid = (int)($shop['id'] ?? 0);
-            if ($sid <= 0) {
-                continue;
-            }
-            $entry = ['id' => $sid, 'shop' => (string)($shop['representative_name'] ?? $shop['name'] ?? $sid), 'months' => []];
-            foreach ($months as [$y, $m]) {
-                $raw = $this->targetService->getTargets($sid, $y, $m);
-                $entry['months']["$y-$m"] = [
-                    'type'   => gettype($raw),
-                    'count'  => is_array($raw) ? count($raw) : 0,
-                    'keys'   => is_array($raw) ? array_slice(array_keys($raw), 0, 25) : [],
-                    'sample' => is_array($raw) ? array_slice($raw, 0, 2, true) : $raw,
-                ];
-            }
-            $out[] = $entry;
-        }
-
-        $defs = $this->targetService->getMetricDefinitions();
-        return [
-            'metric_defs_count'  => is_array($defs) ? count($defs) : 0,
-            'metric_defs_sample' => is_array($defs) ? array_slice($defs, 0, 3, true) : $defs,
-            'shops'              => $out,
-        ];
-    }
-
     /** Fenêtre de la période : semaine précédente (lun→dim) ou mois précédent. */
     private function computePeriod(string $type): array
     {
@@ -270,11 +220,13 @@ class ReportService
     }
 
     /**
-     * Targets prêts pour la vue : liste [{label, t1, t2, t3}] des leviers qui
-     * ont AU MOINS un seuil défini (label résolu via les définitions de
-     * métriques). Vide → la vue affiche « aucun target » sans en-tête orphelin.
+     * Targets prêts pour la vue : liste [{label, t1, t2, t3, unit}] des leviers
+     * ayant au moins un seuil. Les seuils vivent dans la SOURCE ACTIVE de
+     * chaque entrée — `active` désigne 'consultant' | 'admin' | 'default', et
+     * seule cette sous-clé (ou la 1re non nulle) porte t1/t2/t3. Vide → la vue
+     * affiche « aucun objectif » sans en-tête orphelin.
      *
-     * @return array<int, array{label:string, t1:mixed, t2:mixed, t3:mixed}>
+     * @return array<int, array{label:string, t1:mixed, t2:mixed, t3:mixed, unit:string}>
      */
     private function targetsView(array $targets, array $metricDefs): array
     {
@@ -283,15 +235,33 @@ class ReportService
             if (!is_array($t)) {
                 continue;
             }
-            $tt = $t['consultant'] ?? $t['admin'] ?? $t;
+
+            // Seuils = source active (puis repli), en ignorant les null.
+            $tt     = null;
+            $active = is_string($t['active'] ?? null) ? $t['active'] : null;
+            foreach ([$active, 'consultant', 'admin', 'default'] as $src) {
+                if ($src !== null && isset($t[$src]) && is_array($t[$src])) {
+                    $tt = $t[$src];
+                    break;
+                }
+            }
+            if ($tt === null) {
+                $tt = $t; // ancienne forme éventuelle (t1/t2/t3 à plat)
+            }
+
             $t1 = $tt['t1'] ?? null;
             $t2 = $tt['t2'] ?? null;
             $t3 = $tt['t3'] ?? null;
             if ($t1 === null && $t2 === null && $t3 === null) {
                 continue;
             }
-            $label = $metricDefs[$key]['label'] ?? $t['label'] ?? $t['metric_key'] ?? (string)$key;
-            $out[] = ['label' => $label, 't1' => $t1, 't2' => $t2, 't3' => $t3];
+
+            $label   = $t['label'] ?? $metricDefs[$key]['label'] ?? $t['metric_key'] ?? (string)$key;
+            $rawUnit = strtolower((string)($t['unit'] ?? $metricDefs[$key]['unit'] ?? ''));
+            $unit    = (str_contains($rawUnit, 'pct') || str_contains($rawUnit, 'percent') || str_ends_with((string)$key, '_pct')) ? 'pct'
+                     : ((str_contains($rawUnit, 'amount') || str_contains($rawUnit, 'eur') || str_contains($rawUnit, 'money')) ? 'amount' : '');
+
+            $out[] = ['label' => $label, 't1' => $t1, 't2' => $t2, 't3' => $t3, 'unit' => $unit];
         }
         return $out;
     }

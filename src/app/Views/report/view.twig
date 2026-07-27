@@ -184,11 +184,12 @@
                             </tr></thead>
                             <tbody>
                             {% for t in shop.targets_view %}
+                                {% set u = (t.unit == 'pct') ? ' %' : ((t.unit == 'amount') ? ' ' ~ currency_symbol : '') %}
                                 <tr>
                                     <td>{{ t.label }}</td>
-                                    <td class="num">{{ t.t1 ?? '—' }}</td>
-                                    <td class="num">{{ t.t2 ?? '—' }}</td>
-                                    <td class="num">{{ t.t3 ?? '—' }}</td>
+                                    <td class="num">{{ t.t1 is not null ? t.t1 ~ u : '—' }}</td>
+                                    <td class="num">{{ t.t2 is not null ? t.t2 ~ u : '—' }}</td>
+                                    <td class="num">{{ t.t3 is not null ? t.t3 ~ u : '—' }}</td>
                                 </tr>
                             {% endfor %}
                             </tbody>
