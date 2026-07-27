@@ -311,6 +311,53 @@ class NoteService
         return $this->noteRepository->getEmployeesForShop($shopId);
     }
 
+    /**
+     * Employés d'une boutique qui ont AU MOINS une note, avec le nombre de
+     * notes — pour la liste filtrable/recherchable de la page boutique. Les
+     * notes « employé » vivent sur un endpoint séparé : on les récupère en
+     * PARALLÈLE (curl_multi). Triés par nombre de notes décroissant, puis nom.
+     *
+     * @return array<int, array{id:int, name:string, count:int}>
+     */
+    public function getEmployeesWithNotes(int $shopId): array
+    {
+        $employees = $this->noteRepository->getEmployeesForShop($shopId);
+
+        $pairs = [];
+        $meta  = [];
+        foreach ($employees as $emp) {
+            $eid = (int)($emp['id'] ?? 0);
+            if ($eid <= 0) {
+                continue;
+            }
+            $pairs[] = [$shopId, $eid];
+            $meta[$eid] = $emp['display_name'] ?? $emp['employee_name']
+                ?? trim(((string)($emp['name'] ?? '')) . ' ' . ((string)($emp['surname'] ?? '')));
+        }
+        if ($pairs === []) {
+            return [];
+        }
+
+        $empNotes = $this->noteRepository->getNotesForEmployeesBulk($pairs);
+
+        $out = [];
+        foreach ($meta as $eid => $name) {
+            $notes = $empNotes[$shopId . ':' . $eid] ?? [];
+            $count = 0;
+            foreach ($notes as $n) {
+                if (is_array($n) && empty($n['deleted_at'])) {
+                    $count++;
+                }
+            }
+            if ($count > 0) {
+                $out[] = ['id' => $eid, 'name' => (string)$name, 'count' => $count];
+            }
+        }
+
+        usort($out, fn($a, $b) => ($b['count'] <=> $a['count']) ?: strcasecmp($a['name'], $b['name']));
+        return $out;
+    }
+
     public function getNotesForEmployee(int $shopId, int $employeeId): array
     {
         return $this->noteRepository->getNotesForEmployee($shopId, $employeeId);
