@@ -7,6 +7,7 @@
   "attachments_hint": "(optional, max 4 × 10 MB, jpg/png/webp)",
   "by_shop": "By shop",
   "category": "Category",
+  "choose_photo": "Choose",
   "choose_shop": "Choose a shop",
   "comment_ph": "Write a comment…",
   "comments": "Comments",
@@ -46,6 +47,7 @@
   "staff_member": "Person",
   "subtitle": "Comments per shop",
   "tag_48h": "48h",
+  "take_photo": "Take a photo",
   "title": "Notes",
   "whole_shop": "Whole shop"
 }
