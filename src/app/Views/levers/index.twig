@@ -41,7 +41,11 @@
         box-shadow: 0 8px 18px -14px rgba(70,40,25,.3); overflow: hidden;
     }
     .lev-hd { display: flex; align-items: center; gap: 9px; padding: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-    .lev-hd .lv-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .lev-hd .lv-badge {
+        width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: .72rem; font-weight: 800;
+    }
     .lev-hd .lv-nm { flex: 1; font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; min-width: 0; }
     .lev-hd .lv-kv { text-align: right; }
     .lev-hd .lv-kv b { font-size: .88rem; white-space: nowrap; }
@@ -251,6 +255,8 @@ const SIXL_LEVERS = [
 (function () {
     'use strict';
     const ROOT = window.__consultantRoot || '';
+    // Initiale affichée dans la pastille carrée de chaque levier (T Trafic, …).
+    const LEV_LETTER = { trafic: 'T', recurrence: 'R', xp: 'E', food: 'F', labour: 'L', overhead: 'O' };
     const leversEl = document.getElementById('sixlLevers');
     const skelEl   = document.getElementById('sixlSkel');
     const cmpEl    = document.getElementById('sixlCmpTable');
@@ -557,7 +563,7 @@ const SIXL_LEVERS = [
             return '<div class="lev" data-lev="' + lev.key + '">'
                 + '<div class="lev-hd" role="button" aria-expanded="false">'
                 + '<span class="lv-st ' + st + '">' + ST_ICON[st] + '</span>'
-                + '<span class="lv-dot" style="background:' + lev.color + ';"></span>'
+                + '<span class="lv-badge" style="background:' + lev.color + ';">' + (LEV_LETTER[lev.key] || (String(lev.name || '?').charAt(0).toUpperCase())) + '</span>'
                 + '<span class="lv-nm">' + lev.num + ' · ' + escHtml(lev.name) + '</span>'
                 + '<span class="lv-kv">' + kv + '</span>'
                 + '<span class="lv-chev">▼</span>'

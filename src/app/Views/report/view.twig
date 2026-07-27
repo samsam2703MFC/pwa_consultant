@@ -151,7 +151,7 @@
                                 {% set shown = false %}
                                 {% for k in lev.kpis %}{% if k.value is not null %}{% set shown = true %}{% endif %}{% endfor %}
                                 <div class="rpt-lev rpt-st-{{ lev.status }}{{ shown ? '' : ' rpt-lev--soon' }}">
-                                    <span class="rpt-lev-badge" style="background:{{ lev.color }};">{{ lev.num }}</span>
+                                    <span class="rpt-lev-badge" style="background:{{ lev.color }};">{{ lev.letter ?? lev.num }}</span>
                                     <span class="rpt-lev-nm">{{ lev.tag_name ?? lev.name }}</span>
                                     <span class="rpt-lev-kpis">
                                         {% if shown %}

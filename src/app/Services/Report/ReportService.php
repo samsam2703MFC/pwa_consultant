@@ -420,21 +420,22 @@ class ReportService
      */
     private function hexmDisplay(array $metrics, array $netAvg, array $ofTags): array
     {
-        // metric, sens (dir), libellé, format.
+        // metric, sens (dir), libellé, format. `letter` = initiale du levier
+        // affichée dans la pastille carrée (T Trafic, R Récurrence, …).
         $defs = [
-            ['num' => 4, 'key' => 'trafic',     'name' => 'Trafic',            'color' => '#1F4F6B', 'kpis' => [
+            ['num' => 4, 'key' => 'trafic',     'letter' => 'T', 'name' => 'Trafic',            'color' => '#1F4F6B', 'kpis' => [
                 ['metric' => 'ticketsDay', 'dir' => 1,  'label' => 'Trafic (tickets/jour)', 'fmt' => 'int'],
             ]],
-            ['num' => 3, 'key' => 'recurrence', 'name' => 'Récurrence',        'color' => '#8a4a24', 'kpis' => [
+            ['num' => 3, 'key' => 'recurrence', 'letter' => 'R', 'name' => 'Récurrence',        'color' => '#8a4a24', 'kpis' => [
                 ['metric' => 'avgBasket',  'dir' => 1,  'label' => 'Panier moyen', 'fmt' => 'eur'],
             ]],
-            ['num' => 2, 'key' => 'xp',         'name' => 'Expérience client', 'color' => '#2D7A3E', 'kpis' => []],
-            ['num' => 5, 'key' => 'food',       'name' => 'Food Cost',         'color' => '#C9A227', 'kpis' => [
+            ['num' => 2, 'key' => 'xp',         'letter' => 'E', 'name' => 'Expérience client', 'color' => '#2D7A3E', 'kpis' => []],
+            ['num' => 5, 'key' => 'food',       'letter' => 'F', 'name' => 'Food Cost',         'color' => '#C9A227', 'kpis' => [
                 ['metric' => 'foodPct',    'dir' => -1, 'label' => 'Coût matière (% CA)', 'fmt' => 'pct'],
                 ['metric' => 'grossPct',   'dir' => 1,  'label' => 'Marge brute (% CA)',  'fmt' => 'pct'],
             ]],
-            ['num' => 6, 'key' => 'labour',     'name' => 'Labour Cost',       'color' => '#8D1D2C', 'kpis' => []],
-            ['num' => 7, 'key' => 'overhead',   'name' => 'Overhead Cost',     'color' => '#7a7168', 'kpis' => [
+            ['num' => 6, 'key' => 'labour',     'letter' => 'L', 'name' => 'Labour Cost',       'color' => '#8D1D2C', 'kpis' => []],
+            ['num' => 7, 'key' => 'overhead',   'letter' => 'O', 'name' => 'Overhead Cost',     'color' => '#7a7168', 'kpis' => [
                 ['metric' => 'evo',        'dir' => 1,  'label' => 'Évolution CA vs N-1', 'fmt' => 'evo'],
             ]],
         ];
@@ -456,6 +457,7 @@ class ReportService
             $levers[] = [
                 'num'    => $def['num'],
                 'key'    => $def['key'],
+                'letter' => $def['letter'],
                 'name'   => $def['name'],
                 'color'  => $def['color'],
                 'status' => $this->worstStatus($statuses),
