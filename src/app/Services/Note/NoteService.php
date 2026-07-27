@@ -30,7 +30,7 @@ class NoteService
      * Wykorzystuje istniejący endpoint /consultant/shops/{id}/notes (po jednym
      * zapytaniu na sklep).
      */
-    public function getNotesOverview(array $shops, int $recentLimit = 6): array
+    public function getNotesOverview(array $shops, int $recentLimit = 5): array
     {
         // Ids + métadonnées des boutiques.
         $shopIds  = [];
@@ -88,9 +88,14 @@ class NoteService
             ];
         };
 
+        // Seuil « activité récente » : note créée dans les dernières 48 h.
+        $threshold48h = time() - 48 * 3600;
+        $isRecent = fn($n) => !empty($n['created_at']) && strtotime((string)$n['created_at']) >= $threshold48h;
+
         foreach ($shopIds as $sid) {
-            $name  = $shopMeta[$sid]['name'];
-            $count = 0;
+            $name      = $shopMeta[$sid]['name'];
+            $count     = 0;
+            $hasRecent = false;
 
             // Notes niveau boutique.
             foreach (($shopNotesByShop[$sid] ?? []) as $n) {
@@ -98,6 +103,9 @@ class NoteService
                     continue;
                 }
                 $count++;
+                if ($isRecent($n)) {
+                    $hasRecent = true;
+                }
                 $author = $n['employee_name'] ?? trim(((string)($n['employee_first_name'] ?? '')) . ' ' . ((string)($n['employee_last_name'] ?? '')));
                 $push($n, $sid, $name, $author);
             }
@@ -114,15 +122,19 @@ class NoteService
                         continue;
                     }
                     $count++;
+                    if ($isRecent($n)) {
+                        $hasRecent = true;
+                    }
                     $push($n, $sid, $name, (string)($empLabel[$key] ?? ''));
                 }
             }
 
             $byShop[] = [
-                'id'      => $sid,
-                'name'    => $name,
-                'address' => $shopMeta[$sid]['address'],
-                'count'   => $count,
+                'id'         => $sid,
+                'name'       => $name,
+                'address'    => $shopMeta[$sid]['address'],
+                'count'      => $count,
+                'recent_48h' => $hasRecent,
             ];
         }
 
