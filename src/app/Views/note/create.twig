@@ -153,15 +153,61 @@
 
 {% block scripts %}
 <script>
-/* Retour visuel : affiche le(s) nom(s) du/des fichier(s) pris ou choisis. */
+/* Photos : redimensionnement + ré-encodage JPEG côté navigateur avant l'envoi.
+ * Les photos prises par l'appareil sont souvent très lourdes (plusieurs Mo) et
+ * parfois en HEIC (iOS) → rejetées par la limite d'upload ou non affichables.
+ * On les ramène à ~1600px / JPEG qualité .82, ce qui règle les deux et allège
+ * l'envoi. La FileList de l'input est remplacée par les versions compressées. */
+function ntCompress(file, maxDim, quality) {
+    return new Promise(function (resolve) {
+        if (!(file.type || '').match(/^image\//) && !(file.name || '').match(/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i)) {
+            return resolve(file); // pas une image → tel quel
+        }
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+            URL.revokeObjectURL(url);
+            var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+            if (!w || !h) return resolve(file);
+            var scale = Math.min(1, maxDim / Math.max(w, h));
+            var cw = Math.round(w * scale), ch = Math.round(h * scale);
+            var canvas = document.createElement('canvas');
+            canvas.width = cw; canvas.height = ch;
+            try {
+                canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
+            } catch (e) { return resolve(file); }
+            canvas.toBlob(function (blob) {
+                if (!blob) return resolve(file);
+                var name = (file.name || 'photo').replace(/\.(heic|heif|png|webp|bmp|gif|avif)$/i, '.jpg');
+                if (!name.match(/\.jpe?g$/i)) name += '.jpg';
+                try {
+                    resolve(new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }));
+                } catch (e) { resolve(blob); }
+            }, 'image/jpeg', quality);
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+        img.src = url;
+    });
+}
+
 function ntPhotoNames(input) {
     var box = document.getElementById('ntPhotoNames');
-    if (!box) return;
-    var files = input.files || [];
+    var files = Array.prototype.slice.call(input.files || []);
     if (!files.length) return;
-    var names = [];
-    for (var i = 0; i < files.length && i < 4; i++) names.push(files[i].name);
-    box.textContent = '✓ ' + names.join(', ');
+    if (box) box.textContent = '…';
+    if (typeof DataTransfer === 'undefined' || typeof File === 'undefined') {
+        if (box) box.textContent = '✓ ' + files.map(function (f) { return f.name; }).join(', ');
+        return; // navigateur ancien : envoi tel quel
+    }
+    Promise.all(files.slice(0, 4).map(function (f) { return ntCompress(f, 1600, 0.82); }))
+        .then(function (out) {
+            try {
+                var dt = new DataTransfer();
+                out.forEach(function (f) { dt.items.add(f); });
+                input.files = dt.files;
+            } catch (e) { /* si le remplacement échoue, on garde les fichiers d'origine */ }
+            if (box) box.textContent = '✓ ' + out.map(function (f) { return f.name; }).join(', ');
+        });
 }
 </script>
 <script>
