@@ -238,6 +238,21 @@
         border-color:#e9ecef;
     }
     .claim-status-badge.is-zero .claim-status-badge-count { background:rgba(0,0,0,.06); color:#adb5bd; }
+
+    /* ── Badges de filtre par FOURNISSEUR (en plus du statut) ── */
+    .claim-supplier-bar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+    .claim-supplier-badge {
+        max-width:100%;
+        color:#8D1D2C;
+        border-color:rgba(141,29,44,.28);
+        background:rgba(141,29,44,.07);
+    }
+    .claim-supplier-badge .claim-status-badge-lbl {
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:170px;
+    }
+    .claim-supplier-badge .claim-status-badge-count { background:rgba(141,29,44,.16); }
+    .claim-supplier-badge.is-active { color:#fff; background:#8D1D2C; border-color:transparent; }
+    .claim-supplier-badge.is-active .claim-status-badge-count { background:rgba(255,255,255,.28); color:#fff; }
 </style>
 {% endblock %}
 
@@ -301,6 +316,31 @@
             {% endfor %}
         </div>
 
+        {# ── NIVEAU 3 : filtre par FOURNISSEUR (client, combiné au statut) ──
+             Fournisseurs présents dans les réclamations affichées, avec leur
+             nombre ; masqué s'il n'y a qu'un seul fournisseur. #}
+        {% set supplier_counts = {} %}
+        {% for claim in claims %}
+            {% set sn = (claim.supplier_name ?? '')|trim %}
+            {% set sn = sn == '' ? (translations.unknown_supplier ?? 'Fournisseur inconnu') : sn %}
+            {% set supplier_counts = supplier_counts|merge({ (sn): (supplier_counts[sn] ?? 0) + 1 }) %}
+        {% endfor %}
+        {% if supplier_counts|length > 1 %}
+            <div class="claim-status-eyebrow">{{ translations.supplier ?? 'Fournisseur' }}</div>
+            <div class="claim-supplier-bar">
+                {% for sn, cnt in supplier_counts %}
+                    <button type="button"
+                            class="claim-status-badge claim-supplier-badge"
+                            data-supplier="{{ sn }}"
+                            aria-pressed="false"
+                            title="{{ sn }}">
+                        <span class="claim-status-badge-lbl">{{ sn }}</span>
+                        <span class="claim-status-badge-count">{{ cnt }}</span>
+                    </button>
+                {% endfor %}
+            </div>
+        {% endif %}
+
         {# Message quand un filtre statut ne renvoie aucune réclamation (client-side) #}
         <div class="text-center text-muted py-5" id="claim-empty-filter" style="display:none;">
             <span style="font-size:2.5rem;opacity:.3;">{{ icons.svg('inbox') }}</span>
@@ -323,7 +363,9 @@
                         'REJECTED': 'claim-status-rejected'
                     }[status] ?? 'claim-status-new' %}
 
-                    <div class="card claim-card" data-claim-card data-status="{{ status }}">
+                    {% set card_supplier = (claim.supplier_name ?? '')|trim %}
+                    {% set card_supplier = card_supplier == '' ? (translations.unknown_supplier ?? 'Fournisseur inconnu') : card_supplier %}
+                    <div class="card claim-card" data-claim-card data-status="{{ status }}" data-supplier="{{ card_supplier }}">
                         <div class="card-body p-3">
                             <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
                                 <div class="min-w-0">
@@ -494,41 +536,66 @@
     });
 })();
 
-// ── Filtre par badges de statut (client-side, un seul actif à la fois) ──
+// ── Filtres client : STATUT (badges du magasin) + FOURNISSEUR, combinables ──
+// Une carte est visible si elle satisfait les deux filtres actifs (ET). Re-clic
+// sur un badge actif = on le retire. Le bar de statut GLOBAL (liens <a>) reste
+// une navigation serveur et n'est pas concerné ici.
 (function () {
-    var bar = document.querySelector('.claim-status-bar');
-    if (!bar) return;
-    var badges = Array.prototype.slice.call(bar.querySelectorAll('.claim-status-badge'));
-    var cards  = Array.prototype.slice.call(document.querySelectorAll('[data-claim-card]'));
-    var emptyMsg = document.getElementById('claim-empty-filter');
-    var active = null;
+    var statusBar   = document.querySelector('.claim-status-bar[data-active]');
+    var supplierBar = document.querySelector('.claim-supplier-bar');
+    var cards       = Array.prototype.slice.call(document.querySelectorAll('[data-claim-card]'));
+    var emptyMsg    = document.getElementById('claim-empty-filter');
+    if (!cards.length) return;
 
-    function apply(status) {
-        cards.forEach(function (c) {
-            c.style.display = (!status || c.getAttribute('data-status') === status) ? '' : 'none';
-        });
-        badges.forEach(function (b) {
-            var on = !!status && b.getAttribute('data-status') === status;
+    var activeStatus   = null;
+    var activeSupplier = null;
+
+    function syncBadges(bar, attr, activeVal) {
+        if (!bar) return;
+        Array.prototype.slice.call(bar.querySelectorAll('.claim-status-badge')).forEach(function (b) {
+            var on = activeVal !== null && b.getAttribute(attr) === activeVal;
             b.classList.toggle('is-active', on);
             b.setAttribute('aria-pressed', on ? 'true' : 'false');
         });
+    }
+
+    function apply() {
+        cards.forEach(function (c) {
+            var okStatus   = !activeStatus   || c.getAttribute('data-status')   === activeStatus;
+            var okSupplier = !activeSupplier || c.getAttribute('data-supplier') === activeSupplier;
+            c.style.display = (okStatus && okSupplier) ? '' : 'none';
+        });
+        syncBadges(statusBar, 'data-status', activeStatus);
+        syncBadges(supplierBar, 'data-supplier', activeSupplier);
         if (emptyMsg) {
             var anyVisible = cards.some(function (c) { return c.style.display !== 'none'; });
-            emptyMsg.style.display = (status && !anyVisible) ? '' : 'none';
+            emptyMsg.style.display = ((activeStatus || activeSupplier) && !anyVisible) ? '' : 'none';
         }
     }
 
-    badges.forEach(function (b) {
-        b.addEventListener('click', function () {
-            var st = b.getAttribute('data-status');
-            active = (active === st) ? null : st; // re-clic → retire le filtre
-            apply(active);
+    if (statusBar) {
+        Array.prototype.slice.call(statusBar.querySelectorAll('.claim-status-badge')).forEach(function (b) {
+            b.addEventListener('click', function () {
+                var st = b.getAttribute('data-status');
+                activeStatus = (activeStatus === st) ? null : st;
+                apply();
+            });
         });
-    });
+    }
+    if (supplierBar) {
+        Array.prototype.slice.call(supplierBar.querySelectorAll('.claim-supplier-badge')).forEach(function (b) {
+            b.addEventListener('click', function () {
+                var sp = b.getAttribute('data-supplier');
+                activeSupplier = (activeSupplier === sp) ? null : sp;
+                apply();
+            });
+        });
+    }
 
-    // Pré-activation éventuelle via ?status=
-    var pre = bar.getAttribute('data-active');
-    if (pre) { active = pre; apply(active); }
+    // Pré-activation éventuelle du statut via ?status=
+    var pre = statusBar && statusBar.getAttribute('data-active');
+    if (pre) { activeStatus = pre; }
+    apply();
 })();
 </script>
 {% endblock %}
