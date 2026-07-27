@@ -100,6 +100,10 @@
     .rpt-syn-item { display:flex; gap:8px; align-items:baseline; font-size:.82rem; padding:3px 0; }
     .rpt-syn-item b { color:#212529; }
     .rpt-chip { flex-shrink:0; font-size:.66rem; font-weight:800; border-radius:8px; padding:2px 8px; background:rgba(141,29,44,.09); color:#8D1D2C; }
+    /* Lettres des 6 leviers (T R E F L O) colorées par statut de la boutique. */
+    .rpt-treflo { white-space:nowrap; margin-left:6px; }
+    .rpt-treflo b { font-weight:900; font-size:.72rem; letter-spacing:.5px; margin-left:2px; }
+    .rpt-treflo .tf-ok { color:#2D7A3E; } .rpt-treflo .tf-mid { color:#e67e22; } .rpt-treflo .tf-bad { color:#c0182b; } .rpt-treflo .tf-nd { color:#cfc7bb; }
 
     /* Impression / « Enregistrer en PDF » : on ne garde que le rapport. */
     @media print {
@@ -243,8 +247,20 @@
             {% endif %}
             {% if net.top is not empty %}
                 <div class="rpt-syn-h">{{ translations.ranking ?? 'Palmarès' }}</div>
-                <div class="rpt-syn-item"><span class="rpt-chip">Top</span><div>{% for t in net.top %}{{ t.name }} ({{ t.evo >= 0 ? '+' : '' }}{{ t.evo|number_format(1, ',', ' ') }} %){{ loop.last ? '' : ' · ' }}{% endfor %}</div></div>
-                <div class="rpt-syn-item"><span class="rpt-chip">Flop</span><div>{% for t in net.flop %}{{ t.name }} ({{ t.evo >= 0 ? '+' : '' }}{{ t.evo|number_format(1, ',', ' ') }} %){{ loop.last ? '' : ' · ' }}{% endfor %}</div></div>
+                <div class="rpt-syn-item"><span class="rpt-chip">Top</span></div>
+                {% for t in net.top %}
+                    <div class="rpt-syn-item">
+                        <span class="rpt-dot st-{{ t.status }}">{{ st_icon[t.status] ?? '·' }}</span>
+                        <div><b>{{ t.name }}</b> {{ t.evo >= 0 ? '+' : '' }}{{ t.evo|number_format(1, ',', ' ') }} %<span class="rpt-treflo">{% for d in net.lever_defs %}<b class="tf-{{ t.levers[d.key] ?? 'nd' }}" title="{{ d.name }}">{{ d.letter }}</b>{% endfor %}</span></div>
+                    </div>
+                {% endfor %}
+                <div class="rpt-syn-item"><span class="rpt-chip">Flop</span></div>
+                {% for t in net.flop %}
+                    <div class="rpt-syn-item">
+                        <span class="rpt-dot st-{{ t.status }}">{{ st_icon[t.status] ?? '·' }}</span>
+                        <div><b>{{ t.name }}</b> {{ t.evo >= 0 ? '+' : '' }}{{ t.evo|number_format(1, ',', ' ') }} %<span class="rpt-treflo">{% for d in net.lever_defs %}<b class="tf-{{ t.levers[d.key] ?? 'nd' }}" title="{{ d.name }}">{{ d.letter }}</b>{% endfor %}</span></div>
+                    </div>
+                {% endfor %}
             {% endif %}
         </div>
 
