@@ -50,6 +50,29 @@ class NoteController extends Controller
             $shops = $this->shopService->getAllShops();
             echo '<p><b>Boutiques actives (getAllShops) :</b> ' . count($shops) . '</p>';
 
+            // ── Test ALLER-RETOUR optionnel (?test=<shopId>) : crée une note de
+            //    test via le MÊME chemin que le formulaire (createNote), puis
+            //    relit immédiatement la liste et vérifie si elle réapparaît. ──
+            $testShop = (int)($_GET['test'] ?? 0);
+            if ($testShop > 0) {
+                $content  = 'TEST DIAG ' . date('Y-m-d H:i:s');
+                $postResp = $this->noteService->createNote($testShop, ['content' => $content]);
+                $after    = $this->apiClient->get("/consultant/shops/{$testShop}/notes");
+                $afterD   = is_array($after['data'] ?? null) ? $after['data'] : [];
+                $found    = false;
+                foreach ($afterD as $n) {
+                    if (($n['content'] ?? '') === $content) { $found = true; break; }
+                }
+                echo '<div style="border:2px solid #8D1D2C;border-radius:10px;padding:12px;margin:12px 0">';
+                echo '<h3 style="margin-top:0">🧪 Test aller-retour — boutique ' . $testShop . '</h3>';
+                echo '<p>Contenu créé : <code>' . $esc($content) . '</code></p>';
+                echo '<p><b>Réponse du POST (création) :</b></p><pre>' . $j($postResp) . '</pre>';
+                echo '<p><b>Relecture immédiate (GET) :</b> ' . count($afterD) . ' notes · note de test retrouvée : '
+                   . ($found ? '<b style="color:#0a0">OUI ✅ (le round-trip marche)</b>'
+                             : '<b class="err">NON ❌ (créée mais non relue → backend)</b>') . '</p>';
+                echo '</div>';
+            }
+
             $rows = '';
             foreach ($shops as $shop) {
                 $id    = (int)($shop['id'] ?? 0);
@@ -60,11 +83,13 @@ class NoteController extends Controller
                 $count = count($data);
                 $http  = $ok ? '200 OK' : ('FAIL — ' . $esc(json_encode($resp['error'] ?? null)));
                 $first = $count > 0 ? $j($data[0]) : '(vide)';
-                $rows .= "<tr><td>{$id}</td><td>{$name}</td><td>{$http}</td><td><b>{$count}</b></td><td><pre>{$first}</pre></td></tr>";
+                $test  = '<a href="' . $esc(ROOT . '/notes/_diag?test=' . $id) . '">🧪 test</a>';
+                $rows .= "<tr><td>{$id}</td><td>{$name}</td><td>{$http}</td><td><b>{$count}</b></td><td>{$test}</td><td><pre>{$first}</pre></td></tr>";
             }
             echo '<h3>GET /consultant/shops/{id}/notes — réponse brute par boutique</h3>';
-            echo '<table><tr><th>id</th><th>boutique</th><th>HTTP</th><th>nb notes</th><th>1ʳᵉ note (brut)</th></tr>'
-               . ($rows ?: '<tr><td colspan="5">(aucune boutique active)</td></tr>') . '</table>';
+            echo '<p class="note">Clique « 🧪 test » sur une ligne : ça crée une note de test sur cette boutique puis vérifie si elle réapparaît.</p>';
+            echo '<table><tr><th>id</th><th>boutique</th><th>HTTP</th><th>nb notes</th><th>test</th><th>1ʳᵉ note (brut)</th></tr>'
+               . ($rows ?: '<tr><td colspan="6">(aucune boutique active)</td></tr>') . '</table>';
 
             $overview = $this->noteService->getNotesOverview($shops);
             echo '<h3>getNotesOverview() — ce que l\'accueil reçoit</h3>';
