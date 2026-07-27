@@ -132,12 +132,12 @@
                 <label class="nt-photo-btn">
                     {{ icons.svg('camera', 22) }}
                     <span>{{ translations.take_photo ?? 'Prendre une photo' }}</span>
-                    <input type="file" name="photos[]" accept="image/*" capture="environment" class="d-none" onchange="ntPhotoNames(this)">
+                    <input type="file" name="photos[]" accept="image/*" capture="environment" style="display:none" onchange="ntPhotoNames(this)">
                 </label>
                 <label class="nt-photo-btn">
                     {{ icons.svg('paperclip', 22) }}
                     <span>{{ translations.choose_photo ?? 'Choisir' }}</span>
-                    <input type="file" name="photos[]" accept="image/*" multiple class="d-none" onchange="ntPhotoNames(this)">
+                    <input type="file" name="photos[]" accept="image/*" multiple style="display:none" onchange="ntPhotoNames(this)">
                 </label>
             </div>
             <div id="ntPhotoNames" class="mt-2" style="font-size:.76rem;font-weight:700;color:#2D7A3E;"></div>
