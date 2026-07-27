@@ -198,6 +198,7 @@ class NoteController extends Controller
             'shop_id'    => $note['shop_id'] ?? null,
             'me_name'    => (string)($user['display_name'] ?? ''),
             'me_role'    => $this->currentUserRole(),
+            'dbg'        => ($_GET['dbg'] ?? '') === '1', // DIAG TEMP
             'active_nav' => 'notes',
         ]);
     }
@@ -236,7 +237,9 @@ class NoteController extends Controller
      */
     public function addComment(int $noteId): void
     {
-        if (empty(trim($_POST['content'] ?? ''))) {
+        $dbg = ($_GET['dbg'] ?? '') === '1'; // DIAG TEMP
+
+        if (empty(trim($_POST['content'] ?? '')) && !$this->hasUploadedPhoto()) {
             redirect("/notes/{$noteId}");
         }
 
@@ -245,8 +248,56 @@ class NoteController extends Controller
             $files['photos'] = $_FILES['photos'];
         }
 
-        $this->noteService->addComment($noteId, $_POST, $files);
+        $result = $this->noteService->addComment($noteId, $_POST, $files);
+
+        // ── DIAGNOSTIC TEMPORAIRE (?dbg=1) : tout le trajet d'un upload photo ──
+        // Ce que le navigateur a envoyé + la réponse de l'API + l'état des
+        // commentaires après coup. Révèle si l'upload arrive et sous quelle
+        // forme l'API renvoie les photos. À RETIRER ensuite.
+        if ($dbg) {
+            $note = $this->noteService->getNote($noteId);
+            $comments = array_map(
+                fn($c) => is_array($c) ? [
+                    'id'        => $c['id'] ?? null,
+                    'content'   => $c['content'] ?? null,
+                    'photos'    => $c['photos'] ?? null,
+                    'photo_ids' => $c['photo_ids'] ?? null,
+                ] : $c,
+                $note['comments'] ?? []
+            );
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'files_received'      => $this->debugFilesSummary($_FILES['photos'] ?? null),
+                'upload_result'       => $result,
+                'note_comments_after' => $comments,
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+        // ── FIN DIAGNOSTIC TEMPORAIRE ─────────────────────────────────────────
+
         redirect("/notes/{$noteId}");
+    }
+
+    /** DIAG TEMP — résumé des fichiers reçus dans $_FILES['photos']. */
+    private function debugFilesSummary($photos): array
+    {
+        if (!is_array($photos)) {
+            return ['present' => false];
+        }
+        $names  = (array)($photos['name'] ?? []);
+        $types  = (array)($photos['type'] ?? []);
+        $errors = (array)($photos['error'] ?? []);
+        $sizes  = (array)($photos['size'] ?? []);
+        $files  = [];
+        foreach ($names as $i => $n) {
+            $files[] = [
+                'name'  => $n,
+                'type'  => $types[$i] ?? null,
+                'error' => $errors[$i] ?? null,
+                'size'  => $sizes[$i] ?? null,
+            ];
+        }
+        return ['present' => true, 'count' => count($files), 'files' => $files];
     }
 
     /**

@@ -194,7 +194,7 @@
                 </div>
             {% endif %}
 
-            <form method="POST" action="{{ ROOT }}/notes/{{ note.id }}/comments"
+            <form method="POST" action="{{ ROOT }}/notes/{{ note.id }}/comments{{ dbg ?? false ? '?dbg=1' : '' }}"
                   enctype="multipart/form-data" novalidate>
 
                 <div class="mb-3">
