@@ -301,10 +301,13 @@
         </div>
 
         {# ── Campagnes commerciales réseau (rapport mensuel) ── #}
-        {% if net.campaigns is defined and net.campaigns is not empty %}
+        {% if net.campaigns is defined %}
         <div class="rpt-shop">
             <div class="rpt-shop-name">{{ icons.svg('tag', 15) }} {{ translations.campaigns ?? 'Campagnes commerciales' }} — {{ translations.network ?? 'Réseau' }}{% if net.campaigns_totals.pct is not null %} · {{ net.campaigns_totals.pct|number_format(0, ',', ' ') }} %{% endif %}</div>
             <div class="rpt-shop-body">
+                {% if net.campaigns is empty %}
+                    <div class="rpt-empty">{{ translations.no_campaigns ?? 'Aucune campagne sur la période.' }}</div>
+                {% else %}
                 {% for c in net.campaigns %}
                     {% set cst = c.pct is null ? 'nd' : (c.pct >= 95 ? 'ok' : (c.pct >= 80 ? 'mid' : 'bad')) %}
                     <div class="rpt-camp">
@@ -322,6 +325,7 @@
                         {% endif %}
                     </div>
                 {% endfor %}
+                {% endif %}
             </div>
         </div>
         {% endif %}
@@ -400,7 +404,7 @@
                             </tr></thead>
                             <tbody>
                             {% for k in shop.franchise %}
-                                {% set dec = (k.unit == 'amount') ? 2 : 0 %}
+                                {% set dec = k.dec ?? ((k.unit == 'amount') ? 2 : 0) %}
                                 {% set u = (k.unit == 'amount') ? ' ' ~ currency_symbol : (k.unit == 'pct' ? ' %' : '') %}
                                 {# Ligne 1 — les données : N-1, réalisé, moyenne réseau, cible. #}
                                 <tr class="rpt-fr-data">
@@ -496,9 +500,12 @@
                 </div>
 
                 {# Campagnes commerciales (rapport mensuel) #}
-                {% if shop.campaigns is defined and shop.campaigns is not empty %}
+                {% if shop.campaigns is defined and shop.campaigns is not null %}
                 <div class="rpt-sec">
                     <div class="rpt-sec-h">{{ icons.svg('tag', 14) }}{{ translations.campaigns ?? 'Campagnes commerciales' }}</div>
+                    {% if shop.campaigns is empty %}
+                        <div class="rpt-empty">{{ translations.no_campaigns ?? 'Aucune campagne sur la période.' }}</div>
+                    {% else %}
                     {% for c in shop.campaigns %}
                         {% set cst = c.pct is null ? 'nd' : (c.pct >= 95 ? 'ok' : (c.pct >= 80 ? 'mid' : 'bad')) %}
                         <div class="rpt-camp">
@@ -516,6 +523,7 @@
                             {% endif %}
                         </div>
                     {% endfor %}
+                    {% endif %}
                 </div>
                 {% endif %}
 
