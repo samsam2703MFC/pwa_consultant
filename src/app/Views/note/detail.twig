@@ -30,18 +30,6 @@
     .nt-thread-text { margin:0; font-size:.88rem; line-height:1.5; white-space:pre-wrap; color:#333; word-break:break-word; }
     .nt-thread-role { font-weight:600; color:#8D1D2C; }
 
-    /* Bouton « retour » (tap-target clair, à la charte). */
-    .nt-back-btn {
-        display:inline-flex; align-items:center; gap:6px;
-        padding:7px 14px 7px 10px; margin-bottom:14px;
-        border:1.5px solid rgba(141,29,44,.18); border-radius:999px; background:#fff;
-        color:#8D1D2C; font-size:.82rem; font-weight:700; text-decoration:none;
-        box-shadow:0 1px 4px rgba(0,0,0,.05);
-        transition:background .15s, border-color .15s, transform .1s;
-        -webkit-tap-highlight-color:transparent;
-    }
-    .nt-back-btn:active { background:rgba(141,29,44,.06); border-color:rgba(141,29,44,.4); transform:scale(.98); }
-
     /* Signature de l'auteur connecté au-dessus du formulaire de réponse. */
     .nt-me-sig { display:flex; align-items:center; gap:9px; margin-bottom:12px; }
     .nt-me-sig-avatar {
@@ -84,7 +72,7 @@
 <div class="page-content-loaded">
 
     {% if note.shop_id is defined %}
-        <a href="{{ back_url }}" class="nt-back-btn">
+        <a href="{{ back_url }}" class="app-back-btn">
             {{ icons.svg('chevron-left', 16) }}
             <span>{{ is_employee_context ? (translations.employee_notes_back ?? "Notes de l'employé") : (translations.shop_notes ?? 'Notes de la boutique') }}</span>
         </a>
@@ -113,18 +101,13 @@
                 </div>
             {% endif %}
             <p class="mb-0" style="font-size:.92rem;line-height:1.6;white-space:pre-wrap;">{{ note.content }}</p>
-            {# Photos attachées directement à la note (si le backend en renvoie). #}
-            {% set n_atts = note.attachments ?? note.photos ?? [] %}
-            {% set n_imgs = n_atts|filter(a =>
-                ((a.mime_type ?? a.content_type ?? a.mime ?? '')|lower starts with 'image/')
-                or ((a.original_name ?? a.name ?? '')|lower matches '/\\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/')
-            ) %}
-            {% if n_imgs|length > 0 %}
+            {# Photos de la note (ids normalisés côté serveur : photo_ids). #}
+            {% if note.photo_ids is defined and note.photo_ids|length > 0 %}
                 <div class="d-flex flex-wrap gap-2 mt-2">
-                    {% for photo in n_imgs %}
-                        {% set purl = ROOT ~ '/notes/attachments/' ~ photo.id ~ '/preview' %}
+                    {% for pid in note.photo_ids %}
+                        {% set purl = ROOT ~ '/notes/attachments/' ~ pid ~ '/preview' %}
                         <a href="{{ purl }}" target="_blank" rel="noopener">
-                            <img src="{{ purl }}" alt="{{ photo.original_name ?? (translations.photo_alt ?? 'photo') }}" loading="lazy"
+                            <img src="{{ purl }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy"
                                  style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
                         </a>
                     {% endfor %}
@@ -174,18 +157,13 @@
                                 </form>
                             </div>
                             {% if comment.content %}<p class="nt-thread-text">{{ comment.content }}</p>{% endif %}
-                            {% set c_atts = comment.attachments ?? comment.photos ?? [] %}
-                            {% set c_imgs = c_atts|filter(a =>
-                                ((a.mime_type ?? a.content_type ?? a.mime ?? '')|lower starts with 'image/')
-                                or ((a.original_name ?? a.name ?? '')|lower matches '/\\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/')
-                                or ((a.mime_type ?? a.content_type ?? a.mime ?? '') == '' and (a.original_name ?? a.name ?? '') == '')
-                            ) %}
-                            {% if c_imgs|length > 0 %}
+                            {# Photos du commentaire (ids normalisés côté serveur : photo_ids). #}
+                            {% if comment.photo_ids is defined and comment.photo_ids|length > 0 %}
                                 <div class="d-flex flex-wrap gap-2 mt-2">
-                                    {% for photo in c_imgs %}
-                                        {% set purl = ROOT ~ '/notes/attachments/' ~ photo.id ~ '/preview' %}
+                                    {% for pid in comment.photo_ids %}
+                                        {% set purl = ROOT ~ '/notes/attachments/' ~ pid ~ '/preview' %}
                                         <a href="{{ purl }}" target="_blank" rel="noopener">
-                                            <img src="{{ purl }}" alt="{{ photo.original_name ?? (translations.photo_alt ?? 'photo') }}" loading="lazy"
+                                            <img src="{{ purl }}" alt="{{ translations.photo_alt ?? 'photo' }}" loading="lazy"
                                                  style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);">
                                         </a>
                                     {% endfor %}

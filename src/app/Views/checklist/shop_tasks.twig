@@ -25,7 +25,6 @@
 
 {% block head %}
 <style>
-    .back-link { display:inline-flex; align-items:center; gap:6px; font-size:.78rem; font-weight:700; color:#435ebe; text-decoration:none; margin-bottom:10px; }
     .rate-card { background:#fff; border-radius:16px; padding:14px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
     .rate-num { font-size:2rem; font-weight:900; line-height:1; }
     .rate-track { height:8px; border-radius:4px; background:#eef0f5; overflow:hidden; margin:8px 0; }
@@ -88,7 +87,7 @@
 </div>
 
 <div id="shop-checklists-content" style="display:none;" class="page-content-loaded">
-    <a href="{{ ROOT }}/checklists?date={{ date }}" class="back-link">{{ icons.svg('arrow-left-circle') }}{{ translations.back_to_ranking ?? 'Retour au classement' }}</a>
+    <a href="{{ ROOT }}/checklists?date={{ date }}" class="app-back-btn">{{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_to_ranking ?? 'Retour au classement' }}</span></a>
 
     {% set cr = summary.completion_rate ?? null %}
     {% set rate_class = cr is not null ? (cr >= 80 ? 'ex' : (cr >= 50 ? 'ok' : 'no')) : 'no' %}
