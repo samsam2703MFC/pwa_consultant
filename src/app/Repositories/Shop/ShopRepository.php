@@ -122,5 +122,105 @@ class ShopRepository
             'products_per_ticket' => $ppt ?? (($t > 0 && $products > 0) ? $products / $t : null),
         ];
     }
+
+    /**
+     * Coût matière TOTAL d'un magasin sur une fenêtre [from, to] (Y-m-d) —
+     * MÊME source que l'écran HEXm/Boutiques : somme du coût matière par
+     * catégorie (product-category-groups), repli daily-summary. Sert au levier
+     * Food Cost du rapport. null si indisponible (le rapport affiche « à venir »).
+     */
+    public function getMaterialCost(int $shopId, string $from, string $to): ?float
+    {
+        foreach (['category', 'group', 'month'] as $grouping) {
+            $res = $this->apiClient->get(
+                '/shops/' . $shopId . '/statistics/sales/product-category-groups'
+                . '?date_from=' . urlencode($from) . '&date_to=' . urlencode($to) . '&grouping=' . $grouping
+            );
+            if (!empty($res['success']) && is_array($res['data'] ?? null)) {
+                $total = $this->sumMaterialCost($res['data']);
+                if ($total !== null && $total > 0) {
+                    return $total;
+                }
+            }
+        }
+        $res = $this->apiClient->get(
+            '/shops/' . $shopId . '/statistics/daily-summary'
+            . '?date_from=' . urlencode($from) . '&date_to=' . urlencode($to)
+        );
+        if (!empty($res['success']) && is_array($res['data'] ?? null)) {
+            $total = $this->sumMaterialCost($res['data']);
+            return ($total !== null && $total > 0) ? $total : null;
+        }
+        return null;
+    }
+
+    /**
+     * Somme le coût matière des nœuds « catégorie » d'une réponse imbriquée
+     * (port PHP de l'extraction de l'écran HEXm) : pour chaque nœud nommé, on
+     * prend UNE seule clé de coût (material_cost prioritaire), en ignorant les
+     * clés de ratio/quantité, pour ne pas doubler. null si aucun coût trouvé.
+     */
+    private function sumMaterialCost($data): ?float
+    {
+        $costPrefs = ['material_cost', 'materials_cost', 'food_cost', 'goods_cost', 'cost_of_goods', 'purchase_cost', 'total_cost', 'cost'];
+        $skip = fn($k) => (bool)preg_match('/(pct|percent|ratio|rate|delta|margin|qty|quantity|count)/i', (string)$k);
+        $numOf = function ($v): ?float {
+            if (is_int($v) || is_float($v)) return (float)$v;
+            if (is_string($v) && $v !== '' && is_numeric($v)) return (float)$v;
+            if (is_array($v) && isset($v['value']) && is_numeric($v['value'])) return (float)$v['value'];
+            return null;
+        };
+
+        $total = 0.0;
+        $found = false;
+        $walk = function ($n) use (&$walk, &$total, &$found, $costPrefs, $skip, $numOf) {
+            if (!is_array($n)) {
+                return;
+            }
+            if (array_is_list($n)) {
+                foreach ($n as $x) {
+                    $walk($x);
+                }
+                return;
+            }
+            $name = null;
+            foreach (['category_name', 'category', 'group_name', 'name', 'label'] as $k) {
+                if (isset($n[$k]) && is_string($n[$k]) && trim($n[$k]) !== '') {
+                    $name = trim($n[$k]);
+                    break;
+                }
+            }
+            if ($name !== null) {
+                $cost = null;
+                foreach ($costPrefs as $pref) {
+                    foreach ($n as $k => $v) {
+                        if ($skip($k)) continue;
+                        if (strtolower((string)$k) === $pref) {
+                            $x = $numOf($v);
+                            if ($x !== null) { $cost = $x; break 2; }
+                        }
+                    }
+                }
+                if ($cost === null) {
+                    foreach ($n as $k => $v) {
+                        if ($skip($k)) continue;
+                        if (preg_match('/cost/i', (string)$k)) {
+                            $x = $numOf($v);
+                            if ($x !== null) { $cost = $x; break; }
+                        }
+                    }
+                }
+                if ($cost !== null) { $total += $cost; $found = true; }
+            }
+            foreach ($n as $v) {
+                if (is_array($v)) {
+                    $walk($v);
+                }
+            }
+        };
+        $walk($data);
+
+        return $found ? $total : null;
+    }
 }
 

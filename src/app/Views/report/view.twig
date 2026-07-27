@@ -27,6 +27,17 @@
     .rpt-kpi-v { font-size:1.15rem; font-weight:800; color:#212529; line-height:1.1; }
     .rpt-kpi-l { font-size:.72rem; color:#6c757d; margin-top:3px; }
 
+    /* Leviers HEXm (mêmes identité/couleurs que l'écran HEXm). */
+    .rpt-hexm { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+    .rpt-lev { display:flex; align-items:center; gap:8px; padding:7px 9px; border:1px solid rgba(0,0,0,.08); border-radius:10px; }
+    .rpt-lev-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+    .rpt-lev-nm { font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.02em; color:#212529; flex-shrink:0; min-width:118px; }
+    .rpt-lev-kpis { flex:1; display:flex; flex-wrap:wrap; gap:2px 14px; justify-content:flex-end; }
+    .rpt-lev-kpi { font-size:.78rem; color:#333; white-space:nowrap; }
+    .rpt-lev-kpi i { color:#6c757d; font-style:normal; font-size:.72rem; margin-right:3px; }
+    .rpt-lev-kpi b { color:#212529; }
+    .rpt-lev-soon { font-size:.72rem; color:#adb5bd; font-style:italic; }
+
     .rpt-tbl { width:100%; border-collapse:collapse; font-size:.82rem; }
     .rpt-tbl th, .rpt-tbl td { text-align:left; padding:6px 8px; border-bottom:1px solid rgba(0,0,0,.07); }
     .rpt-tbl th { font-size:.7rem; text-transform:uppercase; letter-spacing:.03em; color:#6c757d; font-weight:700; }
@@ -93,7 +104,7 @@
             <div class="rpt-shop-name">{{ shop.name }}</div>
             <div class="rpt-shop-body">
 
-                {# Performance (Hexm) #}
+                {# Performance & leviers HEXm #}
                 <div class="rpt-sec">
                     <div class="rpt-sec-h">{{ icons.svg('hexm', 14) }}{{ translations.performance ?? 'Performance (Hexm)' }}</div>
                     <div class="rpt-kpis">
@@ -114,6 +125,28 @@
                             <div class="rpt-kpi-l">{{ translations.products_per_ticket ?? 'Produits / ticket' }}</div>
                         </div>
                     </div>
+
+                    {# Les 6 leviers HEXm (vrais tags/couleurs officiels) et leur résultat sur la période #}
+                    {% if shop.hexm.levers is defined %}
+                        <div class="rpt-hexm">
+                            {% for lev in shop.hexm.levers %}
+                                <div class="rpt-lev">
+                                    <span class="rpt-lev-dot" style="background:{{ lev.color }};"></span>
+                                    <span class="rpt-lev-nm">{{ lev.num }} · {{ lev.tag_name ?? lev.name }}</span>
+                                    <span class="rpt-lev-kpis">
+                                        {% set shown = false %}
+                                        {% for k in lev.kpis %}
+                                            {% if k.value is not null %}
+                                                {% set shown = true %}
+                                                <span class="rpt-lev-kpi"><i>{{ k.label }}</i><b>{{ k.value }}</b></span>
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% if not shown %}<span class="rpt-lev-soon">{{ translations.data_soon ?? 'données à venir' }}</span>{% endif %}
+                                    </span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
                 </div>
 
                 {# Targets (image du mois) #}
