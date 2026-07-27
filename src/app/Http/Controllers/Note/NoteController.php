@@ -111,12 +111,19 @@ class NoteController extends Controller
             }
 
             if (empty($this->errors)) {
-                $files = !empty($_FILES['photos']) ? ['photos' => $_FILES['photos']] : [];
+                // La note est créée en JSON (l'endpoint note n'accepte pas le
+                // multipart). Les photos éventuelles sont attachées ENSUITE comme
+                // commentaire — le seul endpoint qui gère les images —, ce qui
+                // évite de casser la création de note quand une photo est jointe.
                 $result = $employeeId !== null
-                    ? $this->noteService->createEmployeeNote($shopId, $employeeId, $_POST, $files)
-                    : $this->noteService->createNote($shopId, $_POST, $files);
+                    ? $this->noteService->createEmployeeNote($shopId, $employeeId, $_POST)
+                    : $this->noteService->createNote($shopId, $_POST);
 
                 if ($result['success'] ?? false) {
+                    $newId = (int)($result['inserted_id'] ?? 0);
+                    if ($newId > 0 && $this->hasUploadedPhoto()) {
+                        $this->noteService->addComment($newId, ['content' => '📷'], ['photos' => $_FILES['photos']]);
+                    }
                     if ($employeeId !== null) {
                         redirect("/shops/{$shopId}/employees/{$employeeId}/notes");
                     }
@@ -214,6 +221,21 @@ class NoteController extends Controller
             redirect("/notes/{$noteId}");
         }
         redirect('/notes');
+    }
+
+    /** Vrai si au moins un fichier a été réellement téléversé dans $_FILES['photos']. */
+    private function hasUploadedPhoto(): bool
+    {
+        $p = $_FILES['photos'] ?? null;
+        if (!is_array($p) || !isset($p['error'])) {
+            return false;
+        }
+        foreach ((array)$p['error'] as $err) {
+            if ((int)$err === UPLOAD_ERR_OK) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function findEmployee(array $employees, int $employeeId): ?array

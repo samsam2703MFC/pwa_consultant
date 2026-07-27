@@ -65,7 +65,7 @@
         {% for s in by_shop %}
         <a href="{{ ROOT }}/shops/{{ s.id }}/notes" class="nt-shoprow{{ loop.last ? ' is-last' : '' }}">
             <div class="nt-shoprow-id">
-                <div class="nt-shoprow-name">{{ s.name }}</div>
+                <div class="nt-shoprow-name">{{ s.name }}{% if s.recent_48h %}<span style="display:inline-block;margin-left:7px;font-size:.6rem;font-weight:800;letter-spacing:.02em;color:#fff;background:#8D1D2C;border-radius:10px;padding:1px 7px;vertical-align:middle;">{{ translations.tag_48h ?? '48 h' }}</span>{% endif %}</div>
                 <div class="nt-shoprow-meta">{{ s.address }}{% if s.count is defined %} · {{ s.count }} notes{% endif %}</div>
             </div>
             {{ icons.svg('chevron-right', 17) }}
