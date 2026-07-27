@@ -45,14 +45,13 @@ class NoteController extends Controller
     {
         $notes     = $this->noteService->getNotesForShop($shopId);
         $noteTypes = $this->noteService->getNoteTypes();
-        $employees = $this->noteService->getEmployeesForShop($shopId);
 
         $this->view('note/list', [
-            'notes'      => $notes,
-            'note_types' => $noteTypes,
-            'employees'  => $employees,
-            'shop_id'    => $shopId,
-            'active_nav' => 'notes',
+            'notes'                => $notes,
+            'note_types'           => $noteTypes,
+            'employees_with_notes' => $this->noteService->getEmployeesWithNotes($shopId),
+            'shop_id'              => $shopId,
+            'active_nav'           => 'notes',
         ]);
     }
 

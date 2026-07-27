@@ -25,21 +25,40 @@
         <span>{{ is_employee_context ? (translations.shop_notes ?? 'Notes de la boutique') : (translations.choose_shop ?? 'Choisir une boutique') }}</span>
     </a>
 
-    {% if not is_employee_context and employees is defined and employees is not empty %}
+    {% if not is_employee_context %}
         <div class="card border-0 shadow-sm mb-3" style="border-radius:16px;">
             <div class="card-body p-3">
                 <div class="fw-700 mb-2" style="font-size:.88rem;">{{ translations.employee_notes ?? 'Notes des employés' }}</div>
-                <div class="d-flex flex-column gap-2">
-                    {% for emp in employees %}
-                        {% set emp_label = emp.display_name ?? emp.employee_name ?? ((emp.name ?? '') ~ ' ' ~ (emp.surname ?? ''))|trim %}
-                        <a href="{{ ROOT }}/shops/{{ shop_id }}/employees/{{ emp.id }}/notes"
-                           class="d-flex align-items-center justify-content-between text-decoration-none px-3 py-2"
-                           style="border:1px solid rgba(0,0,0,.06);border-radius:12px;">
-                            <span class="text-dark" style="font-size:.86rem;">{{ emp_label ?: ((translations.staff_hash ?? 'Personnel') ~ ' #' ~ emp.id) }}</span>
-                            <span class="text-muted">{{ icons.svg('chevron-right') }}</span>
-                        </a>
-                    {% endfor %}
-                </div>
+
+                {% if employees_with_notes is defined and employees_with_notes is not empty %}
+                    {# Barre de recherche (filtre côté client) — n'affiche que les
+                       employés ayant au moins une note. #}
+                    <div class="d-flex align-items-center gap-2 mb-2 px-3 py-2"
+                         style="border:1px solid rgba(0,0,0,.1);border-radius:999px;">
+                        <span class="text-muted d-flex">{{ icons.svg('search', 16) }}</span>
+                        <input type="search" id="empSearch" class="border-0 flex-fill" autocomplete="off"
+                               placeholder="{{ translations.search_employee ?? 'Rechercher un employé…' }}"
+                               style="outline:none;background:transparent;font-size:.84rem;">
+                    </div>
+
+                    <div class="d-flex flex-column gap-2" id="empList">
+                        {% for e in employees_with_notes %}
+                            <a href="{{ ROOT }}/shops/{{ shop_id }}/employees/{{ e.id }}/notes"
+                               class="emp-row d-flex align-items-center justify-content-between text-decoration-none px-3 py-2"
+                               data-name="{{ e.name|lower }}"
+                               style="border:1px solid rgba(0,0,0,.06);border-radius:12px;">
+                                <span class="text-dark text-truncate" style="font-size:.86rem;">{{ e.name ?: ((translations.staff_hash ?? 'Personnel') ~ ' #' ~ e.id) }}</span>
+                                <span class="d-flex align-items-center gap-2 flex-shrink-0">
+                                    <span class="badge rounded-pill" style="background:rgba(141,29,44,.1);color:#8D1D2C;font-size:.7rem;font-weight:700;">{{ e.count }} {{ translations.notes_count ?? 'notes' }}</span>
+                                    <span class="text-muted d-flex">{{ icons.svg('chevron-right', 16) }}</span>
+                                </span>
+                            </a>
+                        {% endfor %}
+                    </div>
+                    <div id="empEmpty" class="text-muted text-center py-2" style="font-size:.8rem;display:none;">{{ translations.no_match ?? 'Aucun résultat.' }}</div>
+                {% else %}
+                    <div class="text-muted" style="font-size:.82rem;">{{ translations.no_staff_notes ?? "Aucune note employé pour l'instant." }}</div>
+                {% endif %}
             </div>
         </div>
     {% endif %}
@@ -98,4 +117,30 @@
     {% endif %}
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Filtre client de la liste « Notes des employés » : masque les lignes dont le
+ * nom ne contient pas la recherche. Aucun appel réseau. */
+(function () {
+    var input = document.getElementById('empSearch');
+    var list  = document.getElementById('empList');
+    var empty = document.getElementById('empEmpty');
+    if (!input || !list) return;
+
+    function apply() {
+        var q = (input.value || '').trim().toLowerCase();
+        var rows = list.querySelectorAll('.emp-row');
+        var shown = 0;
+        for (var i = 0; i < rows.length; i++) {
+            var match = !q || (rows[i].getAttribute('data-name') || '').indexOf(q) !== -1;
+            rows[i].style.display = match ? '' : 'none';
+            if (match) shown++;
+        }
+        if (empty) empty.style.display = shown === 0 ? '' : 'none';
+    }
+    input.addEventListener('input', apply);
+})();
+</script>
 {% endblock %}
