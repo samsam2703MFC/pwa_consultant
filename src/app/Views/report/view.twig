@@ -53,9 +53,12 @@
     .rpt-tbl th, .rpt-tbl td { text-align:left; padding:6px 8px; border-bottom:1px solid rgba(0,0,0,.07); }
     .rpt-tbl th { font-size:.7rem; text-transform:uppercase; letter-spacing:.03em; color:#6c757d; font-weight:700; }
     .rpt-tbl td.num, .rpt-tbl th.num { text-align:center; white-space:nowrap; }
-    /* Objectif : taux d'atteinte en % (coloré) + cible chiffrée en sous-titre. */
-    .rpt-obj-pct { font-weight:800; font-size:.86rem; }
+    /* Cellules franchisé : valeur principale + une sous-ligne (évolution N/N-1
+       sous le réalisé ; cible chiffrée sous le % d'objectif). */
+    .rpt-cell-main, .rpt-obj-pct { font-weight:800; font-size:.86rem; }
     .rpt-obj-tgt { display:block; font-size:.66rem; color:#adb5bd; font-weight:600; margin-top:1px; }
+    .rpt-evo { display:block; font-size:.66rem; font-weight:700; margin-top:1px; }
+    .rpt-up { color:#2D7A3E; } .rpt-down { color:#c0182b; }
 
     .rpt-note { border-left:3px solid rgba(141,29,44,.25); padding:2px 0 2px 10px; margin-bottom:10px; }
     .rpt-note-meta { font-size:.72rem; color:#8D1D2C; font-weight:700; }
@@ -194,10 +197,13 @@
                                 <tr>
                                     <td>{{ k.label }}</td>
                                     <td class="num">{{ k.n1 is not null ? (k.n1|number_format(dec, ',', ' ') ~ u) : '—' }}</td>
-                                    <td class="num rpt-v-{{ k.status }}">{{ k.val is not null ? (k.val|number_format(dec, ',', ' ') ~ u) : '—' }}</td>
+                                    <td class="num">
+                                        <span class="rpt-cell-main">{{ k.val is not null ? (k.val|number_format(dec, ',', ' ') ~ u) : '—' }}</span>
+                                        {% if k.evo is not null %}<span class="rpt-evo {{ k.evo >= 0 ? 'rpt-up' : 'rpt-down' }}">{{ k.evo >= 0 ? '▲ +' : '▼ −' }}{{ (k.evo < 0 ? -k.evo : k.evo)|number_format(1, ',', ' ') }} %</span>{% endif %}
+                                    </td>
                                     <td class="num">
                                         {% if k.pct is not null %}
-                                            <span class="rpt-obj-pct rpt-v-{{ k.status }}">{{ k.pct|number_format(0, ',', ' ') }} %</span>
+                                            <span class="rpt-cell-main rpt-v-{{ k.status }}">{{ k.pct|number_format(0, ',', ' ') }} %</span>
                                             {% if k.obj is not null %}<span class="rpt-obj-tgt">{{ k.obj|number_format(dec, ',', ' ') ~ u }}</span>{% endif %}
                                         {% else %}—{% endif %}
                                     </td>
@@ -206,6 +212,7 @@
                             </tbody>
                         </table>
                         <div class="rpt-hexm-legend">
+                            <span><span class="rpt-up">▲</span>/<span class="rpt-down">▼</span> {{ translations.legend_evo ?? 'évol. vs N-1' }}</span>
                             <span class="rpt-st-ok">✓ {{ translations.legend_good ?? 'bon' }}</span>
                             <span class="rpt-st-mid">⚠ {{ translations.legend_mid ?? 'attention' }}</span>
                             <span class="rpt-st-bad">● {{ translations.legend_bad ?? 'danger' }}</span>
