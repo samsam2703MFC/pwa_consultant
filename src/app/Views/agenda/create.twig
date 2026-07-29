@@ -1,8 +1,9 @@
 {% extends "layouts/mobile_base.twig" %}
 {% import "components/_icons.twig" as icons %}
 {% set active_nav = 'agenda' %}
-{% block title %}{{ translations.plan_visit ?? 'Planifier une visite' }} — Consultant Panel{% endblock %}
-{% block page_title %}{{ translations.plan_visit ?? 'Planifier une visite' }}{% endblock %}
+{% set is_edit = edit is defined and edit %}
+{% block title %}{{ is_edit ? (translations.edit_visit ?? 'Modifier la visite') : (translations.plan_visit ?? 'Planifier une visite') }} — Consultant Panel{% endblock %}
+{% block page_title %}{{ is_edit ? (translations.edit_visit ?? 'Modifier la visite') : (translations.plan_visit ?? 'Planifier une visite') }}{% endblock %}
 
 {% block head %}
 <style>
@@ -13,19 +14,23 @@
   .af .two { display:flex; gap:10px; } .af .two > div { flex:1; }
   .lev-row { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
   .lev-badge { flex-shrink:0; width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:.78rem; font-weight:800; }
-  .lev-badge.sug-bad { background:#c0182b; } .lev-badge.sug-mid { background:#e67e22; } .lev-badge.sug-no { background:#cfc7bb; }
+  .st-ok { background:#2D7A3E; } .st-mid { background:#e67e22; } .st-bad { background:#c0182b; } .st-nd { background:#cfc7bb; color:#fff; }
   .lev-row input { flex:1; }
-  .sugbar { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
-  .sug { font-size:.68rem; font-weight:800; border-radius:8px; padding:3px 9px; color:#fff; }
-  .sug.bad { background:#c0182b; } .sug.mid { background:#e67e22; }
+  .treflo { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
+  .treflo .tf { display:inline-flex; align-items:center; gap:5px; font-size:.66rem; font-weight:800; color:#fff; border-radius:8px; padding:3px 9px; }
   .note { background:#fff8ec; border:1px solid #f3e2c2; border-left:3px solid #e6a817; border-radius:10px; padding:10px 12px; font-size:.76rem; color:#7a5a12; line-height:1.45; margin:6px 0 14px; }
   .send { background:#f6fbf7; border:1px solid #cfe7d5; border-radius:11px; padding:10px 12px; margin:6px 0 14px; }
+  .send.off { opacity:.45; }
   .send .h { font-size:.7rem; font-weight:800; color:#2D7A3E; margin-bottom:5px; }
   .send .l { font-size:.74rem; color:#4a5f4e; padding:2px 0; }
   .shared { display:flex; align-items:center; gap:10px; background:#fff; border:1.5px solid #e7ded2; border-radius:11px; padding:10px 12px; }
   .shared input { width:auto; }
+  .rep { display:flex; align-items:center; gap:9px; background:#faf7f2; border:1px solid #ece4d8; border-radius:11px; padding:9px 11px; }
+  .rep .ic { width:30px; height:34px; border-radius:5px; background:#8D1D2C; color:#fff; display:flex; align-items:center; justify-content:center; font-size:.55rem; font-weight:800; flex-shrink:0; }
+  .rep a { color:#8D1D2C; font-weight:800; font-size:.78rem; text-decoration:none; }
   .subm { width:100%; background:#8D1D2C; color:#fff; border:0; border-radius:999px; padding:13px; font-size:.9rem; font-weight:800; }
   .sechd { font-size:.64rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#8D1D2C; margin:16px 2px 9px; }
+  .surprise-note { display:none; background:#f3eaf6; border:1px solid #e2cdec; border-left:3px solid #8e44ad; border-radius:10px; padding:9px 12px; font-size:.75rem; color:#6c3483; margin:6px 0 12px; }
 </style>
 {% endblock %}
 
@@ -34,54 +39,74 @@
 
   <a href="{{ ROOT }}/agenda" class="app-back-btn" style="margin-bottom:14px;">{{ icons.svg('chevron-left', 16) }}<span>{{ translations.back ?? 'Agenda' }}</span></a>
 
-  <form method="POST" action="{{ ROOT }}/agenda/visits">
+  <form method="POST" action="{{ is_edit ? (ROOT ~ '/agenda/visits/' ~ edit.id ~ '/update') : (ROOT ~ '/agenda/visits') }}">
     <div class="af">
       <div class="fl">{{ translations.shop ?? 'Boutique' }}</div>
       <select name="shop_id" required>
         <option value="">—</option>
         {% for s in shops %}
-          <option value="{{ s.id }}" {{ (shop_id == s.id) ? 'selected' : '' }}>{{ s.representative_name ?? s.name }}</option>
+          <option value="{{ s.id }}" {{ ((is_edit ? edit.id_shop : shop_id) == s.id) ? 'selected' : '' }}>{{ s.representative_name ?? s.name }}</option>
         {% endfor %}
       </select>
     </div>
 
-    <div class="af two">
-      <div><div class="fl">{{ translations.date ?? 'Date' }}</div><input type="date" name="date" value="{{ date }}" required></div>
-      <div><div class="fl">{{ translations.time ?? 'Heure' }}</div><input type="time" name="time" value="10:00"></div>
+    <div class="af">
+      <div class="fl">{{ translations.visit_type ?? 'Type de visite' }}</div>
+      <select name="type" id="visit-type">
+        {% for k, lbl in (types ?? {'surprise':'Surprise','development':'Développement','quality':'Qualité','other':'Autres'}) %}
+          <option value="{{ k }}" {{ ((is_edit ? edit.type : 'development') == k) ? 'selected' : '' }}>{{ translations['type_' ~ k] ?? lbl }}</option>
+        {% endfor %}
+      </select>
     </div>
+    <div class="surprise-note" id="surprise-note">🙈 {{ translations.surprise_note ?? 'Visite surprise : non partagée au franchisé (aucun envoi).' }}</div>
+
+    <div class="af two">
+      <div><div class="fl">{{ translations.date ?? 'Date' }}</div><input type="date" name="date" value="{{ is_edit ? edit.date : date }}" required></div>
+      <div><div class="fl">{{ translations.time ?? 'Heure' }}</div><input type="time" name="time" value="{{ is_edit ? edit.time : '10:00' }}"></div>
+    </div>
+
+    {# ── Résultats des 6 leviers au dernier rapport (TREFLO) ── #}
+    {% if lever_results is not empty %}
+      <div class="af">
+        <div class="fl">{{ translations.last_results ?? 'Résultats du mois passé (leviers)' }}</div>
+        <div class="treflo">
+          {% for lev in levers %}
+            {% set res = lever_results[lev.key] ?? null %}
+            <span class="tf st-{{ res ? res.status : 'nd' }}" title="{{ lev.name }}">{{ lev.letter }} {{ lev.name }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
 
     <div class="af">
       <div class="fl">{{ translations.goal ?? 'But de la visite' }}</div>
-      {% if suggested is not empty %}
-        <div class="sugbar">
-          {% for lv in suggested %}<span class="sug {{ lv.status }}">{{ lv.letter }} · {{ lv.name }}</span>{% endfor %}
-        </div>
-      {% endif %}
-      <textarea name="goal" placeholder="{{ translations.goal_hint ?? 'Ex. Travailler les leviers en difficulté au dernier rapport…' }}"></textarea>
+      <textarea name="goal" placeholder="{{ translations.goal_hint ?? 'Ex. Travailler les leviers en difficulté au dernier rapport…' }}">{{ is_edit ? edit.goal : '' }}</textarea>
     </div>
 
     {# ── Ce qu'il faut travailler, par levier ── #}
     <div class="sechd">{{ translations.lever_actions ?? 'À travailler par levier' }}</div>
-    {% set sug_map = {} %}
-    {% for lv in suggested %}{% set sug_map = sug_map|merge({ (lv.key): lv.status }) %}{% endfor %}
     {% for lev in levers %}
-      {% set st = sug_map[lev.key] ?? 'no' %}
+      {% set res = lever_results[lev.key] ?? null %}
       <div class="lev-row">
-        <span class="lev-badge sug-{{ st }}" title="{{ lev.name }}">{{ lev.letter }}</span>
-        <input type="text" name="action_{{ lev.key }}" placeholder="{{ lev.name }} — {{ translations.action_hint ?? 'action à travailler' }}">
+        <span class="lev-badge st-{{ res ? res.status : 'nd' }}" title="{{ lev.name }}">{{ lev.letter }}</span>
+        <input type="text" name="action_{{ lev.key }}" value="{{ is_edit and existing[lev.key] is defined ? existing[lev.key] : '' }}" placeholder="{{ lev.name }} — {{ translations.action_hint ?? 'action à travailler' }}">
       </div>
     {% endfor %}
 
+    {# ── Rapport lié (lien qui exécute le rapport de la boutique) ── #}
     <div class="af" style="margin-top:14px;">
-      <div class="fl">{{ translations.report_ref ?? 'Rapport indexé (lien)' }}</div>
-      <input type="text" name="report_ref" placeholder="{{ ROOT }}/reports/view?type=month&scope={{ shop_id }}">
+      <div class="fl">{{ translations.report_ref ?? 'Rapport lié' }}</div>
+      <div class="rep">
+        <span class="ic">PDF</span>
+        <a href="{{ ROOT }}/reports/view?type=month&scope={{ is_edit ? edit.id_shop : shop_id }}" target="_blank">{{ translations.open_report ?? 'Ouvrir le rapport mensuel' }} ↗</a>
+      </div>
     </div>
 
     <div class="af">
-      <label class="shared"><input type="checkbox" name="shared" value="1" checked> <span>{{ translations.share_franchisee ?? 'Partager au franchisé' }}</span></label>
+      <label class="shared"><input type="checkbox" name="shared" id="shared-cb" value="1" {{ (is_edit ? (edit.shared ? 'checked' : '') : 'checked') }}> <span>{{ translations.share_franchisee ?? 'Partager au franchisé' }}</span></label>
     </div>
 
-    <div class="send">
+    <div class="send" id="send-block">
       <div class="h">✉ {{ translations.auto_send ?? "À l'enregistrement (envoi serveur SMTP — à configurer)" }}</div>
       <div class="l">📧 {{ translations.send_email ?? 'E-mail au franchisé (but + rapport)' }}</div>
       <div class="l">📅 {{ translations.send_ics ?? 'Invitation Google Agenda (.ics)' }}</div>
@@ -90,7 +115,23 @@
 
     <div class="note">⚠ {{ translations.checklist_note ?? 'Pendant la visite, respectez votre checklist — elle génère le rapport de visite à la fin.' }}</div>
 
-    <button type="submit" class="subm">{{ translations.save_visit ?? 'Enregistrer la visite' }}</button>
+    <button type="submit" class="subm">{{ is_edit ? (translations.save_changes ?? 'Enregistrer les modifications') : (translations.save_visit ?? 'Enregistrer la visite') }}</button>
   </form>
 </div>
+
+<script>
+(function () {
+  var sel = document.getElementById('visit-type');
+  var note = document.getElementById('surprise-note');
+  var send = document.getElementById('send-block');
+  var cb = document.getElementById('shared-cb');
+  function sync() {
+    var surprise = sel && sel.value === 'surprise';
+    if (note) note.style.display = surprise ? 'block' : 'none';
+    if (send) send.classList.toggle('off', surprise);
+    if (cb) { cb.checked = surprise ? false : cb.checked; cb.disabled = surprise; }
+  }
+  if (sel) { sel.addEventListener('change', sync); sync(); }
+})();
+</script>
 {% endblock %}

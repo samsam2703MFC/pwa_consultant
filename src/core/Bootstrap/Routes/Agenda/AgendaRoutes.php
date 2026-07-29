@@ -22,6 +22,16 @@ return function (RouteCollector $r) {
         'method'     => 'store',
     ]);
 
+    // Édition d'une visite.
+    $r->addRoute('GET', '/agenda/visits/{id:\d+}/edit', [
+        'controller' => \App\Consultant\app\Http\Controllers\Agenda\AgendaController::class,
+        'method'     => 'editVisit',
+    ]);
+    $r->addRoute('POST', '/agenda/visits/{id:\d+}/update', [
+        'controller' => \App\Consultant\app\Http\Controllers\Agenda\AgendaController::class,
+        'method'     => 'update',
+    ]);
+
     // Invitation calendrier (.ics) d'une visite.
     $r->addRoute('GET', '/agenda/visits/{id:\d+}/ics', [
         'controller' => \App\Consultant\app\Http\Controllers\Agenda\AgendaController::class,
