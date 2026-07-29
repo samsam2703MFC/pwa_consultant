@@ -41,5 +41,7 @@
     "cmp_low": "ruim onder het netwerkgemiddelde",
     "cmp_category": "Categorie",
     "cmp_network": "Netwerk",
-    "cmp_vs_network": "vs netwerk"
+    "cmp_vs_network": "vs netwerk",
+    "network_values": "Netwerkwaarden — waardering",
+    "loading": "Laden…"
 }

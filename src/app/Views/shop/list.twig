@@ -404,6 +404,134 @@
         </span>
     </div>
 
+    {# ══ Bouton Drop : Valeurs réseau (valorisation) ══ #}
+    <style>
+      .valo-drop { margin-bottom:14px; }
+      .valo-toggle { width:100%; display:flex; align-items:center; gap:10px; background:#fff; border:1px solid #ece4d8; border-radius:14px; padding:12px 14px; font-size:.86rem; font-weight:800; color:#8D1D2C; box-shadow:0 2px 8px rgba(0,0,0,.05); }
+      .valo-toggle .ic { width:30px; height:30px; border-radius:9px; background:rgba(141,29,44,.1); display:flex; align-items:center; justify-content:center; }
+      .valo-toggle .chev { margin-left:auto; color:#adb5bd; transition:transform .2s; }
+      .valo-toggle.open .chev { transform:rotate(180deg); }
+      .valo-panel { background:#fff; border:1px solid #ece4d8; border-top:0; border-radius:0 0 14px 14px; margin-top:-6px; padding:12px 14px 14px; }
+      .valo-loading, .valo-empty { font-size:.8rem; color:#adb5bd; font-style:italic; padding:8px 2px; }
+      .valo-net { display:flex; gap:10px; margin-bottom:10px; }
+      .valo-net-box { flex:1; background:#faf7f2; border:1px solid #ece4d8; border-radius:12px; padding:10px 12px; }
+      .valo-net-l { font-size:.64rem; font-weight:700; color:#7a7168; text-transform:uppercase; letter-spacing:.02em; }
+      .valo-net-v { font-size:1.05rem; font-weight:800; color:#241f1c; margin-top:3px; }
+      .valo-net-v.obj { color:#8D1D2C; }
+      .valo-form { font-size:.64rem; color:#9a9086; margin-bottom:10px; line-height:1.4; }
+      .valo-tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+      .valo-tbl { width:100%; border-collapse:collapse; font-size:.82rem; }
+      .valo-tbl th, .valo-tbl td { text-align:left; padding:6px 4px; border-bottom:1px solid rgba(0,0,0,.06); }
+      .valo-tbl th { font-size:.66rem; text-transform:uppercase; color:#7a7168; font-weight:700; }
+      .valo-tbl td.num, .valo-tbl th.num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+      .valo-tbl tr.valo-chain td { font-weight:800; color:#8D1D2C; border-top:2px solid rgba(141,29,44,.2); }
+      .valo-chart-h { font-size:.66rem; font-weight:800; color:#8D1D2C; text-transform:uppercase; letter-spacing:.04em; margin:14px 0 4px; }
+      .valo-chart-h .mut { color:#9a9086; font-weight:600; text-transform:none; letter-spacing:0; }
+      .valo-sel { margin:6px 0; font-size:.76rem; border:1.5px solid #e7ded2; border-radius:9px; padding:6px 10px; background:#fff; }
+      .valo-legend { display:flex; gap:14px; font-size:.62rem; color:#7a7168; margin-top:4px; }
+      .valo-legend i { display:inline-block; width:14px; height:3px; border-radius:2px; margin-right:4px; vertical-align:2px; }
+    </style>
+    <div class="valo-drop">
+      <button type="button" class="valo-toggle" id="valoToggle" aria-expanded="false">
+        <span class="ic">{{ icons.svg('trending-up', 16) }}</span>
+        <span>{{ translations.network_values ?? 'Valeurs réseau — valorisation' }}</span>
+        <span class="chev">▾</span>
+      </button>
+      <div class="valo-panel" id="valoPanel" hidden>
+        <div class="valo-loading" id="valoLoading">{{ translations.loading ?? 'Chargement…' }}</div>
+        <div id="valoContent"></div>
+      </div>
+    </div>
+    <script>
+    (function () {
+      var toggle = document.getElementById('valoToggle'), panel = document.getElementById('valoPanel');
+      var content = document.getElementById('valoContent'), loading = document.getElementById('valoLoading');
+      if (!toggle) return;
+      var ROOT = window.__consultantRoot || '';
+      var loaded = false, data = null;
+      var nf = new Intl.NumberFormat('fr-BE', { maximumFractionDigits: 0 });
+      var eur = function (v) { return (v == null) ? '—' : nf.format(Math.round(v)) + ' €'; };
+      // Compact (M€ / k€) pour les cellules du tableau — évite le débordement sur mobile.
+      var keur = function (v) {
+        if (v == null) { return '—'; }
+        if (Math.abs(v) >= 1e6) { return String((v / 1e6).toFixed(2)).replace('.', ',') + ' M€'; }
+        if (Math.abs(v) >= 1e3) { return nf.format(Math.round(v / 1e3)) + ' k€'; }
+        return nf.format(Math.round(v)) + ' €';
+      };
+      var dec = function (v) { return String(v).replace('.', ','); };
+
+      toggle.addEventListener('click', function () {
+        var open = panel.hidden;
+        panel.hidden = !open;
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle.classList.toggle('open', open);
+        if (open && !loaded) { loaded = true; load(); }
+      });
+
+      function load() {
+        fetch(ROOT + '/shops/valuation', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) { loading.style.display = 'none'; data = (j && j.data) || null; render(); })
+          .catch(function () { loading.textContent = 'Erreur de chargement.'; });
+      }
+
+      function render() {
+        if (!data || !data.shops) { content.innerHTML = '<div class="valo-empty">Données indisponibles.</div>'; return; }
+        var d = data, h = '';
+        h += '<div class="valo-net">'
+          + '<div class="valo-net-box"><div class="valo-net-l">Valorisation actuelle — chaîne</div><div class="valo-net-v">' + eur(d.network.valo_actuelle) + '</div></div>'
+          + '<div class="valo-net-box"><div class="valo-net-l">À l\'objectif — chaîne</div><div class="valo-net-v obj">' + eur(d.network.valo_objectif) + '</div></div>'
+          + '</div>';
+        h += '<div class="valo-form">Objectif = CA annuel × ' + dec(d.target_margin_pct) + ' % × ' + dec(d.multiple) + ' · Actuelle = marge nette moy. 12 mois × CA annuel × ' + dec(d.multiple) + '</div>';
+        h += '<div class="valo-tbl-wrap"><table class="valo-tbl"><thead><tr><th>Boutique</th><th class="num">Actuelle</th><th class="num">Objectif</th></tr></thead><tbody>';
+        d.shops.forEach(function (s) {
+          h += '<tr><td>' + esc(s.name) + '</td><td class="num">' + keur(s.valo_actuelle) + '</td><td class="num">' + keur(s.valo_objectif) + '</td></tr>';
+        });
+        h += '<tr class="valo-chain"><td>Chaîne</td><td class="num">' + keur(d.network.valo_actuelle) + '</td><td class="num">' + keur(d.network.valo_objectif) + '</td></tr>';
+        h += '</tbody></table></div>';
+
+        var months = (d.series && d.series.months) || [];
+        h += '<div class="valo-chart-h">Évolution 12 mois' + (months.length < 2 ? ' <span class="mut">(se remplit chaque mois)</span>' : '') + '</div>';
+        if (!months.length) {
+          h += '<div class="valo-empty">Pas encore de données mensuelles.</div>';
+          content.innerHTML = h;
+          return;
+        }
+        var opts = d.shops.map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('');
+        h += '<select class="valo-sel" id="valoShopSel">' + opts + '</select>';
+        h += '<div id="valoChart"></div>';
+        h += '<div class="valo-legend"><span><i style="background:#8D1D2C"></i>Réseau</span><span><i style="background:#1a73e8"></i>Boutique</span></div>';
+        content.innerHTML = h;
+        var sel = document.getElementById('valoShopSel');
+        drawChart(sel.value);
+        sel.addEventListener('change', function () { drawChart(this.value); });
+      }
+
+      function drawChart(shopId) {
+        var host = document.getElementById('valoChart'); if (!host) return;
+        var s = data.series, months = s.months, net = s.network, shop = (s.by_shop && s.by_shop[shopId]) || [];
+        var vals = net.concat(shop).filter(function (v) { return v != null; });
+        var max = Math.max.apply(null, vals.concat([1])) * 1.1;
+        var W = 320, H = 130, pad = 10, base = H - 18, top = 8, span = base - top, n = months.length;
+        var xs = function (i) { return n <= 1 ? W / 2 : (pad + i * (W - 2 * pad) / (n - 1)); };
+        var ys = function (v) { return base - (v / max) * span; };
+        function line(arr, color, w) {
+          var pts = [], dots = '';
+          arr.forEach(function (v, i) { if (v != null) { pts.push(xs(i) + ',' + ys(v).toFixed(1)); dots += '<circle cx="' + xs(i).toFixed(1) + '" cy="' + ys(v).toFixed(1) + '" r="2.5" fill="' + color + '"/>'; } });
+          return (pts.length ? '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"/>' : '') + dots;
+        }
+        var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%">';
+        svg += line(shop, '#1a73e8', 1.6);
+        svg += line(net, '#8D1D2C', 2.2);
+        months.forEach(function (m, i) { svg += '<text x="' + xs(i).toFixed(1) + '" y="' + (H - 4) + '" font-size="7" fill="#9a9086" text-anchor="middle">' + m.slice(5) + '</text>'; });
+        svg += '</svg>';
+        host.innerHTML = svg;
+      }
+
+      function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    })();
+    </script>
+
     {% if shops is empty %}
         <div class="text-center text-muted py-5">
             <span style="font-size:2.5rem;opacity:.3;">{{ icons.svg('store') }}</span>
