@@ -18,6 +18,11 @@
   .sa-vc .g { font-size:.74rem; color:#7a7168; margin-top:2px; }
   .st { display:inline-block; font-size:.62rem; font-weight:800; border-radius:8px; padding:2px 8px; margin-top:5px; }
   .st.plan { background:rgba(26,115,232,.12); color:#1a73e8; } .st.done { background:rgba(45,122,62,.13); color:#2D7A3E; } .st.cancel { background:#f1f3f5; color:#adb5bd; }
+  .sa-type { font-size:.6rem; font-weight:800; border-radius:7px; padding:2px 7px; color:#fff; }
+  .t-surprise { background:#8e44ad; } .t-development { background:#1a73e8; } .t-quality { background:#2D7A3E; } .t-other { background:#7a7168; }
+  .sa-chips { display:flex; gap:6px; margin-top:7px; flex-wrap:wrap; }
+  .sa-chip { font-size:.62rem; font-weight:700; border-radius:8px; padding:3px 9px; text-decoration:none; }
+  .sa-chip.r { background:rgba(45,122,62,.12); color:#2D7A3E; } .sa-chip.p { background:rgba(26,115,232,.12); color:#1a73e8; } .sa-chip.e { background:#f1f3f5; color:#495057; }
   .lev-grp { background:#fff; border:1px solid #ece4d8; border-radius:13px; padding:10px 12px; margin-bottom:9px; }
   .lev-grp .h { display:flex; align-items:center; gap:9px; font-size:.82rem; font-weight:800; color:#241f1c; }
   .lev-badge { width:24px; height:24px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:.74rem; font-weight:800; background:#8a827a; }
@@ -41,10 +46,16 @@
     {% for v in visits %}
       <div class="sa-v">
         <div class="sa-vt"><div class="d">{{ v.date|slice(8,2) }}</div><div class="h">{{ v.time }}</div></div>
+        {% set own = (v.id_consultant == current_user.membership_id or v.id_consultant == current_user.id) %}
         <div class="sa-vc">
-          <div class="who">{{ v.consultant_name ?? '—' }} {% if v.id_consultant == current_user.membership_id or v.id_consultant == current_user.id %}<span class="me">({{ translations.you ?? 'vous' }})</span>{% endif %}</div>
+          <div class="who">{{ v.consultant_name ?? '—' }} {% if own %}<span class="me">({{ translations.you ?? 'vous' }})</span>{% endif %} <span class="sa-type t-{{ v.type ?? 'development' }}">{{ translations['type_' ~ (v.type ?? 'development')] ?? v.type_label }}</span></div>
           {% if v.goal %}<div class="g">{{ v.goal }}</div>{% endif %}
           <span class="st {{ v.status_class }}">{{ v.status == 'done' ? (translations.done ?? 'faite') : (v.status == 'cancelled' ? (translations.cancelled ?? 'annulée') : (translations.planned ?? 'planifiée')) }}</span>
+          <div class="sa-chips">
+            <a class="sa-chip r" href="{{ ROOT }}/reports/view?type=month&scope={{ shop_id }}" target="_blank">📄 {{ translations.report ?? 'Rapport' }}</a>
+            <a class="sa-chip p" href="{{ ROOT }}/agenda/visits/{{ v.id }}/ics">📅 {{ translations.ics ?? '.ics' }}</a>
+            {% if own %}<a class="sa-chip e" href="{{ ROOT }}/agenda/visits/{{ v.id }}/edit">✎ {{ translations.edit ?? 'Modifier' }}</a>{% endif %}
+          </div>
         </div>
       </div>
     {% endfor %}

@@ -16,15 +16,18 @@
   .ag-cal { background:#fff; border:1px solid #ece4d8; border-radius:16px; padding:8px; box-shadow:0 3px 12px -8px rgba(70,40,25,.3); }
   .ag-wk, .ag-grid { display:grid; grid-template-columns:repeat(7,1fr); }
   .ag-wk .wd { text-align:center; font-size:.6rem; font-weight:800; color:#9a9086; text-transform:uppercase; padding:2px 0 6px; }
-  .ag-grid { gap:3px; }
-  .ag-day { min-height:52px; border-radius:9px; background:#faf7f2; border:1px solid #f1e9dd; padding:3px 3px 2px; display:flex; flex-direction:column; }
+  .ag-grid { gap:2px; }
+  .ag-day { min-height:46px; border-radius:8px; background:#faf7f2; border:1px solid #f1e9dd; padding:3px 3px 4px; display:flex; flex-direction:column; align-items:stretch; }
   .ag-day.out { background:transparent; border-color:transparent; }
   .ag-day.out .n { color:#c4bcae; }
   .ag-day .n { font-size:.7rem; font-weight:700; color:#3a352f; text-align:right; line-height:1; margin-bottom:2px; }
   .ag-day.today { border:2px solid #8D1D2C; }
   .ag-day.today .n { color:#8D1D2C; font-weight:800; }
-  .ev { display:block; font-size:.56rem; font-weight:700; color:#fff; border-radius:4px; padding:1px 4px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-decoration:none; }
+  /* Mobile-friendly : pastilles compactes (le détail est dans la liste dessous). */
+  .ev-dots { display:flex; flex-wrap:wrap; gap:2px; margin-top:auto; }
+  .ev { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
   .ev-plan { background:#1a73e8; } .ev-done { background:#2D7A3E; } .ev-cancel { background:#adb5bd; }
+  .ev-more { font-size:.5rem; color:#7a7168; font-weight:800; line-height:7px; }
   .ag-legend { display:flex; gap:14px; padding:10px 2px 0; font-size:.64rem; color:#7a7168; }
   .ag-legend i { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:4px; vertical-align:-1px; }
   .ag-sec { font-size:.64rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#8D1D2C; margin:18px 2px 8px; }
@@ -38,6 +41,10 @@
   .ag-chip { display:inline-flex; align-items:center; gap:4px; font-size:.64rem; font-weight:700; border-radius:8px; padding:3px 9px; text-decoration:none; }
   .ag-chip.p { background:rgba(26,115,232,.12); color:#1a73e8; }
   .ag-chip.g { background:rgba(141,29,44,.09); color:#8D1D2C; }
+  .ag-chip.r { background:rgba(45,122,62,.12); color:#2D7A3E; }
+  .ag-chip.e { background:#f1f3f5; color:#495057; }
+  .ag-type { font-size:.6rem; font-weight:800; border-radius:7px; padding:2px 7px; color:#fff; vertical-align:middle; }
+  .t-surprise { background:#8e44ad; } .t-development { background:#1a73e8; } .t-quality { background:#2D7A3E; } .t-other { background:#7a7168; }
   .ag-empty { font-size:.82rem; color:#adb5bd; font-style:italic; padding:6px 2px; }
   .ag-fab { position:sticky; bottom:14px; margin-top:16px; }
   .ag-fab a { display:flex; align-items:center; justify-content:center; gap:8px; background:#8D1D2C; color:#fff; border-radius:999px; padding:13px; font-size:.9rem; font-weight:800; text-decoration:none; box-shadow:0 8px 20px -8px rgba(141,29,44,.6); }
@@ -67,9 +74,12 @@
       {% for week in mv.weeks %}{% for c in week %}
         <div class="ag-day{{ c.in_month ? '' : ' out' }}{{ c.today ? ' today' : '' }}">
           <div class="n">{{ c.day }}</div>
-          {% for v in c.visits %}
-            <a class="ev ev-{{ v.status_class }}" href="{{ ROOT }}/agenda/shop/{{ v.id_shop }}">{{ v.shop_name ?? '—' }}</a>
-          {% endfor %}
+          {% if c.visits is not empty %}
+            <div class="ev-dots">
+              {% for v in c.visits|slice(0, 4) %}<span class="ev ev-{{ v.status_class }}" title="{{ v.shop_name }}"></span>{% endfor %}
+              {% if c.visits|length > 4 %}<span class="ev-more">+{{ c.visits|length - 4 }}</span>{% endif %}
+            </div>
+          {% endif %}
         </div>
       {% endfor %}{% endfor %}
     </div>
@@ -88,11 +98,13 @@
       <div class="ag-vitem">
         <div class="ag-vt"><div class="d">{{ v.date|slice(8,2) }}</div><div class="h">{{ v.time }}</div></div>
         <div class="ag-vc">
-          <div class="s">{{ v.shop_name ?? '—' }}</div>
+          <div class="s">{{ v.shop_name ?? '—' }} <span class="ag-type t-{{ v.type ?? 'development' }}">{{ translations['type_' ~ (v.type ?? 'development')] ?? v.type_label }}</span></div>
           {% if v.goal %}<div style="font-size:.74rem;color:#7a7168;margin-top:2px;">{{ v.goal }}</div>{% endif %}
           <div class="ag-chips">
             <a class="ag-chip g" href="{{ ROOT }}/agenda/shop/{{ v.id_shop }}">{{ icons.svg('store', 12) }} {{ translations.shop_agenda ?? 'Agenda boutique' }}</a>
-            <a class="ag-chip p" href="{{ ROOT }}/agenda/visits/{{ v.id }}/ics">📅 {{ translations.ics ?? 'Invitation (.ics)' }}</a>
+            <a class="ag-chip r" href="{{ ROOT }}/reports/view?type=month&scope={{ v.id_shop }}" target="_blank">📄 {{ translations.report ?? 'Rapport' }}</a>
+            <a class="ag-chip p" href="{{ ROOT }}/agenda/visits/{{ v.id }}/ics">📅 {{ translations.ics ?? '.ics' }}</a>
+            <a class="ag-chip e" href="{{ ROOT }}/agenda/visits/{{ v.id }}/edit">✎ {{ translations.edit ?? 'Modifier' }}</a>
           </div>
         </div>
       </div>

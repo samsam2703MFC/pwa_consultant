@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS consultant_visit (
     shop_name       VARCHAR(190)    NULL,
     scheduled_at    DATETIME        NOT NULL,               -- date + heure de la visite
     duration_min    SMALLINT UNSIGNED NOT NULL DEFAULT 60,
+    type            VARCHAR(20)     NOT NULL DEFAULT 'development', -- surprise|development|quality|other
     goal            TEXT            NULL,                    -- but de la visite
     status          VARCHAR(20)     NOT NULL DEFAULT 'planned', -- planned | done | cancelled
     report_ref      VARCHAR(255)    NULL,                   -- lien/réf du rapport indexé

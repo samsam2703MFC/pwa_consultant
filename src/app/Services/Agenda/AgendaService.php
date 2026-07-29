@@ -20,6 +20,14 @@ class AgendaService
         ['key' => 'overhead',   'letter' => 'O', 'name' => 'Overhead'],
     ];
 
+    /** Types de visite (clé => libellé FR par défaut). Surprise = non partagée. */
+    public const TYPES = [
+        'surprise'    => 'Surprise',
+        'development' => 'Développement',
+        'quality'     => 'Qualité',
+        'other'       => 'Autres',
+    ];
+
     private const MONTHS = [1 => 'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
         'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
@@ -39,6 +47,21 @@ class AgendaService
     public function updateVisitStatus(int $id, string $status): bool
     {
         return $this->repo->updateVisitStatus($id, $status);
+    }
+
+    public function updateVisit(int $id, array $data): bool
+    {
+        return $this->repo->updateVisit($id, $data);
+    }
+
+    public function replaceLeverActions(int $visitId): void
+    {
+        $this->repo->deleteLeverActionsForVisit($visitId);
+    }
+
+    public function leverActionsForVisit(int $visitId): array
+    {
+        return $this->repo->leverActionsForVisit($visitId);
     }
 
     public function getVisit(int $id): ?array
@@ -163,6 +186,8 @@ class AgendaService
         $v['time']  = substr($at, 11, 5);
         $status = (string)($v['status'] ?? 'planned');
         $v['status_class'] = ['planned' => 'plan', 'done' => 'done', 'cancelled' => 'cancel'][$status] ?? 'plan';
+        $type = (string)($v['type'] ?? 'development');
+        $v['type_label'] = self::TYPES[$type] ?? $type;
         return $v;
     }
 

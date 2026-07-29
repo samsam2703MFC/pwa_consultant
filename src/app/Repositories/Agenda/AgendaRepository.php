@@ -48,6 +48,7 @@ class AgendaRepository
                 . 'shop_name VARCHAR(190) NULL,'
                 . 'scheduled_at DATETIME NOT NULL,'
                 . 'duration_min SMALLINT UNSIGNED NOT NULL DEFAULT 60,'
+                . "type VARCHAR(20) NOT NULL DEFAULT 'development',"
                 . 'goal TEXT NULL,'
                 . "status VARCHAR(20) NOT NULL DEFAULT 'planned',"
                 . 'report_ref VARCHAR(255) NULL,'
@@ -59,6 +60,12 @@ class AgendaRepository
                 . 'KEY idx_shop_time (id_shop, scheduled_at)'
                 . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
             );
+            // Migration douce : ajoute `type` aux tables déjà créées (ignore si présente).
+            try {
+                $pdo->exec("ALTER TABLE consultant_visit ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'development'");
+            } catch (Throwable $e) {
+                // colonne déjà présente → rien à faire
+            }
             $pdo->exec(
                 'CREATE TABLE IF NOT EXISTS consultant_lever_action ('
                 . 'id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,'
@@ -93,8 +100,8 @@ class AgendaRepository
         try {
             $st = $pdo->prepare(
                 'INSERT INTO consultant_visit '
-                . '(id_consultant, consultant_name, id_shop, shop_name, scheduled_at, duration_min, goal, status, report_ref, shared, created_at) '
-                . 'VALUES (:c, :cn, :s, :sn, :at, :dur, :goal, :status, :ref, :shared, :now)'
+                . '(id_consultant, consultant_name, id_shop, shop_name, scheduled_at, duration_min, type, goal, status, report_ref, shared, created_at) '
+                . 'VALUES (:c, :cn, :s, :sn, :at, :dur, :type, :goal, :status, :ref, :shared, :now)'
             );
             $st->execute([
                 ':c'      => (int)$v['id_consultant'],
@@ -103,6 +110,7 @@ class AgendaRepository
                 ':sn'     => $v['shop_name'] ?? null,
                 ':at'     => $v['scheduled_at'],
                 ':dur'    => (int)($v['duration_min'] ?? 60),
+                ':type'   => $v['type'] ?? 'development',
                 ':goal'   => $v['goal'] ?? null,
                 ':status' => $v['status'] ?? 'planned',
                 ':ref'    => $v['report_ref'] ?? null,
@@ -148,6 +156,34 @@ class AgendaRepository
             'UPDATE consultant_visit SET status = :st, updated_at = :now WHERE id = :id',
             [':st' => $status, ':now' => $this->now(), ':id' => $id]
         );
+    }
+
+    /** Met à jour les champs éditables d'une visite. */
+    public function updateVisit(int $id, array $v): bool
+    {
+        return $this->exec(
+            'UPDATE consultant_visit SET id_shop = :s, shop_name = :sn, scheduled_at = :at, '
+            . 'duration_min = :dur, type = :type, goal = :goal, report_ref = :ref, shared = :shared, '
+            . 'updated_at = :now WHERE id = :id',
+            [
+                ':s'      => (int)$v['id_shop'],
+                ':sn'     => $v['shop_name'] ?? null,
+                ':at'     => $v['scheduled_at'],
+                ':dur'    => (int)($v['duration_min'] ?? 60),
+                ':type'   => $v['type'] ?? 'development',
+                ':goal'   => $v['goal'] ?? null,
+                ':ref'    => $v['report_ref'] ?? null,
+                ':shared' => !empty($v['shared']) ? 1 : 0,
+                ':now'    => $this->now(),
+                ':id'     => $id,
+            ]
+        );
+    }
+
+    /** Supprime les actions par levier rattachées à une visite (avant réécriture). */
+    public function deleteLeverActionsForVisit(int $visitId): bool
+    {
+        return $this->exec('DELETE FROM consultant_lever_action WHERE id_visit = :v', [':v' => $visitId]);
     }
 
     // ── Actions par levier ───────────────────────────────────────────────────
