@@ -41,5 +41,7 @@
     "cmp_low": "well below the network average",
     "cmp_category": "Category",
     "cmp_network": "Network",
-    "cmp_vs_network": "vs network"
+    "cmp_vs_network": "vs network",
+    "network_values": "Network values — valuation",
+    "loading": "Loading…"
 }

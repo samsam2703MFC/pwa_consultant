@@ -41,5 +41,7 @@
     "cmp_low": "nettamente sotto la media rete",
     "cmp_category": "Categoria",
     "cmp_network": "Rete",
-    "cmp_vs_network": "vs rete"
+    "cmp_vs_network": "vs rete",
+    "network_values": "Valori rete — valutazione",
+    "loading": "Caricamento…"
 }

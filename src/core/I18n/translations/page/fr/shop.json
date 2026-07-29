@@ -41,5 +41,7 @@
     "cmp_low": "nettement sous la moyenne réseau",
     "cmp_category": "Catégorie",
     "cmp_network": "Réseau",
-    "cmp_vs_network": "vs réseau"
+    "cmp_vs_network": "vs réseau",
+    "network_values": "Valeurs réseau — valorisation",
+    "loading": "Chargement…"
 }

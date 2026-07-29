@@ -41,5 +41,7 @@
     "cmp_low": "wyraźnie poniżej średniej sieci",
     "cmp_category": "Kategoria",
     "cmp_network": "Sieć",
-    "cmp_vs_network": "vs sieć"
+    "cmp_vs_network": "vs sieć",
+    "network_values": "Wartości sieci — wycena",
+    "loading": "Ładowanie…"
 }
