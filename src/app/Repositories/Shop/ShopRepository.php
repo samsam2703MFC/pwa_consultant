@@ -77,17 +77,65 @@ class ShopRepository
         if (self::$kpiApiMissing) {
             return null;
         }
-        $response = $this->apiClient->get(
-            '/shops/' . $shopId . '/statistics/sales/kpis'
-            . '?date_from=' . urlencode($fromDate) . '&date_to=' . urlencode($toDate)
-        );
+        $response = $this->apiClient->get($this->salesKpisEndpoint($shopId, $fromDate, $toDate));
         if (empty($response['success']) || !is_array($response['data'] ?? null)) {
             if (($response['error'] ?? null) === 404) {
                 self::$kpiApiMissing = true;
             }
             return null;
         }
-        $d = $response['data'];
+        return $this->parseSalesKpisPayload($response['data']);
+    }
+
+    /**
+     * KPI de vente pour PLUSIEURS fenêtres (magasin, from, to) en parallèle
+     * (curl_multi) — pour les vues multi-mois (Tendances). Même endpoint et
+     * même tolérance de schéma que getSalesKpisFromApi.
+     *
+     * @param array $windows liste de ['shop'=>int,'from'=>'Y-m-d','to'=>'Y-m-d']
+     * @return array<string, ?array> map "shop|from|to" => KPIs ou null (repli local)
+     */
+    public function getSalesKpisManyFromApi(array $windows): array
+    {
+        $out = [];
+        if ($windows === []) {
+            return $out;
+        }
+        $byKey = [];
+        foreach ($windows as $w) {
+            $key = (int)($w['shop'] ?? 0) . '|' . ($w['from'] ?? '') . '|' . ($w['to'] ?? '');
+            $out[$key] = null;
+            $byKey[$key] = $this->salesKpisEndpoint((int)($w['shop'] ?? 0), (string)($w['from'] ?? ''), (string)($w['to'] ?? ''));
+        }
+        if (self::$kpiApiMissing) {
+            return $out;
+        }
+        // Par paquets : des dizaines de fenêtres ne doivent pas ouvrir autant
+        // de connexions simultanées vers l'API.
+        $responses = [];
+        foreach (array_chunk(array_values(array_unique($byKey)), 24) as $chunk) {
+            $responses += $this->apiClient->getMany($chunk);
+        }
+        foreach ($byKey as $key => $ep) {
+            $r = $responses[$ep] ?? null;
+            if (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) {
+                $out[$key] = $this->parseSalesKpisPayload($r['data']);
+            } elseif (($r['error'] ?? null) === 404) {
+                self::$kpiApiMissing = true;
+            }
+        }
+        return $out;
+    }
+
+    private function salesKpisEndpoint(int $shopId, string $fromDate, string $toDate): string
+    {
+        return '/shops/' . $shopId . '/statistics/sales/kpis'
+            . '?date_from=' . urlencode($fromDate) . '&date_to=' . urlencode($toDate);
+    }
+
+    /** @return array{tickets:int, ca:float, products:int, avg_basket:?float, products_per_ticket:?float}|null */
+    private function parseSalesKpisPayload(array $d): ?array
+    {
         // Certains backends enveloppent encore dans data/kpis.
         foreach (['data', 'kpis'] as $wrap) {
             if (isset($d[$wrap]) && is_array($d[$wrap])) {

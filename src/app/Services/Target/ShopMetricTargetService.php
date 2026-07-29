@@ -14,6 +14,17 @@ class ShopMetricTargetService
         return $this->repo->getTargets($shopId, $year, $month);
     }
 
+    /**
+     * Targets de plusieurs couples (magasin, année, mois) en parallèle.
+     *
+     * @param array $reqs liste de ['shop'=>int,'year'=>int,'month'=>int]
+     * @return array<string, array> map "shop|year|month" => targets
+     */
+    public function getTargetsMany(array $reqs): array
+    {
+        return $this->repo->getTargetsMany($reqs);
+    }
+
     public function saveTargets(int $shopId, int $year, int $month, int $authorId, array $targets): array
     {
         return $this->repo->saveTargets($shopId, [

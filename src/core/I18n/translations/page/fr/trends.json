@@ -1,0 +1,23 @@
+{
+    "title": "Tendances",
+    "subtitle": "CA consolidé — 12 derniers mois",
+    "loading": "Consolidation des 12 derniers mois…",
+    "error": "Erreur de chargement.",
+    "empty": "Données indisponibles.",
+    "top3_title": "Top performances",
+    "top3_sub": "Top 3 des meilleurs mois",
+    "chart_title": "Évolution du CA consolidé",
+    "list_title": "Données mensuelles",
+    "serie_n": "CA N",
+    "serie_n1": "CA N-1",
+    "serie_obj": "Objectifs",
+    "col_month": "Mois",
+    "col_n1": "N-1",
+    "col_n": "N",
+    "col_evo": "Évol.",
+    "col_obj": "Objectif",
+    "col_reach": "Atteinte",
+    "partial": "en cours",
+    "note": "Objectif = somme des objectifs CA encodés par boutique (overrides consultant/admin). « — » : aucun objectif encodé ce mois-là.",
+    "partial_note": "« * » : mois en cours."
+}

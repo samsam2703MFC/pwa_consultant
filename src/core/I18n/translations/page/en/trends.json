@@ -1,0 +1,23 @@
+{
+    "title": "Trends",
+    "subtitle": "Consolidated revenue — last 12 months",
+    "loading": "Consolidating the last 12 months…",
+    "error": "Loading error.",
+    "empty": "No data available.",
+    "top3_title": "Top performances",
+    "top3_sub": "Top 3 best months",
+    "chart_title": "Consolidated revenue evolution",
+    "list_title": "Monthly data",
+    "serie_n": "Revenue N",
+    "serie_n1": "Revenue N-1",
+    "serie_obj": "Targets",
+    "col_month": "Month",
+    "col_n1": "N-1",
+    "col_n": "N",
+    "col_evo": "Evol.",
+    "col_obj": "Target",
+    "col_reach": "Reached",
+    "partial": "ongoing",
+    "note": "Target = sum of the revenue targets set per shop (consultant/admin overrides). \"—\": no target set that month.",
+    "partial_note": "\"*\": current month."
+}

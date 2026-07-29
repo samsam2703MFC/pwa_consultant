@@ -1,0 +1,23 @@
+{
+    "title": "Trends",
+    "subtitle": "Geconsolideerde omzet — laatste 12 maanden",
+    "loading": "Consolidatie van de laatste 12 maanden…",
+    "error": "Fout bij het laden.",
+    "empty": "Geen gegevens beschikbaar.",
+    "top3_title": "Topprestaties",
+    "top3_sub": "Top 3 beste maanden",
+    "chart_title": "Evolutie geconsolideerde omzet",
+    "list_title": "Maandgegevens",
+    "serie_n": "Omzet N",
+    "serie_n1": "Omzet N-1",
+    "serie_obj": "Doelen",
+    "col_month": "Maand",
+    "col_n1": "N-1",
+    "col_n": "N",
+    "col_evo": "Evol.",
+    "col_obj": "Doel",
+    "col_reach": "Bereikt",
+    "partial": "lopend",
+    "note": "Doel = som van de omzetdoelen per winkel (consultant/admin overrides). \"—\": geen doel ingesteld die maand.",
+    "partial_note": "\"*\": lopende maand."
+}

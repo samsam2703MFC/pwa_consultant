@@ -80,6 +80,26 @@ class ShopService
         return $this->shopSales->getSalesKpis($shopId, $from, $to);
     }
 
+    /**
+     * KPI de vente pour PLUSIEURS fenêtres [shop, from, to] en un minimum
+     * d'allers-retours (API en parallèle, repli local par fenêtre manquante) —
+     * même sémantique que getSalesKpis(), pour les vues multi-mois (Tendances).
+     *
+     * @param array $windows liste de ['shop'=>int,'from'=>'Y-m-d','to'=>'Y-m-d']
+     * @return array<string, array> map "shop|from|to" => KPIs
+     */
+    public function getSalesKpisBatch(array $windows): array
+    {
+        $api = $this->shopRepository->getSalesKpisManyFromApi($windows);
+        $out = [];
+        foreach ($windows as $w) {
+            $key = (int)($w['shop'] ?? 0) . '|' . ($w['from'] ?? '') . '|' . ($w['to'] ?? '');
+            $out[$key] = $api[$key]
+                ?? $this->shopSales->getSalesKpis((int)($w['shop'] ?? 0), (string)($w['from'] ?? ''), (string)($w['to'] ?? ''));
+        }
+        return $out;
+    }
+
     /** Coût matière total sur [from, to] (Y-m-d) — pour le levier Food Cost. */
     public function getMaterialCost(int $shopId, string $from, string $to): ?float
     {
