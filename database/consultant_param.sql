@@ -20,4 +20,6 @@ CREATE TABLE IF NOT EXISTS consultant_param (
 -- Valeurs initiales (modifiables ensuite en base) :
 INSERT IGNORE INTO consultant_param (param_key, param_value, label) VALUES
     ('valuation_multiple',              '4.5', 'Multiple de valorisation (× résultat net)'),
-    ('valuation_target_net_margin_pct', '15',  'Marge nette cible (%) — valorisation à l''objectif');
+    ('valuation_target_net_margin_pct', '15',  'Marge nette cible (%) — valorisation à l''objectif'),
+    ('daypart_morning_until',           '12',  'Heatmap rentabilité : fin du créneau « matin » (heure)'),
+    ('daypart_midday_until',            '14',  'Heatmap rentabilité : fin du créneau « midi » (heure)');

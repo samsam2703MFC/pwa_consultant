@@ -7,6 +7,7 @@ use App\Consultant\app\Services\Claim\ClaimService;
 use App\Consultant\app\Services\Target\ShopMetricTargetService;
 use App\Consultant\app\Services\Task\TaskService;
 use App\Consultant\app\Services\Campaign\CampaignService;
+use App\Consultant\app\Services\Param\ParamService;
 use App\Consultant\app\Repositories\Consultant\ConsultantUserRepository;
 use App\Consultant\core\Support\GlobalRegistry;
 
@@ -46,7 +47,8 @@ class ReportService
         private ShopMetricTargetService $targetService,
         private TaskService $taskService,
         private ConsultantUserRepository $consultantUsers,
-        private CampaignService $campaignService
+        private CampaignService $campaignService,
+        private ParamService $params
     ) {}
 
     /**
@@ -192,6 +194,14 @@ class ReportService
                     'campaigns'          => $type === 'month'
                         ? $this->campaignService->forShop($shopId, $campFrom, $campTo)
                         : null,
+                    // Comparaison structurée boutique/réseau + analyse de
+                    // rentabilité (heatmap de marge) — rapport MENSUEL uniquement.
+                    'compare'            => $type === 'month'
+                        ? $this->structuredCompare($shopId, $period, $kpis, $kpisByShop, $metricsByShop, $netAvg, $netFranchise)
+                        : null,
+                    'heatmap'            => $type === 'month'
+                        ? $this->rentabilityHeatmap($shopId, $period)
+                        : null,
                 ];
             }
         }
@@ -210,6 +220,239 @@ class ReportService
             'network'       => $network,
             'demandes'      => $this->demandesForPeriod($fromT, $toT, $shopFilter),
             'tasks_done'    => $this->tasksDoneForPeriod($fromT, $toT),
+        ];
+    }
+
+    /**
+     * Comparaison STRUCTURÉE boutique / réseau (rapport mensuel) : position
+     * (part du CA réseau, rangs CA/évolution/panier), écarts KPI vs moyenne
+     * réseau et mix des CATÉGORIES de ventes (part boutique vs part réseau).
+     */
+    private function structuredCompare(
+        int $shopId,
+        array $period,
+        array $kpis,
+        array $kpisByShop,
+        array $metricsByShop,
+        array $netAvg,
+        array $netFranchise
+    ): ?array {
+        $caShop = (float)($kpis['ca'] ?? 0);
+
+        // Position dans le réseau : part du CA total + rangs.
+        $caTotal = 0.0;
+        $cas = [];
+        $evos = [];
+        $baskets = [];
+        foreach ($kpisByShop as $sid => $k) {
+            $ca = (float)($k['ca'] ?? 0);
+            $caTotal += $ca;
+            if ($ca > 0) {
+                $cas[$sid] = $ca;
+            }
+            $b = $k['avg_basket'] ?? null;
+            if ($b !== null && (float)$b > 0) {
+                $baskets[$sid] = (float)$b;
+            }
+            $e = $metricsByShop[$sid]['evo'] ?? null;
+            if ($e !== null) {
+                $evos[$sid] = (float)$e;
+            }
+        }
+        $rank = function (array $vals) use ($shopId): ?array {
+            if (!isset($vals[$shopId])) {
+                return null;
+            }
+            arsort($vals);
+            return [array_search($shopId, array_keys($vals), true) + 1, count($vals)];
+        };
+
+        // Écarts vs moyenne réseau : delta en % (grandeurs) ou en points (%).
+        $rows = [];
+        $mk = function (string $label, ?float $shop, ?float $net, string $unit, int $dec) use (&$rows) {
+            $delta = null;
+            if ($shop !== null && $net !== null) {
+                $delta = $unit === 'pct' ? $shop - $net : ($net != 0.0 ? ($shop - $net) / abs($net) * 100 : null);
+            }
+            $rows[] = ['label' => $label, 'shop' => $shop, 'net' => $net, 'delta' => $delta, 'unit' => $unit, 'dec' => $dec];
+        };
+        $evoShop    = isset($metricsByShop[$shopId]['evo']) && $metricsByShop[$shopId]['evo'] !== null
+            ? (float)$metricsByShop[$shopId]['evo'] : null;
+        $basketShop = isset($kpis['avg_basket']) && $kpis['avg_basket'] !== null ? (float)$kpis['avg_basket'] : null;
+        $mk("Chiffre d'affaires",   $caShop > 0 ? $caShop : null,                     $netFranchise['ca'] ?? null,      'amount', 0);
+        $mk('Évolution CA vs N-1',  $evoShop,                                          $netAvg['evo'] ?? null,           'pct',    1);
+        $mk('Clients (tickets)',    (int)($kpis['tickets'] ?? 0) > 0 ? (float)$kpis['tickets'] : null, $netFranchise['clients'] ?? null, 'count', 0);
+        $mk('Panier moyen',         $basketShop,                                       $netFranchise['basket'] ?? null,  'amount', 2);
+
+        // Mix des catégories de ventes : part boutique vs part réseau (points).
+        $categories = null;
+        $mixAll  = $this->shopService->getCategorySalesMany(array_keys($kpisByShop), $period['from'], $period['to']);
+        $shopMix = $mixAll[$shopId] ?? null;
+        if (is_array($shopMix) && $shopMix !== []) {
+            $netMix = [];
+            foreach ($mixAll as $mix) {
+                if (!is_array($mix)) {
+                    continue;
+                }
+                foreach ($mix as $name => $ca) {
+                    $netMix[$name] = ($netMix[$name] ?? 0.0) + (float)$ca;
+                }
+            }
+            $shopTot = array_sum($shopMix);
+            $netTot  = array_sum($netMix);
+            if ($shopTot > 0 && $netTot > 0) {
+                arsort($shopMix);
+                $categories = [];
+                foreach (array_slice($shopMix, 0, 10, true) as $name => $ca) {
+                    $sp = (float)$ca / $shopTot * 100;
+                    $np = isset($netMix[$name]) ? $netMix[$name] / $netTot * 100 : null;
+                    $categories[] = [
+                        'name'     => (string)$name,
+                        'shop_ca'  => (float)$ca,
+                        'shop_pct' => $sp,
+                        'net_pct'  => $np,
+                        'delta'    => $np !== null ? $sp - $np : null,
+                    ];
+                }
+            }
+        }
+
+        return [
+            'share_pct'   => $caTotal > 0 ? $caShop / $caTotal * 100 : null,
+            'rank_ca'     => $rank($cas),
+            'rank_evo'    => $rank($evos),
+            'rank_basket' => $rank($baskets),
+            'rows'        => $rows,
+            'categories'  => $categories,
+        ];
+    }
+
+    /**
+     * Analyse de RENTABILITÉ (rapport mensuel) : carte de marge brute du mois
+     * (endpoint margin-heatmap) — jour par jour, puis créneaux matin / midi /
+     * après-midi par semaine. Les bornes des créneaux viennent de
+     * consultant_param (rien en dur). Échelle de couleur en 5 niveaux relatifs
+     * au mois (lvl 1 = plus faible … 5 = plus forte). null si indisponible.
+     */
+    private function rentabilityHeatmap(int $shopId, array $period): ?array
+    {
+        $month = $this->shopService->getMarginHeatmap($shopId, $period['from'], $period['to']);
+        if (!is_array($month) || !is_array($month['days'] ?? null) || $month['days'] === []) {
+            return null;
+        }
+
+        $morningUntil = $this->params->getInt('daypart_morning_until', 12);
+        $middayUntil  = $this->params->getInt('daypart_midday_until', 14);
+
+        // ── Mois / jour ──
+        $days = [];
+        $pcts = [];
+        foreach ($month['days'] as $d) {
+            if (!is_array($d) || empty($d['date'])) {
+                continue;
+            }
+            $ts  = (int)strtotime((string)$d['date']);
+            $pct = !empty($d['has_data']) && isset($d['margin_pct']) && is_numeric($d['margin_pct'])
+                ? (float)$d['margin_pct'] : null;
+            $days[] = [
+                'date' => (string)$d['date'],
+                'num'  => (int)date('j', $ts),
+                'wd'   => (int)date('N', $ts),   // 1 = lundi
+                'pct'  => $pct,
+                'ca'   => isset($d['ca']) && is_numeric($d['ca']) ? (float)$d['ca'] : null,
+            ];
+            if ($pct !== null) {
+                $pcts[] = $pct;
+            }
+        }
+        if ($days === []) {
+            return null;
+        }
+
+        // ── Semaine / période (matin, midi, après-midi) ──
+        // Une fenêtre par semaine (les heures de l'endpoint sont agrégées sur
+        // la fenêtre demandée), toutes récupérées en parallèle.
+        $start   = new \DateTimeImmutable($period['from']);
+        $end     = new \DateTimeImmutable($period['to']);
+        $wStart  = $start->modify('monday this week');
+        $windows = [];
+        $bounds  = [];
+        while ($wStart <= $end) {
+            $wEnd = $wStart->modify('+6 days');
+            $f = ($wStart > $start ? $wStart : $start)->format('Y-m-d');
+            $t = ($wEnd < $end ? $wEnd : $end)->format('Y-m-d');
+            $bounds[]  = ['from' => $f, 'to' => $t];
+            $windows[] = ['shop' => $shopId, 'from' => $f, 'to' => $t];
+            $wStart = $wStart->modify('+7 days');
+        }
+        $maps  = $this->shopService->getMarginHeatmapMany($windows);
+        $weeks = [];
+        foreach ($bounds as $b) {
+            $wk    = $maps["{$shopId}|{$b['from']}|{$b['to']}"] ?? null;
+            $parts = ['matin' => ['ca' => 0.0, 'mv' => 0.0], 'midi' => ['ca' => 0.0, 'mv' => 0.0], 'apm' => ['ca' => 0.0, 'mv' => 0.0]];
+            if (is_array($wk['hours'] ?? null)) {
+                foreach ($wk['hours'] as $h) {
+                    if (!is_array($h) || empty($h['has_data'])) {
+                        continue;
+                    }
+                    $ca = isset($h['ca']) && is_numeric($h['ca']) ? (float)$h['ca'] : 0.0;
+                    $mv = isset($h['margin_value']) && is_numeric($h['margin_value']) ? (float)$h['margin_value'] : null;
+                    if ($ca <= 0 || $mv === null) {
+                        continue;
+                    }
+                    $hr   = (int)($h['hour'] ?? -1);
+                    $slot = $hr < $morningUntil ? 'matin' : ($hr < $middayUntil ? 'midi' : 'apm');
+                    $parts[$slot]['ca'] += $ca;
+                    $parts[$slot]['mv'] += $mv;
+                }
+            }
+            $row = ['label' => date('d/m', (int)strtotime($b['from'])) . '–' . date('d/m', (int)strtotime($b['to']))];
+            foreach ($parts as $slot => $p) {
+                $row[$slot] = $p['ca'] > 0 ? $p['mv'] / $p['ca'] * 100 : null;
+                if ($row[$slot] !== null) {
+                    $pcts[] = $row[$slot];
+                }
+            }
+            $weeks[] = $row;
+        }
+
+        // ── Échelle : 5 niveaux relatifs au mois ──
+        $min = $pcts !== [] ? min($pcts) : null;
+        $max = $pcts !== [] ? max($pcts) : null;
+        $level = function (?float $pct) use ($min, $max): ?int {
+            if ($pct === null || $min === null || $max === null) {
+                return null;
+            }
+            if ($max - $min < 0.001) {
+                return 3;
+            }
+            return 1 + (int)min(4, floor(($pct - $min) / ($max - $min) * 5));
+        };
+        foreach ($days as &$d) {
+            $d['lvl'] = $level($d['pct']);
+        }
+        unset($d);
+        foreach ($weeks as &$w) {
+            foreach (['matin', 'midi', 'apm'] as $slot) {
+                $w['lvl_' . $slot] = $level($w[$slot]);
+            }
+        }
+        unset($w);
+
+        return [
+            'days'   => $days,
+            'weeks'  => $weeks,
+            'min'    => $min,
+            'max'    => $max,
+            'labels' => [
+                'matin' => 'Matin (< ' . $morningUntil . ' h)',
+                'midi'  => 'Midi (' . $morningUntil . '–' . $middayUntil . ' h)',
+                'apm'   => 'Après-midi (≥ ' . $middayUntil . ' h)',
+            ],
+            'totals' => [
+                'pct' => isset($month['totals']['margin_pct']) && is_numeric($month['totals']['margin_pct']) ? (float)$month['totals']['margin_pct'] : null,
+                'ca'  => isset($month['totals']['ca']) && is_numeric($month['totals']['ca']) ? (float)$month['totals']['ca'] : null,
+            ],
         ];
     }
 

@@ -21,6 +21,8 @@ class ParamRepository
     public const DEFAULTS = [
         'valuation_multiple'              => ['4.5', 'Multiple de valorisation (× résultat net)'],
         'valuation_target_net_margin_pct' => ['15',  'Marge nette cible (%) — valorisation à l\'objectif'],
+        'daypart_morning_until'           => ['12',  'Heatmap rentabilité : fin du créneau « matin » (heure)'],
+        'daypart_midday_until'            => ['14',  'Heatmap rentabilité : fin du créneau « midi » (heure)'],
     ];
 
     private bool $ready = false;

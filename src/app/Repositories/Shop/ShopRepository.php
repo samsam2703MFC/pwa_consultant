@@ -270,5 +270,203 @@ class ShopRepository
 
         return $found ? $total : null;
     }
+
+    // ───────────────────────── Heatmap de marge ─────────────────────────
+
+    /**
+     * Carte de marge brute d'un magasin (jours + heures) sur [from, to]
+     * (≤ 31 jours) : GET /consultant/shops/{id}/margin-heatmap?from&to
+     * → { totals, days:[{date, margin_pct, ca…}], hours:[{hour, ca,
+     * margin_value, margin_pct…}] }. null si indisponible.
+     */
+    public function getMarginHeatmap(int $shopId, string $from, string $to): ?array
+    {
+        $response = $this->apiClient->get($this->marginHeatmapEndpoint($shopId, $from, $to));
+        return (!empty($response['success']) && is_array($response['data'] ?? null)) ? $response['data'] : null;
+    }
+
+    /**
+     * Cartes de marge pour PLUSIEURS fenêtres (magasin, from, to) en parallèle
+     * (ex. les semaines d'un mois pour les créneaux matin/midi/après-midi).
+     *
+     * @param array $windows liste de ['shop'=>int,'from'=>'Y-m-d','to'=>'Y-m-d']
+     * @return array<string, ?array> map "shop|from|to" => données ou null
+     */
+    public function getMarginHeatmapMany(array $windows): array
+    {
+        $out = [];
+        if ($windows === []) {
+            return $out;
+        }
+        $byKey = [];
+        foreach ($windows as $w) {
+            $key = (int)($w['shop'] ?? 0) . '|' . ($w['from'] ?? '') . '|' . ($w['to'] ?? '');
+            $out[$key] = null;
+            $byKey[$key] = $this->marginHeatmapEndpoint((int)($w['shop'] ?? 0), (string)($w['from'] ?? ''), (string)($w['to'] ?? ''));
+        }
+        $responses = [];
+        foreach (array_chunk(array_values(array_unique($byKey)), 24) as $chunk) {
+            $responses += $this->apiClient->getMany($chunk);
+        }
+        foreach ($byKey as $key => $ep) {
+            $r = $responses[$ep] ?? null;
+            if (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) {
+                $out[$key] = $r['data'];
+            }
+        }
+        return $out;
+    }
+
+    private function marginHeatmapEndpoint(int $shopId, string $from, string $to): string
+    {
+        return '/consultant/shops/' . $shopId . '/margin-heatmap'
+            . '?from=' . urlencode($from) . '&to=' . urlencode($to);
+    }
+
+    // ─────────────────── Ventes par catégorie (mix) ───────────────────
+
+    /**
+     * Ventes par CATÉGORIE d'un magasin sur [from, to] — même source que le
+     * treemap Boutiques (product-category-groups), extraction tolérante par
+     * entrée nommée (le schéma exact varie). Map nom => CA. null si aucune
+     * ventilation exploitable.
+     *
+     * @return array<string, float>|null
+     */
+    public function getCategorySales(int $shopId, string $from, string $to): ?array
+    {
+        foreach (['category', 'group', 'month'] as $grouping) {
+            $res = $this->apiClient->get($this->categoryGroupsEndpoint($shopId, $from, $to, $grouping));
+            if (empty($res['success']) || !is_array($res['data'] ?? null)) {
+                continue;
+            }
+            $mix = $this->extractCategorySales($res['data']);
+            if ($mix !== null) {
+                return $mix;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Ventes par catégorie pour PLUSIEURS magasins sur la même fenêtre, en
+     * parallèle (grouping=category) — repli séquentiel complet (getCategorySales)
+     * pour les magasins sans résultat.
+     *
+     * @param int[] $shopIds
+     * @return array<int, ?array> map shopId => (nom => CA) ou null
+     */
+    public function getCategorySalesMany(array $shopIds, string $from, string $to): array
+    {
+        $out = [];
+        $byId = [];
+        foreach ($shopIds as $id) {
+            $id = (int)$id;
+            if ($id > 0) {
+                $out[$id] = null;
+                $byId[$id] = $this->categoryGroupsEndpoint($id, $from, $to, 'category');
+            }
+        }
+        $responses = [];
+        foreach (array_chunk(array_values($byId), 24) as $chunk) {
+            $responses += $this->apiClient->getMany($chunk);
+        }
+        foreach ($byId as $id => $ep) {
+            $r = $responses[$ep] ?? null;
+            if (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) {
+                $out[$id] = $this->extractCategorySales($r['data']);
+            }
+            if ($out[$id] === null) {
+                $out[$id] = $this->getCategorySales($id, $from, $to);
+            }
+        }
+        return $out;
+    }
+
+    private function categoryGroupsEndpoint(int $shopId, string $from, string $to, string $grouping): string
+    {
+        return '/shops/' . $shopId . '/statistics/sales/product-category-groups'
+            . '?date_from=' . urlencode($from) . '&date_to=' . urlencode($to)
+            . '&grouping=' . urlencode($grouping);
+    }
+
+    /**
+     * Extraction tolérante des VENTES par catégorie — pendant PHP de
+     * extractCategoryCosts (shop/list.twig) : entrées nommées, première clé
+     * « ventes » plausible (jamais coût/pct/quantité), sommées par nom.
+     *
+     * @return array<string, float>|null null si aucune entrée exploitable
+     */
+    private function extractCategorySales($data): ?array
+    {
+        $map   = [];
+        $found = false;
+
+        $numOf = function ($v): ?float {
+            if (is_int($v) || is_float($v)) {
+                return (float)$v;
+            }
+            if (is_string($v) && $v !== '' && is_numeric($v)) {
+                return (float)$v;
+            }
+            if (is_array($v) && isset($v['value']) && is_numeric($v['value'])) {
+                return (float)$v['value'];
+            }
+            return null;
+        };
+        $salesPrefs = ['turnover', 'sales', 'revenue', 'gross', 'value', 'amount', 'total', 'net'];
+        $skip = fn($k) => preg_match('/cost|pct|percent|ratio|rate|delta|margin|qty|quantity|count/i', (string)$k);
+
+        $walk = function ($n) use (&$walk, &$map, &$found, $numOf, $salesPrefs, $skip) {
+            if (!is_array($n)) {
+                return;
+            }
+            $name = null;
+            foreach (['category_name', 'category', 'group_name', 'name', 'label'] as $k) {
+                if (isset($n[$k]) && is_string($n[$k]) && trim($n[$k]) !== '') {
+                    $name = trim($n[$k]);
+                    break;
+                }
+            }
+            if ($name !== null) {
+                $sales = null;
+                foreach ($salesPrefs as $pref) {
+                    foreach ($n as $k => $v) {
+                        if ($skip($k)) {
+                            continue;
+                        }
+                        if (stripos((string)$k, $pref) !== false) {
+                            $x = $numOf($v);
+                            if ($x !== null) {
+                                $sales = $x;
+                                break 2;
+                            }
+                        }
+                    }
+                }
+                if ($sales !== null) {
+                    $key = mb_strtolower($name);
+                    $map[$key] = ($map[$key] ?? ['name' => $name, 'sales' => 0.0]);
+                    $map[$key]['sales'] += $sales;
+                    $found = true;
+                }
+            }
+            foreach ($n as $v) {
+                if (is_array($v)) {
+                    $walk($v);
+                }
+            }
+        };
+        $walk($data);
+
+        if (!$found) {
+            return null;
+        }
+        $out = [];
+        foreach ($map as $e) {
+            $out[$e['name']] = $e['sales'];
+        }
+        return $out;
+    }
 }
 
