@@ -1,0 +1,23 @@
+{
+    "title": "Trendy",
+    "subtitle": "Skonsolidowany obrót — ostatnie 12 miesięcy",
+    "loading": "Konsolidacja ostatnich 12 miesięcy…",
+    "error": "Błąd ładowania.",
+    "empty": "Brak danych.",
+    "top3_title": "Najlepsze wyniki",
+    "top3_sub": "Top 3 najlepszych miesięcy",
+    "chart_title": "Ewolucja skonsolidowanego obrotu",
+    "list_title": "Dane miesięczne",
+    "serie_n": "Obrót N",
+    "serie_n1": "Obrót N-1",
+    "serie_obj": "Cele",
+    "col_month": "Miesiąc",
+    "col_n1": "N-1",
+    "col_n": "N",
+    "col_evo": "Ewol.",
+    "col_obj": "Cel",
+    "col_reach": "Realizacja",
+    "partial": "w toku",
+    "note": "Cel = suma celów obrotu zapisanych dla sklepów (nadpisania konsultanta/admina). \"—\": brak celu w danym miesiącu.",
+    "partial_note": "\"*\": bieżący miesiąc."
+}

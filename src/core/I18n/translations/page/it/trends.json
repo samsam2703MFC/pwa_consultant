@@ -1,0 +1,23 @@
+{
+    "title": "Tendenze",
+    "subtitle": "Fatturato consolidato — ultimi 12 mesi",
+    "loading": "Consolidamento degli ultimi 12 mesi…",
+    "error": "Errore di caricamento.",
+    "empty": "Dati non disponibili.",
+    "top3_title": "Migliori prestazioni",
+    "top3_sub": "Top 3 dei mesi migliori",
+    "chart_title": "Evoluzione del fatturato consolidato",
+    "list_title": "Dati mensili",
+    "serie_n": "Fatturato N",
+    "serie_n1": "Fatturato N-1",
+    "serie_obj": "Obiettivi",
+    "col_month": "Mese",
+    "col_n1": "N-1",
+    "col_n": "N",
+    "col_evo": "Evol.",
+    "col_obj": "Obiettivo",
+    "col_reach": "Raggiunto",
+    "partial": "in corso",
+    "note": "Obiettivo = somma degli obiettivi di fatturato per negozio (override consultant/admin). \"—\": nessun obiettivo quel mese.",
+    "partial_note": "\"*\": mese in corso."
+}
