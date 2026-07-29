@@ -116,4 +116,38 @@ class ShopService
     {
         return $this->shopRepository->getPnlMany($shopIds, $period);
     }
+
+    /** Carte de marge (jours + heures) d'un magasin sur [from, to] (≤ 31 j). */
+    public function getMarginHeatmap(int $shopId, string $from, string $to): ?array
+    {
+        return $this->shopRepository->getMarginHeatmap($shopId, $from, $to);
+    }
+
+    /**
+     * Cartes de marge pour plusieurs fenêtres (magasin, from, to) en parallèle.
+     *
+     * @param array $windows liste de ['shop'=>int,'from'=>'Y-m-d','to'=>'Y-m-d']
+     * @return array<string, ?array> map "shop|from|to" => données ou null
+     */
+    public function getMarginHeatmapMany(array $windows): array
+    {
+        return $this->shopRepository->getMarginHeatmapMany($windows);
+    }
+
+    /** Ventes par catégorie d'un magasin sur [from, to] (nom => CA), ou null. */
+    public function getCategorySales(int $shopId, string $from, string $to): ?array
+    {
+        return $this->shopRepository->getCategorySales($shopId, $from, $to);
+    }
+
+    /**
+     * Ventes par catégorie de plusieurs magasins (même fenêtre) en parallèle.
+     *
+     * @param int[] $shopIds
+     * @return array<int, ?array> map shopId => (nom => CA) ou null
+     */
+    public function getCategorySalesMany(array $shopIds, string $from, string $to): array
+    {
+        return $this->shopRepository->getCategorySalesMany($shopIds, $from, $to);
+    }
 }

@@ -109,6 +109,27 @@
     .rpt-heat td.nm { text-align:left; font-weight:700; white-space:nowrap; padding-right:6px; font-size:.72rem; }
     .rpt-heat-cell { display:flex; align-items:center; justify-content:center; width:26px; height:22px; border-radius:5px; color:#fff; font-weight:800; }
     .rpt-heat-cell.st-ok { background:#2D7A3E; } .rpt-heat-cell.st-mid { background:#e67e22; } .rpt-heat-cell.st-bad { background:#c0182b; } .rpt-heat-cell.st-nd { background:#efe9e0; color:#c9c2b8; }
+
+    /* ── Comparaison structurée boutique / réseau (rapport mensuel) ── */
+    .rpt-v-nd { color:#adb5bd; }
+    .rpt-cmp-chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+    .rpt-chip { background:#faf7f2; border:1px solid #ece4d8; border-radius:10px; padding:6px 10px; font-size:.72rem; }
+    .rpt-chip i { display:block; font-style:normal; font-size:.58rem; color:#7a7168; text-transform:uppercase; font-weight:700; letter-spacing:.02em; }
+    .rpt-chip b { font-size:.85rem; color:#8D1D2C; }
+    .rpt-cmp-sub { font-size:.66rem; font-weight:800; color:#6c757d; text-transform:uppercase; letter-spacing:.04em; margin:12px 0 6px; }
+
+    /* ── Analyse rentabilité : heatmap de marge (mensuel) ── */
+    .rpt-cal { display:grid; grid-template-columns:repeat(7, 1fr); gap:3px; max-width:440px; }
+    .rpt-cal .wd { text-align:center; font-size:.6rem; font-weight:800; color:#9a9086; text-transform:uppercase; padding-bottom:2px; }
+    .rpt-cal .dcell { border-radius:6px; min-height:34px; padding:3px 4px; font-size:.6rem; color:#fff; display:flex; flex-direction:column; justify-content:space-between; }
+    .rpt-cal .dcell .dn { font-weight:800; opacity:.85; line-height:1; }
+    .rpt-cal .dcell .dp { font-weight:800; font-size:.63rem; text-align:right; line-height:1; }
+    .rpt-cal .dcell.blank { background:transparent; }
+    .hm-1 { background:#c0182b; } .hm-2 { background:#e67e22; } .hm-3 { background:#d9b13b; } .hm-4 { background:#7aa53f; } .hm-5 { background:#2D7A3E; }
+    .hm-nd { background:#efe9e0; color:#b6afa3 !important; }
+    .rpt-hmv { display:inline-flex; min-width:56px; justify-content:center; border-radius:6px; color:#fff; font-weight:800; padding:3px 8px; font-size:.68rem; }
+    .rpt-hm-legend { display:flex; gap:8px; align-items:center; font-size:.62rem; color:#7a7168; margin-top:8px; flex-wrap:wrap; }
+    .rpt-hm-legend .sw { width:14px; height:10px; border-radius:3px; display:inline-block; }
     /* Synthèse dirigeant */
     .rpt-syn-h { font-size:.74rem; font-weight:800; margin:14px 0 6px; }
     .rpt-syn-item { display:flex; gap:8px; align-items:baseline; font-size:.82rem; padding:3px 0; }
@@ -130,6 +151,11 @@
         /* À l'impression : on déplie les 3 onglets réseau et on titre chacun. */
         .rpt-tabview, .rpt-tabview[hidden] { display:block !important; break-inside:avoid; }
         .rpt-print-title { display:block !important; }
+        /* Les cellules de heatmap gardent leurs couleurs sur papier. */
+        .rpt-cal .dcell, .rpt-hmv, .rpt-heat-cell, .rpt-hm-legend .sw {
+            -webkit-print-color-adjust:exact; print-color-adjust:exact;
+        }
+        .rpt-cal, .rpt-tblwrap { break-inside:avoid; }
         @page { margin:14mm 12mm; }
     }
 </style>
@@ -436,6 +462,128 @@
                         <div class="rpt-empty">{{ translations.no_targets ?? 'Aucun objectif défini.' }}</div>
                     {% endif %}
                 </div>
+
+                {# Comparaison structurée boutique / réseau (rapport mensuel) #}
+                {% if shop.compare is defined and shop.compare is not null %}
+                <div class="rpt-sec">
+                    <div class="rpt-sec-h">{{ icons.svg('network', 14) }}{{ translations.compare_structured ?? 'Comparaison boutique / réseau' }}</div>
+                    <div class="rpt-cmp-chips">
+                        {% if shop.compare.share_pct is not null %}<span class="rpt-chip"><i>{{ translations.cmp_share ?? 'Part du CA réseau' }}</i><b>{{ shop.compare.share_pct|number_format(1, ',', ' ') }} %</b></span>{% endif %}
+                        {% if shop.compare.rank_ca %}<span class="rpt-chip"><i>{{ translations.cmp_rank_ca ?? 'Rang CA' }}</i><b>{{ shop.compare.rank_ca[0] }} / {{ shop.compare.rank_ca[1] }}</b></span>{% endif %}
+                        {% if shop.compare.rank_evo %}<span class="rpt-chip"><i>{{ translations.cmp_rank_evo ?? 'Rang évolution' }}</i><b>{{ shop.compare.rank_evo[0] }} / {{ shop.compare.rank_evo[1] }}</b></span>{% endif %}
+                        {% if shop.compare.rank_basket %}<span class="rpt-chip"><i>{{ translations.cmp_rank_basket ?? 'Rang panier' }}</i><b>{{ shop.compare.rank_basket[0] }} / {{ shop.compare.rank_basket[1] }}</b></span>{% endif %}
+                    </div>
+                    <div class="rpt-tblwrap">
+                    <table class="rpt-tbl">
+                        <thead><tr><th></th><th class="num">{{ translations.shop ?? 'Boutique' }}</th><th class="num">{{ translations.cmp_network ?? 'Réseau (moy.)' }}</th><th class="num">Δ</th></tr></thead>
+                        <tbody>
+                        {% for r in shop.compare.rows %}
+                            <tr>
+                                <td>{{ r.label }}</td>
+                                <td class="num"><b>
+                                    {%- if r.shop is null -%}—
+                                    {%- elseif r.unit == 'pct' -%}{{ r.shop >= 0 ? '+' : '' }}{{ r.shop|number_format(r.dec, ',', ' ') }} %
+                                    {%- elseif r.unit == 'amount' -%}{{ r.shop|number_format(r.dec, ',', ' ') }} {{ currency_symbol }}
+                                    {%- else -%}{{ r.shop|number_format(r.dec, ',', ' ') }}
+                                    {%- endif -%}
+                                </b></td>
+                                <td class="num">
+                                    {%- if r.net is null -%}—
+                                    {%- elseif r.unit == 'pct' -%}{{ r.net >= 0 ? '+' : '' }}{{ r.net|number_format(r.dec, ',', ' ') }} %
+                                    {%- elseif r.unit == 'amount' -%}{{ r.net|number_format(r.dec, ',', ' ') }} {{ currency_symbol }}
+                                    {%- else -%}{{ r.net|number_format(r.dec, ',', ' ') }}
+                                    {%- endif -%}
+                                </td>
+                                <td class="num">
+                                    {%- if r.delta is null -%}<span class="rpt-v-nd">—</span>
+                                    {%- else -%}
+                                        {%- set dcls = r.delta > 0.05 ? 'ok' : (r.delta < -0.05 ? 'bad' : 'nd') -%}
+                                        <span class="rpt-v-{{ dcls }}">{{ r.delta >= 0 ? '+' : '' }}{{ r.delta|number_format(1, ',', ' ') }} {{ r.unit == 'pct' ? 'pts' : '%' }}</span>
+                                    {%- endif -%}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                    {% if shop.compare.categories is not null and shop.compare.categories is not empty %}
+                    <div class="rpt-cmp-sub">{{ translations.cmp_categories ?? 'Catégories de ventes — part du CA' }}</div>
+                    <div class="rpt-tblwrap">
+                    <table class="rpt-tbl">
+                        <thead><tr><th>{{ translations.cmp_category ?? 'Catégorie' }}</th><th class="num">{{ translations.shop ?? 'Boutique' }}</th><th class="num">{{ translations.cmp_network ?? 'Réseau' }}</th><th class="num">Δ pts</th></tr></thead>
+                        <tbody>
+                        {% for c in shop.compare.categories %}
+                            <tr>
+                                <td>{{ c.name }}</td>
+                                <td class="num"><b>{{ c.shop_pct|number_format(1, ',', ' ') }} %</b></td>
+                                <td class="num">{{ c.net_pct is null ? '—' : c.net_pct|number_format(1, ',', ' ') ~ ' %' }}</td>
+                                <td class="num">
+                                    {%- if c.delta is null -%}<span class="rpt-v-nd">—</span>
+                                    {%- else -%}
+                                        {%- set ccls = c.delta > 0.5 ? 'ok' : (c.delta < -0.5 ? 'bad' : 'nd') -%}
+                                        <span class="rpt-v-{{ ccls }}">{{ c.delta >= 0 ? '+' : '' }}{{ c.delta|number_format(1, ',', ' ') }}</span>
+                                    {%- endif -%}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {# Analyse rentabilité — heatmap de marge (rapport mensuel) #}
+                {% if shop.heatmap is defined and shop.heatmap is not null %}
+                <div class="rpt-sec">
+                    <div class="rpt-sec-h">{{ icons.svg('bar-chart', 14) }}{{ translations.rentability ?? 'Analyse rentabilité — marge brute' }}
+                        {% if shop.heatmap.totals.pct is not null %}<span style="margin-left:auto;font-weight:800;color:#212529;">{{ shop.heatmap.totals.pct|number_format(1, ',', ' ') }} %</span>{% endif %}
+                    </div>
+
+                    <div class="rpt-cmp-sub">{{ translations.hm_month_day ?? 'Mois / jour' }}</div>
+                    <div class="rpt-cal">
+                        {% for w in [translations.wd_mon ?? 'L', translations.wd_tue ?? 'M', translations.wd_wed ?? 'M', translations.wd_thu ?? 'J', translations.wd_fri ?? 'V', translations.wd_sat ?? 'S', translations.wd_sun ?? 'D'] %}<div class="wd">{{ w }}</div>{% endfor %}
+                        {% if shop.heatmap.days[0].wd > 1 %}{% for i in 1..(shop.heatmap.days[0].wd - 1) %}<div class="dcell blank"></div>{% endfor %}{% endif %}
+                        {% for d in shop.heatmap.days %}
+                            <div class="dcell {{ d.lvl is null ? 'hm-nd' : 'hm-' ~ d.lvl }}" title="{{ d.date }}{{ d.pct is not null ? ' — ' ~ d.pct|number_format(1, ',', ' ') ~ ' %' : '' }}">
+                                <span class="dn">{{ d.num }}</span>
+                                <span class="dp">{{ d.pct is null ? '' : d.pct|number_format(0, ',', ' ') ~ '%' }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="rpt-cmp-sub">{{ translations.hm_week_part ?? 'Semaine / période' }}</div>
+                    <div class="rpt-tblwrap">
+                    <table class="rpt-tbl">
+                        <thead><tr>
+                            <th>{{ translations.week ?? 'Semaine' }}</th>
+                            <th class="num">{{ shop.heatmap.labels.matin }}</th>
+                            <th class="num">{{ shop.heatmap.labels.midi }}</th>
+                            <th class="num">{{ shop.heatmap.labels.apm }}</th>
+                        </tr></thead>
+                        <tbody>
+                        {% for w in shop.heatmap.weeks %}
+                            <tr>
+                                <td style="white-space:nowrap;font-weight:700;">{{ w.label }}</td>
+                                {% for slot in ['matin', 'midi', 'apm'] %}
+                                    {% set v = attribute(w, slot) %}
+                                    {% set lvl = attribute(w, 'lvl_' ~ slot) %}
+                                    <td class="num"><span class="rpt-hmv {{ lvl is null ? 'hm-nd' : 'hm-' ~ lvl }}">{{ v is null ? '—' : v|number_format(1, ',', ' ') ~ ' %' }}</span></td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+
+                    <div class="rpt-hm-legend">
+                        <span>{{ translations.hm_low ?? 'Marge faible' }}</span>
+                        <span class="sw hm-1"></span><span class="sw hm-2"></span><span class="sw hm-3"></span><span class="sw hm-4"></span><span class="sw hm-5"></span>
+                        <span>{{ translations.hm_high ?? 'élevée' }}</span>
+                        <span>· {{ translations.hm_note ?? 'marge brute (CA − coût matière), échelle relative au mois' }}</span>
+                    </div>
+                </div>
+                {% endif %}
 
                 {# Notes & photos #}
                 <div class="rpt-sec">
