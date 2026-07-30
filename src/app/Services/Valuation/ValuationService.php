@@ -143,36 +143,38 @@ class ValuationService
                 }
             }
         }
-        $marginsByShop = [];   // shopId => [pct, ...]
-        $seriesByShop  = [];   // shopId => ['YYYY-MM' => valorisation mensuelle annualisée]
-        // Cumuls 12 mois des postes, pour que la marge affichée se refasse à la
-        // main : CA − matière − main d'œuvre − frais généraux.
-        $costsByShop = [];     // shopId => ['ca'=>…, 'material'=>…, 'labour'=>…, 'overhead'=>…]
+        // Cumuls 12 mois des postes, par boutique. La marge se déduit d'EUX, pas
+        // d'une moyenne des pourcentages mensuels : moyenner des pourcentages
+        // donne autant de poids à un mois creux qu'à un mois plein, et le
+        // résultat ne se retrouve pas dans le P&L cumulé.
+        $costsByShop = [];   // shopId => ['ca','material','labour','overhead','months']
         foreach ($rows as $r) {
             $sid = (int)$r['id_shop'];
-            $mg  = $r['net_margin_pct'] !== null ? (float)$r['net_margin_pct'] : null;
             $ca  = $r['ca'] !== null ? (float)$r['ca'] : null;
-            if ($ca !== null) {
-                $costsByShop[$sid]['ca'] = ($costsByShop[$sid]['ca'] ?? 0.0) + $ca;
-                foreach (['material', 'labour', 'overhead'] as $k) {
-                    if (($r[$k] ?? null) !== null) {
-                        $costsByShop[$sid][$k] = ($costsByShop[$sid][$k] ?? 0.0) + (float)$r[$k];
-                    }
+            if ($ca === null) {
+                continue;
+            }
+            $costsByShop[$sid]['ca']     = ($costsByShop[$sid]['ca'] ?? 0.0) + $ca;
+            $costsByShop[$sid]['months'] = ($costsByShop[$sid]['months'] ?? 0) + 1;
+            foreach (['material', 'labour', 'overhead'] as $k) {
+                if (($r[$k] ?? null) !== null) {
+                    $costsByShop[$sid][$k] = ($costsByShop[$sid][$k] ?? 0.0) + abs((float)$r[$k]);
+                    $costsByShop[$sid][$k . '_n'] = ($costsByShop[$sid][$k . '_n'] ?? 0) + 1;
                 }
             }
-            if ($mg !== null) {
-                $marginsByShop[$sid][] = $mg;
-            }
-            if ($mg !== null && $ca !== null) {
-                $ym = sprintf('%04d-%02d', (int)$r['year'], (int)$r['month']);
-                // Valorisation « annualisée » du mois : CA mensuel ×12 × marge × multiple.
-                $seriesByShop[$sid][$ym] = ($ca * 12) * ($mg / 100) * $multiple;
+            // Repli : quand les postes ne sont pas tous là, on cumule le
+            // résultat net mois par mois plutôt que de perdre la boutique.
+            if (($r['net_margin_pct'] ?? null) !== null) {
+                $costsByShop[$sid]['net'] = ($costsByShop[$sid]['net'] ?? 0.0)
+                    + $ca * (float)$r['net_margin_pct'] / 100;
             }
         }
 
-        // 3) Valorisation par boutique. Le CA 12 mois de toutes les boutiques
-        //    porte la MÊME fenêtre : un seul appel multi-boutiques (P3), sinon
-        //    curl_multi — au lieu d'un aller-retour par boutique.
+        // 3) Valorisation par boutique. Le CA de référence est celui du P&L —
+        //    le même que celui dont sont issus les coûts. Mélanger le CA des
+        //    KPIs de vente avec des coûts venus du P&L revient à diviser deux
+        //    grandeurs qui ne comptent pas la même chose. Les KPIs de vente ne
+        //    servent que de repli, quand aucun P&L n'est disponible.
         $ca12s = $this->shopService->getSalesKpisBatch(array_map(
             fn($id) => ['shop' => $id, 'from' => $from12, 'to' => $to12],
             array_keys($ids)
@@ -184,14 +186,32 @@ class ValuationService
         // moyenne de la chaîne puisse être recalculée sans mentir.
         $sumCaReal = 0.0; $shopsReal = 0;
         foreach ($ids as $id => $name) {
-            $ca12 = (float)($ca12s["{$id}|{$from12}|{$to12}"]['ca'] ?? 0);
-            $margins = $marginsByShop[$id] ?? [];
-            $avgMargin = $margins !== [] ? array_sum($margins) / count($margins) : null;
+            $c        = $costsByShop[$id] ?? [];
+            $caPnl    = $c['ca'] ?? null;
+            $caKpi    = (float)($ca12s["{$id}|{$from12}|{$to12}"]['ca'] ?? 0);
+            $ca12     = ($caPnl !== null && $caPnl > 0) ? $caPnl : $caKpi;
+            $caFromPnl = ($caPnl !== null && $caPnl > 0);
+
+            // Marge nette 12 mois = (CA − matière − main d'œuvre − frais) ÷ CA,
+            // sur les cumuls. Les trois postes doivent couvrir tous les mois
+            // observés, sinon le cumul de coûts serait incomplet face au CA.
+            $months  = (int)($c['months'] ?? 0);
+            $full    = $months > 0
+                && ($c['material_n'] ?? 0) === $months
+                && ($c['labour_n']   ?? 0) === $months
+                && ($c['overhead_n'] ?? 0) === $months;
+            $netTotal = null;
+            if ($full) {
+                $netTotal = $c['ca'] - $c['material'] - $c['labour'] - $c['overhead'];
+            } elseif (isset($c['net'])) {
+                $netTotal = $c['net'];   // repli : résultat net cumulé
+            }
+            $avgMargin = ($netTotal !== null && ($c['ca'] ?? 0) > 0)
+                ? $netTotal / $c['ca'] * 100 : null;
 
             $valoObjectif = $ca12 * ($targetMargin / 100) * $multiple;
             $valoActuelle = ($avgMargin !== null) ? $ca12 * ($avgMargin / 100) * $multiple : null;
 
-            $c = $costsByShop[$id] ?? [];
             $shopsOut[] = [
                 'id'            => $id,
                 'name'          => $name,
@@ -199,13 +219,15 @@ class ValuationService
                 'avg_margin'    => $avgMargin,
                 'valo_actuelle' => $valoActuelle,
                 'valo_objectif' => $valoObjectif,
-                'months_seen'   => count($margins),
+                'months_seen'   => $months,
                 // Postes cumulés sur les mois observés : la marge affichée doit
                 // pouvoir se refaire à la main à partir d'eux.
-                'pnl_ca'        => $c['ca']       ?? null,
                 'material'      => $c['material'] ?? null,
                 'labour'        => $c['labour']   ?? null,
                 'overhead'      => $c['overhead'] ?? null,
+                // Le CA vient-il du P&L (même source que les coûts) ou, faute de
+                // P&L, des KPIs de vente ?
+                'ca_from_pnl'   => $caFromPnl,
                 'margin_over'   => ($avgMargin !== null && $avgMargin > $maxMargin),
             ];
             $sumCa += $ca12;
@@ -217,24 +239,6 @@ class ValuationService
             }
         }
         usort($shopsOut, fn($a, $b) => ($b['valo_actuelle'] ?? 0) <=> ($a['valo_actuelle'] ?? 0));
-
-        // 4) Série d'évolution : liste des mois présents + réseau (somme) et par boutique.
-        $monthsSet = [];
-        foreach ($seriesByShop as $bym) {
-            foreach ($bym as $ym => $_) { $monthsSet[$ym] = true; }
-        }
-        ksort($monthsSet);
-        $months = array_keys($monthsSet);
-        $network = [];
-        foreach ($months as $ym) {
-            $tot = 0.0;
-            foreach ($seriesByShop as $bym) { $tot += $bym[$ym] ?? 0; }
-            $network[] = $tot;
-        }
-        $byShopSeries = [];
-        foreach ($seriesByShop as $sid => $bym) {
-            $byShopSeries[$sid] = array_map(fn($ym) => $bym[$ym] ?? null, $months);
-        }
 
         return [
             'multiple'          => $multiple,
@@ -264,11 +268,6 @@ class ValuationService
                 fn($s) => ['name' => $s['name'], 'pct' => round((float)$s['avg_margin'], 1)],
                 array_filter($shopsOut, fn($s) => !empty($s['margin_over']))
             )),
-            'series' => [
-                'months'  => $months,
-                'network' => $network,
-                'by_shop' => $byShopSeries,
-            ],
             'captured_month' => sprintf('%04d-%02d', $curY, $curM),
         ];
     }
