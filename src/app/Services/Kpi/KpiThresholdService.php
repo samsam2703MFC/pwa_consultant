@@ -19,6 +19,12 @@ class KpiThresholdService
         return $this->repo->all();
     }
 
+    /** Remplace toutes les bandes d'une métrique (endpoint de configuration). */
+    public function replaceBands(string $metric, array $bands): bool
+    {
+        return $this->repo->replaceBands($metric, $bands);
+    }
+
     /** @return array<int, array{min: ?float, color: string, label: string}> */
     public function bands(string $metric): array
     {
