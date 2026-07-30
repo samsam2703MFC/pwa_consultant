@@ -420,7 +420,10 @@ class ApiClient
             // Corps COMPLET de la réponse en échec : quand l'API répond
             // « champs obligatoires manquants », le détail (lesquels) vit
             // ailleurs que dans `description`. Sans lui, il faut deviner.
-            $response['response'] = is_array($decoded) ? $decoded : (string)$result;
+            // `raw` garde le texte tel quel — une réponse non JSON, vide ou
+            // tronquée resterait invisible autrement.
+            $response['response'] = is_array($decoded) ? $decoded : null;
+            $response['raw']      = mb_substr((string)$result, 0, 600);
         }
 
         $this->purgeCache(); // données modifiées → les écrans refetchent

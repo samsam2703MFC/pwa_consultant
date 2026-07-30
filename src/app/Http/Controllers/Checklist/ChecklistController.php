@@ -205,13 +205,18 @@ class ChecklistController extends Controller
             echo json_encode(['success' => true]);
         } else {
             http_response_code(422);
-            // `detail` = corps brut renvoyé par l'API. Le format attendu par
-            // /task-reviews n'est pas documenté : afficher la réponse telle
-            // quelle évite d'avancer par essais successifs.
+            // Réponse de l'API rendue INTÉGRALEMENT : le format attendu par
+            // /task-reviews n'est pas documenté, et `description` seul ne dit
+            // pas quels champs manquent. `error` est forcé en chaîne — la clé
+            // `error` d'ApiClient vaut [] par défaut et donnerait un message
+            // vide à l'écran.
+            $desc = $result['description'] ?? null;
             echo json_encode([
                 'success' => false,
-                'error'   => $result['description'] ?? $result['error'] ?? 'Erreur d\'enregistrement',
+                'error'   => is_string($desc) && $desc !== '' ? $desc : 'Erreur d\'enregistrement',
+                'code'    => $result['code'] ?? null,
                 'detail'  => $result['response'] ?? null,
+                'raw'     => $result['raw'] ?? null,
                 'sent'    => array_keys($data),
             ], JSON_UNESCAPED_UNICODE);
         }
