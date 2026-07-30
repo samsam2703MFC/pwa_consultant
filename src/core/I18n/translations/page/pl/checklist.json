@@ -36,10 +36,20 @@
     "title": "Checklisty",
     "today": "Dzisiaj",
     "see_photo": "Zobacz zdjęcie",
-    "modal_note": "Notatka",
+    "modal_note": "Notatka osoby",
     "modal_review": "Ocena konsultanta",
     "modal_loading": "Wczytywanie zdjęcia…",
     "modal_failed": "Zdjęcie niedostępne.",
     "modal_open": "Otwórz w nowej karcie",
-    "close": "Zamknij"
+    "close": "Zamknij",
+    "modal_no_note": "Brak notatki.",
+    "modal_rate": "Twoja ocena",
+    "modal_clear": "wyczyść",
+    "modal_ok": "Zgodne",
+    "modal_ko": "Niezgodne",
+    "modal_comment": "Komentarz (opcjonalnie)",
+    "modal_save": "Zapisz ocenę",
+    "modal_saving": "Zapisywanie…",
+    "modal_saved": "Ocena zapisana.",
+    "modal_need_rate": "Wybierz ocenę od 1 do 5."
 }
