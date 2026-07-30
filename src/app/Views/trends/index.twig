@@ -110,7 +110,9 @@
 
 <script>
 (function () {
-  var ROOT = window.__consultantRoot || '';
+  // ROOT vient du serveur : ce script vit dans le bloc `content`,
+  // rendu avant les scripts de pied de page.
+  var ROOT = {{ (ROOT ?? '')|json_encode|raw }};
   var LANG = document.documentElement.lang || 'fr';
   var loading = document.getElementById('trLoading');
   var content = document.getElementById('trContent');

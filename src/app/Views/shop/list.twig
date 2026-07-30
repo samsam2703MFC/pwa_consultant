@@ -444,7 +444,9 @@
       var toggle = document.getElementById('valoToggle'), panel = document.getElementById('valoPanel');
       var content = document.getElementById('valoContent'), loading = document.getElementById('valoLoading');
       if (!toggle) return;
-      var ROOT = window.__consultantRoot || '';
+      // ROOT vient du serveur : ce script vit dans le bloc `content`,
+      // rendu avant les scripts de pied de page.
+      var ROOT = {{ (ROOT ?? '')|json_encode|raw }};
       var loaded = false, data = null;
       var nf = new Intl.NumberFormat('fr-BE', { maximumFractionDigits: 0 });
       var eur = function (v) { return (v == null) ? '—' : nf.format(Math.round(v)) + ' €'; };
