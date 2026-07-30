@@ -82,6 +82,8 @@ class ValuationService
         $now   = new \DateTimeImmutable('first day of this month');
         $curY  = (int)$now->format('Y');
         $curM  = (int)$now->format('n');
+        // Mois clos de référence, réutilisé plus bas pour consolider le journal.
+        $prevYmCapture = $now->modify('-1 month')->format('Y-m');
         $pnls  = $this->shopService->getPnlSummaryAllShops('month')
             ?? $this->shopService->getPnlMany(array_keys($ids), 'month');
         foreach ($ids as $id => $name) {
@@ -150,6 +152,10 @@ class ValuationService
                 ];
             }
         }
+        // Lignes issues du P&L mensuel SEULES : c'est la source qui peut
+        // consolider le journal. Le consolider depuis les snapshots reviendrait
+        // à les réécrire sur eux-mêmes.
+        $p2Rows = $rows;
         if ($p2Shops === 0) {
             // Aucune boutique servie par P2 (endpoint absent) → snapshots
             // (marge nette captée mois après mois).
@@ -168,6 +174,38 @@ class ValuationService
                 }
             }
         }
+        // GARDE-FOU : rien en dehors des mois CLÔTURÉS de la fenêtre. Le P&L
+        // mensuel est déjà borné par sa requête, mais pas les snapshots :
+        // `forShopsSince` n'a pas de borne haute, et le journal contient le
+        // mois en cours (capté à chaque calcul). Sans ce filtre, un mois
+        // partiel entrait dans le CA cumulé et dans la marge annuelle.
+        $rows = array_values(array_filter($rows, function ($r) use ($fromYm, $toYm) {
+            $ym = sprintf('%04d-%02d', (int)$r['year'], (int)$r['month']);
+            return $ym >= $fromYm && $ym <= $toYm;
+        }));
+
+        // Le journal local doit porter des mois CLOS. La capture du mois en
+        // cours (étape 1) fige un mois à mi-parcours ; dès que le P&L mensuel
+        // donne ce même mois une fois terminé, on écrase l'instantané par le
+        // chiffre définitif. Sans cela, le mois resterait à jamais tel qu'il
+        // était le jour de la dernière capture.
+        foreach ($p2Rows as $r) {
+            if (sprintf('%04d-%02d', (int)$r['year'], (int)$r['month']) !== $prevYmCapture) {
+                continue;
+            }
+            $ca = $r['ca'] !== null ? (float)$r['ca'] : null;
+            if ($ca === null || $ca <= 0) {
+                continue;
+            }
+            $net = $this->netResult($ca, $r['material'] ?? null, $r['labour'] ?? null,
+                $r['overhead'] ?? null, null);
+            $this->snap->upsertMonth(
+                (int)$r['id_shop'], (int)$r['year'], (int)$r['month'], $ca,
+                $net !== null ? $net / $ca * 100 : null, $net,
+                $r['labour'] ?? null, $r['overhead'] ?? null
+            );
+        }
+
         // Le P&L MENSUEL ne renvoie pas toujours le coût matière. Le P&L
         // QUOTIDIEN, lui, le porte — c'est de lui que vit la heatmap de
         // rentabilité, qui calcule la même marge et tombe juste. Pour les
