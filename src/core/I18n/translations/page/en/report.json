@@ -93,5 +93,15 @@
     "rentability_gross": "Profitability analysis — gross margin",
     "hm_low_gross": "Low margin",
     "hm_note_gross": "gross margin (revenue − material cost), scale relative to the month — labour/overhead unavailable",
-    "hm_src_current": "current month's cost structure"
+    "hm_src_current": "current month's cost structure",
+    "pnl_ca": "Revenue",
+    "pnl_material": "Material cost",
+    "pnl_gross": "Gross margin",
+    "pnl_labour": "Labour (allocated)",
+    "pnl_overhead": "Overhead (allocated)",
+    "pnl_net": "Net result",
+    "pnl_alloc_note": "Monthly labour/overhead allocated pro rata to the day's revenue",
+    "pnl_gross_note": "Labour/overhead unavailable — gross margin only.",
+    "day_notes": "Comments of the day",
+    "close": "Close"
 }

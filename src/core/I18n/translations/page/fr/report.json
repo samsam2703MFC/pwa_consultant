@@ -93,5 +93,15 @@
     "rentability_gross": "Analyse rentabilité — marge brute",
     "hm_low_gross": "Marge faible",
     "hm_note_gross": "marge brute (CA − coût matière), échelle relative au mois — labour/overhead indisponibles",
-    "hm_src_current": "structure de coûts du mois courant"
+    "hm_src_current": "structure de coûts du mois courant",
+    "pnl_ca": "Chiffre d'affaires",
+    "pnl_material": "Coût matière",
+    "pnl_gross": "Marge brute",
+    "pnl_labour": "Labour (alloué)",
+    "pnl_overhead": "Overhead (alloué)",
+    "pnl_net": "Résultat net",
+    "pnl_alloc_note": "Labour/overhead du mois répartis au prorata du CA du jour",
+    "pnl_gross_note": "Labour/overhead indisponibles — marge brute uniquement.",
+    "day_notes": "Commentaires du jour",
+    "close": "Fermer"
 }
