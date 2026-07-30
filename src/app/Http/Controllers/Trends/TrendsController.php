@@ -76,8 +76,16 @@ class TrendsController extends Controller
             }
         }
 
-        if (isset($_GET['debug'])) {
-            $out['debug'] = ShopRepository::batchDiagnostics();
+        // Le diagnostic est joint AUTOMATIQUEMENT quand le résultat est
+        // inexploitable : la page l'affiche alors telle quelle. Plus besoin de
+        // demander à l'utilisateur d'ouvrir une URL à la main pour savoir quel
+        // endpoint a lâché.
+        $unusable = empty($out['ok']) || empty($out['data']['months']);
+        if (isset($_GET['debug']) || $unusable) {
+            $diag = ShopRepository::batchDiagnostics();
+            $diag['shops_count'] = $out['data']['shops_count'] ?? null;
+            $diag['elapsed_s']   = round(microtime(true) - $t0, 1);
+            $out['debug'] = $diag;
         }
         return $this->json($out);
     }

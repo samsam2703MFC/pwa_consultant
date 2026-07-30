@@ -23,5 +23,10 @@
     "mode_cum": "Cumulé",
     "mode_month": "Mensuel",
     "total_12m": "Cumul 12 mois",
-    "no_sales": "Aucune donnée de ventes exploitable sur les 12 derniers mois (API ventes et base locale)."
+    "no_sales": "Aucune donnée de ventes exploitable sur les 12 derniers mois (API ventes et base locale).",
+    "obj_skipped": "Objectifs non chargés cette fois (budget de temps atteint) — les « — » de la colonne Objectif ne signifient pas « aucun objectif encodé ». Rechargez la page.",
+    "diag_title": "Diagnostic",
+    "diag_shops": "boutiques",
+    "diag_breaker": "coupé",
+    "diag_none": "aucune sonde batch enregistrée"
 }

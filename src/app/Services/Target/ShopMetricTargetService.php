@@ -20,9 +20,9 @@ class ShopMetricTargetService
      * @param array $reqs liste de ['shop'=>int,'year'=>int,'month'=>int]
      * @return array<string, array> map "shop|year|month" => targets
      */
-    public function getTargetsMany(array $reqs): array
+    public function getTargetsMany(array $reqs, ?float $deadline = null): array
     {
-        return $this->repo->getTargetsMany($reqs);
+        return $this->repo->getTargetsMany($reqs, $deadline);
     }
 
     public function saveTargets(int $shopId, int $year, int $month, int $authorId, array $targets): array

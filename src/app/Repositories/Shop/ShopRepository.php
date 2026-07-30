@@ -114,7 +114,10 @@ class ShopRepository
         // de connexions simultanées vers l'API. Un 404 (endpoint absent) coupe
         // court : inutile d'envoyer les paquets suivants.
         $responses = [];
-        foreach (array_chunk(array_values(array_unique($byKey)), 24) as $chunk) {
+        // Chaque paquet est un aller-retour : des paquets trop petits font
+        // autant d'attentes en série (12 mois × N boutiques dépassaient le
+        // délai de la passerelle avant de rendre l'écran Tendances).
+        foreach (array_chunk(array_values(array_unique($byKey)), 48) as $chunk) {
             $responses += $this->apiClient->getMany($chunk);
             foreach ($chunk as $ep) {
                 if ((($responses[$ep]['error'] ?? null)) === 404) {
@@ -814,9 +817,77 @@ class ShopRepository
             'monthly_sales',
             '/consultant/shops/monthly-sales?from=' . urlencode($from) . '&to=' . urlencode($to)
         );
-        if ($d === null) {
-            return null;
+        return $d !== null ? $this->parseMonthlySales($d) : null;
+    }
+
+    /**
+     * P1 sur PLUSIEURS plages en un aller-retour (curl_multi) — les tendances
+     * demandent la fenêtre N et son équivalent N-1 ; en séquence, c'est deux
+     * attentes réseau pour rien.
+     *
+     * @param array<int, array{0: string, 1: string}> $ranges couples [from, to] en 'YYYY-MM'
+     * @return array<string, array|null> map 'from|to' => série (ou null)
+     */
+    public function getMonthlySalesRanges(array $ranges): array
+    {
+        $out = [];
+        foreach ($ranges as [$from, $to]) {
+            $out["{$from}|{$to}"] = null;
         }
+        if ($ranges === [] || !empty(self::$batchMissing['monthly_sales'])
+            || isset(self::breakerCurrent()['monthly_sales'])) {
+            self::$batchMissing['monthly_sales'] = true;
+            return $out;
+        }
+
+        $byKey = [];
+        foreach ($ranges as [$from, $to]) {
+            $byKey["{$from}|{$to}"] = '/consultant/shops/monthly-sales?from='
+                . urlencode($from) . '&to=' . urlencode($to);
+        }
+        $t0        = microtime(true);
+        $responses = $this->apiClient->getMany(array_values($byKey));
+        $ms        = (int)round((microtime(true) - $t0) * 1000);
+
+        $codes = [];
+        foreach ($byKey as $key => $ep) {
+            $r = $responses[$ep] ?? null;
+            if (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) {
+                $parsed = $this->parseMonthlySales($r['data']);
+                if ($parsed !== null) {
+                    $out[$key] = $parsed;
+                    continue;
+                }
+                $codes[] = 'bad_payload';
+                continue;
+            }
+            $code    = is_int($r['error'] ?? null) ? (int)$r['error'] : 0;
+            $codes[] = $code === 404 ? 'http_404' : ($code > 0 ? ('http_' . $code) : 'timeout_or_unreachable');
+        }
+
+        if (array_filter($out) === [] && $codes !== []) {
+            $why = (string)array_key_first(array_count_values($codes));
+            self::$batchMissing['monthly_sales'] = true;
+            if (!in_array($why, ['http_401', 'http_403'], true)) {
+                self::breakerTrip(
+                    'monthly_sales',
+                    $why === 'http_404' ? self::BREAKER_TTL_ABSENT : self::BREAKER_TTL_FAIL,
+                    $why
+                );
+            }
+        }
+        self::$batchLog[] = [
+            'key'      => 'monthly_sales',
+            'endpoint' => '/consultant/shops/monthly-sales × ' . count($byKey) . ' (parallèle)',
+            'status'   => array_filter($out) !== [] ? 'ok (' . count(array_filter($out)) . '/' . count($byKey) . ')' : ($codes[0] ?? 'empty'),
+            'ms'       => $ms,
+        ];
+        return $out;
+    }
+
+    /** @return array<int, array<string, array{ca: float, tickets: int}>>|null */
+    private function parseMonthlySales(array $d): ?array
+    {
         $out = [];
         foreach (($d['shops'] ?? $d) as $shop) {
             if (!is_array($shop)) {
@@ -891,6 +962,87 @@ class ShopRepository
             }
         }
         return $out !== [] ? $out : null;
+    }
+
+    /**
+     * P6a en LOT — targets de toutes les boutiques pour PLUSIEURS mois, en
+     * parallèle (curl_multi).
+     *
+     * Les tendances demandent 12 mois : en séquence, c'est 12 fois la latence
+     * de l'API (jusqu'à 12 × 10 s si elle traîne), assez pour dépasser le délai
+     * de la passerelle et rendre l'écran vide. En parallèle, c'est un aller-retour.
+     *
+     * @param string[] $yms mois 'YYYY-MM'
+     * @return array<string, array<int, array>> map 'YYYY-MM' => (shopId => targets) ;
+     *         les mois non servis sont absents.
+     */
+    public function getTargetsAllShopsMany(array $yms): array
+    {
+        $yms = array_values(array_unique($yms));
+        if ($yms === [] || !empty(self::$batchMissing['targets_all'])
+            || isset(self::breakerCurrent()['targets_all'])) {
+            self::$batchMissing['targets_all'] = true;
+            return [];
+        }
+
+        $byYm = [];
+        foreach ($yms as $ym) {
+            [$y, $m] = array_map('intval', explode('-', (string)$ym));
+            if ($y > 0 && $m > 0) {
+                $byYm[$ym] = "/consultant/targets?year={$y}&month={$m}";
+            }
+        }
+        $t0        = microtime(true);
+        $responses = [];
+        foreach (array_chunk(array_values($byYm), 16) as $chunk) {
+            $responses += $this->apiClient->getMany($chunk);
+        }
+        $ms = (int)round((microtime(true) - $t0) * 1000);
+
+        $out   = [];
+        $codes = [];
+        foreach ($byYm as $ym => $ep) {
+            $r = $responses[$ep] ?? null;
+            if (!is_array($r) || empty($r['success']) || !is_array($r['data'] ?? null)) {
+                $code    = is_int($r['error'] ?? null) ? (int)$r['error'] : 0;
+                $codes[] = $code === 404 ? 'http_404' : ($code > 0 ? ('http_' . $code) : 'timeout_or_unreachable');
+                continue;
+            }
+            $shops = [];
+            foreach (($r['data']['shops'] ?? $r['data']) as $shop) {
+                if (!is_array($shop)) {
+                    continue;
+                }
+                $sid = (int)($shop['shop_id'] ?? $shop['id'] ?? 0);
+                if ($sid > 0 && is_array($shop['targets'] ?? null)) {
+                    $shops[$sid] = $shop['targets'];
+                }
+            }
+            if ($shops !== []) {
+                $out[$ym] = $shops;
+            } else {
+                $codes[] = 'bad_payload';
+            }
+        }
+
+        if ($out === [] && $codes !== []) {
+            $why = (string)array_key_first(array_count_values($codes));
+            self::$batchMissing['targets_all'] = true;
+            if (!in_array($why, ['http_401', 'http_403'], true)) {
+                self::breakerTrip(
+                    'targets_all',
+                    $why === 'http_404' ? self::BREAKER_TTL_ABSENT : self::BREAKER_TTL_FAIL,
+                    $why
+                );
+            }
+        }
+        self::$batchLog[] = [
+            'key'      => 'targets_all',
+            'endpoint' => '/consultant/targets × ' . count($byYm) . ' mois (parallèle)',
+            'status'   => $out !== [] ? 'ok (' . count($out) . '/' . count($byYm) . ')' : ($codes[0] ?? 'empty'),
+            'ms'       => $ms,
+        ];
+        return $out;
     }
 
     /**

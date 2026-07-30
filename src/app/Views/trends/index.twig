@@ -12,6 +12,10 @@
   .tr-loading .sp { width:18px; height:18px; border:2.5px solid #ece4d8; border-top-color:#8D1D2C; border-radius:50%; animation:trSpin .8s linear infinite; }
   @keyframes trSpin { to { transform:rotate(360deg); } }
   .tr-error { font-size:.82rem; color:#c0182b; padding:14px 4px; }
+  .tr-diag { margin-top:10px; background:#faf7f2; border:1px solid #f1e9dd; border-radius:10px;
+             padding:8px 10px; font-size:.66rem; color:#5f574f; line-height:1.55;
+             font-family:ui-monospace, SFMono-Regular, Menlo, monospace; overflow-x:auto; }
+  .tr-diag b { color:#241f1c; }
 
   .tr-sec { font-size:.64rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#8D1D2C; margin:18px 2px 8px; }
   .tr-sec:first-child { margin-top:2px; }
@@ -98,6 +102,7 @@
         <tbody id="trRows"></tbody>
       </table>
     </div>
+    <div class="tr-note" id="trObjSkip" hidden>{{ translations.obj_skipped ?? "Objectifs non chargés cette fois (budget de temps atteint) — les « — » de la colonne Objectif ne signifient pas « aucun objectif encodé ». Rechargez la page." }}</div>
     <div class="tr-note">{{ translations.note ?? "Objectif = somme des objectifs CA encodés par boutique (overrides consultant/admin). « — » : aucun objectif encodé ce mois-là." }} {{ translations.partial_note ?? '« * » : mois en cours.' }}</div>
   </div>
 
@@ -136,6 +141,27 @@
 
   function escTxt(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
+  // Diagnostic joint par le serveur quand le résultat est inexploitable : quel
+  // endpoint a répondu quoi, en combien de temps, et quels disjoncteurs sont
+  // ouverts. Affiché sur la page — rien à ouvrir à la main.
+  function diagHtml(dbg) {
+    if (!dbg) { return ''; }
+    var h = '<div class="tr-diag"><b>{{ translations.diag_title ?? 'Diagnostic' }}</b>';
+    h += '<div>{{ translations.diag_shops ?? 'boutiques' }} : ' + escTxt(dbg.shops_count == null ? '—' : dbg.shops_count)
+       + ' · ' + escTxt(dbg.elapsed_s == null ? '—' : dbg.elapsed_s) + ' s</div>';
+    (dbg.probes || []).forEach(function (pr) {
+      h += '<div>' + escTxt(pr.key) + ' → <b>' + escTxt(pr.status) + '</b> (' + escTxt(pr.ms) + ' ms)</div>';
+    });
+    Object.keys(dbg.breaker || {}).forEach(function (k) {
+      h += '<div>' + escTxt(k) + ' : {{ translations.diag_breaker ?? 'coupé' }} (' + escTxt(dbg.breaker[k].why)
+         + ', ' + escTxt(dbg.breaker[k].retry_in_s) + ' s)</div>';
+    });
+    if (!(dbg.probes || []).length && !Object.keys(dbg.breaker || {}).length) {
+      h += '<div>{{ translations.diag_none ?? 'aucune sonde batch enregistrée' }}</div>';
+    }
+    return h + '</div>';
+  }
+
   fetch(ROOT + '/trends/data', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
     .then(function (r) {
       return r.json()
@@ -149,7 +175,9 @@
         // Le détail technique (erreur serveur ou statut HTTP) est affiché pour
         // rendre la panne diagnosticable au lieu d'un message générique.
         var detail = (j && j.error) ? j.error : ('HTTP ' + p.status);
-        loading.innerHTML = '<div class="tr-error">{{ translations.empty ?? 'Données indisponibles.' }}<br><span style="font-size:.68rem;opacity:.8;">' + escTxt(detail) + '</span></div>';
+        loading.innerHTML = '<div class="tr-error">{{ translations.empty ?? 'Données indisponibles.' }}<br>'
+          + '<span style="font-size:.68rem;opacity:.8;">' + escTxt(detail) + '</span>'
+          + diagHtml(j && j.debug) + '</div>';
         return;
       }
       if (window.console && (d.elapsed_s != null || j.cached || j.stale)) {
@@ -157,11 +185,13 @@
       }
       var hasData = d.months.some(function (m) { return m.ca_n != null || m.ca_n1 != null; });
       if (!hasData) {
-        loading.innerHTML = '<div class="tr-error">{{ translations.no_sales ?? 'Aucune donnée de ventes exploitable sur les 12 derniers mois (API ventes et base locale).' }}</div>';
+        loading.innerHTML = '<div class="tr-error">{{ translations.no_sales ?? 'Aucune donnée de ventes exploitable sur les 12 derniers mois (API ventes et base locale).' }}'
+          + diagHtml(j.debug) + '</div>';
         return;
       }
       loading.hidden = true;
       content.hidden = false;
+      if (d.obj_skipped) { document.getElementById('trObjSkip').hidden = false; }
       renderPodium(d.top3 || []);
       window.__trMonths = d.months;
       drawChart(d.months, 'cum');

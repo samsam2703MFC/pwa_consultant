@@ -1,6 +1,7 @@
 <?php
 namespace App\Consultant\app\Services\Trends;
 
+use App\Consultant\app\Services\Param\ParamService;
 use App\Consultant\app\Services\Shop\ShopService;
 use App\Consultant\app\Services\Target\ShopMetricTargetService;
 
@@ -24,11 +25,19 @@ class TrendsService
 
     public function __construct(
         private ShopService $shopService,
-        private ShopMetricTargetService $targetService
+        private ShopMetricTargetService $targetService,
+        private ?ParamService $params = null
     ) {}
 
     public function build(): array
     {
+        // Budget de temps (mac_consultant_param). Le CA consolidé est le cœur de
+        // l'écran ; les objectifs sont un complément. Passé le budget, on rend
+        // les CA sans les objectifs plutôt que de laisser la passerelle couper
+        // la réponse et afficher une page vide.
+        $t0     = microtime(true);
+        $budget = max(1, $this->params?->getInt('trends_budget_seconds', 30) ?? 30);
+
         $ids = [];
         foreach ($this->shopService->getAllShops() as $s) {
             $id = (int)($s['id'] ?? 0);
@@ -65,18 +74,17 @@ class TrendsService
             ];
         }
 
-        // P1 — série mensuelle de TOUTES les boutiques en UN appel (24 mois :
-        // la fenêtre N et son équivalent N-1). Remplace ~300 appels.
-        $serie = $this->shopService->getMonthlySalesAllShops(
-            (string)$months[0]['ym'],
-            (string)$months[count($months) - 1]['ym']
-        );
-        $serieN1 = $serie !== null
-            ? $this->shopService->getMonthlySalesAllShops(
-                date('Y-m', (int)strtotime($months[0]['from'] . ' -1 year')),
-                date('Y-m', (int)strtotime($months[count($months) - 1]['from'] . ' -1 year'))
-            )
-            : null;
+        // P1 — série mensuelle de TOUTES les boutiques : la fenêtre N et son
+        // équivalent N-1 demandées EN PARALLÈLE (un aller-retour au lieu de
+        // deux). Remplace ~300 appels.
+        $rN  = [(string)$months[0]['ym'], (string)$months[count($months) - 1]['ym']];
+        $rN1 = [
+            date('Y-m', (int)strtotime($months[0]['from'] . ' -1 year')),
+            date('Y-m', (int)strtotime($months[count($months) - 1]['from'] . ' -1 year')),
+        ];
+        $series  = $this->shopService->getMonthlySalesRanges([$rN, $rN1]);
+        $serie   = $series[$rN[0] . '|' . $rN[1]] ?? null;
+        $serieN1 = $series[$rN1[0] . '|' . $rN1[1]] ?? null;
 
         // Fenêtres à interroger précisément :
         //  - endpoint absent → TOUS les mois (repli) ;
@@ -96,13 +104,25 @@ class TrendsService
         $kpis = $windows !== [] ? $this->shopService->getSalesKpisBatch($windows) : [];
 
         // Objectifs CA — tous les couples (boutique, mois) en parallèle.
-        $treqs = [];
-        foreach ($months as $m) {
-            foreach ($ids as $id) {
-                $treqs[] = ['shop' => $id, 'year' => $m['year'], 'month' => $m['month']];
+        $targets     = [];
+        $objSkipped  = false;
+        if ($ids !== [] && (microtime(true) - $t0) < $budget) {
+            $treqs = [];
+            foreach ($months as $m) {
+                foreach ($ids as $id) {
+                    $treqs[] = ['shop' => $id, 'year' => $m['year'], 'month' => $m['month']];
+                }
             }
+            // Échéance : au-delà, le lot s'arrête et rend des objectifs
+            // partiels — mieux que de laisser la passerelle couper la page.
+            $targets = $this->targetService->getTargetsMany($treqs, $t0 + $budget);
+            // Échéance franchie pendant le lot → objectifs possiblement
+            // partiels. Un lot terminé DANS le budget est complet, même s'il
+            // ne renvoie rien : là, « — » veut bien dire « rien d'encodé ».
+            $objSkipped = (microtime(true) - $t0) >= $budget;
+        } elseif ($ids !== []) {
+            $objSkipped = true;
         }
-        $targets = $this->targetService->getTargetsMany($treqs);
 
         $rows = [];
         foreach ($months as $m) {
@@ -155,6 +175,9 @@ class TrendsService
             'months'      => $rows,
             'top3'        => $top3,
             'shops_count' => count($ids),
+            // Objectifs abandonnés faute de temps : signalé pour que les « — »
+            // de la colonne Objectif ne passent pas pour « aucun objectif encodé ».
+            'obj_skipped' => $objSkipped,
         ];
     }
 

@@ -98,9 +98,18 @@ class ShopService
             $byWindow[($w['from'] ?? '') . '|' . ($w['to'] ?? '')][] = (int)($w['shop'] ?? 0);
         }
         $remaining = [];
+        // P3 n'est sondé qu'UNE fois : une réponse vide n'est pas un échec HTTP,
+        // donc le disjoncteur ne la voit pas — sans ce garde-fou, chaque fenêtre
+        // paierait sa propre sonde (24 fenêtres = 24 attentes en série).
+        $p3Dead = false;
         foreach ($byWindow as $win => $shopIds) {
             [$f, $t] = explode('|', $win);
-            $all = count($shopIds) > 1 ? $this->shopRepository->getSalesKpisAllShops($f, $t) : null;
+            $all = (!$p3Dead && count($shopIds) > 1)
+                ? $this->shopRepository->getSalesKpisAllShops($f, $t)
+                : null;
+            if ($all === null && count($shopIds) > 1) {
+                $p3Dead = true;
+            }
             if ($all !== null) {
                 foreach ($shopIds as $sid) {
                     if (isset($all[$sid])) {
@@ -254,6 +263,17 @@ class ShopService
     public function getMonthlyPnlMany(array $shopIds, string $from, string $to): array
     {
         return $this->shopRepository->getMonthlyPnlMany($shopIds, $from, $to);
+    }
+
+    /**
+     * P1 sur plusieurs plages en un aller-retour.
+     *
+     * @param array<int, array{0: string, 1: string}> $ranges couples [from, to]
+     * @return array<string, array|null> map 'from|to' => série
+     */
+    public function getMonthlySalesRanges(array $ranges): array
+    {
+        return $this->shopRepository->getMonthlySalesRanges($ranges);
     }
 
     /** P1 — ventes mensuelles de toutes les boutiques, ou null. */
