@@ -106,6 +106,23 @@ class PnlSnapshotRepository
         return $rows[0] ?? null;
     }
 
+    /**
+     * Snapshot le plus récent d'une boutique jusqu'à (year, month) inclus,
+     * avec structure de coûts complète (ca > 0, labour et overhead non nuls) —
+     * repli de la heatmap de rentabilité quand le mois exact n'a pas été capté.
+     */
+    public function latestCostStructureUpTo(int $shopId, int $year, int $month): ?array
+    {
+        $rows = $this->select(
+            'SELECT * FROM shop_monthly_pnl '
+            . 'WHERE id_shop = :s AND (year < :y OR (year = :y AND month <= :m)) '
+            . 'AND ca IS NOT NULL AND ca > 0 AND labour IS NOT NULL AND overhead IS NOT NULL '
+            . 'ORDER BY year DESC, month DESC LIMIT 1',
+            [':s' => $shopId, ':y' => $year, ':m' => $month]
+        );
+        return $rows[0] ?? null;
+    }
+
     /** Snapshots d'une boutique depuis (year,month) inclus, ordre chronologique. */
     public function forShopSince(int $shopId, int $year, int $month): array
     {

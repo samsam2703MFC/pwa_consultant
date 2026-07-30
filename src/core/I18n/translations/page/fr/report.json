@@ -103,5 +103,6 @@
     "pnl_alloc_note": "Labour/overhead du mois répartis au prorata du CA du jour",
     "pnl_gross_note": "Labour/overhead indisponibles — marge brute uniquement.",
     "day_notes": "Commentaires du jour",
-    "close": "Fermer"
+    "close": "Fermer",
+    "hm_src_snapshot": "structure de coûts de"
 }
