@@ -55,7 +55,24 @@ class ShopService
             }
         }
 
-        return $filtered;
+        // UNE ligne par boutique. L'API peut en renvoyer plusieurs pour la même
+        // (une par affectation de consultant, par exemple). Les écrans qui
+        // additionnent le réseau — Tendances, rapport réseau — parcourent cette
+        // liste telle quelle : une boutique présente trois fois voyait son CA
+        // compté trois fois. La valorisation, elle, indexait déjà par id et
+        // donnait un autre total : deux écrans, deux chiffres.
+        $byId   = [];   // id => boutique
+        $noId   = [];   // lignes sans id exploitable : impossible à dédoublonner
+        foreach ($filtered as $shop) {
+            $id = (int)($shop['id'] ?? 0);
+            if ($id <= 0) {
+                $noId[] = $shop;
+            } elseif (!isset($byId[$id])) {
+                $byId[$id] = $shop;
+            }
+        }
+
+        return array_merge(array_values($byId), $noId);
     }
 
     public function getPnl(int $shopId, string $period = 'day'): array

@@ -44,6 +44,19 @@
   .tr-cur-v { display:flex; align-items:baseline; gap:8px; margin-top:3px; }
   .tr-cur-ca { font-size:1.28rem; font-weight:800; color:#8D1D2C; letter-spacing:-.01em; }
   .tr-cur-sub { font-size:.63rem; color:#7a7168; margin-top:4px; line-height:1.5; }
+  /* Détail par boutique : de quoi vérifier le total du réseau. */
+  .tr-brk { margin-top:9px; border-top:1px solid #f1e9dd; padding-top:7px; }
+  .tr-brk summary { list-style:none; cursor:pointer; font-size:.63rem; font-weight:800; color:#8D1D2C; }
+  .tr-brk summary::-webkit-details-marker { display:none; }
+  .tr-brk summary::before { content:'▸ '; }
+  .tr-brk[open] summary::before { content:'▾ '; }
+  .tr-brk table { width:100%; border-collapse:collapse; font-size:.68rem; margin-top:6px; }
+  .tr-brk td { padding:3px 2px; border-bottom:1px solid rgba(0,0,0,.05); }
+  .tr-brk td.n { text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:#241f1c; white-space:nowrap; }
+  .tr-brk td.s { color:#5f574f; }
+  .tr-brk tr.t td { border-top:1.5px solid rgba(141,29,44,.25); border-bottom:none; font-weight:800; color:#8D1D2C; }
+  .tr-brk tr.dup td.s { color:#c0182b; }
+  .tr-brk .z { color:#9a9086; font-weight:600; }
 
   /* ── Graphique ── */
   .tr-card { background:#fff; border:1px solid #ece4d8; border-radius:16px; padding:13px 14px; box-shadow:0 3px 12px -8px rgba(70,40,25,.3); }
@@ -234,7 +247,7 @@
       loading.hidden = true;
       content.hidden = false;
       if (d.obj_skipped) { document.getElementById('trObjSkip').hidden = false; }
-      renderCurrent(d.current);
+      renderCurrent(d.current, d.current_shops || []);
       renderMtdWarning(d.mtd_check);
       renderPodium(d.top3 || []);
       window.__trMonths = d.months;
@@ -253,7 +266,29 @@
   // Le mois en cours a sa propre carte : il ne compte qu'une partie de ses
   // journées, donc il n'entre pas au classement. Sa comparaison est faite à
   // périmètre égal — les mêmes jours l'an dernier.
-  function renderCurrent(cur) {
+  // Détail boutique par boutique du mois en cours. Un total de réseau qu'on ne
+  // peut pas décomposer ne se vérifie pas : ici, une boutique en double ou une
+  // valeur aberrante saute aux yeux.
+  function breakdownHtml(shops) {
+    if (!shops.length) { return ''; }
+    var seen = {}, tot = 0, rows = '';
+    shops.forEach(function (s) {
+      tot += (s.ca || 0);
+      var dup = !!seen[s.id];
+      seen[s.id] = true;
+      rows += '<tr' + (dup ? ' class="dup"' : '') + '>'
+        + '<td class="s">' + escTxt(s.name) + (dup ? ' ⚠︎' : '') + '</td>'
+        + '<td class="n' + (s.ca ? '' : ' z') + '">' + keur(s.ca) + '</td></tr>';
+    });
+    return '<details class="tr-brk"><summary>'
+      + shops.length + ' ' + {{ (translations.shops ?? 'boutiques')|json_encode|raw }} + ' — '
+      + {{ (translations.breakdown ?? 'détail du total')|json_encode|raw }}
+      + '</summary><table><tbody>' + rows
+      + '<tr class="t"><td>' + {{ (translations.total ?? 'Total réseau')|json_encode|raw }}
+      + '</td><td class="n">' + keur(tot) + '</td></tr></tbody></table></details>';
+  }
+
+  function renderCurrent(cur, shops) {
     var host = document.getElementById('trCur');
     if (!cur) { return; }
     host.hidden = false;
@@ -276,7 +311,8 @@
       + '<div class="tr-cur-v"><span class="tr-cur-ca">' + keur(cur.ca_n) + '</span>' + evoHtml(cur.evo_pct) + '</div>'
       + (cmp ? '<div class="tr-cur-sub">' + escTxt(cmp) + '</div>' : '')
       + (cur.obj_pct == null ? '' : '<div class="tr-cur-sub">'
-          + {{ (translations.cur_reach ?? 'Atteinte de l’objectif :')|json_encode|raw }} + ' ' + reachHtml(cur.obj_pct) + '</div>');
+          + {{ (translations.cur_reach ?? 'Atteinte de l’objectif :')|json_encode|raw }} + ' ' + reachHtml(cur.obj_pct) + '</div>')
+      + breakdownHtml(shops || []);
   }
 
   // Le mois en cours est mesuré sur des fenêtres de dates (P3 / base locale)
