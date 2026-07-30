@@ -8,6 +8,7 @@ use App\Consultant\app\Services\Target\ShopMetricTargetService;
 use App\Consultant\app\Services\Task\TaskService;
 use App\Consultant\app\Services\Campaign\CampaignService;
 use App\Consultant\app\Services\Param\ParamService;
+use App\Consultant\app\Services\Kpi\KpiThresholdService;
 use App\Consultant\app\Repositories\Consultant\ConsultantUserRepository;
 use App\Consultant\app\Repositories\Valuation\PnlSnapshotRepository;
 use App\Consultant\core\Support\GlobalRegistry;
@@ -50,7 +51,8 @@ class ReportService
         private ConsultantUserRepository $consultantUsers,
         private CampaignService $campaignService,
         private ParamService $params,
-        private PnlSnapshotRepository $pnlSnapshots
+        private PnlSnapshotRepository $pnlSnapshots,
+        private KpiThresholdService $kpiColors
     ) {}
 
     /**
@@ -377,8 +379,9 @@ class ReportService
      * Analyse de RENTABILITÉ (rapport mensuel) : carte de marge brute du mois
      * (endpoint margin-heatmap) — jour par jour, puis créneaux matin / midi /
      * après-midi par semaine. Les bornes des créneaux viennent de
-     * consultant_param (rien en dur). Échelle de couleur en 5 niveaux relatifs
-     * au mois (lvl 1 = plus faible … 5 = plus forte). null si indisponible.
+     * consultant_param (rien en dur). Couleurs par bandes ABSOLUES
+     * configurables (table kpi_threshold, métrique net_margin ou gross_margin).
+     * null si indisponible.
      */
     private function rentabilityHeatmap(int $shopId, array $period): ?array
     {
@@ -392,7 +395,6 @@ class ReportService
 
         // ── Mois / jour ──
         $days = [];
-        $pcts = [];
         foreach ($month['days'] as $d) {
             if (!is_array($d) || empty($d['date'])) {
                 continue;
@@ -409,9 +411,6 @@ class ReportService
                 'mv'        => isset($d['margin_value']) && is_numeric($d['margin_value']) ? (float)$d['margin_value'] : null,
                 'ca'        => isset($d['ca']) && is_numeric($d['ca']) ? (float)$d['ca'] : null,
             ];
-            if ($pct !== null) {
-                $pcts[] = $pct;
-            }
         }
         if ($days === []) {
             return null;
@@ -465,9 +464,6 @@ class ReportService
             $row = ['label' => date('d/m', (int)strtotime($b['from'])) . '–' . date('d/m', (int)strtotime($b['to']))];
             foreach ($parts as $slot => $p) {
                 $row[$slot] = $p['ca'] > 0 ? $p['mv'] / $p['ca'] * 100 : null;
-                if ($row[$slot] !== null) {
-                    $pcts[] = $row[$slot];
-                }
             }
             $weeks[] = $row;
         }
@@ -493,40 +489,19 @@ class ReportService
                 }
             }
             unset($w);
-            $pcts = [];
-            foreach ($days as $d) {
-                if ($d['pct'] !== null) {
-                    $pcts[] = $d['pct'];
-                }
-            }
-            foreach ($weeks as $w) {
-                foreach (['matin', 'midi', 'apm'] as $slot) {
-                    if ($w[$slot] !== null) {
-                        $pcts[] = $w[$slot];
-                    }
-                }
-            }
         }
 
-        // ── Échelle : 5 niveaux relatifs au mois ──
-        $min = $pcts !== [] ? min($pcts) : null;
-        $max = $pcts !== [] ? max($pcts) : null;
-        $level = function (?float $pct) use ($min, $max): ?int {
-            if ($pct === null || $min === null || $max === null) {
-                return null;
-            }
-            if ($max - $min < 0.001) {
-                return 3;
-            }
-            return 1 + (int)min(4, floor(($pct - $min) / ($max - $min) * 5));
-        };
+        // ── Couleurs : bandes ABSOLUES de la table kpi_threshold (marge nette
+        //    ou brute selon la base) — mise en forme conditionnelle configurable
+        //    en base, cohérente avec l'écran Boutiques.
+        $metric = $basis === 'net' ? 'net_margin' : 'gross_margin';
         foreach ($days as &$d) {
-            $d['lvl'] = $level($d['pct']);
+            $d['color'] = $d['pct'] !== null ? $this->kpiColors->colorFor($metric, $d['pct']) : null;
         }
         unset($d);
         foreach ($weeks as &$w) {
             foreach (['matin', 'midi', 'apm'] as $slot) {
-                $w['lvl_' . $slot] = $level($w[$slot]);
+                $w['color_' . $slot] = $w[$slot] !== null ? $this->kpiColors->colorFor($metric, $w[$slot]) : null;
             }
         }
         unset($w);
@@ -537,8 +512,7 @@ class ReportService
         return [
             'days'         => $days,
             'weeks'        => $weeks,
-            'min'          => $min,
-            'max'          => $max,
+            'bands'        => $this->kpiColors->bands($metric),
             'basis'           => $basis,
             'fixed_pct'       => $fixedPct,
             'fixed_src'       => $fixedSrc,

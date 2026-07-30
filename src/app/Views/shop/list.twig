@@ -395,12 +395,9 @@
     <div class="result-legend">
         <span class="rl-title">{{ translations.legend_result ?? 'Couleur du Result (marge en % du CA)' }}</span>
         <span class="rl-items">
-            <span class="rl-item"><i style="background:#8B0000;"></i>{{ translations.loss ?? 'Perte' }}</span>
-            <span class="rl-item"><i style="background:#dc3545;"></i>0–5&nbsp;%</span>
-            <span class="rl-item"><i style="background:#e67e22;"></i>5–10&nbsp;%</span>
-            <span class="rl-item"><i style="background:#8FA31E;"></i>10–15&nbsp;%</span>
-            <span class="rl-item"><i style="background:#27ae60;"></i>15–25&nbsp;%</span>
-            <span class="rl-item"><i style="background:#C9A227;"></i>&gt;&nbsp;25&nbsp;%</span>
+            {% for b in kpi_bands.net_margin ?? [] %}
+                <span class="rl-item"><i style="background:{{ b.color }};"></i>{{ b.label }}</span>
+            {% endfor %}
         </span>
     </div>
 
@@ -726,14 +723,22 @@ const CMP_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representat
     // Couleur de la ligne Result selon la marge (Result en % du TurnOver) :
     // perte → rouge sang · 0–5 % → rouge · 5–10 % → orange ·
     // 10–15 % → vert orangé · 15–25 % → vert · > 25 % → gold.
+    // ── Bandes de couleur des marges : table kpi_threshold (rien en dur).
+    //    La bande retenue = plus grande borne basse ≤ valeur (null = -infini).
+    const KPI_BANDS = {{ (kpi_bands ?? {})|json_encode|raw }};
+    function kpiColor(metric, pct) {
+        const bands = KPI_BANDS[metric] || [];
+        let c = '#9BA1A6';
+        for (let i = 0; i < bands.length; i++) {
+            if (bands[i].min === null || pct >= bands[i].min) c = bands[i].color;
+        }
+        return c;
+    }
+
     function resultColor(r, t) {
-        if (r < 0) return '#8B0000';
-        const p = t > 0 ? (r / t) * 100 : 0;
-        if (p <= 5)  return '#dc3545';
-        if (p <= 10) return '#e67e22';
-        if (p <= 15) return '#8FA31E';
-        if (p <= 25) return '#27ae60';
-        return '#C9A227';
+        // Perte (résultat < 0) → 1re bande, même si le CA est nul.
+        const p = r < 0 ? -1 : (t > 0 ? (r / t) * 100 : 0);
+        return kpiColor('net_margin', p);
     }
 
     // ── RENDER ──────────────────────────────────────────────────────────────
@@ -898,12 +903,7 @@ const CMP_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representat
     // Barème validé : perte → rouge sang · 0–40 % → rouge · 40–50 % → orange ·
     // 50–60 % → vert orangé · 60–70 % → vert · > 70 % → gold.
     function marginColor(mPct) {
-        if (mPct < 0)  return '#8B0000';
-        if (mPct < 40) return '#dc3545';
-        if (mPct < 50) return '#e67e22';
-        if (mPct < 60) return '#8FA31E';
-        if (mPct < 70) return '#27ae60';
-        return '#C9A227';
+        return kpiColor('gross_margin', mPct);
     }
 
     // Évolution vs N-1 → couleur (repli tant que la marge/catégorie manque).
