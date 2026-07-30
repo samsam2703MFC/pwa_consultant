@@ -260,6 +260,10 @@ class ValuationService
                 'material'      => $c['material'] ?? null,
                 'labour'        => $c['labour']   ?? null,
                 'overhead'      => $c['overhead'] ?? null,
+                // Chaque poste en part du CA. C'est là qu'un poste sous-évalué
+                // se voit : des frais généraux à 4 % du CA ne couvrent pas un
+                // loyer, des redevances et de l'énergie.
+                'cost_mix'      => $this->costMix($c),
                 // Le CA vient-il du P&L (même source que les coûts) ou, faute de
                 // P&L, des KPIs de vente ?
                 'ca_from_pnl'   => $caFromPnl,
@@ -308,10 +312,13 @@ class ValuationService
                 fn($s) => [
                     'name'    => $s['name'],
                     'pct'     => round((float)$s['avg_margin'], 1),
-                    // Ce qui explique le dépassement : soit des postes absents,
-                    // soit une marge lue dans `result` faute de postes.
-                    'missing' => $s['missing_costs'],
-                    'from'    => $s['margin_from'],
+                    // Ce qui explique le dépassement : postes absents, marge lue
+                    // dans `result` faute de postes, ou — quand tout est là —
+                    // la structure de coûts elle-même, où le poste sous-évalué
+                    // se repère à sa part du CA.
+                    'missing'  => $s['missing_costs'],
+                    'from'     => $s['margin_from'],
+                    'cost_mix' => $s['cost_mix'],
                 ],
                 array_filter($shopsOut, fn($s) => !empty($s['margin_over']))
             )),
@@ -337,6 +344,32 @@ class ValuationService
             return $ca - abs($material) - abs($labour) - abs($overhead);
         }
         return $apiResult;
+    }
+
+    /**
+     * Part de chaque poste dans le CA, sur les cumuls de la fenêtre.
+     *
+     * Quand les trois postes sont fournis et que la marge dépasse quand même la
+     * borne, ce n'est pas qu'une ligne manque : c'est qu'une ligne est
+     * sous-évaluée. Les frais généraux couvrent le loyer, les redevances,
+     * l'énergie, les amortissements — à 4 % du CA, ils ne les couvrent
+     * visiblement pas. Cette répartition rend le poste fautif repérable.
+     *
+     * @return array<string, float>|null part en % du CA, par poste
+     */
+    private function costMix(array $c): ?array
+    {
+        $ca = $c['ca'] ?? 0.0;
+        if ($ca <= 0) {
+            return null;
+        }
+        $mix = [];
+        foreach (['material', 'labour', 'overhead'] as $k) {
+            if (isset($c[$k])) {
+                $mix[$k] = round($c[$k] / $ca * 100, 1);
+            }
+        }
+        return $mix !== [] ? $mix : null;
     }
 
     /** Valeur numérique d'un nœud P&L ({value:…} ou scalaire numérique). */
