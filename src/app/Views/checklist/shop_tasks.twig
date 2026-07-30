@@ -71,33 +71,10 @@
     .cl-body { padding:8px 8px 4px; background:#fafbfc; }
     .cl-body .task-card { box-shadow:none; border:1px solid #f1f3f5; }
 
-    /* Avis du consultant : une ligne discrète, sans pastille ni fond. Les
-       éléments se suivent — pas de margin-left:auto, qui étirait la ligne
-       jusqu'au bord droit sur grand écran. */
-    .task-rev { display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:5px;
+    /* Avis du consultant : une seule ligne de texte, sans fond ni ornement. */
+    .task-rev { display:flex; align-items:center; gap:5px; margin-top:5px;
                 font-size:.66rem; font-weight:600; color:#2D7A3E; }
     .task-rev.ko { color:#c0182b; }
-    .task-rev .dt { color:#adb5bd; }
-    .task-rev .rt { color:#C9A227; font-weight:800; }
-    .task-rev .ko-tag { font-weight:700; }
-    .task-rev .sep { color:#dee2e6; }
-
-    /* Contrôle de l'Owner : case à cocher, au fil de la ligne */
-    /* Léger retrait : sépare la case du texte sans ajouter de puce, qui
-       resterait orpheline en fin de ligne quand la ligne passe à la suivante. */
-    .task-rev .ov { display:inline-flex; align-items:center; gap:4px; margin-left:6px;
-                    cursor:pointer; -webkit-tap-highlight-color:transparent; }
-    .task-rev .ov input { position:absolute; opacity:0; width:0; height:0; }
-    .task-rev .ov-box { width:14px; height:14px; border-radius:4px; border:1.5px solid #c9c2b8;
-                        display:flex; align-items:center; justify-content:center; font-size:.6rem;
-                        line-height:1; color:transparent; background:#fff; flex-shrink:0; }
-    .task-rev .ov input:checked + .ov-box { background:#241f1c; border-color:#241f1c; color:#fff; }
-    .task-rev .ov input:focus-visible + .ov-box { outline:2px solid #435ebe; outline-offset:2px; }
-    .task-rev .ov-lbl { font-size:.62rem; font-weight:600; color:#7a7168; }
-    .task-rev .ov input:checked ~ .ov-lbl { color:#241f1c; font-weight:700; }
-    .task-rev .ov.busy { opacity:.5; pointer-events:none; }
-    .task-rev .ov-done { display:inline-flex; align-items:center; gap:3px;
-                         font-size:.62rem; font-weight:700; color:#241f1c; }
 
     /* Tâche faite avec photo : carte cliquable + modale de réalisation */
     .task-openable { cursor:pointer; }
@@ -284,9 +261,7 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
         open:    {{ (translations.modal_open ?? 'Ouvrir dans un nouvel onglet')|json_encode|raw }},
         saving:  {{ (translations.modal_saving ?? 'Enregistrement…')|json_encode|raw }},
         saved:   {{ (translations.modal_saved ?? 'Évaluation enregistrée.')|json_encode|raw }},
-        needRate:{{ (translations.modal_need_rate ?? 'Choisissez une note de 1 à 5.')|json_encode|raw }},
-        ownerOk: {{ (translations.owner_ok ?? 'validé')|json_encode|raw }},
-        ownerValidate: {{ (translations.owner_validate ?? 'Valider')|json_encode|raw }}
+        needRate:{{ (translations.modal_need_rate ?? 'Choisissez une note de 1 à 5.')|json_encode|raw }}
     };
     var SHOP = {{ id_shop|default(0)|json_encode|raw }};
     var DATE = {{ (date ?? '')|json_encode|raw }};
@@ -439,56 +414,13 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
             .then(function () { btn.disabled = false; });
     });
 
-    // ── Contrôle de l'Owner : la case coche l'avis du consultant ──
-    document.querySelectorAll('.ov-cb').forEach(function (cb) {
-        cb.addEventListener('change', function () {
-            var wrap = cb.closest('.ov');
-            var lbl  = wrap.querySelector('.ov-lbl');
-            var was  = !cb.checked;
-            wrap.classList.add('busy');
-            fetch(ROOT + '/checklists/reviews/validate', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify({
-                    shop_id:     SHOP,
-                    task_id:     parseInt(cb.getAttribute('data-task'), 10),
-                    review_date: DATE,
-                    validated:   cb.checked
-                })
-            })
-                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-                .then(function (p) {
-                    if (!p.ok || !(p.j && p.j.success)) {
-                        throw new Error((p.j && p.j.error) || 'Erreur');
-                    }
-                    // Même forme que le rendu serveur : « validé <nom> ».
-                    lbl.textContent = p.j.validated
-                        ? (L.ownerOk + (p.j.by ? ' ' + p.j.by : ''))
-                        : L.ownerValidate;
-                })
-                .catch(function (e) {
-                    // Retour à l'état d'avant : la case ne doit pas afficher un
-                    // contrôle qui n'a pas été enregistré.
-                    cb.checked = was;
-                    lbl.textContent = String(e.message || e);
-                })
-                .then(function () { wrap.classList.remove('busy'); });
-        });
-    });
-
-    // La case de validation vit DANS la carte cliquable : sans ce garde-fou,
-    // la cocher ouvrirait aussi la photo, et la modale masquerait la case.
-    function inValidation(t) { return !!(t && t.closest && t.closest('.ov')); }
-
     document.addEventListener('click', function (e) {
-        if (inValidation(e.target)) { return; }
         var card = e.target.closest && e.target.closest('.task-openable[data-done]');
         if (card) { open(card); }
     });
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && !modal.hidden) { close(); return; }
-        if (e.key === 'Enter' && e.target.closest && !inValidation(e.target)) {
+        if (e.key === 'Enter' && e.target.closest) {
             var card = e.target.closest('.task-openable[data-done]');
             if (card) { open(card); }
         }
