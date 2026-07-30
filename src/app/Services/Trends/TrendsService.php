@@ -49,6 +49,14 @@ class TrendsService
         $today    = new \DateTimeImmutable('today');
         $curStart = $today->modify('first day of this month');
 
+        // Le mois en cours s'arrête au dernier jour COMPLET. La journée
+        // d'aujourd'hui n'est qu'à moitié écoulée : la compter face à des
+        // journées pleines de l'an dernier sous-estime systématiquement le mois
+        // en cours. Réglable (mac_consultant_param) pour les réseaux dont
+        // l'API remonte le jour courant en temps réel.
+        $countToday = ($this->params?->getInt('trends_count_today', 0) ?? 0) === 1;
+        $lastFull   = $countToday ? $today : $today->modify('-1 day');
+
         // 12 mois glissants, du plus ancien au mois courant.
         $months = [];
         for ($i = self::MONTHS - 1; $i >= 0; $i--) {
@@ -56,11 +64,17 @@ class TrendsService
             $end     = $start->modify('last day of this month');
             $partial = $end > $today;
             if ($partial) {
-                $end = $today;
+                $end = $lastFull;
             }
+            // Le 1er du mois (sans le jour courant), le mois en cours n'a encore
+            // aucune journée complète : rien à mesurer, rien à comparer.
+            $empty = $partial && $end < $start;
+            $days  = $empty ? 0 : (int)$start->diff($end)->days + 1;
+
             $pStart = $start->modify('-1 year');
-            $pEnd   = $partial
-                ? $pStart->modify('+' . $start->diff($end)->days . ' days')
+            // La fenêtre N-1 couvre EXACTEMENT le même nombre de jours que N.
+            $pEnd = $partial
+                ? $pStart->modify('+' . max(0, $days - 1) . ' days')
                 : $pStart->modify('last day of this month');
             $months[] = [
                 'ym'      => $start->format('Y-m'),
@@ -71,6 +85,8 @@ class TrendsService
                 'p_from'  => $pStart->format('Y-m-d'),
                 'p_to'    => $pEnd->format('Y-m-d'),
                 'partial' => $partial,
+                'empty'   => $empty,
+                'days'    => $days,
             ];
         }
 
@@ -93,7 +109,7 @@ class TrendsService
         //    faussserait l'évolution. On tronque les deux de la même façon.
         $windows = [];
         foreach ($months as $m) {
-            if ($serie !== null && !$m['partial']) {
+            if ($m['empty'] || ($serie !== null && !$m['partial'])) {
                 continue;
             }
             foreach ($ids as $id) {
@@ -125,6 +141,7 @@ class TrendsService
         }
 
         $rows = [];
+        $mtdCheck = null;
         foreach ($months as $m) {
             $caN = 0.0;
             $caN1 = 0.0;
@@ -150,11 +167,33 @@ class TrendsService
                     $obj = ($obj ?? 0.0) + $o;
                 }
             }
+            // Contrôle de cohérence du mois en cours : sa valeur vient des
+            // fenêtres tronquées (P3/local) alors que les onze autres viennent
+            // de la série mensuelle (P1). Deux endpoints, donc deux définitions
+            // possibles du « CA » — un écart passerait pour une envolée du mois
+            // en cours. On le mesure et on le publie plutôt que de le taire.
+            if ($m['partial'] && !$m['empty'] && $serie !== null) {
+                $fromSerie = 0.0;
+                foreach ($ids as $id) {
+                    $fromSerie += (float)($serie[$id][$m['ym']]['ca'] ?? 0);
+                }
+                if ($fromSerie > 0 && $caN > 0) {
+                    $mtdCheck = [
+                        'ym'      => $m['ym'],
+                        'window'  => round($caN, 2),
+                        'serie'   => round($fromSerie, 2),
+                        'gap_pct' => round(($caN - $fromSerie) / $fromSerie * 100, 1),
+                    ];
+                }
+            }
+
             // 0 = aucune donnée (ni API ni base locale) → null, affiché « — »
             // plutôt qu'un faux « 0 € ».
             $rows[] = [
                 'ym'       => $m['ym'],
                 'partial'  => $m['partial'],
+                'days'     => $m['days'],
+                'to'       => $m['to'],
                 'ca_n'     => $caN > 0 ? round($caN, 2) : null,
                 'ca_n1'    => $caN1 > 0 ? round($caN1, 2) : null,
                 'objectif' => $obj !== null ? round($obj, 2) : null,
@@ -163,21 +202,35 @@ class TrendsService
             ];
         }
 
-        // Top 3 des meilleurs mois (sur la fenêtre de 12 mois).
-        $sorted = array_values(array_filter($rows, fn($r) => ($r['ca_n'] ?? 0) > 0));
+        // Top 3 des meilleurs mois — mois TERMINÉS uniquement. Le mois en cours
+        // ne compte qu'une partie de ses journées : le classer face à des mois
+        // entiers n'est pas une comparaison, et le voir arriver premier avec un
+        // cumul incomplet est le meilleur moyen de faire douter du chiffre.
+        $sorted = array_values(array_filter($rows, fn($r) => !$r['partial'] && ($r['ca_n'] ?? 0) > 0));
         usort($sorted, fn($a, $b) => $b['ca_n'] <=> $a['ca_n']);
         $top3 = array_map(
-            fn($r) => ['ym' => $r['ym'], 'ca' => $r['ca_n'], 'evo_pct' => $r['evo_pct'], 'partial' => $r['partial']],
+            fn($r) => ['ym' => $r['ym'], 'ca' => $r['ca_n'], 'evo_pct' => $r['evo_pct'], 'partial' => false],
             array_slice($sorted, 0, 3)
         );
+
+        // Le mois en cours a sa propre ligne : cumul à date et comparaison à
+        // périmètre égal (mêmes jours l'an dernier).
+        $current = null;
+        foreach ($rows as $r) {
+            if ($r['partial']) {
+                $current = $r;
+            }
+        }
 
         return [
             'months'      => $rows,
             'top3'        => $top3,
+            'current'     => $current,
             'shops_count' => count($ids),
             // Objectifs abandonnés faute de temps : signalé pour que les « — »
             // de la colonne Objectif ne passent pas pour « aucun objectif encodé ».
             'obj_skipped' => $objSkipped,
+            'mtd_check'   => $mtdCheck,
         ];
     }
 

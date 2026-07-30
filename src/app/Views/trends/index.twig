@@ -34,15 +34,47 @@
   .tr-pevo { font-size:.64rem; font-weight:700; margin-left:6px; }
   .up { color:#2D7A3E; } .down { color:#c0182b; } .flat { color:#7a7168; }
 
+  /* ── Mois en cours (hors classement : il est incomplet) ── */
+  .tr-cur { background:#fff; border:1px solid #ece4d8; border-left:3px solid #C17A2A; border-radius:14px;
+            padding:11px 13px; box-shadow:0 3px 12px -8px rgba(70,40,25,.3); }
+  .tr-cur[hidden] { display:none; }
+  .tr-cur-h { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .tr-cur-t { font-size:.72rem; font-weight:800; color:#241f1c; text-transform:capitalize; }
+  .tr-cur-d { font-size:.6rem; color:#9a9086; font-weight:600; }
+  .tr-cur-v { display:flex; align-items:baseline; gap:8px; margin-top:3px; }
+  .tr-cur-ca { font-size:1.28rem; font-weight:800; color:#8D1D2C; letter-spacing:-.01em; }
+  .tr-cur-sub { font-size:.63rem; color:#7a7168; margin-top:4px; line-height:1.5; }
+
   /* ── Graphique ── */
   .tr-card { background:#fff; border:1px solid #ece4d8; border-radius:16px; padding:13px 14px; box-shadow:0 3px 12px -8px rgba(70,40,25,.3); }
-  .tr-modes { display:flex; gap:6px; margin-bottom:8px; }
+  .tr-modes { display:flex; gap:6px; margin-bottom:10px; }
   .tr-mode { border:1.5px solid #e7ded2; background:#fff; color:#7a7168; font-size:.7rem; font-weight:800; border-radius:999px; padding:5px 13px; }
   .tr-mode.on { background:#8D1D2C; border-color:#8D1D2C; color:#fff; }
   .tr-tbl tr.tot td { font-weight:800; color:#8D1D2C; border-top:2px solid rgba(141,29,44,.2); }
-  .tr-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:.64rem; color:#7a7168; margin-top:6px; }
+  .tr-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:.64rem; color:#7a7168; margin-top:8px; }
   .tr-legend i { display:inline-block; width:16px; height:3px; border-radius:2px; margin-right:4px; vertical-align:2px; }
   .tr-legend i.dash { background:repeating-linear-gradient(90deg,#2D7A3E 0 4px,transparent 4px 7px); }
+  .tr-legend i.part { height:9px; border-radius:2px; vertical-align:-1px; border:1px solid #8D1D2C;
+                      background:repeating-linear-gradient(45deg,#8D1D2C 0 2px,rgba(141,29,44,.14) 2px 5px); }
+
+  /* Zone du graphique : l'infobulle est positionnée par rapport à elle. */
+  .tr-chart { position:relative; }
+  .tr-chart svg { display:block; width:100%; height:auto; touch-action:pan-y; }
+  .tr-chart text { font-family:inherit; }
+  .tr-tip { position:absolute; top:0; transform:translateX(-50%); pointer-events:none;
+            background:#241f1c; color:#fff; border-radius:9px; padding:7px 9px; font-size:.63rem;
+            line-height:1.5; white-space:nowrap; box-shadow:0 6px 18px -8px rgba(0,0,0,.6); z-index:2; }
+  .tr-tip[hidden] { display:none; }
+  .tr-tip b { display:block; font-size:.66rem; margin-bottom:3px; text-transform:capitalize; }
+  .tr-tip s { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:5px; vertical-align:-1px; text-decoration:none; }
+  .tr-tip em { font-style:normal; color:#b9b0a6; }
+  .tr-tip .v { font-weight:800; }
+  .tr-tip .up { color:#7ddc96; } .tr-tip .down { color:#ff9c9c; } .tr-tip .flat { color:#cfc7bb; }
+
+  /* Avertissement de cohérence du mois en cours (sources différentes). */
+  .tr-warn { margin-top:10px; background:#fdf6ec; border:1px solid #f3e2c7; border-radius:10px;
+             padding:8px 10px; font-size:.65rem; color:#8a6212; line-height:1.55; }
+  .tr-warn[hidden] { display:none; }
 
   /* ── Liste des données ── */
   .tr-tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
@@ -65,9 +97,12 @@
 <div class="tr-loading" id="trLoading"><span class="sp"></span>{{ translations.loading ?? 'Consolidation des 12 derniers mois…' }}</div>
 <div id="trContent" hidden>
 
+  <div class="tr-sec">{{ translations.current_title ?? 'Mois en cours' }}</div>
+  <div class="tr-cur" id="trCur" hidden></div>
+
   <div class="tr-sec">{{ translations.top3_title ?? 'Top performances' }}</div>
   <div class="tr-top3">
-    <div class="tr-top3-h"><span class="ic">{{ icons.svg('trophy', 15) }}</span>{{ translations.top3_sub ?? 'Top 3 des meilleurs mois' }}</div>
+    <div class="tr-top3-h"><span class="ic">{{ icons.svg('trophy', 15) }}</span>{{ translations.top3_sub ?? 'Top 3 des mois terminés' }}</div>
     <div class="tr-podium" id="trPodium"></div>
   </div>
 
@@ -77,12 +112,17 @@
       <button type="button" class="tr-mode on" data-mode="cum">{{ translations.mode_cum ?? 'Cumulé' }}</button>
       <button type="button" class="tr-mode" data-mode="mois">{{ translations.mode_month ?? 'Mensuel' }}</button>
     </div>
-    <div id="trChart"></div>
+    <div class="tr-chart" id="trChartWrap">
+      <div id="trChart"></div>
+      <div class="tr-tip" id="trTip" hidden></div>
+    </div>
     <div class="tr-legend">
       <span><i style="background:#8D1D2C"></i>{{ translations.serie_n ?? 'CA N' }}</span>
       <span><i style="background:#cfc7bb"></i>{{ translations.serie_n1 ?? 'CA N-1' }}</span>
       <span><i class="dash"></i>{{ translations.serie_obj ?? 'Objectifs' }}</span>
+      <span><i class="part"></i>{{ translations.legend_partial ?? 'Mois en cours (incomplet)' }}</span>
     </div>
+    <div class="tr-warn" id="trWarn" hidden></div>
   </div>
 
   <div class="tr-sec">{{ translations.list_title ?? 'Données mensuelles' }}</div>
@@ -103,7 +143,7 @@
       </table>
     </div>
     <div class="tr-note" id="trObjSkip" hidden>{{ translations.obj_skipped ?? "Objectifs non chargés cette fois (budget de temps atteint) — les « — » de la colonne Objectif ne signifient pas « aucun objectif encodé ». Rechargez la page." }}</div>
-    <div class="tr-note">{{ translations.note ?? "Objectif = somme des objectifs CA encodés par boutique (overrides consultant/admin). « — » : aucun objectif encodé ce mois-là." }} {{ translations.partial_note ?? '« * » : mois en cours.' }}</div>
+    <div class="tr-note">{{ translations.note ?? "Objectif = somme des objectifs CA encodés par boutique (overrides consultant/admin). « — » : aucun objectif encodé ce mois-là." }} {{ translations.partial_note ?? "Le mois en cours porte son nombre de jours (« · 29 j ») : il s'arrête au dernier jour complet, et le N-1 en face couvre exactement les mêmes jours." }}</div>
   </div>
 
 </div>
@@ -194,6 +234,8 @@
       loading.hidden = true;
       content.hidden = false;
       if (d.obj_skipped) { document.getElementById('trObjSkip').hidden = false; }
+      renderCurrent(d.current);
+      renderMtdWarning(d.mtd_check);
       renderPodium(d.top3 || []);
       window.__trMonths = d.months;
       drawChart(d.months, 'cum');
@@ -208,9 +250,55 @@
     })
     .catch(function () { loading.innerHTML = '<div class="tr-error">{{ translations.error ?? 'Erreur de chargement.' }}</div>'; });
 
+  // Le mois en cours a sa propre carte : il ne compte qu'une partie de ses
+  // journées, donc il n'entre pas au classement. Sa comparaison est faite à
+  // périmètre égal — les mêmes jours l'an dernier.
+  function renderCurrent(cur) {
+    var host = document.getElementById('trCur');
+    if (!cur) { return; }
+    host.hidden = false;
+    var days = cur.days || 0;
+    var upto = cur.to ? cur.to.slice(8, 10) + '/' + cur.to.slice(5, 7) : '';
+    if (cur.ca_n == null) {
+      host.innerHTML = '<div class="tr-cur-h"><span class="tr-cur-t">' + moLong(cur.ym) + '</span></div>'
+        + '<div class="tr-cur-sub">' + {{ (translations.cur_none ?? "Aucune journée complète pour l'instant.")|json_encode|raw }} + '</div>';
+      return;
+    }
+    var lbl = days + ' ' + (days > 1 ? {{ (translations.days ?? 'jours')|json_encode|raw }} : {{ (translations.day ?? 'jour')|json_encode|raw }})
+      + (upto ? ' — ' + {{ (translations.upto ?? 'au')|json_encode|raw }} + ' ' + upto : '');
+    var cmp = (cur.ca_n1 == null)
+      ? ''
+      : {{ (translations.cur_vs ?? 'contre')|json_encode|raw }} + ' ' + keur(cur.ca_n1)
+        + ' ' + {{ (translations.cur_same_days ?? "sur les mêmes jours l'an dernier")|json_encode|raw }};
+    host.innerHTML = '<div class="tr-cur-h">'
+      + '<span class="tr-cur-t">' + moLong(cur.ym) + '</span>'
+      + '<span class="tr-cur-d">' + escTxt(lbl) + '</span></div>'
+      + '<div class="tr-cur-v"><span class="tr-cur-ca">' + keur(cur.ca_n) + '</span>' + evoHtml(cur.evo_pct) + '</div>'
+      + (cmp ? '<div class="tr-cur-sub">' + escTxt(cmp) + '</div>' : '')
+      + (cur.obj_pct == null ? '' : '<div class="tr-cur-sub">'
+          + {{ (translations.cur_reach ?? 'Atteinte de l’objectif :')|json_encode|raw }} + ' ' + reachHtml(cur.obj_pct) + '</div>');
+  }
+
+  // Le mois en cours est mesuré sur des fenêtres de dates (P3 / base locale)
+  // alors que les onze autres viennent de la série mensuelle (P1). Si les deux
+  // sources ne disent pas la même chose, le mois en cours paraît s'envoler
+  // sans raison : on le dit plutôt que de laisser douter du chiffre.
+  function renderMtdWarning(chk) {
+    if (!chk || Math.abs(chk.gap_pct) < 2) { return; }
+    var host = document.getElementById('trWarn');
+    host.hidden = false;
+    host.innerHTML = escTxt(
+      {{ (translations.mtd_gap ?? 'Mois en cours : les deux sources de CA divergent de')|json_encode|raw }}
+      + ' ' + String(chk.gap_pct).replace('.', ',') + ' % ('
+      + {{ (translations.mtd_window ?? 'fenêtre de dates')|json_encode|raw }} + ' ' + keur(chk.window) + ' · '
+      + {{ (translations.mtd_serie ?? 'série mensuelle')|json_encode|raw }} + ' ' + keur(chk.serie) + '). '
+      + {{ (translations.mtd_hint ?? 'La valeur affichée est celle de la fenêtre de dates, la seule comparable à l’an dernier jour pour jour.')|json_encode|raw }}
+    );
+  }
+
   function renderPodium(top3) {
     var host = document.getElementById('trPodium');
-    if (!top3.length) { host.innerHTML = '<div class="tr-note">{{ translations.empty ?? 'Données indisponibles.' }}</div>'; return; }
+    if (!top3.length) { host.innerHTML = '<div class="tr-note">{{ translations.no_full_month ?? 'Aucun mois terminé avec des ventes sur la période.' }}</div>'; return; }
     host.innerHTML = top3.map(function (t, i) {
       return '<div class="tr-prow">'
         + '<span class="tr-rank r' + (i + 1) + '">' + (i + 1) + '</span>'
@@ -225,7 +313,8 @@
     var host = document.getElementById('trRows');
     var html = months.slice().reverse().map(function (m) {
       return '<tr>'
-        + '<td class="mo">' + moShort(m.ym) + (m.partial ? '<span class="part">*</span>' : '') + '</td>'
+        + '<td class="mo">' + moShort(m.ym)
+          + (m.partial ? '<span class="part"> · ' + (m.days || 0) + ' j</span>' : '') + '</td>'
         + '<td class="num">' + keur(m.ca_n1) + '</td>'
         + '<td class="num"><strong>' + keur(m.ca_n) + '</strong></td>'
         + '<td class="num">' + (m.evo_pct == null ? '—' : evoHtml(m.evo_pct)) + '</td>'
@@ -258,8 +347,25 @@
     });
   }
 
+  // Pas d'axe « rond » (1 · 2 · 2,5 · 5 × 10ⁿ) : des graduations à 143 k€ ne se
+  // lisent pas. Cinq divisions plutôt que quatre — avec quatre, un maximum de
+  // 8,1 M€ donnait un axe à trois traits (0 / 5 / 10 M€) et un graphique noyé
+  // dans le vide.
+  function niceStep(range, ticks) {
+    var raw = range / Math.max(1, ticks);
+    if (!(raw > 0)) { return 1; }
+    var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+    var n = raw / mag;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+  }
+
+  var W = 360, H = 208, GUT = 40, PADR = 10, TOP = 12, BOT = 26;
+  var PLOT_L = GUT, PLOT_R = W - PADR, BASE = H - BOT, SPAN = BASE - TOP;
+
   function drawChart(months, mode) {
     var host = document.getElementById('trChart');
+    var tip  = document.getElementById('trTip');
+    tip.hidden = true;
     var n = months.length;
     var sN  = months.map(function (m) { return m.ca_n; });
     var sN1 = months.map(function (m) { return m.ca_n1; });
@@ -267,31 +373,178 @@
     if (mode === 'cum') { sN = cumSeries(sN); sN1 = cumSeries(sN1); sO = cumSeries(sO); }
     var vals = sN.concat(sN1, sO).filter(function (v) { return v != null; });
     if (!vals.length) { host.innerHTML = ''; return; }
-    var max = Math.max.apply(null, vals) * 1.08;
-    var W = 340, H = 170, pad = 12, base = H - 20, top = 8, span = base - top;
-    var xs = function (i) { return n <= 1 ? W / 2 : (pad + i * (W - 2 * pad) / (n - 1)); };
-    var ys = function (v) { return base - (v / max) * span; };
-    function line(arr, color, w, dash, dots) {
-      var pts = [], dt = '';
-      arr.forEach(function (v, i) {
-        if (v == null) { return; }
-        pts.push(xs(i).toFixed(1) + ',' + ys(v).toFixed(1));
-        if (dots) { dt += '<circle cx="' + xs(i).toFixed(1) + '" cy="' + ys(v).toFixed(1) + '" r="2.6" fill="' + color + '"/>'; }
-      });
-      if (!pts.length) { return ''; }
-      return '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"'
-        + (dash ? ' stroke-dasharray="5 4"' : '') + '/>' + dt;
+
+    // Échelle : le plafond suit le maximum réel (+6 % de respiration) et les
+    // graduations tombent sur des multiples ronds en dessous. Caler le plafond
+    // sur la graduation supérieure laissait jusqu'à 20 % de vide en haut du
+    // cadre — 8,1 M€ tracés sur un axe montant à 10 M€.
+    var rawMax = Math.max.apply(null, vals);
+    var step   = niceStep(rawMax, 5);
+    var max    = rawMax * 1.06 || step;
+    var bars   = (mode !== 'cum');
+
+    // En colonnes, chaque mois occupe une bande et se lit en son centre ; en
+    // courbes, les points sont répartis d'un bord à l'autre.
+    var band = (PLOT_R - PLOT_L) / n;
+    var xs = bars
+      ? function (i) { return PLOT_L + (i + 0.5) * band; }
+      : function (i) { return n <= 1 ? (PLOT_L + PLOT_R) / 2 : (PLOT_L + i * (PLOT_R - PLOT_L) / (n - 1)); };
+    var ys = function (v) { return BASE - (v / max) * SPAN; };
+    var X  = function (i) { return xs(i).toFixed(1); };
+    var Y  = function (v) { return ys(v).toFixed(1); };
+
+    // Index du mois en cours : son segment est tracé en pointillé, car il ne
+    // repose pas sur un mois entier.
+    var iPart = -1;
+    months.forEach(function (m, i) { if (m.partial) { iPart = i; } });
+
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" preserveAspectRatio="xMidYMid meet">';
+    svg += '<defs><linearGradient id="trFill" x1="0" y1="0" x2="0" y2="1">'
+         + '<stop offset="0" stop-color="#8D1D2C" stop-opacity=".20"/>'
+         + '<stop offset="1" stop-color="#8D1D2C" stop-opacity="0"/></linearGradient>'
+         + '<pattern id="trHatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">'
+         + '<rect width="5" height="5" fill="rgba(141,29,44,.14)"/>'
+         + '<line x1="0" y1="0" x2="0" y2="5" stroke="#8D1D2C" stroke-width="2.2"/></pattern></defs>';
+
+    // Grille horizontale + graduations.
+    for (var g = 0; g <= max + 1e-6; g += step) {
+      var gy = ys(g);
+      svg += '<line x1="' + PLOT_L + '" y1="' + gy.toFixed(1) + '" x2="' + PLOT_R + '" y2="' + gy.toFixed(1)
+           + '" stroke="' + (g === 0 ? '#d9cfc0' : '#f0eae1') + '" stroke-width="1"/>'
+           + '<text x="' + (PLOT_L - 6) + '" y="' + (gy + 3).toFixed(1)
+           + '" font-size="8" fill="#9a9086" text-anchor="end">' + keur(g) + '</text>';
     }
-    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%">';
-    svg += line(sO,  '#2D7A3E', 1.7, true,  false);
-    svg += line(sN1, '#cfc7bb', 1.9, false, false);
-    svg += line(sN,  '#8D1D2C', 2.4, false, true);
+
+    // Segments d'une série, en sautant les trous, avec un tracé distinct pour
+    // le dernier segment quand il mène au mois en cours.
+    function path(arr, from, to) {
+      var d = '', pen = false;
+      for (var i = from; i <= to; i++) {
+        if (arr[i] == null) { pen = false; continue; }
+        d += (pen ? 'L' : 'M') + X(i) + ' ' + Y(arr[i]) + ' ';
+        pen = true;
+      }
+      return d.trim();
+    }
+    function serie(arr, color, w, dash) {
+      var solidTo = (iPart > 0 ? iPart - 1 : n - 1);
+      var out = '';
+      var dTail = (iPart > 0) ? path(arr, iPart - 1, iPart) : '';
+      var dHead = path(arr, 0, solidTo);
+      var common = ' fill="none" stroke="' + color + '" stroke-width="' + w
+                 + '" stroke-linecap="round" stroke-linejoin="round"';
+      if (dHead) { out += '<path d="' + dHead + '"' + common + (dash ? ' stroke-dasharray="5 4"' : '') + '/>'; }
+      if (dTail) { out += '<path d="' + dTail + '"' + common + ' stroke-dasharray="3 3"/>'; }
+      return out;
+    }
+
+    if (bars) {
+      // Vue mensuelle : deux colonnes par mois (N-1 puis N). Le mois se compare
+      // d'un coup d'œil à l'an dernier — ce qu'une courbe mensuelle, écrasée
+      // par la saisonnalité, ne montre pas.
+      var bw  = Math.min(12, band * 0.40);
+      var gapB = 1.2;
+      months.forEach(function (m, i) {
+        var cx = xs(i);
+        var xN1 = cx - bw - gapB / 2, xN = cx + gapB / 2;
+        if (sN1[i] != null) {
+          svg += '<rect x="' + xN1.toFixed(1) + '" y="' + Y(sN1[i]) + '" width="' + bw.toFixed(1)
+               + '" height="' + Math.max(0, BASE - ys(sN1[i])).toFixed(1) + '" rx="2" fill="#ded6ca"/>';
+        }
+        if (sN[i] != null) {
+          // Le mois en cours est hachuré : son cumul n'est pas comparable aux
+          // colonnes pleines qui le précèdent.
+          svg += '<rect x="' + xN.toFixed(1) + '" y="' + Y(sN[i]) + '" width="' + bw.toFixed(1)
+               + '" height="' + Math.max(0, BASE - ys(sN[i])).toFixed(1) + '" rx="2" fill="'
+               + (i === iPart ? 'url(#trHatch)' : '#8D1D2C') + '"'
+               + (i === iPart ? ' stroke="#8D1D2C" stroke-width="1"' : '') + '/>';
+        }
+        // Objectif : un trait posé au-dessus des deux colonnes du mois.
+        if (sO[i] != null) {
+          svg += '<line x1="' + xN1.toFixed(1) + '" y1="' + Y(sO[i]) + '" x2="' + (xN + bw).toFixed(1)
+               + '" y2="' + Y(sO[i]) + '" stroke="#2D7A3E" stroke-width="1.6" stroke-dasharray="4 3"/>';
+        }
+      });
+    } else {
+      // Aire sous la courbe N — ce qui donne du corps au graphique.
+      var first = -1, last = -1, gap = false;
+      sN.forEach(function (v, i) { if (v != null) { if (first < 0) { first = i; } last = i; } });
+      for (var k = first; k >= 0 && k <= last; k++) { if (sN[k] == null) { gap = true; } }
+      // Un trou dans la série ferait une aire fermée sur du vide : on s'abstient.
+      if (!gap && first >= 0 && last > first) {
+        svg += '<path d="' + path(sN, first, last) + ' L' + X(last) + ' ' + BASE.toFixed(1)
+             + ' L' + X(first) + ' ' + BASE.toFixed(1) + ' Z" fill="url(#trFill)" stroke="none"/>';
+      }
+
+      svg += serie(sO,  '#2D7A3E', 1.6, true);
+      svg += serie(sN1, '#cfc7bb', 2,   false);
+      svg += serie(sN,  '#8D1D2C', 2.6, false);
+
+      // Points de la série N : plein pour un mois terminé, cerclé pour le mois
+      // en cours.
+      sN.forEach(function (v, i) {
+        if (v == null) { return; }
+        svg += (i === iPart)
+          ? '<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="3.4" fill="#fff" stroke="#8D1D2C" stroke-width="2"/>'
+          : '<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="2.7" fill="#8D1D2C"/>';
+      });
+    }
+
+    // Étiquettes de mois. Une sur deux quand la place manque, mais le mois en
+    // cours est toujours nommé.
     months.forEach(function (m, i) {
-      if (n > 8 && i % 2 === 1) { return; }
-      svg += '<text x="' + xs(i).toFixed(1) + '" y="' + (H - 5) + '" font-size="7.5" fill="#9a9086" text-anchor="middle">' + moShort(m.ym) + '</text>';
+      if (n > 7 && i % 2 !== (iPart >= 0 ? iPart % 2 : (n - 1) % 2)) { return; }
+      svg += '<text x="' + X(i) + '" y="' + (H - 9) + '" font-size="8" text-anchor="middle" fill="'
+           + (i === iPart ? '#8D1D2C' : '#9a9086') + '"' + (i === iPart ? ' font-weight="700"' : '') + '>'
+           + moShort(m.ym) + '</text>';
+    });
+
+    // Repère de survol + zones de saisie (une colonne par mois) : au doigt
+    // comme à la souris, on lit les valeurs du mois pointé.
+    svg += '<line id="trGuide" x1="0" y1="' + TOP + '" x2="0" y2="' + BASE + '" stroke="#241f1c"'
+         + ' stroke-width="1" stroke-dasharray="2 3" opacity="0"/>';
+    var colW = bars ? band : (n > 1 ? (PLOT_R - PLOT_L) / (n - 1) : (PLOT_R - PLOT_L));
+    months.forEach(function (m, i) {
+      svg += '<rect class="trHit" data-i="' + i + '" x="' + (xs(i) - colW / 2).toFixed(1) + '" y="' + TOP
+           + '" width="' + colW.toFixed(1) + '" height="' + SPAN.toFixed(1) + '" fill="transparent"/>';
     });
     svg += '</svg>';
     host.innerHTML = svg;
+
+    var guide = host.querySelector('#trGuide');
+    function show(i) {
+      var m = months[i];
+      guide.setAttribute('x1', X(i)); guide.setAttribute('x2', X(i));
+      guide.setAttribute('opacity', '.35');
+      var rows = ''
+        + '<span><s style="background:#8D1D2C"></s><em>{{ translations.serie_n ?? 'CA N' }}</em> <span class="v">' + keur(sN[i]) + '</span></span><br>'
+        + '<span><s style="background:#cfc7bb"></s><em>{{ translations.serie_n1 ?? 'CA N-1' }}</em> <span class="v">' + keur(sN1[i]) + '</span></span>';
+      if (sO[i] != null) {
+        rows += '<br><span><s style="background:#2D7A3E"></s><em>{{ translations.serie_obj ?? 'Objectifs' }}</em> <span class="v">' + keur(sO[i]) + '</span></span>';
+      }
+      if (mode !== 'cum' && m.evo_pct != null) {
+        var cls = m.evo_pct > 0.05 ? 'up' : (m.evo_pct < -0.05 ? 'down' : 'flat');
+        rows += '<br><span class="' + cls + '">' + (m.evo_pct > 0 ? '+' : '') + String(m.evo_pct).replace('.', ',') + ' %</span>';
+      }
+      tip.innerHTML = '<b>' + moLong(m.ym) + (m.partial ? ' · ' + (m.days || 0) + ' j' : '') + '</b>' + rows;
+      tip.hidden = false;
+      // L'infobulle reste dans la carte : on borne son centre.
+      var pct = Math.min(88, Math.max(12, xs(i) / W * 100));
+      tip.style.left = pct + '%';
+    }
+    function hide() { tip.hidden = true; guide.setAttribute('opacity', '0'); }
+    host.querySelectorAll('.trHit').forEach(function (r) {
+      var i = +r.getAttribute('data-i');
+      r.addEventListener('mouseenter', function () { show(i); });
+      r.addEventListener('click', function () { show(i); });
+      r.addEventListener('touchstart', function () { show(i); }, { passive: true });
+    });
+    host.addEventListener('mouseleave', hide);
+    // Au doigt, l'infobulle reste affichée jusqu'à la prochaine touche
+    // ailleurs — la masquer au « touchend » la ferait disparaître aussitôt.
+    document.addEventListener('touchstart', function (e) {
+      if (!host.contains(e.target)) { hide(); }
+    }, { passive: true });
   }
 })();
 </script>
