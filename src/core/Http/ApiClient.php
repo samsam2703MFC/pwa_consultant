@@ -417,6 +417,10 @@ class ApiClient
         } else {
             $decoded                 = json_decode($result, true);
             $response['description'] = $decoded['description'] ?? null;
+            // Corps COMPLET de la réponse en échec : quand l'API répond
+            // « champs obligatoires manquants », le détail (lesquels) vit
+            // ailleurs que dans `description`. Sans lui, il faut deviner.
+            $response['response'] = is_array($decoded) ? $decoded : (string)$result;
         }
 
         $this->purgeCache(); // données modifiées → les écrans refetchent

@@ -196,15 +196,24 @@ class ChecklistController extends Controller
             exit;
         }
 
-        unset($data['shop_id']);
-
+        // shop_id reste dans le corps : la boutique est déjà dans l'URL, mais
+        // rien ne dit que l'API ne l'attend pas aussi — et un champ en trop est
+        // sans effet là où un champ manquant fait échouer l'appel.
         $result = $this->checklistService->submitTaskReview($shopId, $data);
 
         if ($result['success'] ?? false) {
             echo json_encode(['success' => true]);
         } else {
             http_response_code(422);
-            echo json_encode(['success' => false, 'error' => $result['description'] ?? $result['error'] ?? 'Błąd zapisu oceny']);
+            // `detail` = corps brut renvoyé par l'API. Le format attendu par
+            // /task-reviews n'est pas documenté : afficher la réponse telle
+            // quelle évite d'avancer par essais successifs.
+            echo json_encode([
+                'success' => false,
+                'error'   => $result['description'] ?? $result['error'] ?? 'Erreur d\'enregistrement',
+                'detail'  => $result['response'] ?? null,
+                'sent'    => array_keys($data),
+            ], JSON_UNESCAPED_UNICODE);
         }
         exit;
     }
