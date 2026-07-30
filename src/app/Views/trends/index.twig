@@ -70,8 +70,12 @@
   .tr-legend i.part { height:9px; border-radius:2px; vertical-align:-1px; border:1px solid #8D1D2C;
                       background:repeating-linear-gradient(45deg,#8D1D2C 0 2px,rgba(141,29,44,.14) 2px 5px); }
 
-  /* Zone du graphique : l'infobulle est positionnée par rapport à elle. */
-  .tr-chart { position:relative; }
+  /* Zone du graphique : l'infobulle est positionnée par rapport à elle.
+     La largeur est bornée — la mise en page de l'application est volontairement
+     pleine largeur (.container { max-width:100% }), et un SVG en width:100%
+     s'étirait à 1 800 px sur un écran de bureau : graduations et étiquettes
+     grossissaient d'autant, jusqu'à occuper tout l'écran. */
+  .tr-chart { position:relative; max-width:560px; margin-inline:auto; }
   .tr-chart svg { display:block; width:100%; height:auto; touch-action:pan-y; }
   .tr-chart text { font-family:inherit; }
   .tr-tip { position:absolute; top:0; transform:translateX(-50%); pointer-events:none;
@@ -156,7 +160,7 @@
       </table>
     </div>
     <div class="tr-note" id="trObjSkip" hidden>{{ translations.obj_skipped ?? "Objectifs non chargés cette fois (budget de temps atteint) — les « — » de la colonne Objectif ne signifient pas « aucun objectif encodé ». Rechargez la page." }}</div>
-    <div class="tr-note">{{ translations.note ?? "Objectif = somme des objectifs CA encodés par boutique (overrides consultant/admin). « — » : aucun objectif encodé ce mois-là." }} {{ translations.partial_note ?? "Le mois en cours porte son nombre de jours (« · 29 j ») : il s'arrête au dernier jour complet, et le N-1 en face couvre exactement les mêmes jours." }}</div>
+    <div class="tr-note">{{ translations.note ?? "Objectif = somme des objectifs CA encodés par boutique (overrides consultant/admin). « — » : aucun objectif encodé ce mois-là." }} {{ translations.partial_note ?? "Le mois en cours porte son nombre de jours (« · 29 j ») : il s'arrête au dernier jour complet. Son N-1 couvre les mêmes jours ; le « ≈ » signale qu'il a été ramené sur la mesure du CA affiché, car seule la fenêtre de dates sait tronquer un mois passé." }}</div>
   </div>
 
 </div>
@@ -304,14 +308,20 @@
     var cmp = (cur.ca_n1 == null)
       ? ''
       : {{ (translations.cur_vs ?? 'contre')|json_encode|raw }} + ' ' + keur(cur.ca_n1)
-        + ' ' + {{ (translations.cur_same_days ?? "sur les mêmes jours l'an dernier")|json_encode|raw }};
+        + ' ' + {{ (translations.cur_same_days ?? "sur les mêmes jours l'an dernier")|json_encode|raw }}
+        + (cur.n1_estimated
+            ? ' ' + {{ (translations.cur_n1_est ?? '(ramené à la même mesure que le CA affiché)')|json_encode|raw }}
+            : '');
     host.innerHTML = '<div class="tr-cur-h">'
       + '<span class="tr-cur-t">' + moLong(cur.ym) + '</span>'
       + '<span class="tr-cur-d">' + escTxt(lbl) + '</span></div>'
       + '<div class="tr-cur-v"><span class="tr-cur-ca">' + keur(cur.ca_n) + '</span>' + evoHtml(cur.evo_pct) + '</div>'
       + (cmp ? '<div class="tr-cur-sub">' + escTxt(cmp) + '</div>' : '')
+      // « Atteinte » n'a de sens que sur un mois fini. Ici, le mois court
+      // encore : c'est un avancement, pas un résultat.
       + (cur.obj_pct == null ? '' : '<div class="tr-cur-sub">'
-          + {{ (translations.cur_reach ?? 'Atteinte de l’objectif :')|json_encode|raw }} + ' ' + reachHtml(cur.obj_pct) + '</div>')
+          + {{ (translations.cur_progress ?? 'Avancement sur l’objectif du mois :')|json_encode|raw }}
+          + ' ' + reachHtml(cur.obj_pct) + '</div>')
       + breakdownHtml(shops || []);
   }
 
@@ -324,11 +334,11 @@
     var host = document.getElementById('trWarn');
     host.hidden = false;
     host.innerHTML = escTxt(
-      {{ (translations.mtd_gap ?? 'Mois en cours : les deux sources de CA divergent de')|json_encode|raw }}
+      {{ (translations.mtd_gap ?? 'Mois en cours : les deux sources de CA du back-office divergent de')|json_encode|raw }}
       + ' ' + String(chk.gap_pct).replace('.', ',') + ' % ('
-      + {{ (translations.mtd_window ?? 'fenêtre de dates')|json_encode|raw }} + ' ' + keur(chk.window) + ' · '
-      + {{ (translations.mtd_serie ?? 'série mensuelle')|json_encode|raw }} + ' ' + keur(chk.serie) + '). '
-      + {{ (translations.mtd_hint ?? 'La valeur affichée est celle de la fenêtre de dates, la seule comparable à l’an dernier jour pour jour.')|json_encode|raw }}
+      + {{ (translations.mtd_serie ?? 'série mensuelle')|json_encode|raw }} + ' ' + keur(chk.serie) + ' · '
+      + {{ (translations.mtd_window ?? 'fenêtre de dates')|json_encode|raw }} + ' ' + keur(chk.window) + '). '
+      + {{ (translations.mtd_hint ?? 'Le chiffre affiché est celui de la série mensuelle — la même mesure que les onze autres mois. À signaler au back-office : les deux endpoints ne comptent pas la même chose.')|json_encode|raw }}
     );
   }
 
@@ -351,7 +361,8 @@
       return '<tr>'
         + '<td class="mo">' + moShort(m.ym)
           + (m.partial ? '<span class="part"> · ' + (m.days || 0) + ' j</span>' : '') + '</td>'
-        + '<td class="num">' + keur(m.ca_n1) + '</td>'
+        + '<td class="num">' + keur(m.ca_n1)
+          + (m.n1_estimated ? '<span class="part"> ≈</span>' : '') + '</td>'
         + '<td class="num"><strong>' + keur(m.ca_n) + '</strong></td>'
         + '<td class="num">' + (m.evo_pct == null ? '—' : evoHtml(m.evo_pct)) + '</td>'
         + '<td class="num">' + keur(m.objectif) + '</td>'
