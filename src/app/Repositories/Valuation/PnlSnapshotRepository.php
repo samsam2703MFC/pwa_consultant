@@ -6,7 +6,7 @@ use PDO;
 use Throwable;
 
 /**
- * Snapshots mensuels du P&L par boutique (table shop_monthly_pnl). Alimente la
+ * Snapshots mensuels du P&L par boutique (table mac_shop_monthly_pnl). Alimente la
  * valorisation : moyenne de marge nette 12 mois + série d'évolution. Dégradation
  * propre si la base ou la table est indisponible.
  */
@@ -31,7 +31,7 @@ class PnlSnapshotRepository
         }
         try {
             $pdo->exec(
-                'CREATE TABLE IF NOT EXISTS shop_monthly_pnl ('
+                'CREATE TABLE IF NOT EXISTS mac_shop_monthly_pnl ('
                 . 'id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,'
                 . 'id_shop BIGINT UNSIGNED NOT NULL,'
                 . 'year SMALLINT UNSIGNED NOT NULL,'
@@ -50,10 +50,26 @@ class PnlSnapshotRepository
             // Installations antérieures : colonnes labour/overhead absentes.
             foreach (['labour DECIMAL(14,2) NULL', 'overhead DECIMAL(14,2) NULL'] as $col) {
                 try {
-                    $pdo->exec('ALTER TABLE shop_monthly_pnl ADD COLUMN ' . $col);
+                    $pdo->exec('ALTER TABLE mac_shop_monthly_pnl ADD COLUMN ' . $col);
                 } catch (Throwable $e) {
                     // Colonne déjà présente — rien à faire.
                 }
+            }
+            // Migration douce depuis l'ancienne table shop_monthly_pnl (copie
+            // unique si la nouvelle est vide ; l'ancienne est conservée).
+            try {
+                if ((int)$pdo->query('SELECT COUNT(*) FROM mac_shop_monthly_pnl')->fetchColumn() === 0) {
+                    $full = 'id, id_shop, year, month, ca, net_margin_pct, net_result, labour, overhead, captured_at, updated_at';
+                    try {
+                        $pdo->exec("INSERT IGNORE INTO mac_shop_monthly_pnl ($full) SELECT $full FROM shop_monthly_pnl");
+                    } catch (Throwable $e) {
+                        // Ancienne table sans labour/overhead → colonnes de base.
+                        $base = 'id, id_shop, year, month, ca, net_margin_pct, net_result, captured_at, updated_at';
+                        $pdo->exec("INSERT IGNORE INTO mac_shop_monthly_pnl ($base) SELECT $base FROM shop_monthly_pnl");
+                    }
+                }
+            } catch (Throwable $e) {
+                // ancienne table absente — rien à migrer
             }
         } catch (Throwable $e) {
             error_log('[valuation] ensureSchema: ' . $e->getMessage());
@@ -78,7 +94,7 @@ class PnlSnapshotRepository
         }
         try {
             $st = $pdo->prepare(
-                'INSERT INTO shop_monthly_pnl (id_shop, year, month, ca, net_margin_pct, net_result, labour, overhead, captured_at) '
+                'INSERT INTO mac_shop_monthly_pnl (id_shop, year, month, ca, net_margin_pct, net_result, labour, overhead, captured_at) '
                 . 'VALUES (:s, :y, :m, :ca, :mg, :res, :lab, :ovh, :now) '
                 . 'ON DUPLICATE KEY UPDATE ca = VALUES(ca), net_margin_pct = VALUES(net_margin_pct), '
                 . 'net_result = VALUES(net_result), labour = VALUES(labour), overhead = VALUES(overhead), '
@@ -100,7 +116,7 @@ class PnlSnapshotRepository
     public function forShopMonth(int $shopId, int $year, int $month): ?array
     {
         $rows = $this->select(
-            'SELECT * FROM shop_monthly_pnl WHERE id_shop = :s AND year = :y AND month = :m',
+            'SELECT * FROM mac_shop_monthly_pnl WHERE id_shop = :s AND year = :y AND month = :m',
             [':s' => $shopId, ':y' => $year, ':m' => $month]
         );
         return $rows[0] ?? null;
@@ -114,7 +130,7 @@ class PnlSnapshotRepository
     public function latestCostStructureUpTo(int $shopId, int $year, int $month): ?array
     {
         $rows = $this->select(
-            'SELECT * FROM shop_monthly_pnl '
+            'SELECT * FROM mac_shop_monthly_pnl '
             . 'WHERE id_shop = :s AND (year < :y OR (year = :y AND month <= :m)) '
             . 'AND ca IS NOT NULL AND ca > 0 AND labour IS NOT NULL AND overhead IS NOT NULL '
             . 'ORDER BY year DESC, month DESC LIMIT 1',
@@ -127,7 +143,7 @@ class PnlSnapshotRepository
     public function forShopSince(int $shopId, int $year, int $month): array
     {
         return $this->select(
-            'SELECT * FROM shop_monthly_pnl WHERE id_shop = :s AND (year > :y OR (year = :y AND month >= :m)) '
+            'SELECT * FROM mac_shop_monthly_pnl WHERE id_shop = :s AND (year > :y OR (year = :y AND month >= :m)) '
             . 'ORDER BY year ASC, month ASC',
             [':s' => $shopId, ':y' => $year, ':m' => $month]
         );
@@ -142,7 +158,7 @@ class PnlSnapshotRepository
         }
         $in = implode(',', $ids);
         return $this->select(
-            "SELECT * FROM shop_monthly_pnl WHERE id_shop IN ($in) AND (year > :y OR (year = :y AND month >= :m)) "
+            "SELECT * FROM mac_shop_monthly_pnl WHERE id_shop IN ($in) AND (year > :y OR (year = :y AND month >= :m)) "
             . 'ORDER BY year ASC, month ASC',
             [':y' => $year, ':m' => $month]
         );

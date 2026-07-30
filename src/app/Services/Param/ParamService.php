@@ -4,7 +4,7 @@ namespace App\Consultant\app\Services\Param;
 use App\Consultant\app\Repositories\Param\ParamRepository;
 
 /**
- * Lecture typée des paramètres configurables (table consultant_param).
+ * Lecture typée des paramètres configurables (table mac_consultant_param).
  * Les valeurs métier ne sont JAMAIS codées en dur dans la logique : elles
  * proviennent d'ici (base), avec un défaut de secours uniquement si la base
  * est indisponible.

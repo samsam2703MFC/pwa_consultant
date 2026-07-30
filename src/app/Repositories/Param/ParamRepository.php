@@ -6,7 +6,7 @@ use PDO;
 use Throwable;
 
 /**
- * Paramètres configurables (table consultant_param) — clé/valeur.
+ * Paramètres configurables (table mac_consultant_param) — clé/valeur.
  *
  * Objectif : AUCUNE constante métier codée en dur. Les valeurs (ex. multiple
  * de valorisation, marge cible) vivent en base et sont modifiables sans
@@ -44,7 +44,7 @@ class ParamRepository
         }
         try {
             $pdo->exec(
-                'CREATE TABLE IF NOT EXISTS consultant_param ('
+                'CREATE TABLE IF NOT EXISTS mac_consultant_param ('
                 . 'param_key VARCHAR(64) NOT NULL,'
                 . 'param_value VARCHAR(255) NOT NULL,'
                 . 'label VARCHAR(190) NULL,'
@@ -52,7 +52,16 @@ class ParamRepository
                 . 'PRIMARY KEY (param_key)'
                 . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
             );
-            $st = $pdo->prepare('INSERT IGNORE INTO consultant_param (param_key, param_value, label) VALUES (:k, :v, :l)');
+            // Migration douce depuis l'ancienne table (avant les seeds, pour
+            // conserver les valeurs personnalisées) ; l'ancienne est gardée.
+            try {
+                if ((int)$pdo->query('SELECT COUNT(*) FROM mac_consultant_param')->fetchColumn() === 0) {
+                    $pdo->exec('INSERT IGNORE INTO mac_consultant_param SELECT * FROM consultant_param');
+                }
+            } catch (Throwable $e) {
+                // ancienne table absente — rien à migrer
+            }
+            $st = $pdo->prepare('INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES (:k, :v, :l)');
             foreach (self::DEFAULTS as $key => [$val, $label]) {
                 $st->execute([':k' => $key, ':v' => $val, ':l' => $label]);
             }
@@ -74,7 +83,7 @@ class ParamRepository
             return $out;
         }
         try {
-            $rows = $pdo->query('SELECT param_key, param_value FROM consultant_param')->fetchAll();
+            $rows = $pdo->query('SELECT param_key, param_value FROM mac_consultant_param')->fetchAll();
             foreach ($rows as $r) {
                 $out[(string)$r['param_key']] = (string)$r['param_value'];
             }
@@ -93,7 +102,7 @@ class ParamRepository
             return $fallback;
         }
         try {
-            $st = $pdo->prepare('SELECT param_value FROM consultant_param WHERE param_key = :k');
+            $st = $pdo->prepare('SELECT param_value FROM mac_consultant_param WHERE param_key = :k');
             $st->execute([':k' => $key]);
             $v = $st->fetchColumn();
             return $v !== false ? (string)$v : $fallback;
@@ -112,7 +121,7 @@ class ParamRepository
         }
         try {
             $st = $pdo->prepare(
-                'INSERT INTO consultant_param (param_key, param_value, label, updated_at) '
+                'INSERT INTO mac_consultant_param (param_key, param_value, label, updated_at) '
                 . 'VALUES (:k, :v, :l, :now) '
                 . 'ON DUPLICATE KEY UPDATE param_value = VALUES(param_value), updated_at = VALUES(updated_at)'
             );

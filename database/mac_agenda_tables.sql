@@ -6,11 +6,11 @@
 -- EXISTS au premier accès, cf. AgendaRepository::ensureSchema()).
 --
 -- Deux tables, toutes deux nouvelles (aucune donnée existante touchée) :
---   consultant_visit         : les visites planifiées/faites par les consultants
---   consultant_lever_action  : ce qu'il faut travailler, par levier (T/R/E/F/L/O)
+--   mac_consultant_visit         : les visites planifiées/faites par les consultants
+--   mac_consultant_lever_action  : ce qu'il faut travailler, par levier (T/R/E/F/L/O)
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS consultant_visit (
+CREATE TABLE IF NOT EXISTS mac_consultant_visit (
     id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     id_consultant   BIGINT UNSIGNED NOT NULL,               -- id d'adhésion (JWT) du consultant
     consultant_name VARCHAR(190)    NULL,                   -- dénormalisé (affichage multi-consultants)
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS consultant_visit (
     KEY idx_shop_time (id_shop, scheduled_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS consultant_lever_action (
+CREATE TABLE IF NOT EXISTS mac_consultant_lever_action (
     id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     id_shop       BIGINT UNSIGNED NOT NULL,
     id_visit      BIGINT UNSIGNED NULL,                     -- rattachement éventuel à une visite
@@ -44,3 +44,8 @@ CREATE TABLE IF NOT EXISTS consultant_lever_action (
     KEY idx_shop_lever (id_shop, lever),
     KEY idx_visit (id_visit)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Migration depuis les anciennes tables (si elles existent) — l'app la fait
+-- aussi automatiquement au premier accès (ids conservés, id_visit cohérent) :
+-- INSERT IGNORE INTO mac_consultant_visit SELECT * FROM consultant_visit;
+-- INSERT IGNORE INTO mac_consultant_lever_action SELECT * FROM consultant_lever_action;

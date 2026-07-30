@@ -8,7 +8,7 @@ use Throwable;
 /**
  * Accès direct (atelierby_db) aux visites consultants et aux actions par levier.
  *
- * Deux tables : consultant_visit et consultant_lever_action (cf.
+ * Deux tables : mac_consultant_visit et mac_consultant_lever_action (cf.
  * database/agenda_tables.sql). L'accès dégrade proprement si la base est
  * indisponible ou si les tables n'existent pas encore : chaque méthode de
  * lecture renvoie [] et les écritures renvoient false/0 plutôt que d'échouer.
@@ -40,7 +40,7 @@ class AgendaRepository
         }
         try {
             $pdo->exec(
-                'CREATE TABLE IF NOT EXISTS consultant_visit ('
+                'CREATE TABLE IF NOT EXISTS mac_consultant_visit ('
                 . 'id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,'
                 . 'id_consultant BIGINT UNSIGNED NOT NULL,'
                 . 'consultant_name VARCHAR(190) NULL,'
@@ -62,12 +62,12 @@ class AgendaRepository
             );
             // Migration douce : ajoute `type` aux tables déjà créées (ignore si présente).
             try {
-                $pdo->exec("ALTER TABLE consultant_visit ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'development'");
+                $pdo->exec("ALTER TABLE mac_consultant_visit ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'development'");
             } catch (Throwable $e) {
                 // colonne déjà présente → rien à faire
             }
             $pdo->exec(
-                'CREATE TABLE IF NOT EXISTS consultant_lever_action ('
+                'CREATE TABLE IF NOT EXISTS mac_consultant_lever_action ('
                 . 'id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,'
                 . 'id_shop BIGINT UNSIGNED NOT NULL,'
                 . 'id_visit BIGINT UNSIGNED NULL,'
@@ -82,6 +82,23 @@ class AgendaRepository
                 . 'KEY idx_visit (id_visit)'
                 . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
             );
+            // Migration douce depuis les anciennes tables (copie unique si la
+            // nouvelle est vide, ids conservés — id_visit reste cohérent) ;
+            // les anciennes tables sont gardées (sécurité).
+            try {
+                if ((int)$pdo->query('SELECT COUNT(*) FROM mac_consultant_visit')->fetchColumn() === 0) {
+                    $pdo->exec('INSERT IGNORE INTO mac_consultant_visit SELECT * FROM consultant_visit');
+                }
+            } catch (Throwable $e) {
+                // ancienne table absente — rien à migrer
+            }
+            try {
+                if ((int)$pdo->query('SELECT COUNT(*) FROM mac_consultant_lever_action')->fetchColumn() === 0) {
+                    $pdo->exec('INSERT IGNORE INTO mac_consultant_lever_action SELECT * FROM consultant_lever_action');
+                }
+            } catch (Throwable $e) {
+                // ancienne table absente — rien à migrer
+            }
         } catch (Throwable $e) {
             error_log('[agenda] ensureSchema: ' . $e->getMessage());
         }
@@ -99,7 +116,7 @@ class AgendaRepository
         }
         try {
             $st = $pdo->prepare(
-                'INSERT INTO consultant_visit '
+                'INSERT INTO mac_consultant_visit '
                 . '(id_consultant, consultant_name, id_shop, shop_name, scheduled_at, duration_min, type, goal, status, report_ref, shared, created_at) '
                 . 'VALUES (:c, :cn, :s, :sn, :at, :dur, :type, :goal, :status, :ref, :shared, :now)'
             );
@@ -128,7 +145,7 @@ class AgendaRepository
     public function visitsForConsultant(int $consultantId, string $from, string $to): array
     {
         return $this->select(
-            'SELECT * FROM consultant_visit WHERE id_consultant = :c '
+            'SELECT * FROM mac_consultant_visit WHERE id_consultant = :c '
             . 'AND scheduled_at >= :from AND scheduled_at < :to ORDER BY scheduled_at ASC',
             [':c' => $consultantId, ':from' => $from . ' 00:00:00', ':to' => $to . ' 23:59:59']
         );
@@ -138,7 +155,7 @@ class AgendaRepository
     public function visitsForShop(int $shopId, string $from, string $to): array
     {
         return $this->select(
-            'SELECT * FROM consultant_visit WHERE id_shop = :s '
+            'SELECT * FROM mac_consultant_visit WHERE id_shop = :s '
             . 'AND scheduled_at >= :from AND scheduled_at < :to ORDER BY scheduled_at ASC',
             [':s' => $shopId, ':from' => $from . ' 00:00:00', ':to' => $to . ' 23:59:59']
         );
@@ -146,14 +163,14 @@ class AgendaRepository
 
     public function getVisit(int $id): ?array
     {
-        $rows = $this->select('SELECT * FROM consultant_visit WHERE id = :id', [':id' => $id]);
+        $rows = $this->select('SELECT * FROM mac_consultant_visit WHERE id = :id', [':id' => $id]);
         return $rows[0] ?? null;
     }
 
     public function updateVisitStatus(int $id, string $status): bool
     {
         return $this->exec(
-            'UPDATE consultant_visit SET status = :st, updated_at = :now WHERE id = :id',
+            'UPDATE mac_consultant_visit SET status = :st, updated_at = :now WHERE id = :id',
             [':st' => $status, ':now' => $this->now(), ':id' => $id]
         );
     }
@@ -162,7 +179,7 @@ class AgendaRepository
     public function updateVisit(int $id, array $v): bool
     {
         return $this->exec(
-            'UPDATE consultant_visit SET id_shop = :s, shop_name = :sn, scheduled_at = :at, '
+            'UPDATE mac_consultant_visit SET id_shop = :s, shop_name = :sn, scheduled_at = :at, '
             . 'duration_min = :dur, type = :type, goal = :goal, report_ref = :ref, shared = :shared, '
             . 'updated_at = :now WHERE id = :id',
             [
@@ -183,7 +200,7 @@ class AgendaRepository
     /** Supprime les actions par levier rattachées à une visite (avant réécriture). */
     public function deleteLeverActionsForVisit(int $visitId): bool
     {
-        return $this->exec('DELETE FROM consultant_lever_action WHERE id_visit = :v', [':v' => $visitId]);
+        return $this->exec('DELETE FROM mac_consultant_lever_action WHERE id_visit = :v', [':v' => $visitId]);
     }
 
     // ── Actions par levier ───────────────────────────────────────────────────
@@ -197,7 +214,7 @@ class AgendaRepository
         }
         try {
             $st = $pdo->prepare(
-                'INSERT INTO consultant_lever_action '
+                'INSERT INTO mac_consultant_lever_action '
                 . '(id_shop, id_visit, id_consultant, lever, action, status, created_at) '
                 . 'VALUES (:s, :v, :c, :lev, :act, :status, :now)'
             );
@@ -220,7 +237,7 @@ class AgendaRepository
     public function leverActionsForShop(int $shopId): array
     {
         return $this->select(
-            'SELECT * FROM consultant_lever_action WHERE id_shop = :s ORDER BY lever ASC, id ASC',
+            'SELECT * FROM mac_consultant_lever_action WHERE id_shop = :s ORDER BY lever ASC, id ASC',
             [':s' => $shopId]
         );
     }
@@ -228,7 +245,7 @@ class AgendaRepository
     public function leverActionsForVisit(int $visitId): array
     {
         return $this->select(
-            'SELECT * FROM consultant_lever_action WHERE id_visit = :v ORDER BY lever ASC, id ASC',
+            'SELECT * FROM mac_consultant_lever_action WHERE id_visit = :v ORDER BY lever ASC, id ASC',
             [':v' => $visitId]
         );
     }
@@ -236,7 +253,7 @@ class AgendaRepository
     public function updateLeverActionStatus(int $id, string $status): bool
     {
         return $this->exec(
-            'UPDATE consultant_lever_action SET status = :st, updated_at = :now WHERE id = :id',
+            'UPDATE mac_consultant_lever_action SET status = :st, updated_at = :now WHERE id = :id',
             [':st' => $status, ':now' => $this->now(), ':id' => $id]
         );
     }

@@ -6,7 +6,7 @@ use PDO;
 use Throwable;
 
 /**
- * Seuils de mise en forme conditionnelle des KPI (table kpi_threshold) —
+ * Seuils de mise en forme conditionnelle des KPI (table mac_kpi_threshold) —
  * bandes « borne basse (%) → couleur » par métrique (marge brute, marge
  * nette). AUCUNE couleur codée en dur dans les vues : tout vient d'ici.
  * Dégradation propre : sans base, les DEFAULTS (mêmes valeurs que les seeds)
@@ -54,7 +54,7 @@ class KpiThresholdRepository
         }
         try {
             $pdo->exec(
-                'CREATE TABLE IF NOT EXISTS kpi_threshold ('
+                'CREATE TABLE IF NOT EXISTS mac_kpi_threshold ('
                 . 'id INT UNSIGNED NOT NULL AUTO_INCREMENT,'
                 . 'metric VARCHAR(32) NOT NULL,'
                 . 'sort SMALLINT NOT NULL,'
@@ -65,8 +65,17 @@ class KpiThresholdRepository
                 . 'UNIQUE KEY uq_metric_sort (metric, sort)'
                 . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
             );
+            // Migration douce depuis l'ancienne table kpi_threshold (avant les
+            // seeds, pour conserver d'éventuels seuils personnalisés).
+            try {
+                if ((int)$pdo->query('SELECT COUNT(*) FROM mac_kpi_threshold')->fetchColumn() === 0) {
+                    $pdo->exec('INSERT IGNORE INTO mac_kpi_threshold SELECT * FROM kpi_threshold');
+                }
+            } catch (Throwable $e) {
+                // ancienne table absente — rien à migrer
+            }
             $st = $pdo->prepare(
-                'INSERT IGNORE INTO kpi_threshold (metric, sort, min_pct, color, label) VALUES (:me, :so, :mi, :co, :la)'
+                'INSERT IGNORE INTO mac_kpi_threshold (metric, sort, min_pct, color, label) VALUES (:me, :so, :mi, :co, :la)'
             );
             foreach (self::DEFAULTS as $metric => $bands) {
                 foreach ($bands as $i => $b) {
@@ -95,7 +104,7 @@ class KpiThresholdRepository
             return $this->cache = $out;
         }
         try {
-            $rows = $pdo->query('SELECT metric, min_pct, color, label FROM kpi_threshold ORDER BY metric, sort')->fetchAll();
+            $rows = $pdo->query('SELECT metric, min_pct, color, label FROM mac_kpi_threshold ORDER BY metric, sort')->fetchAll();
             $db = [];
             foreach ($rows as $r) {
                 $db[(string)$r['metric']][] = [
