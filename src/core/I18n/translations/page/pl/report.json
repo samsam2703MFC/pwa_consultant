@@ -112,5 +112,17 @@
     "pnl_slot_note": "Tygodniowy labour i overhead rozdzielone między pory dnia proporcjonalnie do AKTYWNYCH GODZIN",
     "pnl_slot_gross": "Labour/overhead niedostępne — tylko marża brutto pory dnia.",
     "pnl_labour_slot": "Koszt pracy w przedziale",
-    "pnl_overhead_slot": "Koszty stałe w przedziale"
+    "pnl_overhead_slot": "Koszty stałe w przedziale",
+    "hm_weekday_month": "Dzień tygodnia — średnia miesiąca",
+    "hm_weekday_week": "Dzień tygodnia",
+    "days_short": "d",
+    "wd_long_mon": "Poniedziałek",
+    "wd_long_tue": "Wtorek",
+    "wd_long_wed": "Środa",
+    "wd_long_thu": "Czwartek",
+    "wd_long_fri": "Piątek",
+    "wd_long_sat": "Sobota",
+    "wd_long_sun": "Niedziela",
+    "pnl_wd_note": "Suma %d wystąpień tego dnia tygodnia w okresie (średnia ważona obrotem)",
+    "hm_hrs_snapped": "godziny otwarcia poza skonfigurowanymi zakresami: przypisane do najbliższego przedziału"
 }

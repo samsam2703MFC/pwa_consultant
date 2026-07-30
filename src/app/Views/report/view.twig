@@ -49,7 +49,9 @@
     .rpt-hexm-legend { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:7px; font-size:.66rem; color:#7a7168; }
     .rpt-hexm-legend .rpt-st-ok { color:#2D7A3E; } .rpt-hexm-legend .rpt-st-mid { color:#e67e22; } .rpt-hexm-legend .rpt-st-bad { color:#c0182b; }
 
-    .rpt-tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    /* Les deux orthographes existent dans le balisage : sans la règle, un tableau
+       large fait défiler la PAGE au lieu de lui-même (390 px de large). */
+    .rpt-tbl-wrap, .rpt-tblwrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
     .rpt-tbl { width:100%; border-collapse:collapse; font-size:.82rem; }
     .rpt-tbl th, .rpt-tbl td { text-align:left; padding:6px 8px; border-bottom:1px solid rgba(0,0,0,.07); }
     .rpt-tbl th { font-size:.7rem; text-transform:uppercase; letter-spacing:.03em; color:#6c757d; font-weight:700; }
@@ -133,6 +135,16 @@
     .rpt-hmv[data-slot]:hover { filter:brightness(1.08); }
     .rpt-hm-legend { display:flex; gap:8px; align-items:center; font-size:.62rem; color:#7a7168; margin-top:8px; flex-wrap:wrap; }
     .rpt-hm-legend .sw { width:14px; height:10px; border-radius:3px; display:inline-block; }
+
+    /* ── Heatmap par JOUR DE SEMAINE (moyenne du mois, ou jours de la semaine) ── */
+    .rpt-wd { display:grid; grid-template-columns:repeat(7, 1fr); gap:3px; max-width:440px; margin:0 auto; }
+    .rpt-wd .c { border-radius:6px; min-height:52px; padding:4px; color:#fff; display:flex;
+                 flex-direction:column; align-items:center; justify-content:center; gap:1px; }
+    .rpt-wd .c .l { font-size:.58rem; font-weight:800; text-transform:uppercase; opacity:.9; line-height:1; }
+    .rpt-wd .c .v { font-size:.72rem; font-weight:800; line-height:1.1; }
+    .rpt-wd .c .n { font-size:.52rem; opacity:.8; line-height:1; }
+    .rpt-wd .c[data-wd] { cursor:pointer; }
+    .rpt-wd .c[data-wd]:hover { filter:brightness(1.08); }
 
     /* ── Micro P&L d'un jour (clic sur une cellule de la heatmap) ── */
     .rpt-cal .dcell[data-d] { cursor:pointer; }
@@ -557,13 +569,20 @@
                 </div>
                 {% endif %}
 
-                {# Analyse rentabilité — heatmap de marge (rapport mensuel) #}
+                {# Analyse rentabilité — heatmap de marge (mensuel et hebdo) #}
                 {% if shop.heatmap is defined and shop.heatmap is not null %}
+                {% set wd_names = [
+                    translations.wd_long_mon ?? 'Lundi',    translations.wd_long_tue ?? 'Mardi',
+                    translations.wd_long_wed ?? 'Mercredi', translations.wd_long_thu ?? 'Jeudi',
+                    translations.wd_long_fri ?? 'Vendredi', translations.wd_long_sat ?? 'Samedi',
+                    translations.wd_long_sun ?? 'Dimanche'
+                ] %}
                 <div class="rpt-sec">
                     <div class="rpt-sec-h">{{ icons.svg('bar-chart', 14) }}{{ shop.heatmap.basis == 'net' ? (translations.rentability ?? 'Analyse rentabilité — résultat net') : (translations.rentability_gross ?? 'Analyse rentabilité — marge brute') }}
                         {% if shop.heatmap.totals.pct is not null %}<span style="margin-left:auto;font-weight:800;color:#212529;">{{ shop.heatmap.totals.pct|number_format(1, ',', ' ') }} %</span>{% endif %}
                     </div>
 
+                    {% if shop.heatmap.scope == 'month' %}
                     <div class="rpt-cmp-sub">{{ translations.hm_month_day ?? 'Mois / jour' }}</div>
                     <div class="rpt-cal"
                          data-notes="{{ (shop.notes_by_day ?? {})|json_encode|e('html_attr') }}"
@@ -577,6 +596,28 @@
                                  {% if d.pct is not null %}data-d="{{ {date: d.date, ca: d.ca, mv: d.mv, g: d.gross_pct, n: d.pct, lab: d.lab ?? null, ovh: d.ovh ?? null, lr: d.lab_real ?? false}|json_encode|e('html_attr') }}" role="button" tabindex="0"{% endif %}>
                                 <span class="dn">{{ d.num }}</span>
                                 <span class="dp">{{ d.pct is null ? '' : d.pct|number_format(0, ',', ' ') ~ '%' }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {# Jour de semaine : moyenne du mois (tous les lundis…) en
+                       mensuel, jours de la semaine en hebdo. #}
+                    <div class="rpt-cmp-sub">{{ shop.heatmap.scope == 'month'
+                        ? (translations.hm_weekday_month ?? 'Jour de semaine — moyenne du mois')
+                        : (translations.hm_weekday_week ?? 'Jour de semaine') }}</div>
+                    <div class="rpt-wd">
+                        {% for d in shop.heatmap.weekdays %}
+                            {% set nm = wd_names[d.wd - 1] %}
+                            <div class="c {{ d.color is null ? 'hm-nd' : '' }}"
+                                 {% if d.color is not null %}style="background:{{ d.color }};"{% endif %}
+                                 title="{{ nm }}{{ d.pct is not null ? ' — ' ~ d.pct|number_format(1, ',', ' ') ~ ' %' : '' }}"
+                                 {% if d.detail is not null %}data-wd="{{ d.detail|merge({label: nm})|json_encode|e('html_attr') }}" role="button" tabindex="0"{% endif %}>
+                                <span class="l">{{ nm|slice(0, 3) }}</span>
+                                <span class="v">{{ d.pct is null ? '—' : d.pct|number_format(1, ',', ' ') ~ ' %' }}</span>
+                                {% if shop.heatmap.scope == 'month' and d.days > 0 %}
+                                    <span class="n">{{ d.days }} {{ translations.days_short ?? 'j' }}</span>
+                                {% endif %}
                             </div>
                         {% endfor %}
                     </div>
@@ -618,6 +659,9 @@
                             <span>· {{ translations.hm_note ?? 'résultat net = marge brute − labour − overhead (répartis par jour d\'ouverture ; créneaux par heures actives)' }}{% if shop.heatmap.labour_real %} — {{ translations.hm_labour_real ?? 'labour réel du jour' }}{% endif %}{% if shop.heatmap.fixed_src == 'current_month' %} — {{ translations.hm_src_current ?? 'structure de coûts du mois courant' }}{% elseif shop.heatmap.fixed_src == 'snapshot' %} — {{ translations.hm_src_snapshot ?? 'structure de coûts de' }} {{ shop.heatmap.fixed_src_month }}{% endif %}</span>
                         {% else %}
                             <span>· {{ translations.hm_note_gross ?? 'marge brute (CA − coût matière), échelle relative au mois — labour/overhead indisponibles' }}</span>
+                        {% endif %}
+                        {% if (shop.heatmap.hrs_snapped ?? 0) > 0 %}
+                            <span>· {{ translations.hm_hrs_snapped ?? 'heures d\'ouverture hors plages configurées : rattachées au créneau le plus proche' }}</span>
                         {% endif %}
                     </div>
                 </div>
@@ -828,6 +872,7 @@
            « semaine au prorata des heures actives » → libellés neutres. #}
         labourSlot:   {{ (translations.pnl_labour_slot ?? 'Labour du créneau')|json_encode|raw }},
         overheadSlot: {{ (translations.pnl_overhead_slot ?? 'Overhead du créneau')|json_encode|raw }},
+        wdNote:   {{ (translations.pnl_wd_note ?? 'Cumul des %d jours de ce jour de semaine sur la période (moyenne pondérée par le CA)')|json_encode|raw }},
         slotNote: {{ (translations.pnl_slot_note ?? "Labour et overhead de la semaine répartis entre les créneaux au prorata des HEURES ACTIVES")|json_encode|raw }},
         slotGross:{{ (translations.pnl_slot_gross ?? 'Labour/overhead indisponibles — marge brute du créneau uniquement.')|json_encode|raw }},
         grossNote:{{ (translations.pnl_gross_note ?? 'Labour/overhead indisponibles — marge brute uniquement.')|json_encode|raw }},
@@ -923,20 +968,47 @@
         modal.hidden = false;
     }
 
-    document.addEventListener('click', function (e) {
-        var cell = e.target.closest('.rpt-cal .dcell[data-d]');
-        if (cell) { open(cell); return; }
-        var slot = e.target.closest('.rpt-hmv[data-slot]');
-        if (slot) { openSlot(slot); }
-    });
+    // ── Modale d'un JOUR DE SEMAINE (moyenne du mois, ou le jour en hebdo) ──
+    function openWd(cell) {
+        var d;
+        try { d = JSON.parse(cell.getAttribute('data-wd')); } catch (e) { return; }
+        if (!d || d.ca == null) { return; }
+
+        document.getElementById('hmMTitle').textContent = d.label || '';
+
+        var h = row('', L.ca, eur(d.ca), null, '');
+        h += row('−', L.material, eur(d.material), null, '');
+        h += row('=', L.gross, eur(d.mv), d.gross_pct, 'sub');
+        var note;
+        if (d.lab != null && d.ovh != null) {
+            h += row('−', L.labour, eur(d.lab), d.ca > 0 ? d.lab / d.ca * 100 : null, '');
+            h += row('−', L.overhead, eur(d.ovh), d.ca > 0 ? d.ovh / d.ca * 100 : null, '');
+            h += row('=', L.net, '<span style="color:' + (d.net >= 0 ? '#2D7A3E' : '#c0182b') + ';">' + eur(d.net) + '</span>', d.net_pct, 'net');
+            note = d.days > 1 ? L.wdNote.replace('%d', d.days) : L.allocNote;
+        } else {
+            note = L.grossNote;
+        }
+
+        document.getElementById('hmMPnl').innerHTML = h;
+        document.getElementById('hmMNote').textContent = note;
+        document.getElementById('hmMNotes').innerHTML = '';
+        modal.hidden = false;
+    }
+
+    function dispatch(target) {
+        if (!target || !target.closest) { return false; }
+        var cell = target.closest('.rpt-cal .dcell[data-d]');
+        if (cell) { open(cell); return true; }
+        var slot = target.closest('.rpt-hmv[data-slot]');
+        if (slot) { openSlot(slot); return true; }
+        var wd = target.closest('.rpt-wd .c[data-wd]');
+        if (wd) { openWd(wd); return true; }
+        return false;
+    }
+    document.addEventListener('click', function (e) { dispatch(e.target); });
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && !modal.hidden) close();
-        if (e.key === 'Enter' && e.target.closest) {
-            var cell = e.target.closest('.rpt-cal .dcell[data-d]');
-            if (cell) { open(cell); return; }
-            var slot = e.target.closest('.rpt-hmv[data-slot]');
-            if (slot) { openSlot(slot); }
-        }
+        if (e.key === 'Enter') { dispatch(e.target); }
     });
     document.getElementById('hmMBg').addEventListener('click', close);
     document.getElementById('hmMClose').addEventListener('click', close);
