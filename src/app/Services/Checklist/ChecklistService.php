@@ -22,6 +22,17 @@ class ChecklistService
         return $this->checklistRepository->getChecklistsForShop($shopId, $date);
     }
 
+    /**
+     * Avancement de plusieurs checklists en parallèle.
+     *
+     * @param int[] $checklistIds
+     * @return array<int, array> map id de checklist => avancement
+     */
+    public function getChecklistProgressMany(int $shopId, array $checklistIds, string $date): array
+    {
+        return $this->checklistRepository->getChecklistProgressMany($shopId, $checklistIds, $date);
+    }
+
     public function getChecklistProgress(int $shopId, int $checklistId, string $date): array
     {
         return $this->checklistRepository->getChecklistProgress($shopId, $checklistId, $date);

@@ -71,6 +71,35 @@
     .cl-body { padding:8px 8px 4px; background:#fafbfc; }
     .cl-body .task-card { box-shadow:none; border:1px solid #f1f3f5; }
 
+    /* Tâche faite avec photo : carte cliquable + modale de réalisation */
+    .task-openable { cursor:pointer; }
+    .task-openable:hover { background:#fbfcfe; }
+    .task-see { display:inline-flex; align-items:center; gap:4px; margin-top:5px; font-size:.68rem;
+                font-weight:800; color:#435ebe; }
+    .dn-modal { position:fixed; inset:0; z-index:1080; display:flex; align-items:center;
+                justify-content:center; padding:14px; }
+    .dn-modal[hidden] { display:none; }
+    .dn-modal .bg { position:absolute; inset:0; background:rgba(24,18,14,.55); }
+    .dn-modal .card { position:relative; background:#fff; border-radius:16px; width:100%;
+                      max-width:400px; max-height:88vh; overflow:auto; padding:14px 16px 16px;
+                      box-shadow:0 18px 50px -12px rgba(0,0,0,.4); }
+    .dn-modal .hd { display:flex; align-items:flex-start; gap:8px; margin-bottom:10px; }
+    .dn-modal .ti { flex:1; font-size:.92rem; font-weight:800; color:#8D1D2C; line-height:1.3; }
+    .dn-modal .x { flex-shrink:0; width:30px; height:30px; border:0; border-radius:50%;
+                   background:#f1ece4; color:#5f574f; font-size:1rem; line-height:1; cursor:pointer; }
+    .dn-modal .who { font-size:.72rem; color:#6c757d; margin-bottom:8px; }
+    .dn-modal .ph { border-radius:12px; overflow:hidden; border:1px solid rgba(0,0,0,.08);
+                    background:#f6f3ee; min-height:120px; display:flex; align-items:center;
+                    justify-content:center; }
+    .dn-modal .ph img { width:100%; height:auto; display:block; }
+    .dn-modal .ph .msg { font-size:.74rem; color:#9a9086; padding:26px 12px; text-align:center; }
+    .dn-modal .sect { font-size:.64rem; font-weight:800; text-transform:uppercase;
+                      letter-spacing:.05em; color:#8D1D2C; margin:12px 0 4px; }
+    .dn-modal .txt { font-size:.8rem; color:#241f1c; line-height:1.5; background:#faf7f2;
+                     border-radius:8px; padding:8px 10px; }
+    .dn-modal .lnk { display:block; text-align:center; margin-top:10px; font-size:.76rem;
+                     font-weight:800; color:#435ebe; }
+
     /* Sonde ?fields=1 : champs disponibles par tâche (diagnostic d'intégration) */
     .fld-probe { background:#fff8e6; border:1px solid #f3e3bd; border-radius:12px; padding:10px 12px;
                  margin-bottom:10px; font-size:.68rem; line-height:1.6; color:#5f574f;
@@ -176,6 +205,20 @@
         <div class="empty-state"><span style="font-size:2rem;">{{ icons.svg('check-check') }}</span><p class="mt-2 mb-0">{{ translations.none_for_day ?? 'Aucune tâche pour ce jour.' }}</p></div>
     {% endif %}
 </div>
+
+{# Réalisation d'une tâche : photo, note et avis. #}
+<div class="dn-modal" id="dnModal" hidden>
+    <div class="bg" id="dnBg"></div>
+    <div class="card">
+        <div class="hd">
+            <div class="ti" id="dnTitle"></div>
+            <button type="button" class="x" id="dnClose" aria-label="{{ translations.close ?? 'Fermer' }}">✕</button>
+        </div>
+        <div class="who" id="dnWho"></div>
+        <div class="ph" id="dnPhoto"></div>
+        <div id="dnExtra"></div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -184,5 +227,74 @@ const shopChecklistSkeleton = document.getElementById('shop-checklists-skeleton'
 const shopChecklistContent = document.getElementById('shop-checklists-content');
 if (shopChecklistSkeleton) shopChecklistSkeleton.style.display = 'none';
 if (shopChecklistContent) shopChecklistContent.style.display = '';
+
+/* Réalisation d'une tâche : photo + note + avis. L'URL signée de la pièce
+   jointe est demandée AU CLIC — une par tâche au chargement de la page
+   ferait autant d'appels pour des photos que personne n'ouvrira. */
+(function () {
+    var modal = document.getElementById('dnModal');
+    if (!modal) { return; }
+    var ROOT = window.__consultantRoot || '';
+    var L = {
+        note:    {{ (translations.modal_note ?? 'Note')|json_encode|raw }},
+        review:  {{ (translations.modal_review ?? 'Avis du consultant')|json_encode|raw }},
+        loading: {{ (translations.modal_loading ?? 'Chargement de la photo…')|json_encode|raw }},
+        failed:  {{ (translations.modal_failed ?? 'Photo indisponible.')|json_encode|raw }},
+        open:    {{ (translations.modal_open ?? 'Ouvrir dans un nouvel onglet')|json_encode|raw }}
+    };
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function close() { modal.hidden = true; }
+
+    function open(card) {
+        var d;
+        try { d = JSON.parse(card.getAttribute('data-done')); } catch (e) { return; }
+        if (!d) { return; }
+
+        document.getElementById('dnTitle').textContent = d.name || '';
+        var who = (d.by ? d.by : '') + (d.at ? ' · ' + String(d.at).slice(0, 16).replace('T', ' ') : '');
+        document.getElementById('dnWho').textContent = who;
+
+        var extra = '';
+        if (d.note) { extra += '<div class="sect">' + esc(L.note) + '</div><div class="txt">' + esc(d.note) + '</div>'; }
+        if (d.comment || d.rating != null) {
+            extra += '<div class="sect">' + esc(L.review) + '</div><div class="txt">'
+                + (d.rating != null ? '★ ' + esc(d.rating) + (d.comment ? ' — ' : '') : '')
+                + esc(d.comment || '') + '</div>';
+        }
+        document.getElementById('dnExtra').innerHTML = extra;
+
+        var ph = document.getElementById('dnPhoto');
+        ph.innerHTML = '<div class="msg">' + esc(L.loading) + '</div>';
+        modal.hidden = false;
+
+        fetch(ROOT + '/helpdesk/attachments/' + encodeURIComponent(d.att) + '/url',
+              { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                var url = j && j.data && j.data.url;
+                if (!url) { throw new Error('no url'); }
+                ph.innerHTML = '<img src="' + esc(url) + '" alt="' + esc(d.file || d.name) + '" loading="lazy">';
+                var a = document.createElement('a');
+                a.className = 'lnk'; a.href = url; a.target = '_blank'; a.rel = 'noopener';
+                a.textContent = L.open;
+                ph.parentNode.insertBefore(a, ph.nextSibling);
+            })
+            .catch(function () { ph.innerHTML = '<div class="msg">' + esc(L.failed) + '</div>'; });
+    }
+
+    document.addEventListener('click', function (e) {
+        var card = e.target.closest && e.target.closest('.task-openable[data-done]');
+        if (card) { open(card); }
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.hidden) { close(); return; }
+        if (e.key === 'Enter' && e.target.closest) {
+            var card = e.target.closest('.task-openable[data-done]');
+            if (card) { open(card); }
+        }
+    });
+    document.getElementById('dnBg').addEventListener('click', close);
+    document.getElementById('dnClose').addEventListener('click', close);
+})();
 </script>
 {% endblock %}

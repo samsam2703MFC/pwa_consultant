@@ -41,6 +41,37 @@ class ChecklistRepository
         return ($res['success'] && isset($res['data'])) ? $res['data'] : [];
     }
 
+    /**
+     * Avancement de PLUSIEURS checklists en parallèle (curl_multi).
+     *
+     * L'écran des tâches de la boutique en a besoin pour toutes les checklists
+     * du jour : en séquence, ce serait autant d'attentes réseau ajoutées au
+     * chargement de la page.
+     *
+     * @param int[] $checklistIds
+     * @return array<int, array> map id de checklist => avancement ([] si indisponible)
+     */
+    public function getChecklistProgressMany(int $shopId, array $checklistIds, string $date): array
+    {
+        $out = [];
+        $byId = [];
+        foreach (array_unique(array_map('intval', $checklistIds)) as $cid) {
+            if ($cid > 0) {
+                $byId[$cid] = "/consultant/shops/{$shopId}/checklists/{$cid}/progress?date={$date}";
+            }
+        }
+        if ($byId === []) {
+            return $out;
+        }
+        $responses = $this->apiClient->getMany(array_values($byId));
+        foreach ($byId as $cid => $ep) {
+            $r = $responses[$ep] ?? null;
+            $out[$cid] = (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null))
+                ? $r['data'] : [];
+        }
+        return $out;
+    }
+
     public function submitTaskReview(int $shopId, array $data): array
     {
         return $this->apiClient->post("/consultant/shops/{$shopId}/task-reviews", $data);

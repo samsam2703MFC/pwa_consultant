@@ -37,9 +37,16 @@ class ChecklistController extends Controller
             ['summary' => [], 'tasks' => [], 'trend' => []]
         );
 
+        // L'endpoint /tasks ne porte PAS de quoi ouvrir une réalisation
+        // (ni completion_id, ni pièce jointe). L'endpoint d'avancement des
+        // checklists, lui, expose completion_id, attachment_id, la note et
+        // l'avis. On l'interroge pour toutes les checklists du jour EN
+        // PARALLÈLE et on complète les tâches par task_id.
+        $tasks = $this->withCompletionDetails($shopId, $date, $data['tasks'] ?? []);
+
         $this->view('checklist/shop_tasks', [
             'data'             => $data,
-            'checklist_groups' => $this->groupTasksByChecklist($data['tasks'] ?? []),
+            'checklist_groups' => $this->groupTasksByChecklist($tasks),
             'date'             => $date,
             'shop_id'          => $shopId,
             'id_shop'          => $shopId,
@@ -49,7 +56,7 @@ class ChecklistController extends Controller
             // exemple de tâche FAITE. Sert à savoir si la réalisation porte de
             // quoi ouvrir sa fiche (note, photo) sans avoir à interroger l'API
             // à la main.
-            'field_probe'      => isset($_GET['fields']) ? $this->fieldProbe($data['tasks'] ?? []) : null,
+            'field_probe'      => isset($_GET['fields']) ? $this->fieldProbe($tasks) : null,
             // ?fields=2 : sonde AUSSI les endpoints checklists / progress, qui
             // sont câblés mais qu'aucun écran n'utilise — l'un d'eux porte
             // peut-être la photo de réalisation.
@@ -121,6 +128,89 @@ class ChecklistController extends Controller
             $out[] = ['endpoint' => 'erreur', 'lines' => [get_class($e) . ' — ' . $e->getMessage()]];
         }
         return $out;
+    }
+
+    /**
+     * Complète les tâches du jour avec le détail de leur réalisation
+     * (identifiant de réalisation, pièce jointe, note, avis), lu dans
+     * l'avancement des checklists.
+     *
+     * Ces champs n'existent pas sur /consultant/shops/{id}/tasks ; sans eux,
+     * une tâche faite ne peut mener ni à sa photo ni à sa note. La jointure se
+     * fait sur task_id. En cas d'indisponibilité, les tâches sont renvoyées
+     * telles quelles : l'écran reste celui d'avant, jamais vide.
+     *
+     * @param array $tasks tâches renvoyées par /tasks
+     * @return array mêmes tâches, complétées quand un avancement les décrit
+     */
+    private function withCompletionDetails(int $shopId, string $date, array $tasks): array
+    {
+        if ($tasks === []) {
+            return $tasks;
+        }
+        try {
+            $checklists = $this->checklistService->getChecklistsForShop($shopId, $date);
+            $list = is_array($checklists['checklists'] ?? null)
+                ? $checklists['checklists']
+                : (array_is_list($checklists) ? $checklists : []);
+
+            $ids = [];
+            foreach ($list as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                foreach (['id', 'id_checklist', 'checklist_id'] as $k) {
+                    if (!empty($row[$k])) {
+                        $ids[] = (int)$row[$k];
+                        break;
+                    }
+                }
+            }
+            if ($ids === []) {
+                return $tasks;
+            }
+
+            // Détail par task_id, toutes checklists confondues.
+            $byTask = [];
+            foreach ($this->checklistService->getChecklistProgressMany($shopId, $ids, $date) as $progress) {
+                foreach (($progress['tasks'] ?? []) as $t) {
+                    if (is_array($t) && !empty($t['task_id'])) {
+                        $byTask[(int)$t['task_id']] = $t;
+                    }
+                }
+            }
+            if ($byTask === []) {
+                return $tasks;
+            }
+
+            // Champs ajoutés. La note et l'auteur ne sont repris QUE s'ils
+            // manquent : /tasks reste la source de l'affichage existant.
+            $extra = ['completion_id', 'attachment_id', 'attachment_filename',
+                      'review_id', 'review_is_accepted', 'review_rating', 'review_comment'];
+            foreach ($tasks as &$task) {
+                if (!is_array($task) || empty($task['task_id'])) {
+                    continue;
+                }
+                $src = $byTask[(int)$task['task_id']] ?? null;
+                if ($src === null) {
+                    continue;
+                }
+                foreach ($extra as $k) {
+                    if (isset($src[$k]) && $src[$k] !== '' && $src[$k] !== null) {
+                        $task[$k] = $src[$k];
+                    }
+                }
+                foreach (['note', 'completed_by', 'completed_at'] as $k) {
+                    if ((string)($task[$k] ?? '') === '' && (string)($src[$k] ?? '') !== '') {
+                        $task[$k] = $src[$k];
+                    }
+                }
+            }
+            unset($task);
+        } catch (\Throwable $e) {
+            error_log('[checklists] détail de réalisation : ' . $e->getMessage());
+        }
+        return $tasks;
     }
 
     /**
