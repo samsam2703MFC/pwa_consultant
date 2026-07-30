@@ -490,11 +490,15 @@
       // Sous le tableau : d'où viennent les deux marges, et ce qui cloche.
       function notesHtml(d) {
         var n = d.network, mult = dec(d.multiple), tgt = dec(d.target_margin_pct);
+        var win = d.months_window || 18, ann = d.annual_months || 12;
         var h = '<div class="valo-form">'
-          + 'Valeur = CA 12 mois × marge × multiple ' + mult + '. '
+          + 'Valeur = CA annuel × marge × multiple ' + mult + '. '
+          + 'CA annuel = CA des ' + win + ' derniers mois ramené à ' + ann + ' mois — '
+          + ann + ' mois seuls laisseraient une saison exceptionnelle, ou un mois de fermeture, '
+          + 'décider de la valeur. '
           + 'Marge nette constatée = (CA − coût matière − main d’œuvre − frais généraux) ÷ CA, '
-          + 'sur les cumuls des 12 mois du P&amp;L — d’où vient aussi le CA, pour que les deux '
-          + 'comptent la même chose. '
+          + 'sur les cumuls des ' + win + ' mois du P&amp;L — d’où vient aussi le CA, pour que les '
+          + 'deux comptent la même chose. '
           + 'La marge de ' + tgt + ' % n’est pas constatée : c’est la cible saisie dans les paramètres '
           + '(valuation_target_net_margin_pct), tout comme le multiple (valuation_multiple).</div>';
 
@@ -538,7 +542,7 @@
         // une ligne débordait sur la colonne voisine.
         h += '<div class="valo-tbl-wrap"><table class="valo-tbl"><thead><tr>'
           + '<th>Boutique</th>'
-          + '<th class="num">CA<br>12 m</th>'
+          + '<th class="num">CA<br>annuel</th>'
           + '<th class="num">Marge</th>'
           + '<th class="num">Valeur<br>actuelle</th>'
           + '<th class="num">Marge<br>' + tgt + '</th>'

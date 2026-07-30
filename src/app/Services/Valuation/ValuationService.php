@@ -21,11 +21,17 @@ use App\Consultant\app\Services\Param\ParamService;
  * vente peut dégager, et la valorisation avec elle. Le champ `result` ne sert
  * plus que de repli, quand les postes ne sont pas tous renseignés.
  *
- * Le CA annuel vient des KPIs ventes (12 mois).
+ * La FENÊTRE d'observation est plus longue que l'année valorisée : on regarde
+ * 18 mois et on ramène le CA à 12 (valuation_window_months /
+ * valuation_annual_months). Douze mois seulement laissent une saison
+ * exceptionnelle — ou un mois de fermeture — décider de la valeur ; dix-huit
+ * mois lissent l'accident sans effacer la tendance. La marge nette est
+ * mesurée sur la même fenêtre.
  */
 class ValuationService
 {
-    private const MONTHS = 12;
+    private const WINDOW_MONTHS = 18;   // fenêtre d'observation, par défaut
+    private const ANNUAL_MONTHS = 12;   // durée sur laquelle le CA est ramené
 
     public function __construct(
         private ShopService $shopService,
@@ -35,13 +41,17 @@ class ValuationService
 
     /**
      * Données de valorisation pour le bouton « Valeurs réseau » : valeur de
-     * chaque boutique + de la chaîne, à l'objectif et actuelle, + série
-     * d'évolution 12 mois (boutique et réseau).
+     * chaque boutique + de la chaîne, à l'objectif et actuelle.
      */
     public function build(): array
     {
         $multiple     = $this->params->getFloat('valuation_multiple', 4.5);
         $targetMargin = $this->params->getFloat('valuation_target_net_margin_pct', 15.0);
+        // Fenêtre d'observation et durée de référence, en mois. Bornées : une
+        // fenêtre nulle ferait une division par zéro, et une fenêtre plus
+        // courte que l'année valorisée extrapolerait au lieu de lisser.
+        $windowMonths = max(1, (int)$this->params->getFloat('valuation_window_months', (float)self::WINDOW_MONTHS));
+        $annualMonths = max(1, (int)$this->params->getFloat('valuation_annual_months', (float)self::ANNUAL_MONTHS));
         // Borne de plausibilité : au-delà, la marge nette ne vient pas d'un
         // point de vente mais d'un poste de coût manquant dans le P&L. On ne
         // corrige rien en douce — on le signale à l'écran.
@@ -80,15 +90,15 @@ class ValuationService
             }
         }
 
-        // 2) Fenêtre 12 mois glissants.
-        $since   = $now->modify('-' . (self::MONTHS - 1) . ' months');
+        // 2) Fenêtre d'observation glissante (18 mois par défaut).
+        $since   = $now->modify('-' . ($windowMonths - 1) . ' months');
         $sinceY  = (int)$since->format('Y');
         $sinceM  = (int)$since->format('n');
-        $from12  = date('Y-m-d', (int)$since->format('U'));
-        $to12    = date('Y-m-d');
+        $fromWin = date('Y-m-d', (int)$since->format('U'));
+        $toWin   = date('Y-m-d');
 
-        // P2 — historique P&L MENSUEL réel : la marge nette 12 mois devient
-        // exacte immédiatement (plus besoin d'attendre l'accumulation des
+        // P2 — historique P&L MENSUEL réel : la marge nette devient exacte
+        // immédiatement (plus besoin d'attendre l'accumulation des
         // snapshots). Repli sur les snapshots si l'endpoint est absent.
         $fromYm = sprintf('%04d-%02d', $sinceY, $sinceM);
         $toYm   = sprintf('%04d-%02d', $curY, $curM);
@@ -175,8 +185,8 @@ class ValuationService
         //    KPIs de vente avec des coûts venus du P&L revient à diviser deux
         //    grandeurs qui ne comptent pas la même chose. Les KPIs de vente ne
         //    servent que de repli, quand aucun P&L n'est disponible.
-        $ca12s = $this->shopService->getSalesKpisBatch(array_map(
-            fn($id) => ['shop' => $id, 'from' => $from12, 'to' => $to12],
+        $caWins = $this->shopService->getSalesKpisBatch(array_map(
+            fn($id) => ['shop' => $id, 'from' => $fromWin, 'to' => $toWin],
             array_keys($ids)
         ));
         $shopsOut = [];
@@ -188,13 +198,12 @@ class ValuationService
         foreach ($ids as $id => $name) {
             $c        = $costsByShop[$id] ?? [];
             $caPnl    = $c['ca'] ?? null;
-            $caKpi    = (float)($ca12s["{$id}|{$from12}|{$to12}"]['ca'] ?? 0);
-            $ca12     = ($caPnl !== null && $caPnl > 0) ? $caPnl : $caKpi;
+            $caKpi    = (float)($caWins["{$id}|{$fromWin}|{$toWin}"]['ca'] ?? 0);
             $caFromPnl = ($caPnl !== null && $caPnl > 0);
 
-            // Marge nette 12 mois = (CA − matière − main d'œuvre − frais) ÷ CA,
-            // sur les cumuls. Les trois postes doivent couvrir tous les mois
-            // observés, sinon le cumul de coûts serait incomplet face au CA.
+            // Marge nette = (CA − matière − main d'œuvre − frais) ÷ CA, sur les
+            // cumuls de la fenêtre. Les trois postes doivent couvrir tous les
+            // mois observés, sinon le cumul de coûts serait incomplet face au CA.
             $months  = (int)($c['months'] ?? 0);
             $full    = $months > 0
                 && ($c['material_n'] ?? 0) === $months
@@ -208,6 +217,15 @@ class ValuationService
             }
             $avgMargin = ($netTotal !== null && ($c['ca'] ?? 0) > 0)
                 ? $netTotal / $c['ca'] * 100 : null;
+
+            // CA ANNUEL : le cumul de la fenêtre ramené à douze mois. Sur le
+            // P&L, on divise par les mois réellement observés — une boutique
+            // ouverte depuis six mois ne doit pas voir son CA divisé par
+            // dix-huit. Sur le repli KPIs, la fenêtre est entière par
+            // construction.
+            $ca12 = $caFromPnl
+                ? ($months > 0 ? $caPnl / $months * $annualMonths : 0.0)
+                : $caKpi / $windowMonths * $annualMonths;
 
             $valoObjectif = $ca12 * ($targetMargin / 100) * $multiple;
             $valoActuelle = ($avgMargin !== null) ? $ca12 * ($avgMargin / 100) * $multiple : null;
@@ -262,7 +280,8 @@ class ValuationService
             ],
             // Borne de plausibilité + boutiques qui la dépassent : une marge
             // nette au-dessus veut dire qu'un poste de coût manque au P&L.
-            'months_window'     => self::MONTHS,
+            'months_window'     => $windowMonths,
+            'annual_months'     => $annualMonths,
             'max_margin_pct'    => $maxMargin,
             'margin_over'       => array_values(array_map(
                 fn($s) => ['name' => $s['name'], 'pct' => round((float)$s['avg_margin'], 1)],

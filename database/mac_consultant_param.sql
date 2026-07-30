@@ -26,6 +26,8 @@ INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('valuation_multiple',              '4.5', 'Multiple de valorisation (× résultat net)'),
     ('valuation_target_net_margin_pct', '15',  'Marge nette cible (%) — valorisation à l''objectif'),
     ('valuation_max_net_margin_pct',    '20',  'Marge nette plausible maximale (%) — au-delà, un poste de coût manque au P&L'),
+    ('valuation_window_months',         '18',  'Valorisation : fenêtre d''observation du CA et de la marge (mois)'),
+    ('valuation_annual_months',         '12',  'Valorisation : durée sur laquelle le CA observé est ramené (mois)'),
     ('daypart_morning_from',            '6',   'Heatmap : début du créneau « matin » (heure incluse)'),
     ('daypart_morning_to',              '10',  'Heatmap : fin du créneau « matin » (heure incluse)'),
     ('daypart_midday_from',             '11',  'Heatmap : début du créneau « midi » (heure incluse)'),
