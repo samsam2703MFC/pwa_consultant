@@ -93,5 +93,15 @@
     "rentability_gross": "Analiza rentowności — marża brutto",
     "hm_low_gross": "Niska marża",
     "hm_note_gross": "marża brutto (obrót − koszt materiałów), skala względna dla miesiąca — labour/overhead niedostępne",
-    "hm_src_current": "struktura kosztów bieżącego miesiąca"
+    "hm_src_current": "struktura kosztów bieżącego miesiąca",
+    "pnl_ca": "Obrót",
+    "pnl_material": "Koszt materiałów",
+    "pnl_gross": "Marża brutto",
+    "pnl_labour": "Labour (alokowany)",
+    "pnl_overhead": "Overhead (alokowany)",
+    "pnl_net": "Wynik netto",
+    "pnl_alloc_note": "Miesięczny labour/overhead alokowany proporcjonalnie do dziennego obrotu",
+    "pnl_gross_note": "Labour/overhead niedostępne — tylko marża brutto.",
+    "day_notes": "Komentarze dnia",
+    "close": "Zamknij"
 }

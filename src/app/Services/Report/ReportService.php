@@ -180,6 +180,7 @@ class ReportService
                 $kpis      = $kpisByShop[$shopId] ?? $this->shopService->getSalesKpis($shopId, $period['from'], $period['to']);
                 $metrics   = $metricsByShop[$shopId] ?? $this->hexmMetrics($shopId, $period, $kpis);
                 $franchise = $this->franchiseKpisForShop($shopId, $period, $tgt, $kpis, $netFranchise);
+                $notes     = $this->noteService->getNotesForPeriod($shopId, $period['from'], $period['to']);
 
                 $shopSections[] = [
                     'id'                 => $shopId,
@@ -188,7 +189,10 @@ class ReportService
                     'hexm'               => $this->hexmDisplay($metrics, $netAvg, $ofTags),
                     'franchise'          => $franchise['kpis'],
                     'targets_label'      => $franchise['label'],
-                    'notes'              => $this->noteService->getNotesForPeriod($shopId, $period['from'], $period['to']),
+                    'notes'              => $notes,
+                    // Notes/commentaires groupés par jour — pour le micro P&L
+                    // ouvert depuis la heatmap (contexte du franchisé).
+                    'notes_by_day'       => $this->notesByDay($notes),
                     'claims_by_supplier' => $this->claimsBySupplier($shopId, $fromT, $toT),
                     // Campagnes commerciales — rapport MENSUEL uniquement, fenêtre
                     // année-à-ce-jour (comme l'écran Targets) ; null en hebdo → section
@@ -223,6 +227,46 @@ class ReportService
             'demandes'      => $this->demandesForPeriod($fromT, $toT, $shopFilter),
             'tasks_done'    => $this->tasksDoneForPeriod($fromT, $toT),
         ];
+    }
+
+    /**
+     * Notes et commentaires (réponses) groupés par jour ('YYYY-MM-DD') — pour
+     * afficher le contexte du franchisé dans le micro P&L d'un jour de la
+     * heatmap. Chaque entrée : texte, auteur/type, heure.
+     *
+     * @return array<string, array<int, array{text:string, by:string, time:string}>>
+     */
+    private function notesByDay(array $notes): array
+    {
+        $out = [];
+        foreach ($notes as $n) {
+            if (!is_array($n)) {
+                continue;
+            }
+            $d = substr((string)($n['created_at'] ?? ''), 0, 10);
+            if (strlen($d) !== 10) {
+                continue;
+            }
+            if (!empty($n['content'])) {
+                $out[$d][] = [
+                    'text' => (string)$n['content'],
+                    'by'   => (string)($n['author'] ?? $n['type_name'] ?? ''),
+                    'time' => substr((string)$n['created_at'], 11, 5),
+                ];
+            }
+            foreach (($n['comments_view'] ?? []) as $c) {
+                if (!is_array($c) || empty($c['content'])) {
+                    continue;
+                }
+                $cd = substr((string)($c['created_at'] ?? ''), 0, 10);
+                $out[strlen($cd) === 10 ? $cd : $d][] = [
+                    'text' => (string)$c['content'],
+                    'by'   => (string)($c['author'] ?? ''),
+                    'time' => substr((string)($c['created_at'] ?? ''), 11, 5),
+                ];
+            }
+        }
+        return $out;
     }
 
     /**
@@ -357,11 +401,13 @@ class ReportService
             $pct = !empty($d['has_data']) && isset($d['margin_pct']) && is_numeric($d['margin_pct'])
                 ? (float)$d['margin_pct'] : null;
             $days[] = [
-                'date' => (string)$d['date'],
-                'num'  => (int)date('j', $ts),
-                'wd'   => (int)date('N', $ts),   // 1 = lundi
-                'pct'  => $pct,
-                'ca'   => isset($d['ca']) && is_numeric($d['ca']) ? (float)$d['ca'] : null,
+                'date'      => (string)$d['date'],
+                'num'       => (int)date('j', $ts),
+                'wd'        => (int)date('N', $ts),   // 1 = lundi
+                'pct'       => $pct,
+                'gross_pct' => $pct,                  // marge brute (avant coûts fixes)
+                'mv'        => isset($d['margin_value']) && is_numeric($d['margin_value']) ? (float)$d['margin_value'] : null,
+                'ca'        => isset($d['ca']) && is_numeric($d['ca']) ? (float)$d['ca'] : null,
             ];
             if ($pct !== null) {
                 $pcts[] = $pct;
@@ -422,7 +468,7 @@ class ReportService
         //    répartis au prorata du CA (le P&L ne les donne pas par créneau).
         //    Sans structure de coûts disponible, on reste en marge brute
         //    (signalé dans le rapport).
-        [$fixedPct, $fixedSrc] = $this->fixedCostPct($shopId, $period);
+        [$fixedPct, $fixedSrc, $labourPct, $overheadPct] = $this->fixedCostPct($shopId, $period);
         $basis = $fixedPct !== null ? 'net' : 'gross';
         if ($fixedPct !== null) {
             foreach ($days as &$d) {
@@ -481,13 +527,15 @@ class ReportService
             ? (float)$month['totals']['margin_pct'] : null;
 
         return [
-            'days'      => $days,
-            'weeks'     => $weeks,
-            'min'       => $min,
-            'max'       => $max,
-            'basis'     => $basis,
-            'fixed_pct' => $fixedPct,
-            'fixed_src' => $fixedSrc,
+            'days'         => $days,
+            'weeks'        => $weeks,
+            'min'          => $min,
+            'max'          => $max,
+            'basis'        => $basis,
+            'fixed_pct'    => $fixedPct,
+            'fixed_src'    => $fixedSrc,
+            'labour_pct'   => $labourPct,
+            'overhead_pct' => $overheadPct,
             'labels' => [
                 'matin' => 'Matin (< ' . $morningUntil . ' h)',
                 'midi'  => 'Midi (' . $morningUntil . '–' . $middayUntil . ' h)',
@@ -509,7 +557,8 @@ class ReportService
      *   2. sinon P&L du mois COURANT (structure de coûts actuelle —
      *      approximation signalée dans le rapport).
      *
-     * @return array{0: ?float, 1: ?string} [pct, 'report_month'|'current_month'|null]
+     * @return array{0: ?float, 1: ?string, 2: ?float, 3: ?float}
+     *         [pct total, 'report_month'|'current_month'|null, labour %, overhead %]
      */
     private function fixedCostPct(int $shopId, array $period): array
     {
@@ -518,16 +567,20 @@ class ReportService
         if (is_array($snap)
             && ($snap['ca'] ?? null) !== null && (float)$snap['ca'] > 0
             && ($snap['labour'] ?? null) !== null && ($snap['overhead'] ?? null) !== null) {
-            return [((float)$snap['labour'] + (float)$snap['overhead']) / (float)$snap['ca'] * 100, 'report_month'];
+            $lp = (float)$snap['labour'] / (float)$snap['ca'] * 100;
+            $op = (float)$snap['overhead'] / (float)$snap['ca'] * 100;
+            return [$lp + $op, 'report_month', $lp, $op];
         }
         $pnl = $this->shopService->getPnl($shopId, 'month');
         $ca  = $this->pnlNodeValue($pnl['turnover'] ?? null);
         $lab = $this->pnlNodeValue($pnl['labour'] ?? null);
         $ovh = $this->pnlNodeValue($pnl['overhead'] ?? null);
         if ($ca !== null && $ca > 0 && $lab !== null && $ovh !== null) {
-            return [($lab + $ovh) / $ca * 100, 'current_month'];
+            $lp = $lab / $ca * 100;
+            $op = $ovh / $ca * 100;
+            return [$lp + $op, 'current_month', $lp, $op];
         }
-        return [null, null];
+        return [null, null, null, null];
     }
 
     /** Valeur numérique d'un nœud P&L ({value:…} ou scalaire numérique). */
