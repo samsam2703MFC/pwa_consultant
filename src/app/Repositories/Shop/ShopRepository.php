@@ -613,6 +613,45 @@ class ShopRepository
     }
 
     /** Journal des sondes + disjoncteurs actifs (écrans ?debug=1). */
+    /**
+     * Capture d'échantillons BRUTS — désactivée par défaut.
+     *
+     * Diagnostiquer « l'endpoint ne renvoie rien » sans voir sa réponse revient
+     * à deviner. Le drapeau est posé par le contrôleur quand `?debug=1` est
+     * demandé : la donnée exposée est celle que l'utilisateur a déjà le droit
+     * de voir à l'écran, jamais plus.
+     */
+    private static bool $sampling = false;
+    private static array $samples = [];
+
+    public static function sampleOn(): void
+    {
+        self::$sampling = true;
+        self::$samples  = [];
+    }
+
+    /** @return array<string, array> map clé => ['endpoint'=>…, 'response'=>…] */
+    public static function samples(): array
+    {
+        return self::$samples;
+    }
+
+    /** Un seul échantillon par clé : le premier suffit à lire le format. */
+    private static function sample(string $key, string $endpoint, $response): void
+    {
+        if (!self::$sampling || isset(self::$samples[$key])) {
+            return;
+        }
+        // Réponse tronquée : un P&L de douze mois pour vingt-cinq boutiques
+        // rendrait la page de diagnostic illisible et lourde.
+        $json = json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json !== false && strlen($json) > 20000) {
+            $response = ['_tronque' => true, '_taille_octets' => strlen($json),
+                         '_extrait' => substr($json, 0, 20000)];
+        }
+        self::$samples[$key] = ['endpoint' => $endpoint, 'response' => $response];
+    }
+
     public static function batchDiagnostics(): array
     {
         $breaker = [];
@@ -736,6 +775,7 @@ class ShopRepository
 
         foreach ($byShop as $sid => $ep) {
             $r = $responses[$ep] ?? null;
+            self::sample('pnl_daily', $ep, $r);
             if (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) {
                 $parsed = $this->parseDailyPnl($r['data']);
                 if ($parsed !== null) {
@@ -801,6 +841,10 @@ class ShopRepository
         $codes = [];
         foreach ($byId as $id => $ep) {
             $r = $responses[$ep] ?? null;
+            // Échantillon BRUT de la première boutique, sur demande : c'est ce
+            // qui permet de voir si l'endpoint existe, ce qu'il renvoie et sous
+            // quel format — sans avoir à configurer quoi que ce soit.
+            self::sample('pnl_monthly', $ep, $r);
             if (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) {
                 $parsed = $this->parseMonthlyPnl($r['data']);
                 if ($parsed !== null) {

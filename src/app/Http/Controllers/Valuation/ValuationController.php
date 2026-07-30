@@ -68,6 +68,14 @@ class ValuationController extends Controller
         if ($fresh) {
             ShopRepository::batchBreakerReset();
         }
+        // ?debug=1 → on garde la réponse BRUTE du P&L pour la première
+        // boutique. Sans elle, « aucun mois renvoyé » se diagnostique à
+        // l'aveugle. Le cache est ignoré dans ce mode (voir ci-dessous), donc
+        // l'échantillon décrit bien l'appel qui vient d'avoir lieu.
+        if (isset($_GET['debug'])) {
+            ShopRepository::batchBreakerReset();
+            ShopRepository::sampleOn();
+        }
         if (!$fresh && !isset($_GET['debug']) && is_file($cacheFile)
             && (time() - (int)@filemtime($cacheFile)) < self::CACHE_TTL) {
             $cached = json_decode((string)@file_get_contents($cacheFile), true);
@@ -110,6 +118,7 @@ class ValuationController extends Controller
 
         if (isset($_GET['debug'])) {
             $out['debug'] = ShopRepository::batchDiagnostics();
+            $out['debug']['samples'] = ShopRepository::samples();
         }
         // Jamais de cache navigateur sur ces réponses : le cache serveur est
         // déjà là, versionné, et une couche de plus rendrait un correctif
