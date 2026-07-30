@@ -32,6 +32,10 @@
 
   /* ── Graphique ── */
   .tr-card { background:#fff; border:1px solid #ece4d8; border-radius:16px; padding:13px 14px; box-shadow:0 3px 12px -8px rgba(70,40,25,.3); }
+  .tr-modes { display:flex; gap:6px; margin-bottom:8px; }
+  .tr-mode { border:1.5px solid #e7ded2; background:#fff; color:#7a7168; font-size:.7rem; font-weight:800; border-radius:999px; padding:5px 13px; }
+  .tr-mode.on { background:#8D1D2C; border-color:#8D1D2C; color:#fff; }
+  .tr-tbl tr.tot td { font-weight:800; color:#8D1D2C; border-top:2px solid rgba(141,29,44,.2); }
   .tr-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:.64rem; color:#7a7168; margin-top:6px; }
   .tr-legend i { display:inline-block; width:16px; height:3px; border-radius:2px; margin-right:4px; vertical-align:2px; }
   .tr-legend i.dash { background:repeating-linear-gradient(90deg,#2D7A3E 0 4px,transparent 4px 7px); }
@@ -65,6 +69,10 @@
 
   <div class="tr-sec">{{ translations.chart_title ?? 'Évolution du CA consolidé' }}</div>
   <div class="tr-card">
+    <div class="tr-modes">
+      <button type="button" class="tr-mode on" data-mode="cum">{{ translations.mode_cum ?? 'Cumulé' }}</button>
+      <button type="button" class="tr-mode" data-mode="mois">{{ translations.mode_month ?? 'Mensuel' }}</button>
+    </div>
     <div id="trChart"></div>
     <div class="tr-legend">
       <span><i style="background:#8D1D2C"></i>{{ translations.serie_n ?? 'CA N' }}</span>
@@ -105,7 +113,7 @@
   var nf = new Intl.NumberFormat('fr-BE', { maximumFractionDigits: 0 });
   function keur(v) {
     if (v == null) { return '—'; }
-    if (Math.abs(v) >= 1e6) { return String((v / 1e6).toFixed(2)).replace('.', ',') + ' M€'; }
+    if (Math.abs(v) >= 1e6) { return String((v / 1e6).toFixed(1)).replace('.', ',') + ' M€'; }
     if (Math.abs(v) >= 1e3) { return nf.format(Math.round(v / 1e3)) + ' k€'; }
     return nf.format(Math.round(v)) + ' €';
   }
@@ -134,11 +142,24 @@
         loading.innerHTML = '<div class="tr-error">{{ translations.empty ?? 'Données indisponibles.' }}</div>';
         return;
       }
+      var hasData = d.months.some(function (m) { return m.ca_n != null || m.ca_n1 != null; });
+      if (!hasData) {
+        loading.innerHTML = '<div class="tr-error">{{ translations.no_sales ?? 'Aucune donnée de ventes exploitable sur les 12 derniers mois (API ventes et base locale).' }}</div>';
+        return;
+      }
       loading.hidden = true;
       content.hidden = false;
       renderPodium(d.top3 || []);
-      drawChart(d.months);
+      window.__trMonths = d.months;
+      drawChart(d.months, 'cum');
       renderRows(d.months);
+      document.querySelectorAll('.tr-mode').forEach(function (b) {
+        b.addEventListener('click', function () {
+          document.querySelectorAll('.tr-mode').forEach(function (x) { x.classList.remove('on'); });
+          b.classList.add('on');
+          drawChart(window.__trMonths, b.getAttribute('data-mode'));
+        });
+      });
     })
     .catch(function () { loading.innerHTML = '<div class="tr-error">{{ translations.error ?? 'Erreur de chargement.' }}</div>'; });
 
@@ -157,7 +178,7 @@
 
   function renderRows(months) {
     var host = document.getElementById('trRows');
-    host.innerHTML = months.slice().reverse().map(function (m) {
+    var html = months.slice().reverse().map(function (m) {
       return '<tr>'
         + '<td class="mo">' + moShort(m.ym) + (m.partial ? '<span class="part">*</span>' : '') + '</td>'
         + '<td class="num">' + keur(m.ca_n1) + '</td>'
@@ -167,14 +188,38 @@
         + '<td class="num">' + reachHtml(m.obj_pct) + '</td>'
         + '</tr>';
     }).join('');
+    // Ligne TOTAL : le cumul 12 mois (N, N-1, évolution, objectifs, atteinte).
+    var sum = function (k) { var t = 0, any = false; months.forEach(function (m) { if (m[k] != null) { t += m[k]; any = true; } }); return any ? t : null; };
+    var tN = sum('ca_n'), tN1 = sum('ca_n1'), tO = sum('objectif');
+    var tEvo = (tN != null && tN1 != null && tN1 > 0) ? Math.round((tN - tN1) / tN1 * 1000) / 10 : null;
+    var tReach = (tN != null && tO != null && tO > 0) ? Math.round(tN / tO * 1000) / 10 : null;
+    html += '<tr class="tot">'
+      + '<td class="mo">{{ translations.total_12m ?? 'Cumul 12 mois' }}</td>'
+      + '<td class="num">' + keur(tN1) + '</td>'
+      + '<td class="num">' + keur(tN) + '</td>'
+      + '<td class="num">' + (tEvo == null ? '—' : evoHtml(tEvo)) + '</td>'
+      + '<td class="num">' + keur(tO) + '</td>'
+      + '<td class="num">' + reachHtml(tReach) + '</td>'
+      + '</tr>';
+    host.innerHTML = html;
   }
 
-  function drawChart(months) {
+  // Série cumulée : somme courante (null = 0), null tant que rien n'est vu.
+  function cumSeries(arr) {
+    var t = 0, seen = false;
+    return arr.map(function (v) {
+      if (v != null) { t += v; seen = true; }
+      return seen ? t : null;
+    });
+  }
+
+  function drawChart(months, mode) {
     var host = document.getElementById('trChart');
     var n = months.length;
     var sN  = months.map(function (m) { return m.ca_n; });
     var sN1 = months.map(function (m) { return m.ca_n1; });
     var sO  = months.map(function (m) { return m.objectif; });
+    if (mode === 'cum') { sN = cumSeries(sN); sN1 = cumSeries(sN1); sO = cumSeries(sO); }
     var vals = sN.concat(sN1, sO).filter(function (v) { return v != null; });
     if (!vals.length) { host.innerHTML = ''; return; }
     var max = Math.max.apply(null, vals) * 1.08;

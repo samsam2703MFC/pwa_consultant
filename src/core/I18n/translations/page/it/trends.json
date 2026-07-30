@@ -19,5 +19,9 @@
     "col_reach": "Raggiunto",
     "partial": "in corso",
     "note": "Obiettivo = somma degli obiettivi di fatturato per negozio (override consultant/admin). \"—\": nessun obiettivo quel mese.",
-    "partial_note": "\"*\": mese in corso."
+    "partial_note": "\"*\": mese in corso.",
+    "mode_cum": "Cumulato",
+    "mode_month": "Mensile",
+    "total_12m": "Totale 12 mesi",
+    "no_sales": "Nessun dato di vendita utilizzabile negli ultimi 12 mesi (API vendite e database locale)."
 }

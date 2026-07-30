@@ -92,12 +92,61 @@ class ShopService
     {
         $api = $this->shopRepository->getSalesKpisManyFromApi($windows);
         $out = [];
+
+        // Repli local : les fenêtres « mois civil complet » d'une même
+        // boutique sont regroupées en UNE requête SQL (GROUP BY mois) — une
+        // requête par fenêtre ferait exploser le temps de réponse des vues
+        // multi-mois. Les fenêtres partielles gardent le repli unitaire.
+        $monthly = [];   // shopId => ['min'=>Y-m-d, 'max'=>Y-m-d, 'wins'=>[key => 'YYYY-MM']]
+        $others  = [];
         foreach ($windows as $w) {
-            $key = (int)($w['shop'] ?? 0) . '|' . ($w['from'] ?? '') . '|' . ($w['to'] ?? '');
-            $out[$key] = $api[$key]
-                ?? $this->shopSales->getSalesKpis((int)($w['shop'] ?? 0), (string)($w['from'] ?? ''), (string)($w['to'] ?? ''));
+            $sid  = (int)($w['shop'] ?? 0);
+            $from = (string)($w['from'] ?? '');
+            $to   = (string)($w['to'] ?? '');
+            $key  = "$sid|$from|$to";
+            if (($api[$key] ?? null) !== null) {
+                $out[$key] = $api[$key];
+                continue;
+            }
+            if ($this->isFullMonth($from, $to)) {
+                $monthly[$sid]['wins'][$key] = substr($from, 0, 7);
+                $monthly[$sid]['min'] = isset($monthly[$sid]['min']) ? min($monthly[$sid]['min'], $from) : $from;
+                $monthly[$sid]['max'] = isset($monthly[$sid]['max']) ? max($monthly[$sid]['max'], $to) : $to;
+            } else {
+                $others[] = [$sid, $from, $to, $key];
+            }
+        }
+        foreach ($monthly as $sid => $info) {
+            $byYm = $this->shopSales->getMonthlyKpis($sid, $info['min'], $info['max']);
+            foreach ($info['wins'] as $key => $ym) {
+                $k = $byYm[$ym] ?? ['tickets' => 0, 'ca' => 0.0];
+                $t = (int)$k['tickets'];
+                $out[$key] = [
+                    'tickets'             => $t,
+                    'ca'                  => (float)$k['ca'],
+                    'products'            => 0,
+                    'avg_basket'          => $t > 0 ? (float)$k['ca'] / $t : null,
+                    'products_per_ticket' => null,
+                ];
+            }
+        }
+        foreach ($others as [$sid, $from, $to, $key]) {
+            $out[$key] = $this->shopSales->getSalesKpis($sid, $from, $to);
         }
         return $out;
+    }
+
+    /** Fenêtre = un mois civil complet (du 1er au dernier jour du même mois) ? */
+    private function isFullMonth(string $from, string $to): bool
+    {
+        if (!preg_match('/^\d{4}-\d{2}-01$/', $from)) {
+            return false;
+        }
+        try {
+            return $to === (new \DateTimeImmutable($from))->modify('last day of this month')->format('Y-m-d');
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /** Coût matière total sur [from, to] (Y-m-d) — pour le levier Food Cost. */

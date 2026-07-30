@@ -19,5 +19,9 @@
     "col_reach": "Atteinte",
     "partial": "en cours",
     "note": "Objectif = somme des objectifs CA encodés par boutique (overrides consultant/admin). « — » : aucun objectif encodé ce mois-là.",
-    "partial_note": "« * » : mois en cours."
+    "partial_note": "« * » : mois en cours.",
+    "mode_cum": "Cumulé",
+    "mode_month": "Mensuel",
+    "total_12m": "Cumul 12 mois",
+    "no_sales": "Aucune donnée de ventes exploitable sur les 12 derniers mois (API ventes et base locale)."
 }
