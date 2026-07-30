@@ -58,8 +58,61 @@ class TaskReviewRepository
                 . 'KEY idx_shop_date (id_shop, review_date)'
                 . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
             );
+            // Validation par l'Owner (celui qui contrôle les consultants).
+            // ALTER séparés et tolérants : sur une table déjà créée par une
+            // version antérieure, les colonnes manquent.
+            foreach ([
+                'owner_validated_at DATETIME NULL',
+                'id_owner BIGINT UNSIGNED NULL',
+                'owner_name VARCHAR(190) NULL',
+            ] as $col) {
+                try {
+                    $pdo->exec('ALTER TABLE mac_task_review ADD COLUMN ' . $col);
+                } catch (Throwable $e) {
+                    // colonne déjà présente — rien à faire
+                }
+            }
         } catch (Throwable $e) {
             error_log('[task_review] ensureSchema: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Validation (ou retrait de validation) de l'avis d'un consultant par
+     * l'Owner. Ne crée pas de ligne : on ne valide que ce qui a été évalué.
+     */
+    public function setOwnerValidation(
+        int $shopId,
+        int $taskId,
+        string $date,
+        bool $validated,
+        int $ownerId,
+        ?string $ownerName
+    ): bool {
+        $this->ensureSchema();
+        $pdo = $this->pdo();
+        if ($pdo === null) {
+            return false;
+        }
+        try {
+            $st = $pdo->prepare(
+                'UPDATE mac_task_review SET owner_validated_at = :at, id_owner = :oid,'
+                . ' owner_name = :oname, updated_at = :now'
+                . ' WHERE id_shop = :s AND id_task = :t AND review_date = :d'
+            );
+            $st->execute([
+                ':at'    => $validated ? date('Y-m-d H:i:s') : null,
+                ':oid'   => $validated ? $ownerId : null,
+                ':oname' => $validated && $ownerName !== null ? mb_substr($ownerName, 0, 190) : null,
+                ':now'   => date('Y-m-d H:i:s'),
+                ':s'     => $shopId,
+                ':t'     => $taskId,
+                ':d'     => $date,
+            ]);
+            return $st->rowCount() > 0;
+        } catch (Throwable $e) {
+            error_log('[task_review] setOwnerValidation: ' . $e->getMessage());
+            return false;
         }
     }
 
@@ -150,6 +203,7 @@ class TaskReviewRepository
                 . ' COUNT(*) AS reviews, COUNT(DISTINCT id_shop) AS shops,'
                 . ' AVG(rating) AS avg_rating,'
                 . ' SUM(CASE WHEN is_accepted = 0 THEN 1 ELSE 0 END) AS refused,'
+                . ' SUM(CASE WHEN owner_validated_at IS NOT NULL THEN 1 ELSE 0 END) AS validated,'
                 . ' MAX(updated_at) AS last_at'
                 . ' FROM mac_task_review WHERE review_date BETWEEN :f AND :t'
                 . ' GROUP BY id_consultant ORDER BY reviews DESC'
@@ -164,6 +218,7 @@ class TaskReviewRepository
                     'shops'           => (int)$row['shops'],
                     'avg_rating'      => $row['avg_rating'] !== null ? round((float)$row['avg_rating'], 2) : null,
                     'refused'         => (int)$row['refused'],
+                    'validated'       => (int)($row['validated'] ?? 0),
                     'last_at'         => $row['last_at'] !== null ? (string)$row['last_at'] : null,
                 ];
             }

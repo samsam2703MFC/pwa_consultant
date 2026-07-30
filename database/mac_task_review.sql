@@ -9,6 +9,12 @@
 -- Deux usages : afficher « Vérifié par … » sur la tâche, et suivre l'activité
 -- d'évaluation par consultant.
 --
+-- Sur une table créée par une version antérieure, les trois colonnes de
+-- validation Owner sont ajoutées par ALTER au premier accès :
+--   ALTER TABLE mac_task_review ADD COLUMN owner_validated_at DATETIME NULL;
+--   ALTER TABLE mac_task_review ADD COLUMN id_owner BIGINT UNSIGNED NULL;
+--   ALTER TABLE mac_task_review ADD COLUMN owner_name VARCHAR(190) NULL;
+--
 -- L'application tente un CREATE au premier accès (TaskReviewRepository::
 -- ensureSchema). Si le compte applicatif n'a pas le privilège CREATE,
 -- exécuter ce fichier via le DBA.
@@ -26,6 +32,10 @@ CREATE TABLE IF NOT EXISTS mac_task_review (
     rating          TINYINT UNSIGNED NULL,
     is_accepted     TINYINT(1)      NULL,
     comment         TEXT            NULL,
+    -- Contrôle de l'Owner : validation de l'avis d'un consultant.
+    owner_validated_at DATETIME     NULL,
+    id_owner        BIGINT UNSIGNED NULL,
+    owner_name      VARCHAR(190)    NULL,
     created_at      DATETIME        NULL,
     updated_at      DATETIME        NULL,
     PRIMARY KEY (id),
@@ -38,7 +48,8 @@ CREATE TABLE IF NOT EXISTS mac_task_review (
 -- Activité d'évaluation par consultant sur une période :
 -- SELECT id_consultant, MAX(consultant_name) AS nom, COUNT(*) AS avis,
 --        COUNT(DISTINCT id_shop) AS boutiques, ROUND(AVG(rating), 2) AS note_moy,
---        SUM(is_accepted = 0) AS refus, MAX(updated_at) AS dernier
+--        SUM(is_accepted = 0) AS refus,
+--        SUM(owner_validated_at IS NOT NULL) AS valides, MAX(updated_at) AS dernier
 --   FROM mac_task_review
 --  WHERE review_date BETWEEN '2026-07-01' AND '2026-07-31'
 --  GROUP BY id_consultant ORDER BY avis DESC;

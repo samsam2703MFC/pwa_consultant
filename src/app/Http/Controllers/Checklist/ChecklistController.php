@@ -10,8 +10,80 @@ class ChecklistController extends Controller
 {
     public function __construct(
         private ChecklistService $checklistService,
-        private TaskReviewRepository $taskReviews
+        private TaskReviewRepository $taskReviews,
+        private \App\Consultant\app\Services\Param\ParamService $params
     ) {}
+
+    /**
+     * Droit de valider l'avis d'un consultant (rôle « Owner »).
+     *
+     * Le code de permission vit dans mac_consultant_param
+     * (owner_validation_permission) : rien en dur. Paramètre VIDE = tout
+     * utilisateur ayant accès à l'écran peut valider — c'est le comportement
+     * par défaut d'un outil interne. Renseigner le code restreint aussitôt.
+     */
+    private function canValidate(): bool
+    {
+        $perm = trim($this->params->getString('owner_validation_permission', ''));
+        return $perm === '' ? true : has_perm($perm);
+    }
+
+    private function currentUser(): array
+    {
+        return GlobalRegistry::get('user') ?? [];
+    }
+
+    /** POST /checklists/reviews/validate — l'Owner valide (ou retire) un avis. */
+    public function validateReview(): void
+    {
+        header('Content-Type: application/json');
+
+        $raw  = file_get_contents('php://input');
+        $data = json_decode((string)$raw, true) ?? $_POST;
+
+        if (!$this->canValidate()) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Droit de validation requis.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $shopId = (int)($data['shop_id'] ?? 0);
+        $taskId = (int)($data['task_id'] ?? 0);
+        $date   = (string)($data['review_date'] ?? '');
+        if ($shopId <= 0 || $taskId <= 0 || !$this->checklistService->isDateValid($date)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'shop_id, task_id et review_date sont requis.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $user = $this->currentUser();
+        $on   = !empty($data['validated']);
+        $ok   = $this->taskReviews->setOwnerValidation(
+            $shopId,
+            $taskId,
+            $date,
+            $on,
+            (int)($user['membership_id'] ?? $user['id'] ?? 0),
+            $user['display_name'] ?? null
+        );
+
+        if (!$ok) {
+            http_response_code(422);
+            // Aucune ligne mise à jour : il n'y a pas d'avis à valider.
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Aucun avis consultant à valider pour cette tâche.',
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        echo json_encode([
+            'success' => true,
+            'validated' => $on,
+            'by' => $on ? ($user['display_name'] ?? null) : null,
+            'at' => $on ? date('Y-m-d H:i:s') : null,
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
 
     public function index(): void
     {
@@ -57,6 +129,8 @@ class ChecklistController extends Controller
             'id_shop'          => $shopId,
             'today'            => date('Y-m-d'),
             'active_nav'       => 'checklists',
+            // La case de validation n'apparaît qu'à qui peut valider.
+            'can_validate'     => $this->canValidate(),
         ]);
     }
 
@@ -152,8 +226,10 @@ class ChecklistController extends Controller
                         continue;
                     }
                     // Le jour où l'API exposera l'auteur, elle fera autorité.
-                    $task['review_by']   = $task['review_by']   ?? ($j['consultant_name'] ?: null);
-                    $task['reviewed_at'] = $task['reviewed_at'] ?? ($j['updated_at'] ?: null);
+                    $task['review_by']    = $task['review_by']   ?? ($j['consultant_name'] ?: null);
+                    $task['reviewed_at']  = $task['reviewed_at'] ?? ($j['updated_at'] ?: null);
+                    $task['owner_ok_at']  = $j['owner_validated_at'] ?? null;
+                    $task['owner_ok_by']  = $j['owner_name'] ?? null;
                     foreach (['rating' => 'review_rating', 'is_accepted' => 'review_is_accepted',
                               'comment' => 'review_comment'] as $src => $dst) {
                         if (($task[$dst] ?? null) === null && ($j[$src] ?? null) !== null) {

@@ -54,5 +54,7 @@
     "modal_need_rate": "Pick a rating from 1 to 5.",
     "verified_by": "Reviewed by",
     "a_consultant": "a consultant",
-    "not_compliant": "not compliant"
+    "not_compliant": "not compliant",
+    "owner_validate": "Approve",
+    "owner_ok": "approved"
 }
