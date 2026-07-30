@@ -134,13 +134,26 @@
   }
   var PARTIAL = {{ (translations.partial ?? 'en cours')|json_encode|raw }};
 
+  function escTxt(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
   fetch(ROOT + '/trends/data', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (j) {
+    .then(function (r) {
+      return r.json()
+        .then(function (j) { return { status: r.status, j: j }; })
+        .catch(function () { return { status: r.status, j: null }; });
+    })
+    .then(function (p) {
+      var j = p.j;
       var d = j && j.data;
       if (!d || !d.months || !d.months.length) {
-        loading.innerHTML = '<div class="tr-error">{{ translations.empty ?? 'Données indisponibles.' }}</div>';
+        // Le détail technique (erreur serveur ou statut HTTP) est affiché pour
+        // rendre la panne diagnosticable au lieu d'un message générique.
+        var detail = (j && j.error) ? j.error : ('HTTP ' + p.status);
+        loading.innerHTML = '<div class="tr-error">{{ translations.empty ?? 'Données indisponibles.' }}<br><span style="font-size:.68rem;opacity:.8;">' + escTxt(detail) + '</span></div>';
         return;
+      }
+      if (window.console && (d.elapsed_s != null || j.cached || j.stale)) {
+        console.log('[trends]', j.cached ? 'cache' : (j.stale ? 'stale' : (d.elapsed_s + ' s')));
       }
       var hasData = d.months.some(function (m) { return m.ca_n != null || m.ca_n1 != null; });
       if (!hasData) {

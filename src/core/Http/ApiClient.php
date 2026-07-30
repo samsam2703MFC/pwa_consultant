@@ -33,6 +33,17 @@ class ApiClient
         '/shops/'            => 120,
     ];
 
+    /**
+     * TTL par MOTIF (sous-chaîne) — pour les endpoints paramétrés par id, hors
+     * de portée des préfixes. Testé AVANT le préfixe. Les fenêtres de ventes
+     * passées et les targets d'un mois sont quasi statiques : un TTL long évite
+     * de re-marteler l'API sur les vues multi-mois (Tendances : ~300 fenêtres).
+     */
+    private const CACHE_TTL_CONTAINS = [
+        '/statistics/sales/kpis' => 1800,
+        '/targets?'              => 900,
+    ];
+
     /** Poignée cURL réutilisée dans la requête → keep-alive (pas de handshake TCP/TLS par appel). */
     private ?\CurlHandle $handle = null;
 
@@ -270,6 +281,11 @@ class ApiClient
     /** TTL applicable à un endpoint (cf. CACHE_TTL_MAP), défaut CACHE_TTL. */
     private function ttlFor(string $endpoint): int
     {
+        foreach (self::CACHE_TTL_CONTAINS as $needle => $ttl) {
+            if (str_contains($endpoint, $needle)) {
+                return $ttl;
+            }
+        }
         foreach (self::CACHE_TTL_MAP as $prefix => $ttl) {
             if (str_starts_with($endpoint, $prefix)) {
                 return $ttl;
