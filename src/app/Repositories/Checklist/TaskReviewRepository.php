@@ -21,6 +21,13 @@ class TaskReviewRepository
 {
     private bool $ready = false;
 
+    /**
+     * Motif du dernier échec d'écriture (table absente, privilège manquant,
+     * base injoignable). Sans lui, un journal muet se traduit par un
+     * « Vérifié par » sans nom, sans qu'on sache pourquoi.
+     */
+    public ?string $lastError = null;
+
     protected function pdo(): ?PDO
     {
         return Database::pdo();
@@ -73,6 +80,7 @@ class TaskReviewRepository
                 }
             }
         } catch (Throwable $e) {
+            $this->lastError = 'schéma : ' . $e->getMessage();
             error_log('[task_review] ensureSchema: ' . $e->getMessage());
         }
     }
@@ -119,9 +127,15 @@ class TaskReviewRepository
     /** Enregistre (ou met à jour) l'avis d'un consultant sur une tâche. */
     public function upsert(array $r): bool
     {
+        $this->lastError = null;
         $this->ensureSchema();
         $pdo = $this->pdo();
-        if ($pdo === null || empty($r['id_shop']) || empty($r['id_task']) || empty($r['review_date'])) {
+        if ($pdo === null) {
+            $this->lastError = 'base de données injoignable (config/db.local.php)';
+            return false;
+        }
+        if (empty($r['id_shop']) || empty($r['id_task']) || empty($r['review_date'])) {
+            $this->lastError = 'id_shop, id_task et review_date sont requis';
             return false;
         }
         try {
@@ -150,6 +164,7 @@ class TaskReviewRepository
                 ':now'    => date('Y-m-d H:i:s'),
             ]);
         } catch (Throwable $e) {
+            $this->lastError = $e->getMessage();
             error_log('[task_review] upsert: ' . $e->getMessage());
             return false;
         }

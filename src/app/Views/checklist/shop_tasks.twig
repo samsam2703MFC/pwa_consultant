@@ -261,11 +261,14 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
         open:    {{ (translations.modal_open ?? 'Ouvrir dans un nouvel onglet')|json_encode|raw }},
         saving:  {{ (translations.modal_saving ?? 'Enregistrement…')|json_encode|raw }},
         saved:   {{ (translations.modal_saved ?? 'Évaluation enregistrée.')|json_encode|raw }},
-        needRate:{{ (translations.modal_need_rate ?? 'Choisissez une note de 1 à 5.')|json_encode|raw }}
+        needRate:{{ (translations.modal_need_rate ?? 'Choisissez une note de 1 à 5.')|json_encode|raw }},
+        savedNoJournal: {{ (translations.modal_saved_no_journal ?? "Avis enregistré, mais son auteur n'a pas pu être consigné.")|json_encode|raw }},
+        verifiedBy: {{ (translations.verified_by ?? 'Vérifié par')|json_encode|raw }},
+        onDate: {{ (translations.on_date ?? 'le')|json_encode|raw }}
     };
     var SHOP = {{ id_shop|default(0)|json_encode|raw }};
     var DATE = {{ (date ?? '')|json_encode|raw }};
-    var current = null, rating = 0, accepted = null, openSeq = 0;
+    var current = null, rating = 0, accepted = null, openSeq = 0, openedCard = null;
 
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
     function close() { modal.hidden = true; }
@@ -285,6 +288,32 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
             b.setAttribute('aria-checked', v === rating ? 'true' : 'false');
         });
     }
+    /**
+     * Inscrit « Vérifié par <qui> le <quand> » sur la tâche sans recharger la
+     * page : la ligne vient du journal local, et le serveur ne la renverra
+     * qu'au prochain chargement.
+     */
+    function stampReview(res) {
+        if (!openedCard) { return; }
+        var who = res.by || (res.consultant && res.consultant.id ? '#' + res.consultant.id : '');
+        var txt = L.verifiedBy + (who ? ' ' + who : '')
+            + (res.at ? ' ' + L.onDate + ' ' + fmtStamp(res.at) : '');
+        var line = openedCard.querySelector('.task-rev');
+        if (!line) {
+            line = document.createElement('div');
+            line.className = 'task-rev';
+            var see = openedCard.querySelector('.task-see');
+            (see ? see.parentNode.insertBefore(line, see) : openedCard.querySelector('.flex-grow-1').appendChild(line));
+        }
+        line.classList.toggle('ko', accepted === false);
+        line.textContent = txt;
+    }
+    /** « 2026-07-30 14:02:00 » → « 30/07/2026 à 14:02 », comme le rendu serveur. */
+    function fmtStamp(s) {
+        var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+        return m ? (m[3] + '/' + m[2] + '/' + m[1] + ' à ' + m[4] + ':' + m[5]) : String(s);
+    }
+
     function setAccepted(v) {
         accepted = v;
         document.querySelectorAll('.dn-acc .ac').forEach(function (b) {
@@ -296,6 +325,7 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
         var d;
         try { d = JSON.parse(card.getAttribute('data-done')); } catch (e) { return; }
         if (!d) { return; }
+        openedCard = card;
 
         document.getElementById('dnTitle').textContent = d.name || '';
         var who = (d.by ? d.by : '') + (d.at ? ' · ' + String(d.at).slice(0, 16).replace('T', ' ') : '');
@@ -405,10 +435,19 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
                     if (j.sent) { txt += ' | envoyé : ' + j.sent.join(', '); }
                     throw new Error(txt);
                 }
-                msg(L.saved, true);
                 current.rating = rating;
                 current.comment = comment;
                 current.accepted = accepted;
+
+                // L'avis est parti à l'API. Le nom du vérificateur, lui, vient
+                // du journal local : s'il n'a pas pu être écrit, la ligne
+                // « Vérifié par » restera anonyme — autant le dire tout de suite.
+                if (p.j.journal === false) {
+                    msg(L.savedNoJournal + (p.j.journal_error ? ' — ' + p.j.journal_error : ''), false);
+                } else {
+                    msg(L.saved, true);
+                    stampReview(p.j);
+                }
             })
             .catch(function (e) { msg(String(e.message || e), false); })
             .then(function () { btn.disabled = false; });

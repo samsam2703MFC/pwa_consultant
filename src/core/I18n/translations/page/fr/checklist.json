@@ -57,5 +57,6 @@
     "not_compliant": "non conforme",
     "owner_validate": "Valider",
     "owner_ok": "validé",
-    "on_date": "le"
+    "on_date": "le",
+    "modal_saved_no_journal": "Avis enregistré, mais son auteur n'a pas pu être consigné."
 }
