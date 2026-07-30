@@ -26,6 +26,24 @@ class TrendsController extends Controller
     private const CACHE_TTL = 900; // 15 min
 
     /**
+     * Le résultat porte-t-il un chiffre d'affaires exploitable ?
+     *
+     * `months` compte toujours douze entrées, même quand aucune donnée n'a été
+     * trouvée : sa seule présence ne dit rien. C'est ce critère qui décide de
+     * la mise en cache, du repli sur le cache périmé et de l'affichage du
+     * diagnostic.
+     */
+    private static function hasSales(?array $data): bool
+    {
+        foreach (($data['months'] ?? []) as $m) {
+            if (($m['ca_n'] ?? null) !== null || ($m['ca_n1'] ?? null) !== null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * GET /trends/data — données consolidées (JSON).
      *
      * ?fresh=1  ignore le cache et réarme les endpoints batch
@@ -45,7 +63,7 @@ class TrendsController extends Controller
         if (!$fresh && !isset($_GET['debug']) && is_file($cacheFile)
             && (time() - (int)@filemtime($cacheFile)) < self::CACHE_TTL) {
             $cached = json_decode((string)@file_get_contents($cacheFile), true);
-            if (is_array($cached) && !empty($cached['months'])) {
+            if (is_array($cached) && self::hasSales($cached)) {
                 return $this->json(['ok' => true, 'data' => $cached, 'cached' => true]);
             }
         }
@@ -54,7 +72,15 @@ class TrendsController extends Controller
         try {
             $data = $this->trends->build();
             $data['elapsed_s'] = round(microtime(true) - $t0, 1);
-            @file_put_contents($cacheFile, json_encode($data));
+            // On ne met en cache QUE des données exploitables. Un résultat vide
+            // — API muette au moment du calcul — était figé 15 minutes et
+            // resservi comme un succès : la page restait vide sans rien dire,
+            // et le diagnostic ne se déclenchait pas.
+            if (self::hasSales($data)) {
+                @file_put_contents($cacheFile, json_encode($data));
+            } else {
+                @unlink($cacheFile);
+            }
             $out = ['ok' => true, 'data' => $data];
         } catch (\Throwable $e) {
             // Throwable, pas Exception : un TypeError doit devenir un message
@@ -63,7 +89,7 @@ class TrendsController extends Controller
                 . ' @ ' . $e->getFile() . ':' . $e->getLine());
             $stale = is_file($cacheFile)
                 ? json_decode((string)@file_get_contents($cacheFile), true) : null;
-            if (is_array($stale) && !empty($stale['months'])) {
+            if (is_array($stale) && self::hasSales($stale)) {
                 $out = ['ok' => true, 'data' => $stale, 'stale' => true];
             } else {
                 $out = [
@@ -80,7 +106,10 @@ class TrendsController extends Controller
         // inexploitable : la page l'affiche alors telle quelle. Plus besoin de
         // demander à l'utilisateur d'ouvrir une URL à la main pour savoir quel
         // endpoint a lâché.
-        $unusable = empty($out['ok']) || empty($out['data']['months']);
+        // « months » est TOUJOURS rempli — douze lignes, éventuellement toutes à
+        // null. Le seul critère qui distingue un écran utile d'un écran vide est
+        // la présence d'un chiffre d'affaires.
+        $unusable = empty($out['ok']) || !self::hasSales($out['data'] ?? null);
         if (isset($_GET['debug']) || $unusable) {
             $diag = ShopRepository::batchDiagnostics();
             $diag['shops_count'] = $out['data']['shops_count'] ?? null;
