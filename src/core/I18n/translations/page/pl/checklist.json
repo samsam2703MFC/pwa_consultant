@@ -57,5 +57,6 @@
     "not_compliant": "niezgodne",
     "owner_validate": "Zatwierdź",
     "owner_ok": "zatwierdzone",
-    "on_date": ""
+    "on_date": "",
+    "modal_saved_no_journal": "Ocena zapisana, ale nie udało się zapisać jej autora."
 }

@@ -57,5 +57,6 @@
     "not_compliant": "not compliant",
     "owner_validate": "Approve",
     "owner_ok": "approved",
-    "on_date": "on"
+    "on_date": "on",
+    "modal_saved_no_journal": "Review saved, but its author could not be recorded."
 }

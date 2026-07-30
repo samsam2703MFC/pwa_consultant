@@ -315,7 +315,7 @@ class ChecklistController extends Controller
             // cette trace, « Vérifié par … » serait impossible, et le suivi
             // des consultants aussi.
             $user = GlobalRegistry::get('user') ?? [];
-            $this->taskReviews->upsert([
+            $journalOk = $this->taskReviews->upsert([
                 'id_shop'         => $shopId,
                 'id_checklist'    => $data['checklist_id'] ?? null,
                 'id_task'         => $data['task_id'] ?? null,
@@ -327,10 +327,19 @@ class ChecklistController extends Controller
                 'is_accepted'     => $data['is_accepted'] ?? null,
                 'comment'         => $data['comment'] ?? null,
             ]);
+            // L'avis est parti à l'API ; reste à savoir si le journal local a
+            // pu retenir SON AUTEUR. Un échec ici ne casse rien mais prive
+            // l'écran du « Vérifié par <nom> » : il doit se voir.
             echo json_encode([
                 'success' => true,
                 'by'      => $user['display_name'] ?? null,
                 'at'      => date('Y-m-d H:i:s'),
+                'journal' => $journalOk,
+                'journal_error' => $journalOk ? null : $this->taskReviews->lastError,
+                'consultant' => [
+                    'id'   => (int)($user['membership_id'] ?? $user['id'] ?? 0),
+                    'name' => $user['display_name'] ?? null,
+                ],
             ], JSON_UNESCAPED_UNICODE);
         } else {
             http_response_code(422);
