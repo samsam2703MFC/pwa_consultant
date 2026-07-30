@@ -19,5 +19,9 @@
     "col_reach": "Bereikt",
     "partial": "lopend",
     "note": "Doel = som van de omzetdoelen per winkel (consultant/admin overrides). \"—\": geen doel ingesteld die maand.",
-    "partial_note": "\"*\": lopende maand."
+    "partial_note": "\"*\": lopende maand.",
+    "mode_cum": "Cumulatief",
+    "mode_month": "Maandelijks",
+    "total_12m": "Totaal 12 maanden",
+    "no_sales": "Geen bruikbare verkoopgegevens over de laatste 12 maanden (verkoop-API en lokale database)."
 }

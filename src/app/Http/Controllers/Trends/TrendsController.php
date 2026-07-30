@@ -24,6 +24,9 @@ class TrendsController extends Controller
     /** GET /trends/data — données consolidées (JSON). */
     public function data(): JsonResponse
     {
+        // 24 fenêtres de ventes + 12 de targets par boutique : on laisse le
+        // temps au repli SQL local si l'API ventes n'est pas disponible.
+        @set_time_limit(180);
         $data = $this->safeFetch(fn() => $this->trends->build(), $this->errors, null, []);
         return $this->json(['ok' => empty($this->errors), 'data' => $data]);
     }

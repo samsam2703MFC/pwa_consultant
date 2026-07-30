@@ -19,5 +19,9 @@
     "col_reach": "Reached",
     "partial": "ongoing",
     "note": "Target = sum of the revenue targets set per shop (consultant/admin overrides). \"—\": no target set that month.",
-    "partial_note": "\"*\": current month."
+    "partial_note": "\"*\": current month.",
+    "mode_cum": "Cumulative",
+    "mode_month": "Monthly",
+    "total_12m": "12-month total",
+    "no_sales": "No usable sales data over the last 12 months (sales API and local database)."
 }

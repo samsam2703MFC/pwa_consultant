@@ -100,19 +100,21 @@ class TrendsService
                     $obj = ($obj ?? 0.0) + $o;
                 }
             }
+            // 0 = aucune donnée (ni API ni base locale) → null, affiché « — »
+            // plutôt qu'un faux « 0 € ».
             $rows[] = [
                 'ym'       => $m['ym'],
                 'partial'  => $m['partial'],
-                'ca_n'     => round($caN, 2),
-                'ca_n1'    => round($caN1, 2),
+                'ca_n'     => $caN > 0 ? round($caN, 2) : null,
+                'ca_n1'    => $caN1 > 0 ? round($caN1, 2) : null,
                 'objectif' => $obj !== null ? round($obj, 2) : null,
-                'evo_pct'  => $caN1 > 0 ? round(($caN - $caN1) / $caN1 * 100, 1) : null,
-                'obj_pct'  => ($obj !== null && $obj > 0.0) ? round($caN / $obj * 100, 1) : null,
+                'evo_pct'  => ($caN > 0 && $caN1 > 0) ? round(($caN - $caN1) / $caN1 * 100, 1) : null,
+                'obj_pct'  => ($caN > 0 && $obj !== null && $obj > 0.0) ? round($caN / $obj * 100, 1) : null,
             ];
         }
 
         // Top 3 des meilleurs mois (sur la fenêtre de 12 mois).
-        $sorted = array_values(array_filter($rows, fn($r) => $r['ca_n'] > 0));
+        $sorted = array_values(array_filter($rows, fn($r) => ($r['ca_n'] ?? 0) > 0));
         usort($sorted, fn($a, $b) => $b['ca_n'] <=> $a['ca_n']);
         $top3 = array_map(
             fn($r) => ['ym' => $r['ym'], 'ca' => $r['ca_n'], 'evo_pct' => $r['evo_pct'], 'partial' => $r['partial']],

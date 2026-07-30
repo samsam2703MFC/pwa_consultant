@@ -111,17 +111,24 @@ class ShopRepository
             return $out;
         }
         // Par paquets : des dizaines de fenêtres ne doivent pas ouvrir autant
-        // de connexions simultanées vers l'API.
+        // de connexions simultanées vers l'API. Un 404 (endpoint absent) coupe
+        // court : inutile d'envoyer les paquets suivants.
         $responses = [];
         foreach (array_chunk(array_values(array_unique($byKey)), 24) as $chunk) {
             $responses += $this->apiClient->getMany($chunk);
+            foreach ($chunk as $ep) {
+                if ((($responses[$ep]['error'] ?? null)) === 404) {
+                    self::$kpiApiMissing = true;
+                }
+            }
+            if (self::$kpiApiMissing) {
+                break;
+            }
         }
         foreach ($byKey as $key => $ep) {
             $r = $responses[$ep] ?? null;
             if (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) {
                 $out[$key] = $this->parseSalesKpisPayload($r['data']);
-            } elseif (($r['error'] ?? null) === 404) {
-                self::$kpiApiMissing = true;
             }
         }
         return $out;

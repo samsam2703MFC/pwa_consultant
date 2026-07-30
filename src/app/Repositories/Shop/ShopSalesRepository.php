@@ -110,6 +110,46 @@ class ShopSalesRepository
     }
 
     /**
+     * CA et tickets PAR MOIS CIVIL sur [fromDate, toDate] — UNE seule requête
+     * (GROUP BY mois) au lieu d'une par mois : repli local des vues multi-mois
+     * (Tendances), où une requête par fenêtre ferait exploser le temps de
+     * réponse. Mêmes définitions que getSalesKpis (tickets distincts, somme
+     * de toutes les lignes).
+     *
+     * @return array<string, array{tickets:int, ca:float}> map 'YYYY-MM' => KPIs
+     */
+    public function getMonthlyKpis(int $shopId, string $fromDate, string $toDate): array
+    {
+        $pdo = Database::pdo();
+        if ($pdo === null) {
+            return [];
+        }
+        try {
+            $from   = $fromDate . ' 00:00:00';
+            $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
+            $stmt = $pdo->prepare(
+                "SELECT DATE_FORMAT(t.insert_timestamp, '%Y-%m')              AS ym,
+                        COUNT(DISTINCT t.ticket_key)                          AS tickets,
+                        COALESCE(SUM(t.total_gross_amount_after_discount), 0) AS ca
+                 FROM transaction t
+                 WHERE t.id_shop = :id
+                   AND t.insert_timestamp >= :from
+                   AND t.insert_timestamp <  :toExcl
+                 GROUP BY ym"
+            );
+            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
+            $out = [];
+            foreach ($stmt->fetchAll() as $r) {
+                $out[(string)$r['ym']] = ['tickets' => (int)$r['tickets'], 'ca' => (float)$r['ca']];
+            }
+            return $out;
+        } catch (Throwable $e) {
+            error_log('[db] getMonthlyKpis échoué: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * DIAGNOSTIC des KPI : toutes les variantes de comptage sur la fenêtre,
      * plus un échantillon de lignes brutes — pour confronter aux chiffres
      * POS réels et identifier la bonne définition une fois pour toutes.
