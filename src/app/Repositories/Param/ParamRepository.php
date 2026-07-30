@@ -34,6 +34,11 @@ class ParamRepository
         'daypart_afternoon_from'          => ['15', 'Heatmap : début du créneau « après-midi » (heure incluse)'],
         'daypart_afternoon_to'            => ['19', 'Heatmap : fin du créneau « après-midi » (heure incluse)'],
         'trends_budget_seconds'           => ['30', 'Tendances : budget de temps (s) — au-delà, le CA est rendu sans les objectifs'],
+        // Le mois en cours s'arrête au dernier jour COMPLET : une journée à
+        // moitié écoulée face à des journées pleines de l'an dernier
+        // sous-estime le mois. Mettre 1 si l'API remonte le jour courant en
+        // temps réel et que vous voulez le voir.
+        'trends_count_today'              => ['0',  'Tendances : compter la journée en cours dans le mois courant (0 = s\'arrêter à hier)'],
         // Vide = tout utilisateur ayant accès à l'écran peut valider un contrôle.
         // Renseigner un code de permission restreint la case à ce rôle (Owner).
         'owner_validation_permission'     => ['',   'Checklists : permission requise pour valider un contrôle consultant (vide = tous)'],
