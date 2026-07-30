@@ -263,8 +263,7 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
         saved:   {{ (translations.modal_saved ?? 'Évaluation enregistrée.')|json_encode|raw }},
         needRate:{{ (translations.modal_need_rate ?? 'Choisissez une note de 1 à 5.')|json_encode|raw }},
         savedNoJournal: {{ (translations.modal_saved_no_journal ?? "Avis enregistré, mais son auteur n'a pas pu être consigné.")|json_encode|raw }},
-        verifiedBy: {{ (translations.verified_by ?? 'Vérifié par')|json_encode|raw }},
-        onDate: {{ (translations.on_date ?? 'le')|json_encode|raw }}
+        verified: {{ (translations.verified ?? 'Vérifié')|json_encode|raw }}
     };
     var SHOP = {{ id_shop|default(0)|json_encode|raw }};
     var DATE = {{ (date ?? '')|json_encode|raw }};
@@ -293,11 +292,8 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
      * page : la ligne vient du journal local, et le serveur ne la renverra
      * qu'au prochain chargement.
      */
-    function stampReview(res) {
+    function stampReview() {
         if (!openedCard) { return; }
-        var who = res.by || (res.consultant && res.consultant.id ? '#' + res.consultant.id : '');
-        var txt = L.verifiedBy + (who ? ' ' + who : '')
-            + (res.at ? ' ' + L.onDate + ' ' + fmtStamp(res.at) : '');
         var line = openedCard.querySelector('.task-rev');
         if (!line) {
             line = document.createElement('div');
@@ -306,12 +302,7 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
             (see ? see.parentNode.insertBefore(line, see) : openedCard.querySelector('.flex-grow-1').appendChild(line));
         }
         line.classList.toggle('ko', accepted === false);
-        line.textContent = txt;
-    }
-    /** « 2026-07-30 14:02:00 » → « 30/07/2026 à 14:02 », comme le rendu serveur. */
-    function fmtStamp(s) {
-        var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
-        return m ? (m[3] + '/' + m[2] + '/' + m[1] + ' à ' + m[4] + ':' + m[5]) : String(s);
+        line.textContent = L.verified;
     }
 
     function setAccepted(v) {
@@ -446,7 +437,7 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
                     msg(L.savedNoJournal + (p.j.journal_error ? ' — ' + p.j.journal_error : ''), false);
                 } else {
                     msg(L.saved, true);
-                    stampReview(p.j);
+                    stampReview();
                 }
             })
             .catch(function (e) { msg(String(e.message || e), false); })

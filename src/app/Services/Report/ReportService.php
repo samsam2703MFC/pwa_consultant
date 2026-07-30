@@ -1050,9 +1050,16 @@ class ReportService
         // Évolution CA réseau : somme des CA vs somme des CA N-1.
         $fromN1  = date('Y-m-d', (int)strtotime($period['from'] . ' -1 year'));
         $toN1    = date('Y-m-d', (int)strtotime($period['to'] . ' -1 year'));
+        // Même fenêtre pour toutes les boutiques → un seul appel multi-boutiques
+        // (P3), au lieu d'un aller-retour par boutique.
         $sumCaN1 = 0.0;
+        $winN1 = [];
         foreach ($shops as $s) {
-            $sumCaN1 += (float)($this->shopService->getSalesKpis($s['id'], $fromN1, $toN1)['ca'] ?? 0);
+            $winN1[] = ['shop' => (int)$s['id'], 'from' => $fromN1, 'to' => $toN1];
+        }
+        $kpisN1 = $winN1 !== [] ? $this->shopService->getSalesKpisBatch($winN1) : [];
+        foreach ($shops as $s) {
+            $sumCaN1 += (float)($kpisN1[(int)$s['id'] . '|' . $fromN1 . '|' . $toN1]['ca'] ?? 0);
         }
         $netEvo    = $sumCaN1 > 0 ? (($sumCa - $sumCaN1) / $sumCaN1) * 100 : null;
         $netBasket = $sumTk > 0 ? $sumCa / $sumTk : null;

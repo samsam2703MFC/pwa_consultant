@@ -35,11 +35,13 @@
            Le détail (note, conformité, commentaire) vit dans la modale. La
            couleur suffit à signaler un contrôle non conforme — rouge au lieu
            de vert, sans mot supplémentaire. #}
+        {# L'API ne dit ni QUI a vérifié ni QUAND — seulement qu'un avis existe.
+           On s'en tient donc au fait : « Vérifié ». La couleur porte le sens :
+           vert si conforme, rouge si l'avis rejette la réalisation. #}
         {% if t.review_rating is not null or t.review_is_accepted is not null or t.review_by %}
-            {% set who = t.review_by ?: (t.review_by_id ? '#' ~ t.review_by_id : null) %}
             <div class="task-rev{{ t.review_is_accepted is not null and not t.review_is_accepted ? ' ko' : '' }}">
                 {{ icons.svg('user-check', 12) }}
-                <span>{{ translations.verified_by ?? 'Vérifié par' }}{{ who ? ' ' ~ who : '' }}{% if t.reviewed_at %} {{ translations.on_date ?? 'le' }} {{ t.reviewed_at|date('d/m/Y à H:i') }}{% endif %}</span>
+                <span>{{ translations.verified ?? 'Vérifié' }}</span>
             </div>
         {% endif %}
         {% if openable %}
