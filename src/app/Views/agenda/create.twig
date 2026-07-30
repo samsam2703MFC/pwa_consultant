@@ -11,12 +11,27 @@
   .af .fl { font-size:.66rem; font-weight:800; color:#7a7168; text-transform:uppercase; letter-spacing:.03em; margin-bottom:5px; }
   .af input, .af select, .af textarea { width:100%; background:#fff; border:1.5px solid #e7ded2; border-radius:11px; padding:10px 12px; font-size:.85rem; color:#241f1c; font-family:inherit; }
   .af textarea { min-height:64px; resize:vertical; }
-  .af .two { display:flex; gap:10px; } .af .two > div { flex:1; }
+  /* min-width:0 : sans lui, les inputs en width:100% dans un flex débordent. */
+  .af .two { display:flex; gap:10px; } .af .two > div { flex:1 1 0; min-width:0; }
+  /* box-sizing : le padding ne doit pas ajouter à la largeur (débordement). */
+  .af input, .af select, .af textarea { max-width:100%; box-sizing:border-box; }
   .lev-row { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
   .lev-badge { flex-shrink:0; width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:.78rem; font-weight:800; }
   .st-ok { background:#2D7A3E; } .st-mid { background:#e67e22; } .st-bad { background:#c0182b; } .st-nd { background:#cfc7bb; color:#fff; }
   .lev-row input { flex:1; }
   .treflo { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
+  .treflo .tf { border:0; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  /* Levier à travailler (⚠ ou ●) : liseré + pastille d'alerte. */
+  .treflo .tf.todo { box-shadow:0 0 0 2px rgba(0,0,0,.12) inset; }
+  .treflo .tf.todo::after { content:'!'; font-size:.6rem; opacity:.9; }
+  .treflo .tf.picked { outline:2.5px solid #241f1c; outline-offset:1px; }
+  /* Période + bouton sur une ligne, sans débordement sur mobile. */
+  .lp-row { display:flex; gap:8px; align-items:stretch; }
+  .lp-row > input { flex:1 1 auto; min-width:0; }
+  .lp-load { flex:0 0 auto; white-space:nowrap; border:1.5px solid #8D1D2C; background:#fff; color:#8D1D2C; font-size:.74rem; font-weight:800; border-radius:9px; padding:8px 12px; cursor:pointer; }
+  .lp-load:disabled { opacity:.55; }
+  .lp-hint { font-size:.64rem; color:#9a9086; margin:4px 0 7px; line-height:1.4; }
+  .lev-row.hl input { border-color:#8D1D2C; background:#fffaf9; }
   .treflo .tf { display:inline-flex; align-items:center; gap:5px; font-size:.66rem; font-weight:800; color:#fff; border-radius:8px; padding:3px 9px; }
   .note { background:#fff8ec; border:1px solid #f3e2c2; border-left:3px solid #e6a817; border-radius:10px; padding:10px 12px; font-size:.76rem; color:#7a5a12; line-height:1.45; margin:6px 0 14px; }
   .send { background:#f6fbf7; border:1px solid #cfe7d5; border-radius:11px; padding:10px 12px; margin:6px 0 14px; }
@@ -65,18 +80,48 @@
       <div><div class="fl">{{ translations.time ?? 'Heure' }}</div><input type="time" name="time" value="{{ is_edit ? edit.time : '10:00' }}"></div>
     </div>
 
-    {# ── Résultats des 6 leviers au dernier rapport (TREFLO) ── #}
-    {% if lever_results is not empty %}
-      <div class="af">
-        <div class="fl">{{ translations.last_results ?? 'Résultats du mois passé (leviers)' }}</div>
-        <div class="treflo">
-          {% for lev in levers %}
-            {% set res = lever_results[lev.key] ?? null %}
-            <span class="tf st-{{ res ? res.status : 'nd' }}" title="{{ lev.name }}">{{ lev.letter }} {{ lev.name }}</span>
-          {% endfor %}
-        </div>
+    {# ── Période de référence + résultats TREFLO (chargés à la demande) ── #}
+    <div class="af" id="lever-block">
+      <div class="fl">{{ translations.lever_period ?? 'Période de référence des leviers' }}</div>
+      <div class="lp-row">
+        <input type="month" name="lever_period" id="lever-period" value="{{ lever_period ?? '' }}">
+        <button type="button" class="lp-load" id="lever-load">{{ translations.load_levers ?? 'Charger les leviers' }}</button>
       </div>
-    {% endif %}
+      <div class="lp-hint">{{ translations.lever_period_hint ?? 'Cliquez un levier en ⚠ ou ● pour le marquer à travailler.' }}</div>
+      <div class="treflo" id="treflo-box">
+        {% for lev in levers %}
+          {% set res = lever_results[lev.key] ?? null %}
+          {% set st = res ? res.status : 'nd' %}
+          <button type="button" class="tf st-{{ st }} {{ (st == 'mid' or st == 'bad') ? 'todo' : '' }}"
+                  data-lever="{{ lev.key }}" data-status="{{ st }}" title="{{ lev.name }}">{{ lev.letter }} {{ lev.name }}</button>
+        {% endfor %}
+      </div>
+      <div class="lp-hint" id="lever-msg"></div>
+    </div>
+
+    {# ── Checklist liée à la visite ── #}
+    <div class="af">
+      <div class="fl">{{ translations.checklist_link ?? 'Checklist liée' }}</div>
+      <select name="id_checklist" id="checklist-sel">
+        <option value="">{{ translations.no_checklist ?? '— Aucune —' }}</option>
+        {% for c in checklists ?? [] %}
+          <option value="{{ c.id }}" {{ (is_edit and edit.id_checklist == c.id) ? 'selected' : '' }}>{{ c.name }}</option>
+        {% endfor %}
+        {# Checklist enregistrée mais absente de la liste du jour : on la garde. #}
+        {% if is_edit and edit.id_checklist and edit.checklist_name %}
+          {% set known = false %}
+          {% for c in checklists ?? [] %}{% if c.id == edit.id_checklist %}{% set known = true %}{% endif %}{% endfor %}
+          {% if not known %}<option value="{{ edit.id_checklist }}" selected>{{ edit.checklist_name }}</option>{% endif %}
+        {% endif %}
+      </select>
+      <input type="hidden" name="checklist_name" id="checklist-name" value="{{ is_edit ? (edit.checklist_name ?? '') : '' }}">
+      {% if is_edit and edit.id_checklist %}
+        <div class="rep" style="margin-top:7px;">
+          <span class="ic">✓</span>
+          <a href="{{ ROOT }}/checklists/shops/{{ is_edit ? edit.id_shop : shop_id }}/tasks" target="_blank">{{ translations.open_checklist ?? 'Ouvrir la checklist de la boutique' }} ↗</a>
+        </div>
+      {% endif %}
+    </div>
 
     <div class="af">
       <div class="fl">{{ translations.goal ?? 'But de la visite' }}</div>
@@ -132,6 +177,89 @@
     if (cb) { cb.checked = surprise ? false : cb.checked; cb.disabled = surprise; }
   }
   if (sel) { sel.addEventListener('change', sync); sync(); }
+
+  // ── Leviers TREFLO : chargement par période + sélection « à travailler » ──
+  var ROOT = window.__consultantRoot || '';
+  var box    = document.getElementById('treflo-box');
+  var perIn  = document.getElementById('lever-period');
+  var loadBt = document.getElementById('lever-load');
+  var msg    = document.getElementById('lever-msg');
+  var shopSel = document.querySelector('select[name="shop_id"]');
+  var LBL = {
+    todo:   {{ (translations.levers_todo ?? 'levier(s) à travailler')|json_encode|raw }},
+    none:   {{ (translations.levers_none ?? 'Aucun levier en difficulté sur cette période.')|json_encode|raw }},
+    load:   {{ (translations.load_levers ?? 'Charger les leviers')|json_encode|raw }},
+    wait:   {{ (translations.loading ?? 'Chargement…')|json_encode|raw }},
+    err:    {{ (translations.levers_error ?? 'Chargement impossible pour cette période.')|json_encode|raw }}
+  };
+
+  // Champ « action » du levier : surligné et focus quand on clique la pastille.
+  function actionInput(key) { return document.querySelector('[name="action_' + key + '"]'); }
+
+  function wire(btn) {
+    btn.addEventListener('click', function () {
+      var key = btn.getAttribute('data-lever');
+      var inp = actionInput(key);
+      btn.classList.toggle('picked');
+      if (inp) {
+        var row = inp.closest('.lev-row');
+        if (row) { row.classList.toggle('hl', btn.classList.contains('picked')); }
+        if (btn.classList.contains('picked')) { inp.focus(); }
+      }
+    });
+  }
+  function wireAll() { box && box.querySelectorAll('.tf').forEach(wire); }
+
+  function summarize() {
+    if (!box || !msg) { return; }
+    var n = box.querySelectorAll('.tf.todo').length;
+    msg.textContent = n > 0 ? ('⚠ ' + n + ' ' + LBL.todo) : LBL.none;
+  }
+
+  function load() {
+    if (!box || !perIn) { return; }
+    var shopId = shopSel ? shopSel.value : 0;
+    if (!shopId) { return; }
+    loadBt.disabled = true;
+    var old = loadBt.textContent;
+    loadBt.textContent = LBL.wait;
+    fetch(ROOT + '/agenda/levers?shop_id=' + encodeURIComponent(shopId) + '&period=' + encodeURIComponent(perIn.value),
+          { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        loadBt.disabled = false;
+        loadBt.textContent = old || LBL.load;
+        if (!j || !j.levers) { msg.textContent = LBL.err; return; }
+        // Applique le statut de chaque levier sur sa pastille (couleur + « à travailler »).
+        box.querySelectorAll('.tf').forEach(function (btn) {
+          var k = btn.getAttribute('data-lever');
+          var st = (j.levers[k] && j.levers[k].status) || 'nd';
+          btn.className = 'tf st-' + st + ((st === 'mid' || st === 'bad') ? ' todo' : '')
+            + (btn.classList.contains('picked') ? ' picked' : '');
+          btn.setAttribute('data-status', st);
+        });
+        summarize();
+      })
+      .catch(function () { loadBt.disabled = false; loadBt.textContent = old || LBL.load; msg.textContent = LBL.err; });
+  }
+
+  if (loadBt) { loadBt.addEventListener('click', load); }
+  if (perIn)  { perIn.addEventListener('change', load); }
+  if (shopSel && perIn) { shopSel.addEventListener('change', load); }
+  wireAll();
+  summarize();
+
+  // Checklist : mémorise le libellé (utile si la liste du jour change ensuite).
+  var clSel = document.getElementById('checklist-sel');
+  var clName = document.getElementById('checklist-name');
+  if (clSel && clName) {
+    var syncCl = function () {
+      var o = clSel.options[clSel.selectedIndex];
+      clName.value = (clSel.value && o) ? o.textContent.trim() : '';
+    };
+    clSel.addEventListener('change', syncCl);
+    syncCl();
+  }
 })();
 </script>
 {% endblock %}

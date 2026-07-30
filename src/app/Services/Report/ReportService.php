@@ -232,6 +232,54 @@ class ReportService
     }
 
     /**
+     * Statuts des 6 leviers HEXm d'une boutique pour un MOIS CHOISI (vs moyenne
+     * réseau du même mois) — pour l'agenda : sélectionner une période et voir
+     * quels leviers doivent être travaillés (⚠/● = à travailler).
+     *
+     * @return array<string, array{key:string, letter:string, name:string, status:string, kpis:array}>
+     */
+    public function leverStatusesForMonth(int $shopId, int $year, int $month): array
+    {
+        $first  = new \DateTimeImmutable(sprintf('%04d-%02d-01', $year, $month));
+        $period = [
+            'from'  => $first->format('Y-m-d'),
+            'to'    => $first->modify('last day of this month')->format('Y-m-d'),
+            'label' => $this->monthName($month) . ' ' . $year,
+        ];
+
+        // Moyenne réseau du MÊME mois (référence des statuts, comme l'écran HEXm).
+        $metricsByShop = [];
+        foreach ($this->shopService->getAllShops() as $shop) {
+            $sid = (int)($shop['id'] ?? 0);
+            if ($sid <= 0) {
+                continue;
+            }
+            $k = $this->shopService->getSalesKpis($sid, $period['from'], $period['to']);
+            $metricsByShop[$sid] = $this->hexmMetrics($sid, $period, $k);
+        }
+        if (!isset($metricsByShop[$shopId])) {
+            return [];
+        }
+        $display = $this->hexmDisplay(
+            $metricsByShop[$shopId],
+            $this->networkAverages($metricsByShop),
+            $this->consultantUsers->getOfficialTags()
+        );
+
+        $out = [];
+        foreach (($display['levers'] ?? []) as $lev) {
+            $out[(string)$lev['key']] = [
+                'key'    => (string)$lev['key'],
+                'letter' => (string)($lev['letter'] ?? ''),
+                'name'   => (string)($lev['name'] ?? ''),
+                'status' => (string)($lev['status'] ?? 'nd'),
+                'kpis'   => $lev['kpis'] ?? [],
+            ];
+        }
+        return ['period' => $period['label'], 'levers' => $out];
+    }
+
+    /**
      * Notes et commentaires (réponses) groupés par jour ('YYYY-MM-DD') — pour
      * afficher le contexte du franchisé dans le micro P&L d'un jour de la
      * heatmap. Chaque entrée : texte, auteur/type, heure.

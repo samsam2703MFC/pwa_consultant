@@ -2,6 +2,7 @@
 namespace App\Consultant\app\Repositories\Kpi;
 
 use App\Consultant\core\Db\Database;
+use App\Consultant\core\Db\LegacyTableMigration;
 use PDO;
 use Throwable;
 
@@ -14,6 +15,8 @@ use Throwable;
  */
 class KpiThresholdRepository
 {
+    use LegacyTableMigration;
+
     /** Bandes par défaut = seeds SQL (échelles historiques de l'écran Boutiques). */
     public const DEFAULTS = [
         'net_margin' => [
@@ -65,15 +68,8 @@ class KpiThresholdRepository
                 . 'UNIQUE KEY uq_metric_sort (metric, sort)'
                 . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
             );
-            // Migration douce depuis l'ancienne table kpi_threshold (avant les
-            // seeds, pour conserver d'éventuels seuils personnalisés).
-            try {
-                if ((int)$pdo->query('SELECT COUNT(*) FROM mac_kpi_threshold')->fetchColumn() === 0) {
-                    $pdo->exec('INSERT IGNORE INTO mac_kpi_threshold SELECT * FROM kpi_threshold');
-                }
-            } catch (Throwable $e) {
-                // ancienne table absente — rien à migrer
-            }
+            // Migration douce AVANT les seeds (conserve les seuils perso).
+            $this->migrateLegacyTable($pdo, 'kpi_threshold', 'mac_kpi_threshold');
             $st = $pdo->prepare(
                 'INSERT IGNORE INTO mac_kpi_threshold (metric, sort, min_pct, color, label) VALUES (:me, :so, :mi, :co, :la)'
             );

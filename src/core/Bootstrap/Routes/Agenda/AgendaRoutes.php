@@ -32,6 +32,13 @@ return function (RouteCollector $r) {
         'method'     => 'update',
     ]);
 
+    // Statuts TREFLO d'une boutique pour une période (chargement AJAX du
+    // formulaire : sélection du mois → leviers à travailler).
+    $r->addRoute('GET', '/agenda/levers', [
+        'controller' => \App\Consultant\app\Http\Controllers\Agenda\AgendaController::class,
+        'method'     => 'leversJson',
+    ]);
+
     // Invitation calendrier (.ics) d'une visite.
     $r->addRoute('GET', '/agenda/visits/{id:\d+}/ics', [
         'controller' => \App\Consultant\app\Http\Controllers\Agenda\AgendaController::class,

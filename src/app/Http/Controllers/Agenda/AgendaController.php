@@ -5,6 +5,7 @@ use App\Consultant\app\Http\Controllers\Controller;
 use App\Consultant\app\Services\Agenda\AgendaService;
 use App\Consultant\app\Services\Shop\ShopService;
 use App\Consultant\app\Services\Report\ReportService;
+use App\Consultant\app\Services\Checklist\ChecklistService;
 use App\Consultant\core\Support\GlobalRegistry;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -19,7 +20,8 @@ class AgendaController extends Controller
     public function __construct(
         private AgendaService $agenda,
         private ShopService $shopService,
-        private ReportService $reportService
+        private ReportService $reportService,
+        private ChecklistService $checklistService
     ) {}
 
     /** GET /agenda?year=&month= — vue mois du consultant connecté. */
@@ -52,9 +54,11 @@ class AgendaController extends Controller
             if ((int)($s['id'] ?? 0) === $shopId) { $shop = $s; break; }
         }
 
-        // Résultats des 6 leviers d'après le rapport du mois précédent (best-effort).
+        // Période de référence des leviers : mois précédent par défaut,
+        // modifiable dans le formulaire (rechargement AJAX).
+        $period = $this->validPeriod((string)($_GET['period'] ?? ''));
         $leverResults = $shopId > 0
-            ? $this->safeFetch(fn() => $this->leverResults($shopId), $this->errors, null, [])
+            ? $this->safeFetch(fn() => $this->leverResults($shopId, $period), $this->errors, null, [])
             : [];
 
         $this->view('agenda/create', [
@@ -65,6 +69,8 @@ class AgendaController extends Controller
             'levers'        => AgendaService::LEVERS,
             'types'         => AgendaService::TYPES,
             'lever_results' => $leverResults,
+            'lever_period'  => $period,
+            'checklists'    => $shopId > 0 ? $this->checklistsFor($shopId) : [],
             'active_nav'    => 'agenda',
         ]);
     }
@@ -101,6 +107,9 @@ class AgendaController extends Controller
                 'duration_min'    => (int)($r->get('duration') ?: 60),
                 'type'            => $type,
                 'goal'            => trim((string)$r->get('goal')) ?: null,
+                'id_checklist'    => (int)$r->get('id_checklist') ?: null,
+                'checklist_name'  => trim((string)$r->get('checklist_name')) ?: null,
+                'lever_period'    => $this->validPeriod((string)$r->get('lever_period')),
                 'status'          => 'planned',
                 'report_ref'      => $this->reportLink($shopId),
                 'shared'          => $shared,
@@ -118,7 +127,7 @@ class AgendaController extends Controller
     public function editVisit(int $id): void
     {
         $v = $this->agenda->getVisit($id);
-        if ($v === null) {
+        if ($v === null || !$this->ownsVisit($v)) {
             $this->redirect('/agenda');
             return;
         }
@@ -129,13 +138,17 @@ class AgendaController extends Controller
             $existing[(string)$a['lever']] = (string)$a['action'];
         }
 
+        $period = $this->validPeriod((string)($_GET['period'] ?? ($v['lever_period'] ?? '')));
+
         $this->view('agenda/create', [
             'shops'       => $this->shopService->getAllShops(),
             'shop_id'     => $shopId,
             'date'        => $v['date'] ?? substr((string)$v['scheduled_at'], 0, 10),
             'levers'      => AgendaService::LEVERS,
             'types'       => AgendaService::TYPES,
-            'lever_results' => $shopId > 0 ? $this->safeFetch(fn() => $this->leverResults($shopId), $this->errors, null, []) : [],
+            'lever_results' => $shopId > 0 ? $this->safeFetch(fn() => $this->leverResults($shopId, $period), $this->errors, null, []) : [],
+            'lever_period' => $period,
+            'checklists'  => $shopId > 0 ? $this->checklistsFor($shopId) : [],
             'edit'        => $v,
             'existing'    => $existing,
             'active_nav'  => 'agenda',
@@ -147,7 +160,7 @@ class AgendaController extends Controller
     {
         $r = Request::createFromGlobals()->request;
         $v = $this->agenda->getVisit($id);
-        if ($v === null) {
+        if ($v === null || !$this->ownsVisit($v)) {
             $this->redirect('/agenda');
             return;
         }
@@ -170,6 +183,9 @@ class AgendaController extends Controller
             'type'         => $type,
             'goal'         => trim((string)$r->get('goal')) ?: null,
             'report_ref'   => $this->reportLink($shopId),
+            'id_checklist' => (int)$r->get('id_checklist') ?: null,
+            'checklist_name' => trim((string)$r->get('checklist_name')) ?: null,
+            'lever_period' => $this->validPeriod((string)$r->get('lever_period')),
             'shared'       => $shared,
         ]);
 
@@ -239,20 +255,68 @@ class AgendaController extends Controller
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /** Résultats des 6 leviers HEXm d'après le rapport mensuel de la boutique. */
-    private function leverResults(int $shopId): array
+    private function leverResults(int $shopId, string $period): array
     {
-        $report = $this->reportService->generate('month', (string)$shopId);
-        $levers = $report['shops'][0]['hexm']['levers'] ?? [];
+        [$y, $m] = array_map('intval', explode('-', $period));
+        $res = $this->reportService->leverStatusesForMonth($shopId, $y, $m);
+        return $res['levers'] ?? [];
+    }
+
+    /** Période 'YYYY-MM' valide ; défaut = mois précédent. */
+    private function validPeriod(string $p): string
+    {
+        if (preg_match('/^(\d{4})-(\d{2})$/', $p, $mm)) {
+            $y = (int)$mm[1];
+            $m = (int)$mm[2];
+            if ($y >= 2000 && $y <= 2100 && $m >= 1 && $m <= 12) {
+                return sprintf('%04d-%02d', $y, $m);
+            }
+        }
+        return date('Y-m', (int)strtotime('first day of last month'));
+    }
+
+    /** Checklists disponibles pour la boutique (best-effort). */
+    private function checklistsFor(int $shopId): array
+    {
+        $raw = $this->safeFetch(
+            fn() => $this->checklistService->getChecklistsForShop($shopId, date('Y-m-d')),
+            $this->errors, null, []
+        );
         $out = [];
-        foreach ($levers as $lev) {
-            $out[(string)$lev['key']] = [
-                'key'    => $lev['key'],
-                'letter' => $lev['letter'] ?? '',
-                'name'   => $lev['name'] ?? '',
-                'status' => $lev['status'] ?? 'nd',
-            ];
+        foreach ((array)$raw as $c) {
+            if (!is_array($c)) {
+                continue;
+            }
+            $id = (int)($c['id'] ?? $c['id_checklist'] ?? 0);
+            $nm = (string)($c['name'] ?? $c['title'] ?? $c['label'] ?? '');
+            if ($id > 0 && $nm !== '') {
+                $out[] = ['id' => $id, 'name' => $nm];
+            }
         }
         return $out;
+    }
+
+    /** La visite appartient-elle au consultant connecté ? */
+    private function ownsVisit(array $v): bool
+    {
+        $cid = $this->consultantId();
+        return $cid > 0 && (int)($v['id_consultant'] ?? 0) === $cid;
+    }
+
+    /** GET /agenda/levers?shop_id=&period=YYYY-MM — statuts TREFLO (JSON). */
+    public function leversJson(): \Symfony\Component\HttpFoundation\JsonResponse
+    {
+        $shopId = (int)($_GET['shop_id'] ?? 0);
+        $period = $this->validPeriod((string)($_GET['period'] ?? ''));
+        if ($shopId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'shop_id manquant'], 422);
+        }
+        $levers = $this->safeFetch(fn() => $this->leverResults($shopId, $period), $this->errors, null, []);
+        return $this->json([
+            'ok'      => empty($this->errors),
+            'period'  => $period,
+            'levers'  => $levers,
+        ]);
     }
 
     /** Type de visite valide (défaut : development). */

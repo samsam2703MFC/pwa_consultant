@@ -2,6 +2,7 @@
 namespace App\Consultant\app\Repositories\Agenda;
 
 use App\Consultant\core\Db\Database;
+use App\Consultant\core\Db\LegacyTableMigration;
 use PDO;
 use Throwable;
 
@@ -15,6 +16,8 @@ use Throwable;
  */
 class AgendaRepository
 {
+    use LegacyTableMigration;
+
     private bool $schemaReady = false;
 
     /** Surchargeable en test (PDO SQLite). */
@@ -52,6 +55,9 @@ class AgendaRepository
                 . 'goal TEXT NULL,'
                 . "status VARCHAR(20) NOT NULL DEFAULT 'planned',"
                 . 'report_ref VARCHAR(255) NULL,'
+                . 'id_checklist BIGINT UNSIGNED NULL,'
+                . 'checklist_name VARCHAR(190) NULL,'
+                . 'lever_period CHAR(7) NULL,'
                 . 'shared TINYINT(1) NOT NULL DEFAULT 0,'
                 . 'created_at DATETIME NOT NULL,'
                 . 'updated_at DATETIME NULL,'
@@ -60,11 +66,18 @@ class AgendaRepository
                 . 'KEY idx_shop_time (id_shop, scheduled_at)'
                 . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
             );
-            // Migration douce : ajoute `type` aux tables déjà créées (ignore si présente).
-            try {
-                $pdo->exec("ALTER TABLE mac_consultant_visit ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'development'");
-            } catch (Throwable $e) {
-                // colonne déjà présente → rien à faire
+            // Migration douce : colonnes ajoutées après coup (ignore si présentes).
+            foreach ([
+                "type VARCHAR(20) NOT NULL DEFAULT 'development'",
+                'id_checklist BIGINT UNSIGNED NULL',
+                'checklist_name VARCHAR(190) NULL',
+                'lever_period CHAR(7) NULL',
+            ] as $col) {
+                try {
+                    $pdo->exec('ALTER TABLE mac_consultant_visit ADD COLUMN ' . $col);
+                } catch (Throwable $e) {
+                    // colonne déjà présente → rien à faire
+                }
             }
             $pdo->exec(
                 'CREATE TABLE IF NOT EXISTS mac_consultant_lever_action ('
@@ -82,23 +95,12 @@ class AgendaRepository
                 . 'KEY idx_visit (id_visit)'
                 . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
             );
-            // Migration douce depuis les anciennes tables (copie unique si la
-            // nouvelle est vide, ids conservés — id_visit reste cohérent) ;
-            // les anciennes tables sont gardées (sécurité).
-            try {
-                if ((int)$pdo->query('SELECT COUNT(*) FROM mac_consultant_visit')->fetchColumn() === 0) {
-                    $pdo->exec('INSERT IGNORE INTO mac_consultant_visit SELECT * FROM consultant_visit');
-                }
-            } catch (Throwable $e) {
-                // ancienne table absente — rien à migrer
-            }
-            try {
-                if ((int)$pdo->query('SELECT COUNT(*) FROM mac_consultant_lever_action')->fetchColumn() === 0) {
-                    $pdo->exec('INSERT IGNORE INTO mac_consultant_lever_action SELECT * FROM consultant_lever_action');
-                }
-            } catch (Throwable $e) {
-                // ancienne table absente — rien à migrer
-            }
+            // Migration douce depuis les anciennes tables : copie par INTERSECTION
+            // des colonnes (un SELECT * échoue si les schémas diffèrent — ex.
+            // `type` ajouté après coup — et les visites resteraient invisibles).
+            // Ids conservés → id_visit reste cohérent ; anciennes tables gardées.
+            $this->migrateLegacyTable($pdo, 'consultant_visit', 'mac_consultant_visit');
+            $this->migrateLegacyTable($pdo, 'consultant_lever_action', 'mac_consultant_lever_action');
         } catch (Throwable $e) {
             error_log('[agenda] ensureSchema: ' . $e->getMessage());
         }
@@ -117,8 +119,9 @@ class AgendaRepository
         try {
             $st = $pdo->prepare(
                 'INSERT INTO mac_consultant_visit '
-                . '(id_consultant, consultant_name, id_shop, shop_name, scheduled_at, duration_min, type, goal, status, report_ref, shared, created_at) '
-                . 'VALUES (:c, :cn, :s, :sn, :at, :dur, :type, :goal, :status, :ref, :shared, :now)'
+                . '(id_consultant, consultant_name, id_shop, shop_name, scheduled_at, duration_min, type, goal, status, report_ref, '
+                . 'id_checklist, checklist_name, lever_period, shared, created_at) '
+                . 'VALUES (:c, :cn, :s, :sn, :at, :dur, :type, :goal, :status, :ref, :cl, :cln, :lp, :shared, :now)'
             );
             $st->execute([
                 ':c'      => (int)$v['id_consultant'],
@@ -131,6 +134,9 @@ class AgendaRepository
                 ':goal'   => $v['goal'] ?? null,
                 ':status' => $v['status'] ?? 'planned',
                 ':ref'    => $v['report_ref'] ?? null,
+                ':cl'     => !empty($v['id_checklist']) ? (int)$v['id_checklist'] : null,
+                ':cln'    => $v['checklist_name'] ?? null,
+                ':lp'     => $v['lever_period'] ?? null,
                 ':shared' => !empty($v['shared']) ? 1 : 0,
                 ':now'    => $v['created_at'],
             ]);
@@ -180,7 +186,8 @@ class AgendaRepository
     {
         return $this->exec(
             'UPDATE mac_consultant_visit SET id_shop = :s, shop_name = :sn, scheduled_at = :at, '
-            . 'duration_min = :dur, type = :type, goal = :goal, report_ref = :ref, shared = :shared, '
+            . 'duration_min = :dur, type = :type, goal = :goal, report_ref = :ref, '
+            . 'id_checklist = :cl, checklist_name = :cln, lever_period = :lp, shared = :shared, '
             . 'updated_at = :now WHERE id = :id',
             [
                 ':s'      => (int)$v['id_shop'],
@@ -190,6 +197,9 @@ class AgendaRepository
                 ':type'   => $v['type'] ?? 'development',
                 ':goal'   => $v['goal'] ?? null,
                 ':ref'    => $v['report_ref'] ?? null,
+                ':cl'     => !empty($v['id_checklist']) ? (int)$v['id_checklist'] : null,
+                ':cln'    => $v['checklist_name'] ?? null,
+                ':lp'     => $v['lever_period'] ?? null,
                 ':shared' => !empty($v['shared']) ? 1 : 0,
                 ':now'    => $this->now(),
                 ':id'     => $id,
