@@ -360,6 +360,12 @@ class ValuationService
             'annual_months'     => $annualMonths,
             // Mois de référence de la marge : le mois précédent.
             'margin_month'      => $prevYm,
+            // Fenêtre réellement demandée au P&L mensuel + journal des appels
+            // en lot. Sans cela, « aucun mois renvoyé » ne dit pas si
+            // l'endpoint est absent, coupé, ou simplement vide sur la période.
+            'pnl_range'         => ['from' => $fromYm, 'to' => $toYm],
+            'pnl_shops_served'  => $p2Shops,
+            'debug'             => $this->shopService->batchDiagnostics(),
             'max_margin_pct'    => $maxMargin,
             'margin_over'       => array_values(array_map(
                 fn($s) => [

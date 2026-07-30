@@ -420,6 +420,11 @@
                    padding:7px 9px; font-size:.66rem; color:#8a6212; line-height:1.5; }
       .valo-warn ul { margin:5px 0; padding-left:16px; }
       .valo-warn li { margin:2px 0; }
+      .valo-warn code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.94em; }
+      .valo-retry { margin-top:8px; border:1.5px solid #d9b878; background:#fff; color:#8a6212;
+                    font-size:.68rem; font-weight:800; border-radius:999px; padding:6px 14px; }
+      .valo-retry[disabled] { opacity:.6; }
+      .valo-warn .mut { color:#a58a56; font-size:.92em; word-break:break-all; }
 
       /* ── Modal de vérification mois par mois ── */
       .valo-tbl tbody tr[data-shop] { cursor:pointer; }
@@ -554,8 +559,10 @@
 
         var w = '';
         if (n.avg_margin == null) {
+          // Aucune marge nulle part : le diagnostic vaut mieux qu'un constat.
           w += '<div class="valo-warn">Aucune marge nette constatée : la valeur actuelle ne peut pas '
-             + 'être calculée. Elle le sera dès que le P&amp;L mensuel des boutiques sera disponible.</div>';
+             + 'être calculée.</div>'
+             + (d.pnl_shops_served === 0 ? pnlDiagHtml(d.shops[0] || {}) : '');
         } else if (n.shops_real < n.shops_total) {
           // La marge du réseau porte sur le CA des seules boutiques mesurées :
           // sans le dire, on multiplie le CA total par ce taux et on ne
@@ -677,6 +684,66 @@
       });
       function closeMonths() { back.hidden = true; document.body.style.overflow = ''; }
 
+      // « Aucun mois renvoyé » ne dit rien : l'endpoint est-il absent, coupé,
+      // ou simplement vide sur la période ? On publie ce que le serveur sait.
+      function pnlDiagHtml(s) {
+        var d = data, dbg = d.debug || {}, probes = dbg.probes || [], breaker = dbg.breaker || {};
+        var h = '<div class="valo-warn"><b>Aucun mois renvoyé par le P&amp;L mensuel</b>'
+          + ' pour cette boutique.';
+        if (d.pnl_range) {
+          h += '<br>Fenêtre demandée : <b>' + esc(d.pnl_range.from) + '</b> → <b>'
+             + esc(d.pnl_range.to) + '</b> sur <code>/consultant/shops/{id}/pnl/monthly</code>.';
+        }
+        if (d.pnl_shops_served != null) {
+          h += '<br>Boutiques servies par cet endpoint : <b>' + d.pnl_shops_served + '</b>'
+             + (d.network && d.network.shops_total ? ' sur ' + d.network.shops_total : '') + '.';
+        }
+        // Le disjoncteur est la cause la plus fréquente : un 404 antérieur
+        // coupe l'endpoint pour un temps, et plus rien n'est même tenté.
+        var bk = Object.keys(breaker);
+        if (bk.length) {
+          h += '<br><b>Endpoints coupés :</b><ul>';
+          bk.forEach(function (k) {
+            h += '<li><code>' + esc(k) + '</code> — ' + esc(breaker[k].why)
+               + ', nouvelle tentative dans ' + esc(breaker[k].retry_in_s) + ' s</li>';
+          });
+          h += '</ul>';
+        }
+        var pr = probes.filter(function (p) { return String(p.key).indexOf('pnl') === 0; });
+        if (pr.length) {
+          h += '<b>Appels effectués :</b><ul>';
+          pr.forEach(function (p) {
+            h += '<li><code>' + esc(p.key) + '</code> → <b>' + esc(p.status) + '</b> ('
+               + esc(p.ms) + ' ms)<br><span class="mut">' + esc(p.endpoint) + '</span></li>';
+          });
+          h += '</ul>';
+        }
+        if (!bk.length && !pr.length) {
+          h += '<br>Aucun appel au P&amp;L mensuel n’a été enregistré pour cette requête.';
+        }
+        // Sans cela, il faudrait attendre l'expiration du disjoncteur pour
+        // simplement réessayer après un correctif côté back-office.
+        h += '<br><button type="button" class="valo-retry" id="vmRetry">Réessayer sans le cache</button>';
+        return h + '</div>';
+      }
+
+      // Délégation : le bouton est réinjecté à chaque rendu.
+      document.addEventListener('click', function (e) {
+        var b = e.target.closest && e.target.closest('#vmRetry');
+        if (!b) { return; }
+        b.disabled = true;
+        b.textContent = 'Rechargement…';
+        fetch(ROOT + '/shops/valuation?fresh=1', { credentials: 'same-origin',
+              headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            data = (j && j.data) || data;
+            closeMonths();
+            render();
+          })
+          .catch(function () { b.disabled = false; b.textContent = 'Réessayer sans le cache'; });
+      });
+
       function openMonths(shopId) {
         var s = null;
         (data.shops || []).forEach(function (x) { if (x.id === shopId) { s = x; } });
@@ -685,7 +752,7 @@
 
         var months = s.months || [];
         if (!months.length) {
-          vmBody.innerHTML = '<div class="valo-empty">Aucun mois renvoyé par le P&amp;L mensuel.</div>';
+          vmBody.innerHTML = pnlDiagHtml(s);
         } else {
           var tCa = 0, tFc = 0, tLb = 0, tOv = 0, tNet = 0, complets = 0;
           var rows = months.map(function (m) {
