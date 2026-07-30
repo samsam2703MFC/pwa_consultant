@@ -34,6 +34,9 @@ class ParamRepository
         'daypart_afternoon_from'          => ['15', 'Heatmap : début du créneau « après-midi » (heure incluse)'],
         'daypart_afternoon_to'            => ['19', 'Heatmap : fin du créneau « après-midi » (heure incluse)'],
         'trends_budget_seconds'           => ['30', 'Tendances : budget de temps (s) — au-delà, le CA est rendu sans les objectifs'],
+        // Vide = tout utilisateur ayant accès à l'écran peut valider un contrôle.
+        // Renseigner un code de permission restreint la case à ce rôle (Owner).
+        'owner_validation_permission'     => ['',   'Checklists : permission requise pour valider un contrôle consultant (vide = tous)'],
     ];
 
     /**
