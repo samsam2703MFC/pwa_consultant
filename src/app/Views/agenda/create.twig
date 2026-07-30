@@ -17,7 +17,10 @@
   .af input, .af select, .af textarea { max-width:100%; box-sizing:border-box; }
   .lev-badge { flex-shrink:0; width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:.78rem; font-weight:800; }
   .st-ok { background:#2D7A3E; } .st-mid { background:#e67e22; } .st-bad { background:#c0182b; } .st-nd { background:#cfc7bb; color:#fff; }
-  .treflo { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
+  /* Grille FIXE 3 × 2 : les six leviers TREFLO tiennent toujours dans le même
+     cadre. En flex-wrap, la longueur des noms décidait du nombre par ligne, et
+     la disposition changeait d'une boutique à l'autre. */
+  .treflo { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-bottom:8px; }
   .treflo .tf { border:0; cursor:pointer; -webkit-tap-highlight-color:transparent; }
   /* Le FOND porte la couleur OFFICIELLE du levier (inline, T R E F L O).
      Le statut vs moyenne réseau vit dans une pastille BLANCHE : lisible sur
@@ -36,7 +39,17 @@
   .treflo .tf b { font-size:.74rem; }
   .treflo .tf.picked { outline:2.5px solid #241f1c; outline-offset:2px; }
   .lp-hint { font-size:.64rem; color:#9a9086; margin:4px 0 7px; line-height:1.4; }
-  .treflo .tf { display:inline-flex; align-items:center; gap:5px; font-size:.66rem; font-weight:800; color:#fff; border-radius:8px; padding:3px 9px; }
+  /* Une cellule de la grille : lettre en haut, nom dessous, statut en coin.
+     Hauteur identique pour les six, quel que soit le nom. */
+  .treflo .tf {
+    position:relative; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:2px; min-height:52px; padding:7px 6px 6px;
+    font-size:.62rem; font-weight:800; color:#fff; border-radius:10px; text-align:center;
+    line-height:1.15; overflow:hidden;
+  }
+  .treflo .tf .nm { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis;
+                    white-space:nowrap; opacity:.95; }
+  .treflo .tf .sig { position:absolute; top:4px; right:4px; margin-left:0; }
   .note { background:#fff8ec; border:1px solid #f3e2c2; border-left:3px solid #e6a817; border-radius:10px; padding:10px 12px; font-size:.76rem; color:#7a5a12; line-height:1.45; margin:6px 0 14px; }
   .send { background:#f6fbf7; border:1px solid #cfe7d5; border-radius:11px; padding:10px 12px; margin:6px 0 14px; }
   .send.off { opacity:.45; }
@@ -101,7 +114,7 @@
           <button type="button" class="tf sig-{{ st }} {{ (st == 'mid' or st == 'bad') ? 'todo' : '' }}"
                   style="background:{{ (res.color ?? lev.color) ?: '#7a7168' }};"
                   data-lever="{{ lev.key }}" data-status="{{ st }}" title="{{ lev.name }}">
-            <b>{{ lev.letter }}</b> {{ lev.name }}
+            <b>{{ lev.letter }}</b><span class="nm">{{ lev.name }}</span>
             <i class="sig">{{ {'ok':'✓','mid':'⚠','bad':'●','nd':'·'}[st] ?? '·' }}</i>
           </button>
         {% endfor %}

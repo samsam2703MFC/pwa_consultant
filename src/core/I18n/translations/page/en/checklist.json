@@ -36,10 +36,20 @@
     "title": "Checklists",
     "today": "Today",
     "see_photo": "View photo",
-    "modal_note": "Note",
+    "modal_note": "Note from the person",
     "modal_review": "Consultant review",
     "modal_loading": "Loading photo…",
     "modal_failed": "Photo unavailable.",
     "modal_open": "Open in a new tab",
-    "close": "Close"
+    "close": "Close",
+    "modal_no_note": "No note left.",
+    "modal_rate": "Your review",
+    "modal_clear": "clear",
+    "modal_ok": "Compliant",
+    "modal_ko": "Not compliant",
+    "modal_comment": "Comment (optional)",
+    "modal_save": "Save review",
+    "modal_saving": "Saving…",
+    "modal_saved": "Review saved.",
+    "modal_need_rate": "Pick a rating from 1 to 5."
 }

@@ -99,14 +99,31 @@
                      border-radius:8px; padding:8px 10px; }
     .dn-modal .lnk { display:block; text-align:center; margin-top:10px; font-size:.76rem;
                      font-weight:800; color:#435ebe; }
+    .dn-modal .lnk[hidden] { display:none; }
+    .dn-modal .txt.empty { color:#9a9086; font-style:italic; }
 
-    /* Sonde ?fields=1 : champs disponibles par tâche (diagnostic d'intégration) */
-    .fld-probe { background:#fff8e6; border:1px solid #f3e3bd; border-radius:12px; padding:10px 12px;
-                 margin-bottom:10px; font-size:.68rem; line-height:1.6; color:#5f574f;
-                 font-family:ui-monospace, SFMono-Regular, Menlo, monospace; overflow-x:auto; }
-    .fld-probe b { display:block; color:#241f1c; margin-top:6px; }
-    .fld-probe b:first-child { margin-top:0; }
-    .fld-probe .fld-list { word-break:break-word; }
+    /* Évaluation : étoiles, conformité, commentaire */
+    .dn-stars { display:flex; align-items:center; gap:2px; }
+    .dn-stars .st { border:0; background:none; padding:0 2px; font-size:1.5rem; line-height:1;
+                    color:#ddd6cb; cursor:pointer; }
+    .dn-stars .st.on { color:#C9A227; }
+    .dn-clear { margin-left:8px; font-size:.66rem; color:#9a9086; cursor:pointer;
+                text-decoration:underline; }
+    .dn-acc { display:flex; gap:6px; margin-top:8px; }
+    .dn-acc .ac { flex:1; border:1.5px solid #e7ded2; background:#fff; border-radius:999px;
+                  padding:6px 10px; font-size:.72rem; font-weight:800; color:#7a7168; cursor:pointer; }
+    .dn-acc .ac.ok.on { background:#2D7A3E; border-color:#2D7A3E; color:#fff; }
+    .dn-acc .ac.no.on { background:#8D1D2C; border-color:#8D1D2C; color:#fff; }
+    .dn-cm { width:100%; margin-top:8px; border:1.5px solid #e7ded2; border-radius:10px;
+             padding:8px 10px; font-size:.78rem; font-family:inherit; resize:vertical; }
+    .dn-save { width:100%; margin-top:8px; border:0; border-radius:999px; background:#8D1D2C;
+               color:#fff; font-size:.8rem; font-weight:800; padding:10px; cursor:pointer; }
+    .dn-save[disabled] { opacity:.55; cursor:default; }
+    .dn-msg { margin-top:8px; font-size:.72rem; border-radius:8px; padding:7px 9px; }
+    .dn-msg[hidden] { display:none; }
+    .dn-msg.ok { background:rgba(45,122,62,.1); color:#2D7A3E; }
+    .dn-msg.ko { background:rgba(192,24,43,.1); color:#c0182b; }
+
 </style>
 {% endblock %}
 
@@ -126,29 +143,6 @@
 <div id="shop-checklists-content" style="display:none;" class="page-content-loaded">
     <a href="{{ ROOT }}/checklists?date={{ date }}" class="app-back-btn">{{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_to_ranking ?? 'Retour au classement' }}</span></a>
 
-    {# ?fields=1 — champs renvoyés par l'API pour une tâche (diagnostic). #}
-    {% if field_probe %}
-    <div class="fld-probe">
-        <b>Champs renvoyés par tâche</b> — {{ field_probe.done_count }} faite(s) / {{ field_probe.total }}
-        <div class="fld-list">{{ field_probe.fields|join(' · ') }}</div>
-        {% if field_probe.sample %}
-            <b>Exemple d'une tâche faite</b>
-            {% for k, v in field_probe.sample %}<div>{{ k }} = {{ v }}</div>{% endfor %}
-        {% else %}
-            <div>Aucune tâche faite ce jour-là — choisissez une autre date.</div>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    {# ?fields=2 — forme des endpoints checklists / progress (jamais consommés). #}
-    {% if other_probes %}
-    <div class="fld-probe">
-        {% for p in other_probes %}
-            <b>{{ p.endpoint }}</b>
-            {% for l in p.lines %}<div>{{ l }}</div>{% endfor %}
-        {% endfor %}
-    </div>
-    {% endif %}
 
     {% set cr = summary.completion_rate ?? null %}
     {% set rate_class = cr is not null ? (cr >= 80 ? 'ex' : (cr >= 50 ? 'ok' : 'no')) : 'no' %}
@@ -216,7 +210,25 @@
         </div>
         <div class="who" id="dnWho"></div>
         <div class="ph" id="dnPhoto"></div>
+        <a class="lnk" id="dnOpen" target="_blank" rel="noopener" hidden></a>
         <div id="dnExtra"></div>
+
+        {# Évaluation par le consultant : note sur 5, conformité, commentaire. #}
+        <div class="sect">{{ translations.modal_rate ?? 'Votre évaluation' }}</div>
+        <div class="dn-stars" id="dnStars" role="radiogroup" aria-label="{{ translations.modal_rate ?? 'Votre évaluation' }}">
+            {% for n in 1..5 %}
+                <button type="button" class="st" data-n="{{ n }}" role="radio" aria-checked="false" aria-label="{{ n }}/5">★</button>
+            {% endfor %}
+            <span class="dn-clear" id="dnClear">{{ translations.modal_clear ?? 'effacer' }}</span>
+        </div>
+        <div class="dn-acc">
+            <button type="button" class="ac ok" data-acc="1">{{ translations.modal_ok ?? 'Conforme' }}</button>
+            <button type="button" class="ac no" data-acc="0">{{ translations.modal_ko ?? 'Non conforme' }}</button>
+        </div>
+        <textarea class="dn-cm" id="dnComment" rows="2"
+                  placeholder="{{ translations.modal_comment ?? 'Commentaire (facultatif)' }}"></textarea>
+        <button type="button" class="dn-save" id="dnSave">{{ translations.modal_save ?? 'Enregistrer l\'évaluation' }}</button>
+        <div class="dn-msg" id="dnMsg" hidden></div>
     </div>
 </div>
 {% endblock %}
@@ -236,14 +248,44 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
     if (!modal) { return; }
     var ROOT = window.__consultantRoot || '';
     var L = {
-        note:    {{ (translations.modal_note ?? 'Note')|json_encode|raw }},
+        note:    {{ (translations.modal_note ?? 'Note de la personne')|json_encode|raw }},
+        noNote:  {{ (translations.modal_no_note ?? 'Aucune note laissée.')|json_encode|raw }},
         review:  {{ (translations.modal_review ?? 'Avis du consultant')|json_encode|raw }},
         loading: {{ (translations.modal_loading ?? 'Chargement de la photo…')|json_encode|raw }},
         failed:  {{ (translations.modal_failed ?? 'Photo indisponible.')|json_encode|raw }},
-        open:    {{ (translations.modal_open ?? 'Ouvrir dans un nouvel onglet')|json_encode|raw }}
+        open:    {{ (translations.modal_open ?? 'Ouvrir dans un nouvel onglet')|json_encode|raw }},
+        saving:  {{ (translations.modal_saving ?? 'Enregistrement…')|json_encode|raw }},
+        saved:   {{ (translations.modal_saved ?? 'Évaluation enregistrée.')|json_encode|raw }},
+        needRate:{{ (translations.modal_need_rate ?? 'Choisissez une note de 1 à 5.')|json_encode|raw }}
     };
+    var SHOP = {{ id_shop|default(0)|json_encode|raw }};
+    var DATE = {{ (date ?? '')|json_encode|raw }};
+    var current = null, rating = 0, accepted = null, openSeq = 0;
+
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
     function close() { modal.hidden = true; }
+
+    function msg(text, ok) {
+        var el = document.getElementById('dnMsg');
+        if (!text) { el.hidden = true; el.textContent = ''; return; }
+        el.hidden = false;
+        el.className = 'dn-msg ' + (ok ? 'ok' : 'ko');
+        el.textContent = text;
+    }
+    function setRating(n) {
+        rating = n || 0;
+        document.querySelectorAll('#dnStars .st').forEach(function (b) {
+            var v = parseInt(b.getAttribute('data-n'), 10);
+            b.classList.toggle('on', v <= rating);
+            b.setAttribute('aria-checked', v === rating ? 'true' : 'false');
+        });
+    }
+    function setAccepted(v) {
+        accepted = v;
+        document.querySelectorAll('.dn-acc .ac').forEach(function (b) {
+            b.classList.toggle('on', accepted !== null && String(accepted ? 1 : 0) === b.getAttribute('data-acc'));
+        });
+    }
 
     function open(card) {
         var d;
@@ -254,33 +296,97 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
         var who = (d.by ? d.by : '') + (d.at ? ' · ' + String(d.at).slice(0, 16).replace('T', ' ') : '');
         document.getElementById('dnWho').textContent = who;
 
-        var extra = '';
-        if (d.note) { extra += '<div class="sect">' + esc(L.note) + '</div><div class="txt">' + esc(d.note) + '</div>'; }
-        if (d.comment || d.rating != null) {
-            extra += '<div class="sect">' + esc(L.review) + '</div><div class="txt">'
-                + (d.rating != null ? '★ ' + esc(d.rating) + (d.comment ? ' — ' : '') : '')
-                + esc(d.comment || '') + '</div>';
-        }
+        // La note est TOUJOURS affichée : sans encart, un champ vide côté API
+        // ressemble à un bug d'affichage.
+        var extra = '<div class="sect">' + esc(L.note) + '</div>'
+            + (d.note ? '<div class="txt">' + esc(d.note) + '</div>'
+                      : '<div class="txt empty">' + esc(L.noNote) + '</div>');
         document.getElementById('dnExtra').innerHTML = extra;
 
+        // Évaluation existante rechargée dans le formulaire.
+        current = d;
+        setRating(d.rating != null ? parseInt(d.rating, 10) : 0);
+        setAccepted(d.accepted == null ? null : (String(d.accepted) === '1' || d.accepted === true));
+        document.getElementById('dnComment').value = d.comment || '';
+        msg(null);
+
         var ph = document.getElementById('dnPhoto');
+        // Le lien « ouvrir » est un élément UNIQUE, réutilisé : en créer un à
+        // chaque ouverture les empilait sous la photo.
+        var link = document.getElementById('dnOpen');
+        link.hidden = true;
+        link.removeAttribute('href');
+        link.textContent = L.open;
         ph.innerHTML = '<div class="msg">' + esc(L.loading) + '</div>';
         modal.hidden = false;
 
+        // Jeton d'ouverture : une réponse arrivée en retard ne doit pas écraser
+        // la photo d'une tâche ouverte entre-temps.
+        var token = ++openSeq;
         fetch(ROOT + '/helpdesk/attachments/' + encodeURIComponent(d.att) + '/url',
               { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(function (r) { return r.json(); })
             .then(function (j) {
+                if (token !== openSeq) { return; }
                 var url = j && j.data && j.data.url;
                 if (!url) { throw new Error('no url'); }
                 ph.innerHTML = '<img src="' + esc(url) + '" alt="' + esc(d.file || d.name) + '" loading="lazy">';
-                var a = document.createElement('a');
-                a.className = 'lnk'; a.href = url; a.target = '_blank'; a.rel = 'noopener';
-                a.textContent = L.open;
-                ph.parentNode.insertBefore(a, ph.nextSibling);
+                link.href = url;
+                link.hidden = false;
             })
-            .catch(function () { ph.innerHTML = '<div class="msg">' + esc(L.failed) + '</div>'; });
+            .catch(function () {
+                if (token !== openSeq) { return; }
+                ph.innerHTML = '<div class="msg">' + esc(L.failed) + '</div>';
+            });
     }
+
+    // ── Évaluation : étoiles, conformité, enregistrement ──
+    document.querySelectorAll('#dnStars .st').forEach(function (b) {
+        b.addEventListener('click', function () { setRating(parseInt(b.getAttribute('data-n'), 10)); msg(null); });
+    });
+    document.getElementById('dnClear').addEventListener('click', function () { setRating(0); setAccepted(null); msg(null); });
+    document.querySelectorAll('.dn-acc .ac').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var v = b.getAttribute('data-acc') === '1';
+            setAccepted(accepted === v ? null : v);   // re-clic = on retire le choix
+            msg(null);
+        });
+    });
+    document.getElementById('dnSave').addEventListener('click', function () {
+        if (!current) { return; }
+        if (!rating) { msg(L.needRate, false); return; }
+        var btn = this;
+        btn.disabled = true;
+        msg(L.saving, true);
+        fetch(ROOT + '/checklists/reviews', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({
+                shop_id:       SHOP,
+                date:          DATE,
+                task_id:       current.task_id,
+                completion_id: current.completion_id,
+                rating:        rating,
+                comment:       document.getElementById('dnComment').value || null,
+                is_accepted:   accepted
+            })
+        })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (p) {
+                if (!p.ok || !(p.j && p.j.success)) {
+                    // Message du backend affiché tel quel : si le format
+                    // attendu diffère, on le sait tout de suite.
+                    throw new Error((p.j && (p.j.error || p.j.message)) || 'HTTP ' + (p.ok ? 200 : 'error'));
+                }
+                msg(L.saved, true);
+                current.rating = rating;
+                current.comment = document.getElementById('dnComment').value || null;
+                current.accepted = accepted;
+            })
+            .catch(function (e) { msg(String(e.message || e), false); })
+            .then(function () { btn.disabled = false; });
+    });
 
     document.addEventListener('click', function (e) {
         var card = e.target.closest && e.target.closest('.task-openable[data-done]');

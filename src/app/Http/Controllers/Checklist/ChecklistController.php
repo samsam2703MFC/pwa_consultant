@@ -52,82 +52,7 @@ class ChecklistController extends Controller
             'id_shop'          => $shopId,
             'today'            => date('Y-m-d'),
             'active_nav'       => 'checklists',
-            // ?fields=1 : liste les champs que l'API renvoie par tâche, avec un
-            // exemple de tâche FAITE. Sert à savoir si la réalisation porte de
-            // quoi ouvrir sa fiche (note, photo) sans avoir à interroger l'API
-            // à la main.
-            'field_probe'      => isset($_GET['fields']) ? $this->fieldProbe($tasks) : null,
-            // ?fields=2 : sonde AUSSI les endpoints checklists / progress, qui
-            // sont câblés mais qu'aucun écran n'utilise — l'un d'eux porte
-            // peut-être la photo de réalisation.
-            'other_probes'     => (($_GET['fields'] ?? '') === '2')
-                ? $this->otherEndpointProbes($shopId, $date) : null,
         ]);
-    }
-
-    /**
-     * Forme des endpoints checklists / progress (jamais consommés jusqu'ici) :
-     * clés de premier niveau et clés du premier élément de chaque liste.
-     * Chaque sonde est isolée — un endpoint absent ne casse pas la page.
-     *
-     * @return array<int, array{endpoint: string, lines: string[]}>
-     */
-    private function otherEndpointProbes(int $shopId, string $date): array
-    {
-        $out = [];
-
-        $describe = function ($payload, string $prefix = '') use (&$describe): array {
-            $lines = [];
-            if (!is_array($payload)) {
-                return [$prefix . ' = ' . mb_substr((string)$payload, 0, 80)];
-            }
-            $isList = $payload === [] || array_is_list($payload);
-            if ($isList) {
-                $lines[] = $prefix . '[] : ' . count($payload) . ' élément(s)';
-                if (isset($payload[0]) && is_array($payload[0])) {
-                    $lines[] = $prefix . '[0] → ' . implode(' · ', array_keys($payload[0]));
-                    foreach ($payload[0] as $k => $v) {
-                        if (is_array($v)) {
-                            $lines = array_merge($lines, $describe($v, $prefix . '[0].' . $k));
-                        }
-                    }
-                }
-                return $lines;
-            }
-            $lines[] = ($prefix !== '' ? $prefix . ' → ' : 'clés : ') . implode(' · ', array_keys($payload));
-            foreach ($payload as $k => $v) {
-                if (is_array($v)) {
-                    $lines = array_merge($lines, $describe($v, $prefix . ($prefix !== '' ? '.' : '') . $k));
-                }
-            }
-            return $lines;
-        };
-
-        try {
-            $cl = $this->checklistService->getChecklistsForShop($shopId, $date);
-            $out[] = ['endpoint' => "/consultant/shops/{$shopId}/checklists", 'lines' => $describe($cl)];
-
-            // Premier identifiant de checklist trouvé dans la réponse.
-            $cid  = null;
-            $list = is_array($cl['checklists'] ?? null) ? $cl['checklists'] : (array_is_list($cl) ? $cl : []);
-            foreach ($list as $row) {
-                foreach (['id', 'id_checklist', 'checklist_id'] as $k) {
-                    if (is_array($row) && !empty($row[$k])) { $cid = (int)$row[$k]; break 2; }
-                }
-            }
-            if ($cid !== null) {
-                $pr = $this->checklistService->getChecklistProgress($shopId, $cid, $date);
-                $out[] = [
-                    'endpoint' => "/consultant/shops/{$shopId}/checklists/{$cid}/progress",
-                    'lines'    => $describe($pr),
-                ];
-            } else {
-                $out[] = ['endpoint' => 'progress', 'lines' => ['aucun identifiant de checklist dans la réponse précédente']];
-            }
-        } catch (\Throwable $e) {
-            $out[] = ['endpoint' => 'erreur', 'lines' => [get_class($e) . ' — ' . $e->getMessage()]];
-        }
-        return $out;
     }
 
     /**
@@ -211,42 +136,6 @@ class ChecklistController extends Controller
             error_log('[checklists] détail de réalisation : ' . $e->getMessage());
         }
         return $tasks;
-    }
-
-    /**
-     * Champs disponibles par tâche + exemple d'une tâche faite (valeurs
-     * tronquées). Diagnostic d'intégration, pas un écran métier.
-     *
-     * @return array{fields: string[], sample: array<string, string>, done_count: int, total: int}
-     */
-    private function fieldProbe(array $tasks): array
-    {
-        $fields = [];
-        $sample = null;
-        foreach ($tasks as $t) {
-            if (!is_array($t)) {
-                continue;
-            }
-            foreach (array_keys($t) as $k) {
-                $fields[(string)$k] = true;
-            }
-            if ($sample === null && (string)($t['status'] ?? '') === 'DONE') {
-                $sample = $t;
-            }
-        }
-        $flat = [];
-        foreach (($sample ?? []) as $k => $v) {
-            $flat[(string)$k] = is_scalar($v) || $v === null
-                ? mb_substr((string)($v ?? 'null'), 0, 120)
-                : mb_substr(json_encode($v, JSON_UNESCAPED_UNICODE) ?: '', 0, 120);
-        }
-        ksort($fields);
-        return [
-            'fields'     => array_keys($fields),
-            'sample'     => $flat,
-            'done_count' => count(array_filter($tasks, fn($t) => is_array($t) && ($t['status'] ?? '') === 'DONE')),
-            'total'      => count($tasks),
-        ];
     }
 
     /**
