@@ -7,6 +7,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}{{ translations.consultant_panel ?? 'Consultant Panel' }}{% endblock %}</title>
 
+    {# Racine de l'application, définie AVANT tout autre script.
+       Elle vivait en bas de page, après le bloc `content` : un script inline
+       placé dans `content` — plusieurs écrans le font — s'exécutait donc avec
+       une racine VIDE et appelait « /trends/data » à la racine du domaine au
+       lieu de « /pwa_consultant/trends/data ». Résultat : 404, écran vide. #}
+    <script>window.__consultantRoot = {{ (ROOT ?? '')|json_encode|raw }};</script>
+
     {# Ouvre la connexion aux serveurs de polices en amont (DNS+TLS) pendant que
        le HTML se parse → la police bloque moins le premier rendu. #}
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -325,7 +332,9 @@
     <a href="{{ ROOT }}/levers"     class="app-tab {{ (active_nav ?? '') == 'sixl'       ? 'is-active' : '' }}">{{ icons.svg('hexm', 23) }}<span>{{ translations.nav_management ?? 'Management' }}</span></a>
 </nav>
 
-<script>window.__consultantRoot = '{{ ROOT }}';</script>
+{# `window.__consultantRoot` n'est plus défini ici : il l'est dans le <head>,
+   avant le bloc `content`, sinon les scripts inline de `content` lisaient une
+   racine vide. #}
 <script src="{{ ROOT }}/assets/mazer/compiled/js/app.js?v={{ assetv('assets/mazer/compiled/js/app.js') }}"></script>
 <script src="{{ ROOT }}/assets/js/consultant-ajax.js?v={{ assetv('assets/js/consultant-ajax.js') }}"></script>
 

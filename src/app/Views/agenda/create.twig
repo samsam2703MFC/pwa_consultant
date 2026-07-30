@@ -203,7 +203,9 @@
   if (sel) { sel.addEventListener('change', sync); sync(); }
 
   // ── Leviers TREFLO : chargement par période + sélection « à travailler » ──
-  var ROOT = window.__consultantRoot || '';
+  // ROOT vient du serveur : ce script vit dans le bloc `content`,
+  // rendu avant les scripts de pied de page.
+  var ROOT = {{ (ROOT ?? '')|json_encode|raw }};
   var box    = document.getElementById('treflo-box');
   var perIn  = document.getElementById('lever-period');
   var msg    = document.getElementById('lever-msg');
