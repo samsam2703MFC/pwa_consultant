@@ -1,6 +1,19 @@
 {% import "components/_icons.twig" as icons %}
 {% set status = t.status ?? 'PENDING' %}
-<div class="task-card">
+{# Une tâche faite qui porte une pièce jointe s'ouvre : photo + note + avis. #}
+{% set openable = status == 'DONE' and (t.attachment_id ?? null) %}
+<div class="task-card{{ openable ? ' task-openable' : '' }}"
+     {% if openable %}role="button" tabindex="0" data-done="{{ {
+        att: t.attachment_id,
+        file: t.attachment_filename ?? null,
+        name: t.task_name ?? t.name ?? '',
+        by: t.completed_by ?? null,
+        at: t.completed_at ?? null,
+        note: t.note ?? null,
+        rating: t.review_rating ?? null,
+        comment: t.review_comment ?? null,
+        accepted: t.review_is_accepted ?? null
+     }|json_encode|e('html_attr') }}"{% endif %}>
     <div class="task-status-icon {{ status == 'DONE' ? 'status-done' : (status == 'SKIPPED' ? 'status-skipped' : (status == 'FAILED' ? 'status-failed' : 'status-pending')) }}">
         {% if status == 'DONE' %}{{ icons.svg('check-circle') }}{% elseif status == 'SKIPPED' %}{{ icons.svg('skip-forward') }}{% elseif status == 'FAILED' %}{{ icons.svg('circle-x') }}{% else %}{{ icons.svg('hourglass') }}{% endif %}
     </div>
@@ -15,5 +28,8 @@
             <div class="task-by"><span class="me-1">{{ icons.svg('user-check') }}</span>{{ t.completed_by }}{% if t.completed_at %} · {{ t.completed_at | date('H:i') }}{% endif %}</div>
         {% endif %}
         {% if t.note %}<div class="task-note"><span class="me-1">{{ icons.svg('message-square') }}</span>{{ t.note }}</div>{% endif %}
+        {% if openable %}
+            <div class="task-see">{{ icons.svg('image', 13) }}{{ translations.see_photo ?? 'Voir la photo' }}</div>
+        {% endif %}
     </div>
 </div>
