@@ -20,6 +20,9 @@ class AgendaRepository
 
     private bool $schemaReady = false;
 
+    /** Colonnes de mac_consultant_visit (cache par requête). */
+    private ?array $visitCols = null;
+
     /** Surchargeable en test (PDO SQLite). */
     protected function pdo(): ?PDO
     {
@@ -116,35 +119,69 @@ class AgendaRepository
         if ($pdo === null) {
             return 0;
         }
+        // Colonnes réellement présentes : si un ALTER n'a pas pu s'exécuter
+        // (droits insuffisants), on insère sans les colonnes récentes plutôt
+        // que de faire échouer toute la création.
+        $data = $this->onlyExistingColumns([
+            'id_consultant'   => (int)$v['id_consultant'],
+            'consultant_name' => $v['consultant_name'] ?? null,
+            'id_shop'         => (int)$v['id_shop'],
+            'shop_name'       => $v['shop_name'] ?? null,
+            'scheduled_at'    => $v['scheduled_at'],
+            'duration_min'    => (int)($v['duration_min'] ?? 60),
+            'type'            => $v['type'] ?? 'development',
+            'goal'            => $v['goal'] ?? null,
+            'status'          => $v['status'] ?? 'planned',
+            'report_ref'      => $v['report_ref'] ?? null,
+            'id_checklist'    => !empty($v['id_checklist']) ? (int)$v['id_checklist'] : null,
+            'checklist_name'  => $v['checklist_name'] ?? null,
+            'lever_period'    => $v['lever_period'] ?? null,
+            'shared'          => !empty($v['shared']) ? 1 : 0,
+            'created_at'      => $v['created_at'],
+        ]);
+        if ($data === []) {
+            return 0;
+        }
         try {
+            $cols   = array_keys($data);
+            $params = [];
+            foreach ($data as $k => $val) {
+                $params[':' . $k] = $val;
+            }
             $st = $pdo->prepare(
-                'INSERT INTO mac_consultant_visit '
-                . '(id_consultant, consultant_name, id_shop, shop_name, scheduled_at, duration_min, type, goal, status, report_ref, '
-                . 'id_checklist, checklist_name, lever_period, shared, created_at) '
-                . 'VALUES (:c, :cn, :s, :sn, :at, :dur, :type, :goal, :status, :ref, :cl, :cln, :lp, :shared, :now)'
+                'INSERT INTO mac_consultant_visit (`' . implode('`, `', $cols) . '`) '
+                . 'VALUES (:' . implode(', :', $cols) . ')'
             );
-            $st->execute([
-                ':c'      => (int)$v['id_consultant'],
-                ':cn'     => $v['consultant_name'] ?? null,
-                ':s'      => (int)$v['id_shop'],
-                ':sn'     => $v['shop_name'] ?? null,
-                ':at'     => $v['scheduled_at'],
-                ':dur'    => (int)($v['duration_min'] ?? 60),
-                ':type'   => $v['type'] ?? 'development',
-                ':goal'   => $v['goal'] ?? null,
-                ':status' => $v['status'] ?? 'planned',
-                ':ref'    => $v['report_ref'] ?? null,
-                ':cl'     => !empty($v['id_checklist']) ? (int)$v['id_checklist'] : null,
-                ':cln'    => $v['checklist_name'] ?? null,
-                ':lp'     => $v['lever_period'] ?? null,
-                ':shared' => !empty($v['shared']) ? 1 : 0,
-                ':now'    => $v['created_at'],
-            ]);
+            $st->execute($params);
             return (int)$pdo->lastInsertId();
         } catch (Throwable $e) {
             error_log('[agenda] createVisit: ' . $e->getMessage());
             return 0;
         }
+    }
+
+    /**
+     * Filtre un jeu de données sur les colonnes réellement présentes dans
+     * mac_consultant_visit (cache par requête) — les colonnes récentes (type,
+     * id_checklist, checklist_name, lever_period) peuvent manquer si l'ALTER
+     * n'a pas pu s'exécuter. Introspection impossible → données inchangées.
+     *
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private function onlyExistingColumns(array $data): array
+    {
+        $pdo = $this->pdo();
+        if ($pdo === null) {
+            return [];
+        }
+        if ($this->visitCols === null) {
+            $this->visitCols = $this->tableColumns($pdo, 'mac_consultant_visit');
+        }
+        if ($this->visitCols === []) {
+            return $data;
+        }
+        return array_intersect_key($data, array_flip($this->visitCols));
     }
 
     /** Visites d'un consultant sur [from, to] (dates 'Y-m-d'), ordre chronologique. */
@@ -184,26 +221,38 @@ class AgendaRepository
     /** Met à jour les champs éditables d'une visite. */
     public function updateVisit(int $id, array $v): bool
     {
+        $this->ensureSchema();
+        $pdo = $this->pdo();
+        if ($pdo === null) {
+            return false;
+        }
+        $data = [
+            'id_shop'        => (int)$v['id_shop'],
+            'shop_name'      => $v['shop_name'] ?? null,
+            'scheduled_at'   => $v['scheduled_at'],
+            'duration_min'   => (int)($v['duration_min'] ?? 60),
+            'type'           => $v['type'] ?? 'development',
+            'goal'           => $v['goal'] ?? null,
+            'report_ref'     => $v['report_ref'] ?? null,
+            'id_checklist'   => !empty($v['id_checklist']) ? (int)$v['id_checklist'] : null,
+            'checklist_name' => $v['checklist_name'] ?? null,
+            'lever_period'   => $v['lever_period'] ?? null,
+            'shared'         => !empty($v['shared']) ? 1 : 0,
+            'updated_at'     => $this->now(),
+        ];
+        $data = $this->onlyExistingColumns($data);
+        if ($data === []) {
+            return false;
+        }
+        $sets   = [];
+        $params = [':id' => $id];
+        foreach ($data as $k => $val) {
+            $sets[] = '`' . $k . '` = :' . $k;
+            $params[':' . $k] = $val;
+        }
         return $this->exec(
-            'UPDATE mac_consultant_visit SET id_shop = :s, shop_name = :sn, scheduled_at = :at, '
-            . 'duration_min = :dur, type = :type, goal = :goal, report_ref = :ref, '
-            . 'id_checklist = :cl, checklist_name = :cln, lever_period = :lp, shared = :shared, '
-            . 'updated_at = :now WHERE id = :id',
-            [
-                ':s'      => (int)$v['id_shop'],
-                ':sn'     => $v['shop_name'] ?? null,
-                ':at'     => $v['scheduled_at'],
-                ':dur'    => (int)($v['duration_min'] ?? 60),
-                ':type'   => $v['type'] ?? 'development',
-                ':goal'   => $v['goal'] ?? null,
-                ':ref'    => $v['report_ref'] ?? null,
-                ':cl'     => !empty($v['id_checklist']) ? (int)$v['id_checklist'] : null,
-                ':cln'    => $v['checklist_name'] ?? null,
-                ':lp'     => $v['lever_period'] ?? null,
-                ':shared' => !empty($v['shared']) ? 1 : 0,
-                ':now'    => $this->now(),
-                ':id'     => $id,
-            ]
+            'UPDATE mac_consultant_visit SET ' . implode(', ', $sets) . ' WHERE id = :id',
+            $params
         );
     }
 
