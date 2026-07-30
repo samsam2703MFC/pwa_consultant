@@ -289,19 +289,33 @@ class ValuationService
                 ? ($months > 0 ? $caPnl / $months * $annualMonths : 0.0)
                 : $caKpi / $windowMonths * $annualMonths;
 
-            // MARGE : celle du mois précédent, et de lui seul. À défaut, le
-            // mois complet le plus récent — mais on dit toujours lequel, sinon
-            // « 12 % » ne veut rien dire.
-            $mByShop     = $monthByShop[$id] ?? [];
-            $marginYm    = null;
-            if (isset($mByShop[$prevYm]) && $mByShop[$prevYm]['net'] !== null) {
+            // MARGE : le mois clôturé précédent, et de lui seul.
+            //
+            // Un mois n'est retenu que si ses TROIS postes sont connus. Sans le
+            // coût matière, le champ `result` ne le déduit pas non plus et
+            // annonce des marges de 40 % — un point de vente n'en dégage pas
+            // le quart. On préfère donc, dans l'ordre :
+            //   1. le mois précédent complet ;
+            //   2. le mois complet le plus récent avant lui ;
+            //   3. en dernier recours seulement, le mois précédent via
+            //      `result`, et l'écran dit alors d'où vient le chiffre.
+            $mByShop  = $monthByShop[$id] ?? [];
+            $complet  = fn(string $ym) => isset($mByShop[$ym])
+                && $mByShop[$ym]['material'] !== null
+                && $mByShop[$ym]['labour']   !== null
+                && $mByShop[$ym]['overhead'] !== null;
+            $marginYm = null;
+            if ($complet($prevYm)) {
                 $marginYm = $prevYm;
             } else {
                 foreach (array_keys($mByShop) as $ym) {
-                    if ($ym < $prevYm && $mByShop[$ym]['net'] !== null
-                        && ($marginYm === null || $ym > $marginYm)) {
+                    if ($ym < $prevYm && $complet($ym) && ($marginYm === null || $ym > $marginYm)) {
                         $marginYm = $ym;
                     }
+                }
+                if ($marginYm === null && isset($mByShop[$prevYm])
+                    && $mByShop[$prevYm]['net'] !== null) {
+                    $marginYm = $prevYm;   // dernier recours : `result`
                 }
             }
             $mo         = $marginYm !== null ? $mByShop[$marginYm] : null;
@@ -581,15 +595,21 @@ class ValuationService
         ksort($months);
         $out = [];
         foreach ($months as $ym => $m) {
+            // Le net n'est publié QUE si les trois postes sont là. Sinon on
+            // afficherait un « NET » qui ne déduit pas le coût matière, juste à
+            // côté d'un coût matière marqué « — » : la ligne se lirait comme
+            // vérifiée alors qu'il lui manque l'essentiel.
+            $complet = $m['material'] !== null && $m['labour'] !== null && $m['overhead'] !== null;
+            $net     = ($complet && $m['net'] !== null) ? $m['net'] : null;
             $out[] = [
                 'ym'       => $ym,
                 'ca'       => round($m['ca'], 2),
                 'material' => $m['material'] !== null ? round($m['material'], 2) : null,
                 'labour'   => $m['labour']   !== null ? round($m['labour'], 2)   : null,
                 'overhead' => $m['overhead'] !== null ? round($m['overhead'], 2) : null,
-                'net'      => $m['net'] !== null ? round($m['net'], 2) : null,
-                'pct'      => ($m['net'] !== null && $m['ca'] > 0)
-                    ? round($m['net'] / $m['ca'] * 100, 1) : null,
+                'net'      => $net !== null ? round($net, 2) : null,
+                'pct'      => ($net !== null && $m['ca'] > 0)
+                    ? round($net / $m['ca'] * 100, 1) : null,
                 // « postes » : recalculé ; « result » : lu tel quel faute des
                 // trois postes. La distinction se voit dans le modal.
                 'from'     => $m['from'] ?? null,
