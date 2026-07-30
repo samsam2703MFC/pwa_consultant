@@ -336,9 +336,13 @@ class ShopRepository
      * → { totals, days:[{date, margin_pct, ca…}], hours:[{hour, ca,
      * margin_value, margin_pct…}] }. null si indisponible.
      */
-    public function getMarginHeatmap(int $shopId, string $from, string $to): ?array
+    public function getMarginHeatmap(int $shopId, string $from, string $to, bool $weekly = false): ?array
     {
-        $response = $this->apiClient->get($this->marginHeatmapEndpoint($shopId, $from, $to));
+        $ep = $this->marginHeatmapEndpoint($shopId, $from, $to);
+        if ($weekly) {
+            $ep .= '&split=weekly';   // P4 : découpage hebdo fourni par l'API
+        }
+        $response = $this->apiClient->get($ep);
         return (!empty($response['success']) && is_array($response['data'] ?? null)) ? $response['data'] : null;
     }
 
@@ -415,6 +419,18 @@ class ShopRepository
      */
     public function getCategorySalesMany(array $shopIds, string $from, string $to): array
     {
+        // P7 : un seul appel multi-boutiques quand l'endpoint est déployé.
+        $all = $this->getCategorySalesAllShops($from, $to);
+        if ($all !== null) {
+            $out = [];
+            foreach ($shopIds as $id) {
+                $id = (int)$id;
+                if ($id > 0) {
+                    $out[$id] = $all[$id] ?? null;
+                }
+            }
+            return $out;
+        }
         $out = [];
         $byId = [];
         foreach ($shopIds as $id) {
@@ -525,5 +541,272 @@ class ShopRepository
         }
         return $out;
     }
-}
 
+    // ══════════════ Endpoints batch backend (spec P0–P8) ══════════════
+    // Déployés le 30/07/2026. Chaque méthode renvoie null si l'endpoint est
+    // absent (404) → l'appelant garde son mécanisme actuel : le panel reste
+    // fonctionnel quel que soit l'état du backend.
+
+    /** Endpoints batch absents (404) → plus de sonde dans cette requête. */
+    private static array $batchMissing = [];
+
+    private function batchGet(string $key, string $endpoint): ?array
+    {
+        if (!empty(self::$batchMissing[$key])) {
+            return null;
+        }
+        $r = $this->apiClient->get($endpoint);
+        if (empty($r['success']) || !is_array($r['data'] ?? null)) {
+            if (($r['error'] ?? null) === 404) {
+                self::$batchMissing[$key] = true;
+            }
+            return null;
+        }
+        return $r['data'];
+    }
+
+    /**
+     * P0 — P&L JOURNALIER d'une boutique (chiffres du backoffice) :
+     * days:[{date, revenue, material, labour, overhead, result}].
+     *
+     * @return array<string, array{revenue: ?float, material: ?float, labour: ?float, overhead: ?float, result: ?float}>|null
+     *         map 'Y-m-d' => postes
+     */
+    public function getDailyPnl(int $shopId, string $from, string $to): ?array
+    {
+        $d = $this->batchGet(
+            'pnl_daily',
+            '/consultant/shops/' . $shopId . '/pnl/daily?from=' . urlencode($from) . '&to=' . urlencode($to)
+        );
+        if ($d === null) {
+            return null;
+        }
+        $num = fn($v) => is_numeric($v) ? (float)$v : null;
+        $out = [];
+        foreach (($d['days'] ?? $d) as $row) {
+            if (!is_array($row) || empty($row['date'])) {
+                continue;
+            }
+            $out[substr((string)$row['date'], 0, 10)] = [
+                'revenue'  => $num($row['revenue'] ?? $row['turnover'] ?? null),
+                'material' => $num($row['material'] ?? null),
+                'labour'   => $num($row['labour'] ?? null),
+                'overhead' => $num($row['overhead'] ?? null),
+                'result'   => $num($row['result'] ?? null),
+            ];
+        }
+        return $out !== [] ? $out : null;
+    }
+
+    /**
+     * P2 — P&L MENSUEL d'une boutique sur [from, to] ('YYYY-MM').
+     *
+     * @return array<string, array{turnover: ?float, material: ?float, labour: ?float, overhead: ?float, result: ?float}>|null
+     *         map 'YYYY-MM' => postes
+     */
+    public function getMonthlyPnl(int $shopId, string $from, string $to): ?array
+    {
+        $d = $this->batchGet(
+            'pnl_monthly',
+            '/consultant/shops/' . $shopId . '/pnl/monthly?from=' . urlencode($from) . '&to=' . urlencode($to)
+        );
+        if ($d === null) {
+            return null;
+        }
+        $num = fn($v) => is_numeric($v) ? (float)$v : null;
+        $out = [];
+        foreach (($d['months'] ?? $d) as $row) {
+            if (!is_array($row) || empty($row['month'])) {
+                continue;
+            }
+            $out[substr((string)$row['month'], 0, 7)] = [
+                'turnover' => $num($row['turnover'] ?? $row['revenue'] ?? null),
+                'material' => $num($row['material'] ?? null),
+                'labour'   => $num($row['labour'] ?? null),
+                'overhead' => $num($row['overhead'] ?? null),
+                'result'   => $num($row['result'] ?? null),
+            ];
+        }
+        return $out !== [] ? $out : null;
+    }
+
+    /**
+     * P1 — Série de ventes MENSUELLES de toutes les boutiques sur [from, to]
+     * ('YYYY-MM') : un seul appel au lieu d'une fenêtre par mois et par
+     * boutique.
+     *
+     * @return array<int, array<string, array{ca: float, tickets: int}>>|null
+     *         map shopId => ('YYYY-MM' => KPIs)
+     */
+    public function getMonthlySalesAllShops(string $from, string $to): ?array
+    {
+        $d = $this->batchGet(
+            'monthly_sales',
+            '/consultant/shops/monthly-sales?from=' . urlencode($from) . '&to=' . urlencode($to)
+        );
+        if ($d === null) {
+            return null;
+        }
+        $out = [];
+        foreach (($d['shops'] ?? $d) as $shop) {
+            if (!is_array($shop)) {
+                continue;
+            }
+            $sid = (int)($shop['shop_id'] ?? $shop['id'] ?? 0);
+            if ($sid <= 0) {
+                continue;
+            }
+            foreach (($shop['months'] ?? []) as $m) {
+                if (!is_array($m) || empty($m['month'])) {
+                    continue;
+                }
+                $out[$sid][substr((string)$m['month'], 0, 7)] = [
+                    'ca'      => isset($m['ca']) && is_numeric($m['ca']) ? (float)$m['ca'] : 0.0,
+                    'tickets' => (int)($m['tickets'] ?? 0),
+                ];
+            }
+        }
+        return $out !== [] ? $out : null;
+    }
+
+    /**
+     * P3 — KPI de ventes de TOUTES les boutiques sur une fenêtre.
+     *
+     * @return array<int, array>|null map shopId => KPIs (schéma getSalesKpis)
+     */
+    public function getSalesKpisAllShops(string $from, string $to): ?array
+    {
+        $d = $this->batchGet(
+            'sales_kpis_all',
+            '/consultant/shops/sales-kpis?date_from=' . urlencode($from) . '&date_to=' . urlencode($to)
+        );
+        if ($d === null) {
+            return null;
+        }
+        $out = [];
+        foreach (($d['shops'] ?? $d) as $shop) {
+            if (!is_array($shop)) {
+                continue;
+            }
+            $sid = (int)($shop['shop_id'] ?? $shop['id'] ?? 0);
+            if ($sid > 0) {
+                $k = $this->parseSalesKpisPayload($shop);
+                if ($k !== null) {
+                    $out[$sid] = $k;
+                }
+            }
+        }
+        return $out !== [] ? $out : null;
+    }
+
+    /**
+     * P6a — Targets de TOUTES les boutiques pour un mois.
+     *
+     * @return array<int, array>|null map shopId => targets
+     */
+    public function getTargetsAllShops(int $year, int $month): ?array
+    {
+        $d = $this->batchGet('targets_all', "/consultant/targets?year={$year}&month={$month}");
+        if ($d === null) {
+            return null;
+        }
+        $out = [];
+        foreach (($d['shops'] ?? $d) as $shop) {
+            if (!is_array($shop)) {
+                continue;
+            }
+            $sid = (int)($shop['shop_id'] ?? $shop['id'] ?? 0);
+            if ($sid > 0 && is_array($shop['targets'] ?? null)) {
+                $out[$sid] = $shop['targets'];
+            }
+        }
+        return $out !== [] ? $out : null;
+    }
+
+    /**
+     * P6b — Targets d'une boutique sur une PLAGE de mois ('YYYY-MM').
+     *
+     * @return array<string, array>|null map 'YYYY-MM' => targets
+     */
+    public function getTargetsRange(int $shopId, string $from, string $to): ?array
+    {
+        $d = $this->batchGet(
+            'targets_range',
+            '/consultant/shops/' . $shopId . '/targets/range?from=' . urlencode($from) . '&to=' . urlencode($to)
+        );
+        if ($d === null) {
+            return null;
+        }
+        $out = [];
+        foreach (($d['months'] ?? $d) as $row) {
+            if (!is_array($row) || empty($row['month'])) {
+                continue;
+            }
+            if (is_array($row['targets'] ?? null)) {
+                $out[substr((string)$row['month'], 0, 7)] = $row['targets'];
+            }
+        }
+        return $out !== [] ? $out : null;
+    }
+
+    /**
+     * P7 — Ventes par catégorie de TOUTES les boutiques sur une fenêtre.
+     *
+     * @return array<int, array<string, float>>|null map shopId => (nom => CA)
+     */
+    public function getCategorySalesAllShops(string $from, string $to): ?array
+    {
+        $d = $this->batchGet(
+            'category_sales_all',
+            '/consultant/shops/category-sales?date_from=' . urlencode($from) . '&date_to=' . urlencode($to)
+        );
+        if ($d === null) {
+            return null;
+        }
+        $out = [];
+        foreach (($d['shops'] ?? $d) as $shop) {
+            if (!is_array($shop)) {
+                continue;
+            }
+            $sid = (int)($shop['shop_id'] ?? $shop['id'] ?? 0);
+            if ($sid <= 0) {
+                continue;
+            }
+            $mix = [];
+            foreach (($shop['categories'] ?? []) as $c) {
+                $name = trim((string)($c['name'] ?? ''));
+                if ($name !== '' && isset($c['ca']) && is_numeric($c['ca'])) {
+                    $mix[$name] = ($mix[$name] ?? 0.0) + (float)$c['ca'];
+                }
+            }
+            if ($mix !== []) {
+                $out[$sid] = $mix;
+            }
+        }
+        return $out !== [] ? $out : null;
+    }
+
+    /**
+     * P8 — P&L (période courante) de TOUTES les boutiques.
+     *
+     * @return array<int, array>|null map shopId => P&L (schéma getPnl)
+     */
+    public function getPnlSummaryAllShops(string $period = 'month'): ?array
+    {
+        $d = $this->batchGet('pnl_summary', '/consultant/shops/pnl-summary?period=' . urlencode($period));
+        if ($d === null) {
+            return null;
+        }
+        $out = [];
+        foreach (($d['shops'] ?? $d) as $shop) {
+            if (!is_array($shop)) {
+                continue;
+            }
+            $sid = (int)($shop['shop_id'] ?? $shop['id'] ?? 0);
+            if ($sid > 0) {
+                $out[$sid] = $shop;
+            }
+        }
+        return $out !== [] ? $out : null;
+    }
+}

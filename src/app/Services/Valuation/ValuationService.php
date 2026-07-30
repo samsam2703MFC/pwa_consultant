@@ -68,8 +68,37 @@ class ValuationService
         $from12  = date('Y-m-d', (int)$since->format('U'));
         $to12    = date('Y-m-d');
 
-        // Snapshots par boutique (marge nette captée).
-        $rows = $this->snap->forShopsSince(array_keys($ids), $sinceY, $sinceM);
+        // P2 — historique P&L MENSUEL réel : la marge nette 12 mois devient
+        // exacte immédiatement (plus besoin d'attendre l'accumulation des
+        // snapshots). Repli sur les snapshots si l'endpoint est absent.
+        $fromYm = sprintf('%04d-%02d', $sinceY, $sinceM);
+        $toYm   = sprintf('%04d-%02d', $curY, $curM);
+        $rows   = [];
+        foreach ($ids as $id => $name) {
+            $hist = $this->shopService->getMonthlyPnl($id, $fromYm, $toYm);
+            if ($hist === null) {
+                $rows = null;   // endpoint absent → repli global sur snapshots
+                break;
+            }
+            foreach ($hist as $ym => $p) {
+                $ca = $p['turnover'];
+                if ($ca === null || $ca <= 0) {
+                    continue;
+                }
+                [$y, $m] = array_map('intval', explode('-', $ym));
+                $rows[] = [
+                    'id_shop'        => $id,
+                    'year'           => $y,
+                    'month'          => $m,
+                    'ca'             => $ca,
+                    'net_margin_pct' => $p['result'] !== null ? $p['result'] / $ca * 100 : null,
+                ];
+            }
+        }
+        if ($rows === null) {
+            // Snapshots par boutique (marge nette captée mois après mois).
+            $rows = $this->snap->forShopsSince(array_keys($ids), $sinceY, $sinceM);
+        }
         $marginsByShop = [];   // shopId => [pct, ...]
         $seriesByShop  = [];   // shopId => ['YYYY-MM' => valorisation mensuelle annualisée]
         foreach ($rows as $r) {
