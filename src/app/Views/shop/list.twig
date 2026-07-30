@@ -424,6 +424,10 @@
       .valo-retry { margin-top:8px; border:1.5px solid #d9b878; background:#fff; color:#8a6212;
                     font-size:.68rem; font-weight:800; border-radius:999px; padding:6px 14px; }
       .valo-retry[disabled] { opacity:.6; }
+      .valo-raw { background:#fff; border:1px solid #f1e9dd; border-radius:8px; padding:8px 10px;
+                  margin:5px 0 0; font-size:.6rem; line-height:1.45; max-height:46vh; overflow:auto;
+                  white-space:pre; font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+                  color:#5f574f; -webkit-overflow-scrolling:touch; }
       .valo-warn .mut { color:#a58a56; font-size:.92em; word-break:break-all; }
 
       /* ── Modal de vérification mois par mois ── */
@@ -682,7 +686,8 @@
       document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && !back.hidden) { closeMonths(); }
       });
-      function closeMonths() { back.hidden = true; document.body.style.overflow = ''; }
+      var openShopId = null;
+      function closeMonths() { back.hidden = true; openShopId = null; document.body.style.overflow = ''; }
 
       // « Aucun mois renvoyé » ne dit rien : l'endpoint est-il absent, coupé,
       // ou simplement vide sur la période ? On publie ce que le serveur sait.
@@ -721,9 +726,20 @@
         if (!bk.length && !pr.length) {
           h += '<br>Aucun appel au P&amp;L mensuel n’a été enregistré pour cette requête.';
         }
+        // Réponse BRUTE de l'endpoint, quand elle a été capturée : c'est elle
+        // qui dit si l'endpoint existe, ce qu'il renvoie et sous quel format.
+        // Tout le reste n'est qu'interprétation.
+        var samples = dbg.samples || {};
+        Object.keys(samples).forEach(function (k) {
+          h += '<br><b>Réponse brute — <code>' + esc(k) + '</code></b>'
+             + '<br><span class="mut">' + esc(samples[k].endpoint) + '</span>'
+             + '<pre class="valo-raw">' + esc(JSON.stringify(samples[k].response, null, 2)) + '</pre>';
+        });
         // Sans cela, il faudrait attendre l'expiration du disjoncteur pour
         // simplement réessayer après un correctif côté back-office.
-        h += '<br><button type="button" class="valo-retry" id="vmRetry">Réessayer sans le cache</button>';
+        h += '<br><button type="button" class="valo-retry" id="vmRetry">'
+           + (Object.keys(samples).length ? 'Recharger' : 'Réessayer et montrer la réponse brute')
+           + '</button>';
         return h + '</div>';
       }
 
@@ -733,15 +749,23 @@
         if (!b) { return; }
         b.disabled = true;
         b.textContent = 'Rechargement…';
-        fetch(ROOT + '/shops/valuation?fresh=1', { credentials: 'same-origin',
+        // debug=1 : réarme les disjoncteurs, ignore le cache ET rapporte la
+        // réponse brute de l'endpoint. Un seul clic, aucune configuration
+        // serveur à toucher.
+        fetch(ROOT + '/shops/valuation?fresh=1&debug=1', { credentials: 'same-origin',
               headers: { 'X-Requested-With': 'XMLHttpRequest' } })
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (j) {
-            data = (j && j.data) || data;
-            closeMonths();
+            if (j && j.data) { data = j.data; }
+            if (j && j.debug) { data.debug = j.debug; }
+            var reopen = openShopId;
             render();
+            if (reopen != null) { openMonths(reopen); }   // on revient là où on était
           })
-          .catch(function () { b.disabled = false; b.textContent = 'Réessayer sans le cache'; });
+          .catch(function () {
+            b.disabled = false;
+            b.textContent = 'Réessayer et montrer la réponse brute';
+          });
       });
 
       function openMonths(shopId) {
@@ -795,6 +819,7 @@
             + (s.annual_margin ? dec(s.annual_margin.pct) + ' % sur ' + s.annual_margin.months + ' mois'
                                : 'non calculable') + '.</div>';
         }
+        openShopId = shopId;
         back.hidden = false;
         document.body.style.overflow = 'hidden';
       }
