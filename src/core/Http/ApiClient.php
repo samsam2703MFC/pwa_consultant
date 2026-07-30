@@ -402,12 +402,24 @@ class ApiClient
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, array_merge($this->getHeaders(), ['Content-Type: application/json']));
+        // Sans délai maximum, un backend qui ne répond pas bloque la page
+        // jusqu'au time-out PHP. Les GET en ont depuis toujours ; les POST non.
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
 
         $result        = curl_exec($ch);
         $response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        // Motif de l'échec de TRANSPORT (DNS, TLS, connexion refusée,
+        // dépassement de délai) : sans lui, un code 0 ne dit rien — ni corps,
+        // ni statut, donc rien à afficher et rien à diagnostiquer.
+        $curlErr = curl_error($ch);
         curl_close($ch);
 
         $response = ['message' => '', 'inserted_id' => -1, 'success' => false, 'error' => [], 'code' => $response_code];
+        if ($curlErr !== '') {
+            $response['transport'] = $curlErr;
+            error_log('[api] POST ' . $endpoint . ' — transport: ' . $curlErr);
+        }
 
         if (in_array($response_code, [200, 201, 204])) {
             $decoded               = json_decode($result, true);
