@@ -363,20 +363,16 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            // Le format attendu par /consultant/shops/{id}/task-reviews n'est
-            // pas documenté et la premiere tentative a ete refusee (« champs
-            // obligatoires manquants »). On envoie donc les noms plausibles en
-            // parallele ; le detail de l'erreur, affiche tel quel, permettra de
-            // resserrer sur les seuls champs utiles.
+            // checklist_id, task_id et review_date sont EXIGÉS par
+            // ChecklistService::submitTaskReview avant tout appel à l'API.
+            // Les variantes review_* accompagnent les champs d'évaluation :
+            // l'API expose ces noms-là en lecture.
             body: JSON.stringify({
                 shop_id:            SHOP,
-                id_shop:            SHOP,
-                date:               DATE,
+                checklist_id:       current.checklist_id,
                 task_id:            current.task_id,
-                id_task:            current.task_id,
+                review_date:        DATE,
                 completion_id:      current.completion_id,
-                id_completion:      current.completion_id,
-                task_completion_id: current.completion_id,
                 rating:             rating,
                 review_rating:      rating,
                 comment:            comment,

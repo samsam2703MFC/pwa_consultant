@@ -95,11 +95,14 @@ class ChecklistController extends Controller
                 return $tasks;
             }
 
-            // Détail par task_id, toutes checklists confondues.
+            // Détail par task_id, toutes checklists confondues. La checklist
+            // d'origine est conservée : l'enregistrement d'un avis l'exige
+            // (checklist_id), et /tasks ne donne que son NOM.
             $byTask = [];
-            foreach ($this->checklistService->getChecklistProgressMany($shopId, $ids, $date) as $progress) {
+            foreach ($this->checklistService->getChecklistProgressMany($shopId, $ids, $date) as $cid => $progress) {
                 foreach (($progress['tasks'] ?? []) as $t) {
                     if (is_array($t) && !empty($t['task_id'])) {
+                        $t['checklist_id'] = (int)($progress['checklist']['id'] ?? $cid);
                         $byTask[(int)$t['task_id']] = $t;
                     }
                 }
@@ -110,7 +113,7 @@ class ChecklistController extends Controller
 
             // Champs ajoutés. La note et l'auteur ne sont repris QUE s'ils
             // manquent : /tasks reste la source de l'affichage existant.
-            $extra = ['completion_id', 'attachment_id', 'attachment_filename',
+            $extra = ['completion_id', 'attachment_id', 'attachment_filename', 'checklist_id',
                       'review_id', 'review_is_accepted', 'review_rating', 'review_comment'];
             foreach ($tasks as &$task) {
                 if (!is_array($task) || empty($task['task_id'])) {
@@ -210,7 +213,13 @@ class ChecklistController extends Controller
             // pas quels champs manquent. `error` est forcé en chaîne — la clé
             // `error` d'ApiClient vaut [] par défaut et donnerait un message
             // vide à l'écran.
+            // `error` peut venir de l'API (`description`) OU d'une validation
+            // locale du service, qui renvoie `error` sans jamais appeler
+            // l'API — d'où l'absence de code HTTP dans ce cas.
             $desc = $result['description'] ?? null;
+            if (!is_string($desc) || $desc === '') {
+                $desc = is_string($result['error'] ?? null) ? $result['error'] : null;
+            }
             echo json_encode([
                 'success'   => false,
                 'error'     => is_string($desc) && $desc !== '' ? $desc : 'Erreur d\'enregistrement',
