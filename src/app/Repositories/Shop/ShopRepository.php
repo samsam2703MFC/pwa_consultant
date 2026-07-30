@@ -678,9 +678,12 @@ class ShopRepository
             'pnl_daily',
             '/consultant/shops/' . $shopId . '/pnl/daily?from=' . urlencode($from) . '&to=' . urlencode($to)
         );
-        if ($d === null) {
-            return null;
-        }
+        return $d !== null ? $this->parseDailyPnl($d) : null;
+    }
+
+    /** @return array<string, array>|null map 'Y-m-d' => postes du jour */
+    private function parseDailyPnl(array $d): ?array
+    {
         $num = fn($v) => is_numeric($v) ? (float)$v : null;
         $out = [];
         foreach (($d['days'] ?? $d) as $row) {
@@ -696,6 +699,57 @@ class ShopRepository
             ];
         }
         return $out !== [] ? $out : null;
+    }
+
+    /**
+     * P0 en LOT : le P&L QUOTIDIEN de plusieurs boutiques en parallèle.
+     *
+     * C'est la source qu'utilise la heatmap de rentabilité, et celle qui porte
+     * réellement le coût matière. Le P&L mensuel (P2) ne le renvoie pas
+     * toujours : la valorisation s'en sert alors comme repli pour reconstituer
+     * les postes mois par mois plutôt que de lire un `result` incomplet.
+     *
+     * @param array $windows liste de ['shop'=>int,'from'=>'Y-m-d','to'=>'Y-m-d']
+     * @return array<int, array<string, array>> map shopId => (date => postes)
+     */
+    public function getDailyPnlMany(array $windows): array
+    {
+        $out = [];
+        if ($windows === [] || !empty(self::$batchMissing['pnl_daily'])
+            || isset(self::breakerCurrent()['pnl_daily'])) {
+            return $out;
+        }
+        $byShop = [];
+        foreach ($windows as $w) {
+            $sid = (int)($w['shop'] ?? 0);
+            if ($sid > 0) {
+                $byShop[$sid] = '/consultant/shops/' . $sid . '/pnl/daily?from='
+                    . urlencode((string)($w['from'] ?? '')) . '&to=' . urlencode((string)($w['to'] ?? ''));
+            }
+        }
+        $t0        = microtime(true);
+        $responses = [];
+        foreach (array_chunk(array_values($byShop), 16) as $chunk) {
+            $responses += $this->apiClient->getMany($chunk);
+        }
+        $ms = (int)round((microtime(true) - $t0) * 1000);
+
+        foreach ($byShop as $sid => $ep) {
+            $r = $responses[$ep] ?? null;
+            if (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) {
+                $parsed = $this->parseDailyPnl($r['data']);
+                if ($parsed !== null) {
+                    $out[$sid] = $parsed;
+                }
+            }
+        }
+        self::$batchLog[] = [
+            'key'      => 'pnl_daily_many',
+            'endpoint' => '/consultant/shops/{id}/pnl/daily × ' . count($byShop) . ' (parallèle)',
+            'status'   => $out !== [] ? 'ok (' . count($out) . '/' . count($byShop) . ')' : 'empty',
+            'ms'       => $ms,
+        ];
+        return $out;
     }
 
     /**

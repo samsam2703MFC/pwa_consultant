@@ -153,6 +153,13 @@ class ValuationService
                 }
             }
         }
+        // Le P&L MENSUEL ne renvoie pas toujours le coût matière. Le P&L
+        // QUOTIDIEN, lui, le porte — c'est de lui que vit la heatmap de
+        // rentabilité, qui calcule la même marge et tombe juste. Pour les
+        // boutiques dont les postes mensuels sont incomplets, on reconstitue
+        // les mois à partir des jours plutôt que de lire un `result` amputé.
+        $rows = $this->fillFromDailyPnl($rows, array_keys($ids), $fromWin, $toWin);
+
         // Cumuls 12 mois des postes, par boutique. La marge se déduit d'EUX, pas
         // d'une moyenne des pourcentages mensuels : moyenner des pourcentages
         // donne autant de poids à un mois creux qu'à un mois plein, et le
@@ -344,6 +351,125 @@ class ValuationService
             return $ca - abs($material) - abs($labour) - abs($overhead);
         }
         return $apiResult;
+    }
+
+    /**
+     * Complète les mois dont les postes de coût sont incomplets à partir du P&L
+     * QUOTIDIEN — la source de la heatmap de rentabilité.
+     *
+     * Le P&L mensuel (P2) ne renvoie pas toujours le coût matière ; sans lui, la
+     * marge retombe sur le champ `result`, qui ne le déduit pas non plus. Le
+     * P&L quotidien (P0) le porte : on agrège ses journées en mois et on
+     * remplace les lignes incomplètes.
+     *
+     * Un seul aller-retour pour toutes les boutiques concernées, et uniquement
+     * pour celles-là — inutile de rapatrier dix-huit mois de jours quand le
+     * mensuel suffit.
+     *
+     * @param array $rows lignes mensuelles déjà collectées
+     * @param int[] $ids  boutiques du périmètre
+     */
+    private function fillFromDailyPnl(array $rows, array $ids, string $from, string $to): array
+    {
+        // Quelles boutiques ont au moins un mois sans ses trois postes ?
+        $incomplete = [];
+        $seen       = [];
+        foreach ($rows as $r) {
+            $sid        = (int)$r['id_shop'];
+            $seen[$sid] = true;
+            if (($r['material'] ?? null) === null || ($r['labour'] ?? null) === null
+                || ($r['overhead'] ?? null) === null) {
+                $incomplete[$sid] = true;
+            }
+        }
+        // Une boutique absente des lignes mensuelles n'a rien : elle a tout à
+        // gagner à être servie par le quotidien.
+        foreach ($ids as $sid) {
+            if (empty($seen[(int)$sid])) {
+                $incomplete[(int)$sid] = true;
+            }
+        }
+        if ($incomplete === []) {
+            return $rows;
+        }
+
+        $daily = $this->shopService->getDailyPnlMany(array_map(
+            fn($sid) => ['shop' => $sid, 'from' => $from, 'to' => $to],
+            array_keys($incomplete)
+        ));
+        if ($daily === []) {
+            return $rows;
+        }
+
+        // Agrégation jour → mois. Un poste absent d'un seul jour rendrait le
+        // cumul du mois incomplet : on ne remplace alors pas la ligne.
+        $byMonth = [];   // sid => ym => postes
+        foreach ($daily as $sid => $days) {
+            foreach ($days as $date => $p) {
+                if (($p['revenue'] ?? null) === null) {
+                    continue;
+                }
+                $ym = substr((string)$date, 0, 7);
+                $b  = &$byMonth[(int)$sid][$ym];
+                $b['ca'] = ($b['ca'] ?? 0.0) + (float)$p['revenue'];
+                foreach (['material', 'labour', 'overhead'] as $k) {
+                    if (($p[$k] ?? null) === null) {
+                        $b[$k . '_gap'] = true;
+                    } else {
+                        $b[$k] = ($b[$k] ?? 0.0) + abs((float)$p[$k]);
+                    }
+                }
+                unset($b);
+            }
+        }
+
+        $rebuilt = [];
+        foreach ($byMonth as $sid => $months) {
+            foreach ($months as $ym => $b) {
+                $ca = $b['ca'] ?? 0.0;
+                if ($ca <= 0 || !empty($b['material_gap']) || !empty($b['labour_gap'])
+                    || !empty($b['overhead_gap'])
+                    || !isset($b['material'], $b['labour'], $b['overhead'])) {
+                    continue;
+                }
+                [$y, $m] = array_map('intval', explode('-', $ym));
+                $net = $ca - $b['material'] - $b['labour'] - $b['overhead'];
+                $rebuilt["{$sid}|{$ym}"] = [
+                    'id_shop'        => (int)$sid,
+                    'year'           => $y,
+                    'month'          => $m,
+                    'ca'             => $ca,
+                    'material'       => $b['material'],
+                    'labour'         => $b['labour'],
+                    'overhead'       => $b['overhead'],
+                    'net_margin_pct' => $net / $ca * 100,
+                ];
+            }
+        }
+        if ($rebuilt === []) {
+            return $rows;
+        }
+
+        // Les lignes reconstituées remplacent les lignes incomplètes du même
+        // mois ; les mois déjà complets ne sont pas touchés.
+        $out = [];
+        foreach ($rows as $r) {
+            $key = (int)$r['id_shop'] . '|' . sprintf('%04d-%02d', (int)$r['year'], (int)$r['month']);
+            $whole = ($r['material'] ?? null) !== null && ($r['labour'] ?? null) !== null
+                && ($r['overhead'] ?? null) !== null;
+            if (!$whole && isset($rebuilt[$key])) {
+                $out[] = $rebuilt[$key];
+                unset($rebuilt[$key]);
+                continue;
+            }
+            $out[] = $r;
+            unset($rebuilt[$key]);
+        }
+        // Mois que le mensuel ne connaissait pas du tout.
+        foreach ($rebuilt as $r) {
+            $out[] = $r;
+        }
+        return $out;
     }
 
     /**

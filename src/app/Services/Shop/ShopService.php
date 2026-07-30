@@ -221,6 +221,18 @@ class ShopService
         return $this->shopRepository->getMarginHeatmap($shopId, $from, $to, $weekly);
     }
 
+    /**
+     * P&L QUOTIDIEN de plusieurs boutiques en parallèle — la source qu'utilise
+     * la heatmap de rentabilité, et celle qui porte réellement le coût matière.
+     *
+     * @param array $windows liste de ['shop'=>int,'from'=>'Y-m-d','to'=>'Y-m-d']
+     * @return array<int, array<string, array>> map shopId => (date => postes)
+     */
+    public function getDailyPnlMany(array $windows): array
+    {
+        return $this->shopRepository->getDailyPnlMany($windows);
+    }
+
     /** Labour réel par jour ('Y-m-d' => €), ou null si l'endpoint est absent. */
     public function getDailyLabour(int $shopId, string $from, string $to): ?array
     {
