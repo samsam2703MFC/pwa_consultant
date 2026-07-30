@@ -55,7 +55,7 @@ class ValuationService
         // Borne de plausibilité : au-delà, la marge nette ne vient pas d'un
         // point de vente mais d'un poste de coût manquant dans le P&L. On ne
         // corrige rien en douce — on le signale à l'écran.
-        $maxMargin    = $this->params->getFloat('valuation_max_net_margin_pct', 20.0);
+        $maxMargin    = $this->params->getFloat('valuation_max_net_margin_pct', 15.0);
 
         $shops = $this->shopService->getAllShops();
         $ids   = [];
@@ -209,11 +209,28 @@ class ValuationService
                 && ($c['material_n'] ?? 0) === $months
                 && ($c['labour_n']   ?? 0) === $months
                 && ($c['overhead_n'] ?? 0) === $months;
+            // Postes absents d'au moins un mois : ce sont eux qui expliquent une
+            // marge invraisemblable. Les nommer transforme « le chiffre est
+            // faux » en « il manque les frais généraux de Namur ».
+            $missingCosts = [];
+            foreach (['material' => 'coût matière', 'labour' => 'main d\'œuvre',
+                      'overhead' => 'frais généraux'] as $k => $label) {
+                if ($months > 0 && ($c[$k . '_n'] ?? 0) < $months) {
+                    $missingCosts[] = $label;
+                }
+            }
+
             $netTotal = null;
+            $marginFrom = null;
             if ($full) {
-                $netTotal = $c['ca'] - $c['material'] - $c['labour'] - $c['overhead'];
+                $netTotal   = $c['ca'] - $c['material'] - $c['labour'] - $c['overhead'];
+                $marginFrom = 'postes';
             } elseif (isset($c['net'])) {
-                $netTotal = $c['net'];   // repli : résultat net cumulé
+                // Repli : résultat net cumulé, tel que le back-office le donne.
+                // C'est précisément le chiffre dont on se méfie — on note d'où
+                // il vient pour pouvoir le dire à l'écran.
+                $netTotal   = $c['net'];
+                $marginFrom = 'result';
             }
             $avgMargin = ($netTotal !== null && ($c['ca'] ?? 0) > 0)
                 ? $netTotal / $c['ca'] * 100 : null;
@@ -246,6 +263,10 @@ class ValuationService
                 // Le CA vient-il du P&L (même source que les coûts) ou, faute de
                 // P&L, des KPIs de vente ?
                 'ca_from_pnl'   => $caFromPnl,
+                // D'où sort la marge, et quels postes manquent : de quoi
+                // expliquer un chiffre invraisemblable au lieu de le subir.
+                'margin_from'   => $marginFrom,
+                'missing_costs' => $missingCosts,
                 'margin_over'   => ($avgMargin !== null && $avgMargin > $maxMargin),
             ];
             $sumCa += $ca12;
@@ -284,7 +305,14 @@ class ValuationService
             'annual_months'     => $annualMonths,
             'max_margin_pct'    => $maxMargin,
             'margin_over'       => array_values(array_map(
-                fn($s) => ['name' => $s['name'], 'pct' => round((float)$s['avg_margin'], 1)],
+                fn($s) => [
+                    'name'    => $s['name'],
+                    'pct'     => round((float)$s['avg_margin'], 1),
+                    // Ce qui explique le dépassement : soit des postes absents,
+                    // soit une marge lue dans `result` faute de postes.
+                    'missing' => $s['missing_costs'],
+                    'from'    => $s['margin_from'],
+                ],
                 array_filter($shopsOut, fn($s) => !empty($s['margin_over']))
             )),
             'captured_month' => sprintf('%04d-%02d', $curY, $curM),
