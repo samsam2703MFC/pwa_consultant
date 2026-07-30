@@ -70,6 +70,36 @@ class ParamRepository
         }
     }
 
+    /**
+     * Lignes complètes (clé, valeur, libellé) — pour l'endpoint de
+     * configuration. Fusionne les défauts avec ce qui est en base.
+     *
+     * @return array<int, array{key: string, value: string, label: ?string}>
+     */
+    public function rows(): array
+    {
+        $out = [];
+        foreach (self::DEFAULTS as $k => [$v, $label]) {
+            $out[$k] = ['key' => $k, 'value' => $v, 'label' => $label];
+        }
+        $this->ensureSchema();
+        $pdo = $this->pdo();
+        if ($pdo !== null) {
+            try {
+                foreach ($pdo->query('SELECT param_key, param_value, label FROM mac_consultant_param') as $r) {
+                    $out[(string)$r['param_key']] = [
+                        'key'   => (string)$r['param_key'],
+                        'value' => (string)$r['param_value'],
+                        'label' => $r['label'] !== null ? (string)$r['label'] : (self::DEFAULTS[(string)$r['param_key']][1] ?? null),
+                    ];
+                }
+            } catch (Throwable $e) {
+                error_log('[param] rows: ' . $e->getMessage());
+            }
+        }
+        return array_values($out);
+    }
+
     /** @return array<string,string> map clé => valeur (fusionne les défauts). */
     public function all(): array
     {

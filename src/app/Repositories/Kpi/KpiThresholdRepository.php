@@ -88,6 +88,47 @@ class KpiThresholdRepository
     }
 
     /**
+     * Remplace TOUTES les bandes d'une métrique (endpoint de configuration).
+     * $bands : liste de ['min' => ?float, 'color' => '#rrggbb', 'label' => string],
+     * triée par l'appelant. Transactionnel ; invalide le cache par requête.
+     */
+    public function replaceBands(string $metric, array $bands): bool
+    {
+        $this->ensureSchema();
+        $pdo = $this->pdo();
+        if ($pdo === null) {
+            return false;
+        }
+        try {
+            $pdo->beginTransaction();
+            $del = $pdo->prepare('DELETE FROM mac_kpi_threshold WHERE metric = :m');
+            $del->execute([':m' => $metric]);
+            $ins = $pdo->prepare(
+                'INSERT INTO mac_kpi_threshold (metric, sort, min_pct, color, label) VALUES (:me, :so, :mi, :co, :la)'
+            );
+            foreach (array_values($bands) as $i => $b) {
+                $ins->execute([
+                    ':me' => $metric,
+                    ':so' => $i,
+                    ':mi' => $b['min'],
+                    ':co' => $b['color'],
+                    ':la' => $b['label'],
+                ]);
+            }
+            $pdo->commit();
+            $this->cache = null;
+            return true;
+        } catch (Throwable $e) {
+            try {
+                $pdo->rollBack();
+            } catch (Throwable $e2) {
+            }
+            error_log('[kpi] replaceBands: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Toutes les bandes, par métrique, triées de la plus basse à la plus haute.
      *
      * @return array<string, array<int, array{min: ?float, color: string, label: string}>>
