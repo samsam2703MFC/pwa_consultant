@@ -315,6 +315,14 @@ class ValuationService
                 'margin_from'   => $marginFrom,
                 'missing_costs' => $missingCosts,
                 'margin_over'   => ($avgMargin !== null && $avgMargin > $maxMargin),
+                // Le détail mois par mois, tel que le P&L mensuel le renvoie :
+                // CA, matière, main d'œuvre, frais généraux, et le net qui en
+                // découle. C'est ce qui permet de vérifier le chiffre plutôt
+                // que de le croire.
+                'months'        => $this->monthlyDetail($mByShop),
+                // Marge nette ANNUELLE : résultat net cumulé ÷ CA cumulé sur
+                // les mois clôturés dont les trois postes sont connus.
+                'annual_margin' => $this->annualMargin($mByShop),
             ];
             $sumCa += $ca12;
             $sumObjectif += $valoObjectif;
@@ -516,6 +524,61 @@ class ValuationService
             $out[] = $r;
         }
         return $out;
+    }
+
+    /**
+     * Détail mois par mois, du plus ancien au plus récent — la matière du
+     * modal de vérification : CA − matière − main d'œuvre − frais généraux.
+     *
+     * @param array $months map 'YYYY-MM' => postes
+     */
+    private function monthlyDetail(array $months): array
+    {
+        ksort($months);
+        $out = [];
+        foreach ($months as $ym => $m) {
+            $out[] = [
+                'ym'       => $ym,
+                'ca'       => round($m['ca'], 2),
+                'material' => $m['material'] !== null ? round($m['material'], 2) : null,
+                'labour'   => $m['labour']   !== null ? round($m['labour'], 2)   : null,
+                'overhead' => $m['overhead'] !== null ? round($m['overhead'], 2) : null,
+                'net'      => $m['net'] !== null ? round($m['net'], 2) : null,
+                'pct'      => ($m['net'] !== null && $m['ca'] > 0)
+                    ? round($m['net'] / $m['ca'] * 100, 1) : null,
+                // « postes » : recalculé ; « result » : lu tel quel faute des
+                // trois postes. La distinction se voit dans le modal.
+                'from'     => $m['from'] ?? null,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Marge nette ANNUELLE : résultat net cumulé ÷ CA cumulé, sur les seuls
+     * mois dont les trois postes sont connus.
+     *
+     * Les mois incomplets sont écartés des DEUX termes : garder leur CA au
+     * dénominateur pendant que leurs coûts manquent au numérateur gonflerait
+     * la marge à proportion de ce qui manque.
+     */
+    private function annualMargin(array $months): ?array
+    {
+        $ca = $net = 0.0;
+        $n  = 0;
+        foreach ($months as $m) {
+            if ($m['material'] === null || $m['labour'] === null || $m['overhead'] === null
+                || $m['ca'] <= 0) {
+                continue;
+            }
+            $ca  += $m['ca'];
+            $net += $m['ca'] - $m['material'] - $m['labour'] - $m['overhead'];
+            $n++;
+        }
+        if ($n === 0 || $ca <= 0) {
+            return null;
+        }
+        return ['pct' => round($net / $ca * 100, 1), 'months' => $n, 'ca' => round($ca, 2)];
     }
 
     /**
