@@ -23,5 +23,10 @@
     "mode_cum": "Narastająco",
     "mode_month": "Miesięcznie",
     "total_12m": "Suma 12 miesięcy",
-    "no_sales": "Brak użytecznych danych sprzedaży z ostatnich 12 miesięcy (API sprzedaży i lokalna baza)."
+    "no_sales": "Brak użytecznych danych sprzedaży z ostatnich 12 miesięcy (API sprzedaży i lokalna baza).",
+    "obj_skipped": "Celów nie wczytano tym razem (wyczerpany budżet czasu) — „—” w kolumnie Cel nie oznacza „brak zapisanego celu”. Odśwież stronę.",
+    "diag_title": "Diagnostyka",
+    "diag_shops": "sklepy",
+    "diag_breaker": "odcięty",
+    "diag_none": "brak zarejestrowanych sond wsadowych"
 }

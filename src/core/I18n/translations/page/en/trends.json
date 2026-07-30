@@ -23,5 +23,10 @@
     "mode_cum": "Cumulative",
     "mode_month": "Monthly",
     "total_12m": "12-month total",
-    "no_sales": "No usable sales data over the last 12 months (sales API and local database)."
+    "no_sales": "No usable sales data over the last 12 months (sales API and local database).",
+    "obj_skipped": "Objectives not loaded this time (time budget reached) — the “—” in the Objective column does not mean “no objective encoded”. Reload the page.",
+    "diag_title": "Diagnostics",
+    "diag_shops": "shops",
+    "diag_breaker": "tripped",
+    "diag_none": "no batch probe recorded"
 }
