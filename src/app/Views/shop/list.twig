@@ -440,11 +440,6 @@
       /* Marge au-dessus de la borne plausible : un coût manque au P&L. */
       .valo-tbl .pct.over { color:#b3730f; }
       .valo-tbl .pct.over::after { content:' ⚠︎'; font-size:.8em; }
-      .valo-chart-h { font-size:.66rem; font-weight:800; color:#8D1D2C; text-transform:uppercase; letter-spacing:.04em; margin:14px 0 4px; }
-      .valo-chart-h .mut { color:#9a9086; font-weight:600; text-transform:none; letter-spacing:0; }
-      .valo-sel { margin:6px 0; font-size:.76rem; border:1.5px solid #e7ded2; border-radius:9px; padding:6px 10px; background:#fff; }
-      .valo-legend { display:flex; gap:14px; font-size:.62rem; color:#7a7168; margin-top:4px; }
-      .valo-legend i { display:inline-block; width:14px; height:3px; border-radius:2px; margin-right:4px; vertical-align:2px; }
     </style>
     <div class="valo-drop">
       <button type="button" class="valo-toggle" id="valoToggle" aria-expanded="false">
@@ -497,7 +492,9 @@
         var n = d.network, mult = dec(d.multiple), tgt = dec(d.target_margin_pct);
         var h = '<div class="valo-form">'
           + 'Valeur = CA 12 mois × marge × multiple ' + mult + '. '
-          + 'Marge nette constatée = CA − coût matière − main d’œuvre − frais généraux. '
+          + 'Marge nette constatée = (CA − coût matière − main d’œuvre − frais généraux) ÷ CA, '
+          + 'sur les cumuls des 12 mois du P&amp;L — d’où vient aussi le CA, pour que les deux '
+          + 'comptent la même chose. '
           + 'La marge de ' + tgt + ' % n’est pas constatée : c’est la cible saisie dans les paramètres '
           + '(valuation_target_net_margin_pct), tout comme le multiple (valuation_multiple).</div>';
 
@@ -585,43 +582,7 @@
           + '<td class="num">' + keur(d.network.valo_objectif) + '</td></tr>';
         h += '</tbody></table></div>';
         h += notesHtml(d);
-
-        var months = (d.series && d.series.months) || [];
-        h += '<div class="valo-chart-h">Évolution 12 mois' + (months.length < 2 ? ' <span class="mut">(se remplit chaque mois)</span>' : '') + '</div>';
-        if (!months.length) {
-          h += '<div class="valo-empty">Pas encore de données mensuelles.</div>';
-          content.innerHTML = h;
-          return;
-        }
-        var opts = d.shops.map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('');
-        h += '<select class="valo-sel" id="valoShopSel">' + opts + '</select>';
-        h += '<div id="valoChart"></div>';
-        h += '<div class="valo-legend"><span><i style="background:#8D1D2C"></i>Réseau</span><span><i style="background:#1a73e8"></i>Boutique</span></div>';
         content.innerHTML = h;
-        var sel = document.getElementById('valoShopSel');
-        drawChart(sel.value);
-        sel.addEventListener('change', function () { drawChart(this.value); });
-      }
-
-      function drawChart(shopId) {
-        var host = document.getElementById('valoChart'); if (!host) return;
-        var s = data.series, months = s.months, net = s.network, shop = (s.by_shop && s.by_shop[shopId]) || [];
-        var vals = net.concat(shop).filter(function (v) { return v != null; });
-        var max = Math.max.apply(null, vals.concat([1])) * 1.1;
-        var W = 320, H = 130, pad = 10, base = H - 18, top = 8, span = base - top, n = months.length;
-        var xs = function (i) { return n <= 1 ? W / 2 : (pad + i * (W - 2 * pad) / (n - 1)); };
-        var ys = function (v) { return base - (v / max) * span; };
-        function line(arr, color, w) {
-          var pts = [], dots = '';
-          arr.forEach(function (v, i) { if (v != null) { pts.push(xs(i) + ',' + ys(v).toFixed(1)); dots += '<circle cx="' + xs(i).toFixed(1) + '" cy="' + ys(v).toFixed(1) + '" r="2.5" fill="' + color + '"/>'; } });
-          return (pts.length ? '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"/>' : '') + dots;
-        }
-        var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%">';
-        svg += line(shop, '#1a73e8', 1.6);
-        svg += line(net, '#8D1D2C', 2.2);
-        months.forEach(function (m, i) { svg += '<text x="' + xs(i).toFixed(1) + '" y="' + (H - 4) + '" font-size="7" fill="#9a9086" text-anchor="middle">' + m.slice(5) + '</text>'; });
-        svg += '</svg>';
-        host.innerHTML = svg;
       }
 
       function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
