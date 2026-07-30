@@ -278,6 +278,56 @@ class ShopRepository
         return $found ? $total : null;
     }
 
+    // ─────────────────────── Labour réel par jour ───────────────────────
+
+    /** Endpoint backend absent (404) → plus de sonde dans cette requête. */
+    private static bool $dailyLabourMissing = false;
+
+    /**
+     * Labour RÉEL par jour (planning/pointage) : GET
+     * /consultant/shops/{id}/labour/daily?from&to → { days:[{date, labour}] }.
+     * Endpoint optionnel — tant qu'il n'est pas déployé côté backend, renvoie
+     * null et la heatmap de rentabilité répartit le labour du mois par jour
+     * d'ouverture. Clés tolérées : labour / labour_cost / labor / cost.
+     *
+     * @return array<string, array{labour: float}>|null map 'Y-m-d' => labour €
+     */
+    public function getDailyLabour(int $shopId, string $from, string $to): ?array
+    {
+        if (self::$dailyLabourMissing) {
+            return null;
+        }
+        $res = $this->apiClient->get(
+            '/consultant/shops/' . $shopId . '/labour/daily'
+            . '?from=' . urlencode($from) . '&to=' . urlencode($to)
+        );
+        if (empty($res['success']) || !is_array($res['data'] ?? null)) {
+            if (($res['error'] ?? null) === 404) {
+                self::$dailyLabourMissing = true;
+            }
+            return null;
+        }
+        $d = $res['data'];
+        foreach (['data', 'days'] as $wrap) {
+            if (isset($d[$wrap]) && is_array($d[$wrap])) {
+                $d = $d[$wrap];
+            }
+        }
+        $out = [];
+        foreach ($d as $row) {
+            if (!is_array($row) || empty($row['date'])) {
+                continue;
+            }
+            foreach (['labour', 'labour_cost', 'labor', 'cost'] as $k) {
+                if (isset($row[$k]) && is_numeric($row[$k])) {
+                    $out[substr((string)$row['date'], 0, 10)] = ['labour' => (float)$row[$k]];
+                    break;
+                }
+            }
+        }
+        return $out !== [] ? $out : null;
+    }
+
     // ───────────────────────── Heatmap de marge ─────────────────────────
 
     /**

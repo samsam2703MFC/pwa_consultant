@@ -82,7 +82,7 @@
     "week": "Week",
     "hm_low": "Low result",
     "hm_high": "high",
-    "hm_note": "net result = gross margin − labour − overhead (allocated pro rata to revenue), scale relative to the month",
+    "hm_note": "net result = gross margin − labour − overhead (allocated per open day; dayparts by active hours)",
     "wd_mon": "M",
     "wd_tue": "T",
     "wd_wed": "W",
@@ -97,12 +97,15 @@
     "pnl_ca": "Revenue",
     "pnl_material": "Material cost",
     "pnl_gross": "Gross margin",
-    "pnl_labour": "Labour (allocated)",
-    "pnl_overhead": "Overhead (allocated)",
+    "pnl_labour": "Labour (month ÷ open days)",
+    "pnl_overhead": "Overhead (month ÷ open days)",
     "pnl_net": "Net result",
-    "pnl_alloc_note": "Monthly labour/overhead allocated pro rata to the day's revenue",
+    "pnl_alloc_note": "Monthly labour and overhead allocated per open day",
     "pnl_gross_note": "Labour/overhead unavailable — gross margin only.",
     "day_notes": "Comments of the day",
     "close": "Close",
-    "hm_src_snapshot": "cost structure from"
+    "hm_src_snapshot": "cost structure from",
+    "pnl_labour_real": "Labour (actual, daily)",
+    "pnl_alloc_note_real": "Actual daily labour; monthly overhead allocated per open day",
+    "hm_labour_real": "actual daily labour"
 }

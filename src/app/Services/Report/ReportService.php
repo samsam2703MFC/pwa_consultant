@@ -436,7 +436,11 @@ class ReportService
         $weeks = [];
         foreach ($bounds as $b) {
             $wk    = $maps["{$shopId}|{$b['from']}|{$b['to']}"] ?? null;
-            $parts = ['matin' => ['ca' => 0.0, 'mv' => 0.0], 'midi' => ['ca' => 0.0, 'mv' => 0.0], 'apm' => ['ca' => 0.0, 'mv' => 0.0]];
+            $parts = [
+                'matin' => ['ca' => 0.0, 'mv' => 0.0, 'hrs' => 0],
+                'midi'  => ['ca' => 0.0, 'mv' => 0.0, 'hrs' => 0],
+                'apm'   => ['ca' => 0.0, 'mv' => 0.0, 'hrs' => 0],
+            ];
             if (is_array($wk['hours'] ?? null)) {
                 foreach ($wk['hours'] as $h) {
                     if (!is_array($h)) {
@@ -459,37 +463,106 @@ class ReportService
                     $slot = $hr < $morningUntil ? 'matin' : ($hr < $middayUntil ? 'midi' : 'apm');
                     $parts[$slot]['ca'] += $ca;
                     $parts[$slot]['mv'] += $mv;
+                    $parts[$slot]['hrs']++;
                 }
             }
-            $row = ['label' => date('d/m', (int)strtotime($b['from'])) . '–' . date('d/m', (int)strtotime($b['to']))];
-            foreach ($parts as $slot => $p) {
-                $row[$slot] = $p['ca'] > 0 ? $p['mv'] / $p['ca'] * 100 : null;
-            }
-            $weeks[] = $row;
+            $weeks[] = [
+                'label'  => date('d/m', (int)strtotime($b['from'])) . '–' . date('d/m', (int)strtotime($b['to'])),
+                'from'   => $b['from'],
+                'to'     => $b['to'],
+                '_parts' => $parts,
+            ];
         }
 
-        // ── Conversion en RÉSULTAT NET : marge brute − (labour + overhead),
-        //    répartis au prorata du CA (le P&L ne les donne pas par créneau).
-        //    Sans structure de coûts disponible, on reste en marge brute
-        //    (signalé dans le rapport).
+        // ── Conversion en RÉSULTAT NET.
+        //    Labour : RÉEL par jour si le backend l'expose (labour/daily),
+        //    sinon labour du mois réparti PAR JOUR D'OUVERTURE (les coûts fixes
+        //    quotidiens ne suivent pas le CA : un jour faible est réellement
+        //    déficitaire). Overhead : toujours réparti par jour d'ouverture.
+        //    Créneaux : coûts de la semaine répartis par HEURES ACTIVES.
+        //    Sans structure de coûts, on reste en marge brute (signalé).
         [$fixedPct, $fixedSrc, $labourPct, $overheadPct, $fixedSrcMonth] = $this->fixedCostPct($shopId, $period);
-        $basis = $fixedPct !== null ? 'net' : 'gross';
-        if ($fixedPct !== null) {
+        $basis      = 'gross';
+        $labourReal = false;
+
+        // Jours d'ouverture + CA du mois, cohérents avec la grille affichée.
+        $openDates = [];
+        $caMonth   = 0.0;
+        foreach ($days as $d) {
+            if ($d['pct'] !== null && $d['ca'] !== null && $d['ca'] > 0) {
+                $openDates[$d['date']] = true;
+                $caMonth += $d['ca'];
+            }
+        }
+        $openDays = count($openDates);
+
+        if ($fixedPct !== null && $openDays > 0 && $caMonth > 0) {
+            $basis  = 'net';
+            $labDay = ($labourPct / 100) * $caMonth / $openDays;
+            $ovhDay = ($overheadPct / 100) * $caMonth / $openDays;
+
+            $realLab = $this->shopService->getDailyLabour($shopId, $period['from'], $period['to']);
+
+            $labByDate = [];
             foreach ($days as &$d) {
-                if ($d['pct'] !== null) {
-                    $d['pct'] -= $fixedPct;
+                if ($d['pct'] === null || $d['ca'] === null || $d['ca'] <= 0) {
+                    $d['lab'] = null;
+                    $d['ovh'] = null;
+                    $d['lab_real'] = false;
+                    continue;
                 }
+                $mv  = $d['mv'] ?? ($d['ca'] * $d['gross_pct'] / 100);
+                $lab = $realLab[$d['date']]['labour'] ?? null;
+                $d['lab_real'] = $lab !== null;
+                if ($lab !== null) {
+                    $labourReal = true;
+                } else {
+                    $lab = $labDay;
+                }
+                $d['lab'] = round($lab, 2);
+                $d['ovh'] = round($ovhDay, 2);
+                $d['pct'] = ($mv - $lab - $ovhDay) / $d['ca'] * 100;
+                $labByDate[$d['date']] = $lab;
             }
             unset($d);
+
+            foreach ($weeks as &$w) {
+                // Coût de la semaine = Σ labour des jours ouverts + overhead/jour.
+                $wkCost = 0.0;
+                foreach ($labByDate as $date => $lab) {
+                    if ($date >= $w['from'] && $date <= $w['to']) {
+                        $wkCost += $lab + $ovhDay;
+                    }
+                }
+                $hrsTotal = 0;
+                foreach ($w['_parts'] as $p) {
+                    $hrsTotal += $p['hrs'];
+                }
+                foreach (['matin', 'midi', 'apm'] as $slot) {
+                    $p = $w['_parts'][$slot];
+                    if ($p['ca'] <= 0 || $hrsTotal === 0) {
+                        $w[$slot] = null;
+                        continue;
+                    }
+                    $costPart = $wkCost * $p['hrs'] / $hrsTotal;
+                    $w[$slot] = ($p['mv'] - $costPart) / $p['ca'] * 100;
+                }
+            }
+            unset($w);
+        } else {
+            // Marge brute par créneau (pas de structure de coûts disponible).
             foreach ($weeks as &$w) {
                 foreach (['matin', 'midi', 'apm'] as $slot) {
-                    if ($w[$slot] !== null) {
-                        $w[$slot] -= $fixedPct;
-                    }
+                    $p = $w['_parts'][$slot];
+                    $w[$slot] = $p['ca'] > 0 ? $p['mv'] / $p['ca'] * 100 : null;
                 }
             }
             unset($w);
         }
+        foreach ($weeks as &$w) {
+            unset($w['_parts']);
+        }
+        unset($w);
 
         // ── Couleurs : bandes ABSOLUES de la table mac_kpi_threshold (marge nette
         //    ou brute selon la base) — mise en forme conditionnelle configurable
@@ -519,6 +592,8 @@ class ReportService
             'fixed_src_month' => $fixedSrcMonth,
             'labour_pct'      => $labourPct,
             'overhead_pct'    => $overheadPct,
+            'labour_real'     => $labourReal,
+            'open_days'       => $openDays,
             'labels' => [
                 'matin' => 'Matin (< ' . $morningUntil . ' h)',
                 'midi'  => 'Midi (' . $morningUntil . '–' . $middayUntil . ' h)',
