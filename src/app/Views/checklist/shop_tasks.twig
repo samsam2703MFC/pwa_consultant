@@ -71,28 +71,33 @@
     .cl-body { padding:8px 8px 4px; background:#fafbfc; }
     .cl-body .task-card { box-shadow:none; border:1px solid #f1f3f5; }
 
-    /* Avis du consultant, sur la vignette de la tâche */
-    .task-rev { display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin-top:5px;
-                font-size:.66rem; font-weight:700; color:#2D7A3E;
-                background:rgba(45,122,62,.09); border-radius:6px; padding:3px 7px; }
-    .task-rev.ko { color:#c0182b; background:rgba(192,24,43,.09); }
-    .task-rev .dt { font-weight:600; opacity:.75; }
-    .task-rev .rt { color:#C9A227; letter-spacing:-1px; }
-    .task-rev .ko-tag { font-weight:800; text-transform:uppercase; font-size:.58rem; }
+    /* Avis du consultant : une ligne discrète, sans pastille ni fond. Les
+       éléments se suivent — pas de margin-left:auto, qui étirait la ligne
+       jusqu'au bord droit sur grand écran. */
+    .task-rev { display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:5px;
+                font-size:.66rem; font-weight:600; color:#2D7A3E; }
+    .task-rev.ko { color:#c0182b; }
+    .task-rev .dt { color:#adb5bd; }
+    .task-rev .rt { color:#C9A227; font-weight:800; }
+    .task-rev .ko-tag { font-weight:700; }
+    .task-rev .sep { color:#dee2e6; }
 
-    /* Contrôle de l'Owner : case à cocher sur l'avis du consultant */
-    .task-rev .ov { display:inline-flex; align-items:center; gap:4px; margin-left:auto;
+    /* Contrôle de l'Owner : case à cocher, au fil de la ligne */
+    /* Léger retrait : sépare la case du texte sans ajouter de puce, qui
+       resterait orpheline en fin de ligne quand la ligne passe à la suivante. */
+    .task-rev .ov { display:inline-flex; align-items:center; gap:4px; margin-left:6px;
                     cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .task-rev .ov input { position:absolute; opacity:0; width:0; height:0; }
-    .task-rev .ov-box { width:16px; height:16px; border-radius:5px; border:1.5px solid currentColor;
-                        display:flex; align-items:center; justify-content:center; font-size:.66rem;
+    .task-rev .ov-box { width:14px; height:14px; border-radius:4px; border:1.5px solid #c9c2b8;
+                        display:flex; align-items:center; justify-content:center; font-size:.6rem;
                         line-height:1; color:transparent; background:#fff; flex-shrink:0; }
     .task-rev .ov input:checked + .ov-box { background:#241f1c; border-color:#241f1c; color:#fff; }
     .task-rev .ov input:focus-visible + .ov-box { outline:2px solid #435ebe; outline-offset:2px; }
-    .task-rev .ov-lbl { font-size:.6rem; font-weight:800; text-transform:uppercase; color:#241f1c; }
+    .task-rev .ov-lbl { font-size:.62rem; font-weight:600; color:#7a7168; }
+    .task-rev .ov input:checked ~ .ov-lbl { color:#241f1c; font-weight:700; }
     .task-rev .ov.busy { opacity:.5; pointer-events:none; }
-    .task-rev .ov-done { margin-left:auto; display:inline-flex; align-items:center; gap:3px;
-                         font-size:.6rem; font-weight:800; text-transform:uppercase; color:#241f1c; }
+    .task-rev .ov-done { display:inline-flex; align-items:center; gap:3px;
+                         font-size:.62rem; font-weight:700; color:#241f1c; }
 
     /* Tâche faite avec photo : carte cliquable + modale de réalisation */
     .task-openable { cursor:pointer; }
@@ -457,8 +462,9 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
                     if (!p.ok || !(p.j && p.j.success)) {
                         throw new Error((p.j && p.j.error) || 'Erreur');
                     }
+                    // Même forme que le rendu serveur : « validé <nom> ».
                     lbl.textContent = p.j.validated
-                        ? (L.ownerOk + (p.j.by ? ' · ' + p.j.by : ''))
+                        ? (L.ownerOk + (p.j.by ? ' ' + p.j.by : ''))
                         : L.ownerValidate;
                 })
                 .catch(function (e) {
