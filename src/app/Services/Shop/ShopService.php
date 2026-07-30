@@ -90,7 +90,30 @@ class ShopService
      */
     public function getSalesKpisBatch(array $windows): array
     {
-        $api = $this->shopRepository->getSalesKpisManyFromApi($windows);
+        // P3 : si plusieurs boutiques partagent LA MÊME fenêtre, un seul appel
+        // multi-boutiques remplace autant d'appels unitaires.
+        $api = [];
+        $byWindow = [];
+        foreach ($windows as $w) {
+            $byWindow[($w['from'] ?? '') . '|' . ($w['to'] ?? '')][] = (int)($w['shop'] ?? 0);
+        }
+        $remaining = [];
+        foreach ($byWindow as $win => $shopIds) {
+            [$f, $t] = explode('|', $win);
+            $all = count($shopIds) > 1 ? $this->shopRepository->getSalesKpisAllShops($f, $t) : null;
+            if ($all !== null) {
+                foreach ($shopIds as $sid) {
+                    if (isset($all[$sid])) {
+                        $api["{$sid}|{$f}|{$t}"] = $all[$sid];
+                    }
+                }
+                continue;
+            }
+            foreach ($shopIds as $sid) {
+                $remaining[] = ['shop' => $sid, 'from' => $f, 'to' => $t];
+            }
+        }
+        $api += $this->shopRepository->getSalesKpisManyFromApi($remaining);
         $out = [];
 
         // Repli local : les fenêtres « mois civil complet » d'une même
@@ -167,9 +190,9 @@ class ShopService
     }
 
     /** Carte de marge (jours + heures) d'un magasin sur [from, to] (≤ 31 j). */
-    public function getMarginHeatmap(int $shopId, string $from, string $to): ?array
+    public function getMarginHeatmap(int $shopId, string $from, string $to, bool $weekly = false): ?array
     {
-        return $this->shopRepository->getMarginHeatmap($shopId, $from, $to);
+        return $this->shopRepository->getMarginHeatmap($shopId, $from, $to, $weekly);
     }
 
     /** Labour réel par jour ('Y-m-d' => €), ou null si l'endpoint est absent. */
@@ -204,5 +227,45 @@ class ShopService
     public function getCategorySalesMany(array $shopIds, string $from, string $to): array
     {
         return $this->shopRepository->getCategorySalesMany($shopIds, $from, $to);
+    }
+
+    // ── Endpoints batch backend (spec P0–P8, déployés le 30/07/2026) ──
+    // Chaque méthode renvoie null si l'endpoint est absent : l'appelant garde
+    // alors son mécanisme actuel (parallélisme + repli local).
+
+    /** P0 — P&L journalier ('Y-m-d' => postes), ou null. */
+    public function getDailyPnl(int $shopId, string $from, string $to): ?array
+    {
+        return $this->shopRepository->getDailyPnl($shopId, $from, $to);
+    }
+
+    /** P2 — P&L mensuel ('YYYY-MM' => postes), ou null. */
+    public function getMonthlyPnl(int $shopId, string $from, string $to): ?array
+    {
+        return $this->shopRepository->getMonthlyPnl($shopId, $from, $to);
+    }
+
+    /** P1 — ventes mensuelles de toutes les boutiques, ou null. */
+    public function getMonthlySalesAllShops(string $from, string $to): ?array
+    {
+        return $this->shopRepository->getMonthlySalesAllShops($from, $to);
+    }
+
+    /** P3 — KPI de ventes de toutes les boutiques sur une fenêtre, ou null. */
+    public function getSalesKpisAllShops(string $from, string $to): ?array
+    {
+        return $this->shopRepository->getSalesKpisAllShops($from, $to);
+    }
+
+    /** P7 — ventes par catégorie de toutes les boutiques, ou null. */
+    public function getCategorySalesAllShops(string $from, string $to): ?array
+    {
+        return $this->shopRepository->getCategorySalesAllShops($from, $to);
+    }
+
+    /** P8 — P&L (période courante) de toutes les boutiques, ou null. */
+    public function getPnlSummaryAllShops(string $period = 'month'): ?array
+    {
+        return $this->shopRepository->getPnlSummaryAllShops($period);
     }
 }

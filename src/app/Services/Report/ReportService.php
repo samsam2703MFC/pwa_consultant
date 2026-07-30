@@ -487,7 +487,8 @@ class ReportService
      */
     private function rentabilityHeatmap(int $shopId, array $period): ?array
     {
-        $month = $this->shopService->getMarginHeatmap($shopId, $period['from'], $period['to']);
+        // P4 : découpage hebdo fourni par l'API (1 appel au lieu de 6).
+        $month = $this->shopService->getMarginHeatmap($shopId, $period['from'], $period['to'], true);
         if (!is_array($month) || !is_array($month['days'] ?? null) || $month['days'] === []) {
             return null;
         }
@@ -519,25 +520,46 @@ class ReportService
         }
 
         // ── Semaine / période (matin, midi, après-midi) ──
-        // Une fenêtre par semaine (les heures de l'endpoint sont agrégées sur
-        // la fenêtre demandée), toutes récupérées en parallèle.
-        $start   = new \DateTimeImmutable($period['from']);
-        $end     = new \DateTimeImmutable($period['to']);
-        $wStart  = $start->modify('monday this week');
-        $windows = [];
-        $bounds  = [];
+        // P4 : si l'API renvoie déjà `weeks` (split=weekly), on l'utilise —
+        // sinon repli : une fenêtre par semaine, récupérées en parallèle.
+        $start = new \DateTimeImmutable($period['from']);
+        $end   = new \DateTimeImmutable($period['to']);
+        $apiWeeks = [];
+        foreach (($month['weeks'] ?? []) as $w) {
+            if (is_array($w) && !empty($w['from']) && !empty($w['to']) && is_array($w['hours'] ?? null)) {
+                $apiWeeks[substr((string)$w['from'], 0, 10) . '|' . substr((string)$w['to'], 0, 10)] = $w;
+            }
+        }
+
+        $bounds = [];
+        $wStart = $start->modify('monday this week');
         while ($wStart <= $end) {
             $wEnd = $wStart->modify('+6 days');
-            $f = ($wStart > $start ? $wStart : $start)->format('Y-m-d');
-            $t = ($wEnd < $end ? $wEnd : $end)->format('Y-m-d');
-            $bounds[]  = ['from' => $f, 'to' => $t];
-            $windows[] = ['shop' => $shopId, 'from' => $f, 'to' => $t];
+            $bounds[] = [
+                'from' => ($wStart > $start ? $wStart : $start)->format('Y-m-d'),
+                'to'   => ($wEnd < $end ? $wEnd : $end)->format('Y-m-d'),
+            ];
             $wStart = $wStart->modify('+7 days');
         }
-        $maps  = $this->shopService->getMarginHeatmapMany($windows);
+        if ($apiWeeks !== []) {
+            // Bornes fournies par l'API : source d'autorité pour le découpage.
+            $bounds = array_map(
+                fn($k) => ['from' => explode('|', $k)[0], 'to' => explode('|', $k)[1]],
+                array_keys($apiWeeks)
+            );
+            $maps = [];
+        } else {
+            $windows = [];
+            foreach ($bounds as $b) {
+                $windows[] = ['shop' => $shopId, 'from' => $b['from'], 'to' => $b['to']];
+            }
+            $maps = $this->shopService->getMarginHeatmapMany($windows);
+        }
+
         $weeks = [];
         foreach ($bounds as $b) {
-            $wk    = $maps["{$shopId}|{$b['from']}|{$b['to']}"] ?? null;
+            $wk = $apiWeeks["{$b['from']}|{$b['to']}"]
+                ?? ($maps["{$shopId}|{$b['from']}|{$b['to']}"] ?? null);
             $parts = [
                 'matin' => ['ca' => 0.0, 'mv' => 0.0, 'hrs' => 0],
                 'midi'  => ['ca' => 0.0, 'mv' => 0.0, 'hrs' => 0],
@@ -603,9 +625,16 @@ class ReportService
             $labDay = ($labourPct / 100) * $caMonth / $openDays;
             $ovhDay = ($overheadPct / 100) * $caMonth / $openDays;
 
-            $realLab = $this->shopService->getDailyLabour($shopId, $period['from'], $period['to']);
+            // P0 : P&L JOURNALIER réel (chiffres du backoffice) — labour ET
+            // overhead exacts par jour. Sinon P&L allégé (labour seul), sinon
+            // répartition par jour d'ouverture.
+            $dailyPnl = $this->shopService->getDailyPnl($shopId, $period['from'], $period['to']);
+            $realLab  = $dailyPnl === null
+                ? $this->shopService->getDailyLabour($shopId, $period['from'], $period['to'])
+                : null;
 
             $labByDate = [];
+            $ovhByDate = [];
             foreach ($days as &$d) {
                 if ($d['pct'] === null || $d['ca'] === null || $d['ca'] <= 0) {
                     $d['lab'] = null;
@@ -614,26 +643,39 @@ class ReportService
                     continue;
                 }
                 $mv  = $d['mv'] ?? ($d['ca'] * $d['gross_pct'] / 100);
-                $lab = $realLab[$d['date']]['labour'] ?? null;
+                $p0  = $dailyPnl[$d['date']] ?? null;
+                $lab = $p0['labour'] ?? ($realLab[$d['date']]['labour'] ?? null);
+                $ovh = $p0['overhead'] ?? null;
                 $d['lab_real'] = $lab !== null;
                 if ($lab !== null) {
                     $labourReal = true;
                 } else {
                     $lab = $labDay;
                 }
+                if ($ovh === null) {
+                    $ovh = $ovhDay;
+                }
+                // Marge brute du jour : celle du P&L réel si disponible.
+                if ($p0 !== null && $p0['revenue'] !== null && $p0['revenue'] > 0 && $p0['material'] !== null) {
+                    $d['ca']        = $p0['revenue'];
+                    $mv             = $p0['revenue'] - $p0['material'];
+                    $d['mv']        = $mv;
+                    $d['gross_pct'] = $mv / $p0['revenue'] * 100;
+                }
                 $d['lab'] = round($lab, 2);
-                $d['ovh'] = round($ovhDay, 2);
-                $d['pct'] = ($mv - $lab - $ovhDay) / $d['ca'] * 100;
+                $d['ovh'] = round($ovh, 2);
+                $d['pct'] = ($mv - $lab - $ovh) / $d['ca'] * 100;
                 $labByDate[$d['date']] = $lab;
+                $ovhByDate[$d['date']] = $ovh;
             }
             unset($d);
 
             foreach ($weeks as &$w) {
-                // Coût de la semaine = Σ labour des jours ouverts + overhead/jour.
+                // Coût de la semaine = Σ (labour + overhead) des jours ouverts.
                 $wkCost = 0.0;
                 foreach ($labByDate as $date => $lab) {
                     if ($date >= $w['from'] && $date <= $w['to']) {
-                        $wkCost += $lab + $ovhDay;
+                        $wkCost += $lab + ($ovhByDate[$date] ?? $ovhDay);
                     }
                 }
                 $hrsTotal = 0;

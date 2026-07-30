@@ -65,15 +65,35 @@ class TrendsService
             ];
         }
 
-        // Ventes N et N-1 — toutes fenêtres en parallèle.
+        // P1 — série mensuelle de TOUTES les boutiques en UN appel (24 mois :
+        // la fenêtre N et son équivalent N-1). Remplace ~300 appels.
+        $serie = $this->shopService->getMonthlySalesAllShops(
+            (string)$months[0]['ym'],
+            (string)$months[count($months) - 1]['ym']
+        );
+        $serieN1 = $serie !== null
+            ? $this->shopService->getMonthlySalesAllShops(
+                date('Y-m', (int)strtotime($months[0]['from'] . ' -1 year')),
+                date('Y-m', (int)strtotime($months[count($months) - 1]['from'] . ' -1 year'))
+            )
+            : null;
+
+        // Fenêtres à interroger précisément :
+        //  - endpoint absent → TOUS les mois (repli) ;
+        //  - endpoint présent → seulement les mois PARTIELS : la série
+        //    mensuelle donnerait un N tronqué face à un N-1 complet, ce qui
+        //    faussserait l'évolution. On tronque les deux de la même façon.
         $windows = [];
         foreach ($months as $m) {
+            if ($serie !== null && !$m['partial']) {
+                continue;
+            }
             foreach ($ids as $id) {
                 $windows[] = ['shop' => $id, 'from' => $m['from'],   'to' => $m['to']];
                 $windows[] = ['shop' => $id, 'from' => $m['p_from'], 'to' => $m['p_to']];
             }
         }
-        $kpis = $this->shopService->getSalesKpisBatch($windows);
+        $kpis = $windows !== [] ? $this->shopService->getSalesKpisBatch($windows) : [];
 
         // Objectifs CA — tous les couples (boutique, mois) en parallèle.
         $treqs = [];
@@ -89,11 +109,21 @@ class TrendsService
             $caN = 0.0;
             $caN1 = 0.0;
             $obj = null;
+            $ymN1 = date('Y-m', (int)strtotime($m['from'] . ' -1 year'));
+            // Mois complet + série disponible → lecture directe ; mois partiel
+            // → fenêtres tronquées (comparaison honnête).
+            $useSerie = $serie !== null && !$m['partial'];
             foreach ($ids as $id) {
-                $kn  = $kpis["{$id}|{$m['from']}|{$m['to']}"] ?? null;
-                $kn1 = $kpis["{$id}|{$m['p_from']}|{$m['p_to']}"] ?? null;
-                $caN  += (float)($kn['ca'] ?? 0);
-                $caN1 += (float)($kn1['ca'] ?? 0);
+                if ($useSerie) {
+                    // P1 : lecture directe de la série mensuelle.
+                    $caN  += (float)($serie[$id][$m['ym']]['ca'] ?? 0);
+                    $caN1 += (float)(($serieN1[$id][$ymN1]['ca'] ?? $serie[$id][$ymN1]['ca'] ?? 0));
+                } else {
+                    $kn  = $kpis["{$id}|{$m['from']}|{$m['to']}"] ?? null;
+                    $kn1 = $kpis["{$id}|{$m['p_from']}|{$m['p_to']}"] ?? null;
+                    $caN  += (float)($kn['ca'] ?? 0);
+                    $caN1 += (float)($kn1['ca'] ?? 0);
+                }
                 $t = $targets["{$id}|{$m['year']}|{$m['month']}"] ?? [];
                 $o = $this->caObjective(is_array($t) ? $t : []);
                 if ($o !== null) {
