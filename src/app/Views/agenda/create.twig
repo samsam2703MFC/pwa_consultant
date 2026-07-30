@@ -190,7 +190,9 @@
     none:   {{ (translations.levers_none ?? 'Aucun levier en difficulté sur cette période.')|json_encode|raw }},
     load:   {{ (translations.load_levers ?? 'Charger les leviers')|json_encode|raw }},
     wait:   {{ (translations.loading ?? 'Chargement…')|json_encode|raw }},
-    err:    {{ (translations.levers_error ?? 'Chargement impossible pour cette période.')|json_encode|raw }}
+    err:    {{ (translations.levers_error ?? 'Chargement impossible pour cette période.')|json_encode|raw }},
+    nodata: {{ (translations.levers_nodata ?? 'Donnée indisponible pour cette période.')|json_encode|raw }},
+    pickShop: {{ (translations.pick_shop_first ?? 'Choisissez une boutique pour charger ses leviers.')|json_encode|raw }}
   };
 
   // Champ « action » du levier : surligné et focus quand on clique la pastille.
@@ -210,10 +212,18 @@
   }
   function wireAll() { box && box.querySelectorAll('.tf').forEach(wire); }
 
-  function summarize() {
+  // Résumé : rappelle TOUJOURS la boutique et la période des couleurs.
+  function summarize(period) {
     if (!box || !msg) { return; }
     var n = box.querySelectorAll('.tf.todo').length;
-    msg.textContent = n > 0 ? ('⚠ ' + n + ' ' + LBL.todo) : LBL.none;
+    var shopName = '';
+    if (shopSel && shopSel.value) {
+      var o = shopSel.options[shopSel.selectedIndex];
+      shopName = o ? o.textContent.trim() : '';
+    }
+    if (!shopName) { msg.textContent = LBL.pickShop; return; }
+    var scope = shopName + ' · ' + (period || (perIn ? perIn.value : ''));
+    msg.textContent = (n > 0 ? '⚠ ' + n + ' ' + LBL.todo : LBL.none) + ' — ' + scope;
   }
 
   function load() {
@@ -230,24 +240,38 @@
         loadBt.disabled = false;
         loadBt.textContent = old || LBL.load;
         if (!j || !j.levers) { msg.textContent = LBL.err; return; }
-        // Applique le statut de chaque levier sur sa pastille (couleur + « à travailler »).
+        // Applique le statut de chaque levier sur sa pastille (couleur + « à
+        // travailler ») et met la valeur du KPI en infobulle (vérifiable).
         box.querySelectorAll('.tf').forEach(function (btn) {
-          var k = btn.getAttribute('data-lever');
-          var st = (j.levers[k] && j.levers[k].status) || 'nd';
+          var k  = btn.getAttribute('data-lever');
+          var lv = j.levers[k] || null;
+          var st = (lv && lv.status) || 'nd';
           btn.className = 'tf st-' + st + ((st === 'mid' || st === 'bad') ? ' todo' : '')
             + (btn.classList.contains('picked') ? ' picked' : '');
           btn.setAttribute('data-status', st);
+          var tip = (lv && lv.name ? lv.name : k) + ' — ' + (j.period || '');
+          if (lv && lv.kpis && lv.kpis.length) {
+            lv.kpis.forEach(function (kp) {
+              if (kp && kp.value != null) { tip += '\n' + kp.label + ' : ' + kp.value; }
+            });
+          } else if (st === 'nd') {
+            tip += '\n' + LBL.nodata;
+          }
+          btn.setAttribute('title', tip);
         });
-        summarize();
+        summarize(j.period);
       })
       .catch(function () { loadBt.disabled = false; loadBt.textContent = old || LBL.load; msg.textContent = LBL.err; });
   }
 
   if (loadBt) { loadBt.addEventListener('click', load); }
   if (perIn)  { perIn.addEventListener('change', load); }
-  if (shopSel && perIn) { shopSel.addEventListener('change', load); }
+  if (shopSel) { shopSel.addEventListener('change', load); }
   wireAll();
   summarize();
+  // Chargement AUTOMATIQUE à l'ouverture dès qu'une boutique est choisie :
+  // les couleurs correspondent toujours à (boutique, période) affichés.
+  if (shopSel && shopSel.value) { load(); }
 
   // Checklist : mémorise le libellé (utile si la liste du jour change ensuite).
   var clSel = document.getElementById('checklist-sel');

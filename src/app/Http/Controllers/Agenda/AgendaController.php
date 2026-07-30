@@ -244,12 +244,27 @@ class AgendaController extends Controller
     /** POST /agenda/visits/{id}/status — change le statut d'une visite. */
     public function setStatus(int $id): void
     {
-        $status = (string)Request::createFromGlobals()->request->get('status', 'done');
-        $v = $this->agenda->getVisit($id);
-        if ($v !== null && in_array($status, ['planned', 'done', 'cancelled'], true)) {
+        $r      = Request::createFromGlobals()->request;
+        $status = (string)$r->get('status', 'done');
+        $v      = $this->agenda->getVisit($id);
+        if ($v !== null && $this->ownsVisit($v) && in_array($status, ['planned', 'done', 'cancelled'], true)) {
             $this->agenda->updateVisitStatus($id, $status);
         }
-        $this->redirect('/agenda/shop/' . (int)($v['id_shop'] ?? 0));
+        $back = (string)$r->get('back', '');
+        $this->redirect($back === 'agenda' ? '/agenda' : '/agenda/shop/' . (int)($v['id_shop'] ?? 0));
+    }
+
+    /** POST /agenda/visits/{id}/delete — supprime définitivement la visite. */
+    public function deleteVisit(int $id): void
+    {
+        $v = $this->agenda->getVisit($id);
+        if ($v === null || !$this->ownsVisit($v)) {
+            $this->redirect('/agenda');
+            return;
+        }
+        $this->agenda->deleteVisit($id);
+        $back = (string)Request::createFromGlobals()->request->get('back', '');
+        $this->redirect($back === 'shop' ? '/agenda/shop/' . (int)($v['id_shop'] ?? 0) : '/agenda');
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

@@ -54,6 +54,12 @@ class AgendaService
         return $this->repo->updateVisit($id, $data);
     }
 
+    /** Supprime définitivement une visite (et ses actions par levier). */
+    public function deleteVisit(int $id): bool
+    {
+        return $this->repo->deleteVisit($id);
+    }
+
     public function replaceLeverActions(int $visitId): void
     {
         $this->repo->deleteLeverActionsForVisit($visitId);

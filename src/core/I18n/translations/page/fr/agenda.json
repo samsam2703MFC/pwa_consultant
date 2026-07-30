@@ -53,5 +53,11 @@
     "loading": "Chargement…",
     "checklist_link": "Checklist liée",
     "no_checklist": "— Aucune —",
-    "open_checklist": "Ouvrir la checklist de la boutique"
+    "open_checklist": "Ouvrir la checklist de la boutique",
+    "cancel_visit": "Annuler",
+    "restore_visit": "Rétablir",
+    "delete": "Supprimer",
+    "confirm_delete": "Supprimer définitivement cette visite ?",
+    "levers_nodata": "Donnée indisponible pour cette période.",
+    "pick_shop_first": "Choisissez une boutique pour charger ses leviers."
 }
