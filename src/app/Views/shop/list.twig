@@ -418,6 +418,8 @@
       .valo-form { font-size:.64rem; color:#9a9086; margin-top:9px; line-height:1.5; }
       .valo-warn { margin-top:7px; background:#fdf6ec; border:1px solid #f3e2c7; border-radius:9px;
                    padding:7px 9px; font-size:.66rem; color:#8a6212; line-height:1.5; }
+      .valo-warn ul { margin:5px 0; padding-left:16px; }
+      .valo-warn li { margin:2px 0; }
       .valo-tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
       /* Six colonnes sur un écran de téléphone : resserré, et le tableau
          défile dans son cadre (.valo-tbl-wrap) sans pousser la page. */
@@ -516,12 +518,24 @@
              + eur(n.ca12m_real) + ', pas sur les ' + eur(n.ca12m) + ' du réseau.</div>';
         }
         // Une marge au-dessus de la borne n'est pas une performance : c'est un
-        // poste de coût absent du P&L renvoyé par le back-office.
+        // poste de coût absent du P&L renvoyé par le back-office. On dit LEQUEL
+        // — sans quoi il ne reste qu'un chiffre dont on se méfie.
         if (d.margin_over && d.margin_over.length) {
-          w += '<div class="valo-warn">Marge nette au-dessus de ' + dec(d.max_margin_pct) + ' % — '
-             + 'un poste de coût manque probablement au P&amp;L : '
-             + d.margin_over.map(function (m) { return esc(m.name) + ' (' + dec(m.pct) + ' %)'; }).join(', ')
-             + '.</div>';
+          w += '<div class="valo-warn"><b>Marge nette au-dessus de ' + dec(d.max_margin_pct)
+             + ' %</b> — un point de vente ne dégage pas cela : il manque un coût au P&amp;L.<ul>';
+          d.margin_over.forEach(function (m) {
+            var why;
+            if (m.missing && m.missing.length) {
+              why = 'absent du P&amp;L : ' + m.missing.map(esc).join(', ');
+            } else if (m.from === 'result') {
+              why = 'marge lue dans le champ « result » du back-office, faute des postes de coût';
+            } else {
+              why = 'les trois postes sont fournis — le P&amp;L ne couvre donc pas tous les coûts '
+                  + '(loyer, redevances, énergie, amortissements ?)';
+            }
+            w += '<li><b>' + esc(m.name) + '</b> ' + dec(m.pct) + ' % — ' + why + '</li>';
+          });
+          w += '</ul>Leur valorisation est affichée telle quelle, jamais corrigée en douce.</div>';
         }
         return h + w;
       }

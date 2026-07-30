@@ -27,7 +27,7 @@ class ParamRepository
         // Marge nette = CA − matière − main d'œuvre − frais généraux. Au-delà de
         // cette borne, c'est qu'un poste de coût manque au P&L : signalé à
         // l'écran, jamais corrigé en douce.
-        'valuation_max_net_margin_pct'    => ['20',  'Marge nette plausible maximale (%) — au-delà, un poste de coût manque au P&L'],
+        'valuation_max_net_margin_pct'    => ['15',  'Marge nette plausible maximale (%) — au-delà, un poste de coût manque au P&L'],
         // On observe 18 mois et on ramène le CA à 12 : douze mois seuls
         // laissent une saison exceptionnelle — ou un mois de fermeture —
         // décider de la valeur. La marge nette est mesurée sur la même fenêtre.
