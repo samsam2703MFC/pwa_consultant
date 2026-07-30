@@ -50,7 +50,77 @@ class ChecklistController extends Controller
             // quoi ouvrir sa fiche (note, photo) sans avoir à interroger l'API
             // à la main.
             'field_probe'      => isset($_GET['fields']) ? $this->fieldProbe($data['tasks'] ?? []) : null,
+            // ?fields=2 : sonde AUSSI les endpoints checklists / progress, qui
+            // sont câblés mais qu'aucun écran n'utilise — l'un d'eux porte
+            // peut-être la photo de réalisation.
+            'other_probes'     => (($_GET['fields'] ?? '') === '2')
+                ? $this->otherEndpointProbes($shopId, $date) : null,
         ]);
+    }
+
+    /**
+     * Forme des endpoints checklists / progress (jamais consommés jusqu'ici) :
+     * clés de premier niveau et clés du premier élément de chaque liste.
+     * Chaque sonde est isolée — un endpoint absent ne casse pas la page.
+     *
+     * @return array<int, array{endpoint: string, lines: string[]}>
+     */
+    private function otherEndpointProbes(int $shopId, string $date): array
+    {
+        $out = [];
+
+        $describe = function ($payload, string $prefix = '') use (&$describe): array {
+            $lines = [];
+            if (!is_array($payload)) {
+                return [$prefix . ' = ' . mb_substr((string)$payload, 0, 80)];
+            }
+            $isList = $payload === [] || array_is_list($payload);
+            if ($isList) {
+                $lines[] = $prefix . '[] : ' . count($payload) . ' élément(s)';
+                if (isset($payload[0]) && is_array($payload[0])) {
+                    $lines[] = $prefix . '[0] → ' . implode(' · ', array_keys($payload[0]));
+                    foreach ($payload[0] as $k => $v) {
+                        if (is_array($v)) {
+                            $lines = array_merge($lines, $describe($v, $prefix . '[0].' . $k));
+                        }
+                    }
+                }
+                return $lines;
+            }
+            $lines[] = ($prefix !== '' ? $prefix . ' → ' : 'clés : ') . implode(' · ', array_keys($payload));
+            foreach ($payload as $k => $v) {
+                if (is_array($v)) {
+                    $lines = array_merge($lines, $describe($v, $prefix . ($prefix !== '' ? '.' : '') . $k));
+                }
+            }
+            return $lines;
+        };
+
+        try {
+            $cl = $this->checklistService->getChecklistsForShop($shopId, $date);
+            $out[] = ['endpoint' => "/consultant/shops/{$shopId}/checklists", 'lines' => $describe($cl)];
+
+            // Premier identifiant de checklist trouvé dans la réponse.
+            $cid  = null;
+            $list = is_array($cl['checklists'] ?? null) ? $cl['checklists'] : (array_is_list($cl) ? $cl : []);
+            foreach ($list as $row) {
+                foreach (['id', 'id_checklist', 'checklist_id'] as $k) {
+                    if (is_array($row) && !empty($row[$k])) { $cid = (int)$row[$k]; break 2; }
+                }
+            }
+            if ($cid !== null) {
+                $pr = $this->checklistService->getChecklistProgress($shopId, $cid, $date);
+                $out[] = [
+                    'endpoint' => "/consultant/shops/{$shopId}/checklists/{$cid}/progress",
+                    'lines'    => $describe($pr),
+                ];
+            } else {
+                $out[] = ['endpoint' => 'progress', 'lines' => ['aucun identifiant de checklist dans la réponse précédente']];
+            }
+        } catch (\Throwable $e) {
+            $out[] = ['endpoint' => 'erreur', 'lines' => [get_class($e) . ' — ' . $e->getMessage()]];
+        }
+        return $out;
     }
 
     /**
