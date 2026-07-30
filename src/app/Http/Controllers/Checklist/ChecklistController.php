@@ -45,7 +45,48 @@ class ChecklistController extends Controller
             'id_shop'          => $shopId,
             'today'            => date('Y-m-d'),
             'active_nav'       => 'checklists',
+            // ?fields=1 : liste les champs que l'API renvoie par tâche, avec un
+            // exemple de tâche FAITE. Sert à savoir si la réalisation porte de
+            // quoi ouvrir sa fiche (note, photo) sans avoir à interroger l'API
+            // à la main.
+            'field_probe'      => isset($_GET['fields']) ? $this->fieldProbe($data['tasks'] ?? []) : null,
         ]);
+    }
+
+    /**
+     * Champs disponibles par tâche + exemple d'une tâche faite (valeurs
+     * tronquées). Diagnostic d'intégration, pas un écran métier.
+     *
+     * @return array{fields: string[], sample: array<string, string>, done_count: int, total: int}
+     */
+    private function fieldProbe(array $tasks): array
+    {
+        $fields = [];
+        $sample = null;
+        foreach ($tasks as $t) {
+            if (!is_array($t)) {
+                continue;
+            }
+            foreach (array_keys($t) as $k) {
+                $fields[(string)$k] = true;
+            }
+            if ($sample === null && (string)($t['status'] ?? '') === 'DONE') {
+                $sample = $t;
+            }
+        }
+        $flat = [];
+        foreach (($sample ?? []) as $k => $v) {
+            $flat[(string)$k] = is_scalar($v) || $v === null
+                ? mb_substr((string)($v ?? 'null'), 0, 120)
+                : mb_substr(json_encode($v, JSON_UNESCAPED_UNICODE) ?: '', 0, 120);
+        }
+        ksort($fields);
+        return [
+            'fields'     => array_keys($fields),
+            'sample'     => $flat,
+            'done_count' => count(array_filter($tasks, fn($t) => is_array($t) && ($t['status'] ?? '') === 'DONE')),
+            'total'      => count($tasks),
+        ];
     }
 
     /**
