@@ -166,7 +166,18 @@ class ValuationService
         // rentabilité, qui calcule la même marge et tombe juste. Pour les
         // boutiques dont les postes mensuels sont incomplets, on reconstitue
         // les mois à partir des jours plutôt que de lire un `result` amputé.
-        $rows = $this->fillFromDailyPnl($rows, array_keys($ids), $fromWin, $toWin);
+        // UNIQUEMENT le mois précédent : c'est le seul mois dont la marge a
+        // besoin. Rapatrier dix-huit mois de données jour par jour pour toutes
+        // les boutiques — ce qui arrive dès que le coût matière manque au
+        // mensuel, c'est-à-dire toujours — représente des dizaines de milliers
+        // de lignes et dépasse le délai de la passerelle.
+        $prevStart = $now->modify('-1 month');
+        $rows = $this->fillFromDailyPnl(
+            $rows,
+            array_keys($ids),
+            $prevStart->format('Y-m-d'),
+            $prevStart->modify('last day of this month')->format('Y-m-d')
+        );
 
         // Deux lectures différentes des mêmes lignes :
         //   - le CA cumulé sur toute la fenêtre, qui donnera le CA annuel ;
@@ -381,19 +392,27 @@ class ValuationService
      * P&L quotidien (P0) le porte : on agrège ses journées en mois et on
      * remplace les lignes incomplètes.
      *
-     * Un seul aller-retour pour toutes les boutiques concernées, et uniquement
-     * pour celles-là — inutile de rapatrier dix-huit mois de jours quand le
-     * mensuel suffit.
+     * Un seul aller-retour, pour les seules boutiques concernées, et sur le
+     * seul mois dont la marge a besoin — le mois précédent. Le faire sur toute
+     * la fenêtre représenterait dix-huit mois de lignes quotidiennes par
+     * boutique : la réponse ne reviendrait jamais.
      *
-     * @param array $rows lignes mensuelles déjà collectées
-     * @param int[] $ids  boutiques du périmètre
+     * @param array  $rows lignes mensuelles déjà collectées
+     * @param int[]  $ids  boutiques du périmètre
+     * @param string $from premier jour du mois visé ('Y-m-d')
+     * @param string $to   dernier jour du même mois
      */
     private function fillFromDailyPnl(array $rows, array $ids, string $from, string $to): array
     {
-        // Quelles boutiques ont au moins un mois sans ses trois postes ?
+        // Seul le mois demandé compte : une boutique dont le mois de mars est
+        // incomplet n'a rien à gagner à faire descendre les jours de juin.
+        $ym         = substr($from, 0, 7);
         $incomplete = [];
         $seen       = [];
         foreach ($rows as $r) {
+            if (sprintf('%04d-%02d', (int)$r['year'], (int)$r['month']) !== $ym) {
+                continue;
+            }
             $sid        = (int)$r['id_shop'];
             $seen[$sid] = true;
             if (($r['material'] ?? null) === null || ($r['labour'] ?? null) === null
@@ -401,8 +420,8 @@ class ValuationService
                 $incomplete[$sid] = true;
             }
         }
-        // Une boutique absente des lignes mensuelles n'a rien : elle a tout à
-        // gagner à être servie par le quotidien.
+        // Une boutique dont ce mois manque n'a rien : elle a tout à gagner à
+        // être servie par le quotidien.
         foreach ($ids as $sid) {
             if (empty($seen[(int)$sid])) {
                 $incomplete[(int)$sid] = true;
