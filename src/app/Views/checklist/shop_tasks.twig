@@ -111,6 +111,16 @@
     </div>
     {% endif %}
 
+    {# ?fields=2 — forme des endpoints checklists / progress (jamais consommés). #}
+    {% if other_probes %}
+    <div class="fld-probe">
+        {% for p in other_probes %}
+            <b>{{ p.endpoint }}</b>
+            {% for l in p.lines %}<div>{{ l }}</div>{% endfor %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {% set cr = summary.completion_rate ?? null %}
     {% set rate_class = cr is not null ? (cr >= 80 ? 'ex' : (cr >= 50 ? 'ok' : 'no')) : 'no' %}
     <div class="rate-card">
