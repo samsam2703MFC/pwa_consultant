@@ -43,6 +43,12 @@
   .ag-chip.g { background:rgba(141,29,44,.09); color:#8D1D2C; }
   .ag-chip.r { background:rgba(45,122,62,.12); color:#2D7A3E; }
   .ag-chip.e { background:#f1f3f5; color:#495057; }
+  .ag-chip.d { background:rgba(192,24,43,.1); color:#c0182b; }
+  .ag-inline { display:inline; }
+  .ag-inline button { border:0; cursor:pointer; font-family:inherit; }
+  /* Visite annulée : barrée et atténuée. */
+  .ag-vitem.is-cancelled { opacity:.62; }
+  .ag-vitem.is-cancelled .s { text-decoration:line-through; }
   .ag-type { font-size:.6rem; font-weight:800; border-radius:7px; padding:2px 7px; color:#fff; vertical-align:middle; }
   .t-surprise { background:#8e44ad; } .t-development { background:#1a73e8; } .t-quality { background:#2D7A3E; } .t-other { background:#7a7168; }
   .ag-empty { font-size:.82rem; color:#adb5bd; font-style:italic; padding:6px 2px; }
@@ -95,7 +101,7 @@
     <div class="ag-empty">{{ translations.no_visits ?? 'Aucune visite ce mois-ci.' }}</div>
   {% else %}
     {% for v in mv.visits %}
-      <div class="ag-vitem">
+      <div class="ag-vitem {{ v.status == 'cancelled' ? 'is-cancelled' : '' }}">
         <div class="ag-vt"><div class="d">{{ v.date|slice(8,2) }}</div><div class="h">{{ v.time }}</div></div>
         <div class="ag-vc">
           <div class="s">{{ v.shop_name ?? '—' }} <span class="ag-type t-{{ v.type ?? 'development' }}">{{ translations['type_' ~ (v.type ?? 'development')] ?? v.type_label }}</span></div>
@@ -105,6 +111,24 @@
             <a class="ag-chip r" href="{{ ROOT }}/reports/view?type=month&scope={{ v.id_shop }}" target="_blank">📄 {{ translations.report ?? 'Rapport' }}</a>
             <a class="ag-chip p" href="{{ ROOT }}/agenda/visits/{{ v.id }}/ics">📅 {{ translations.ics ?? '.ics' }}</a>
             <a class="ag-chip e" href="{{ ROOT }}/agenda/visits/{{ v.id }}/edit">✎ {{ translations.edit ?? 'Modifier' }}</a>
+            {% if v.status != 'cancelled' %}
+              <form method="POST" action="{{ ROOT }}/agenda/visits/{{ v.id }}/status" class="ag-inline">
+                <input type="hidden" name="status" value="cancelled">
+                <input type="hidden" name="back" value="agenda">
+                <button type="submit" class="ag-chip e">⊘ {{ translations.cancel_visit ?? 'Annuler' }}</button>
+              </form>
+            {% else %}
+              <form method="POST" action="{{ ROOT }}/agenda/visits/{{ v.id }}/status" class="ag-inline">
+                <input type="hidden" name="status" value="planned">
+                <input type="hidden" name="back" value="agenda">
+                <button type="submit" class="ag-chip p">↺ {{ translations.restore_visit ?? 'Rétablir' }}</button>
+              </form>
+            {% endif %}
+            <form method="POST" action="{{ ROOT }}/agenda/visits/{{ v.id }}/delete" class="ag-inline"
+                  onsubmit="return confirm({{ (translations.confirm_delete ?? 'Supprimer définitivement cette visite ?')|json_encode }});">
+              <input type="hidden" name="back" value="agenda">
+              <button type="submit" class="ag-chip d">🗑 {{ translations.delete ?? 'Supprimer' }}</button>
+            </form>
           </div>
         </div>
       </div>

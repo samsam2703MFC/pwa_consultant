@@ -53,5 +53,11 @@
     "loading": "Ładowanie…",
     "checklist_link": "Powiązana checklista",
     "no_checklist": "— Brak —",
-    "open_checklist": "Otwórz checklistę sklepu"
+    "open_checklist": "Otwórz checklistę sklepu",
+    "cancel_visit": "Anuluj",
+    "restore_visit": "Przywróć",
+    "delete": "Usuń",
+    "confirm_delete": "Trwale usunąć tę wizytę?",
+    "levers_nodata": "Brak danych dla tego okresu.",
+    "pick_shop_first": "Wybierz sklep, aby wczytać dźwignie."
 }

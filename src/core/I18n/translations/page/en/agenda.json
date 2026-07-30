@@ -53,5 +53,11 @@
     "loading": "Loading…",
     "checklist_link": "Linked checklist",
     "no_checklist": "— None —",
-    "open_checklist": "Open the shop checklist"
+    "open_checklist": "Open the shop checklist",
+    "cancel_visit": "Cancel",
+    "restore_visit": "Restore",
+    "delete": "Delete",
+    "confirm_delete": "Permanently delete this visit?",
+    "levers_nodata": "No data for this period.",
+    "pick_shop_first": "Pick a shop to load its levers."
 }

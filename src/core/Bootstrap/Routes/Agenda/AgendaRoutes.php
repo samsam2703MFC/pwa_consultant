@@ -51,6 +51,12 @@ return function (RouteCollector $r) {
         'method'     => 'setStatus',
     ]);
 
+    // Suppression définitive d'une visite.
+    $r->addRoute('POST', '/agenda/visits/{id:\d+}/delete', [
+        'controller' => \App\Consultant\app\Http\Controllers\Agenda\AgendaController::class,
+        'method'     => 'deleteVisit',
+    ]);
+
     // Agenda partagé d'une boutique (toutes les visites, tous consultants).
     $r->addRoute('GET', '/agenda/shop/{shopId:\d+}', [
         'controller' => \App\Consultant\app\Http\Controllers\Agenda\AgendaController::class,

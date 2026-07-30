@@ -256,6 +256,13 @@ class AgendaRepository
         );
     }
 
+    /** Supprime une visite ET ses actions par levier. */
+    public function deleteVisit(int $id): bool
+    {
+        $this->deleteLeverActionsForVisit($id);
+        return $this->exec('DELETE FROM mac_consultant_visit WHERE id = :id', [':id' => $id]);
+    }
+
     /** Supprime les actions par levier rattachées à une visite (avant réécriture). */
     public function deleteLeverActionsForVisit(int $visitId): bool
     {

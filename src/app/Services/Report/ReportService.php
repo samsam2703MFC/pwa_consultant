@@ -1279,12 +1279,64 @@ class ReportService
         $caN1   = (float)($this->shopService->getSalesKpis($shopId, $fromN1, $toN1)['ca'] ?? 0);
         $evo    = $caN1 > 0 ? (($ca - $caN1) / $caN1) * 100 : null;
 
+        // Labour et Overhead en % du CA — sinon les leviers L et O restent
+        // TOUJOURS gris (aucune métrique). Source : snapshot du mois de la
+        // période (mac_shop_monthly_pnl), sinon P&L du mois courant.
+        [$labourPct, $overheadPct] = $this->costRatiosForPeriod($shopId, $period);
+
+        // Expérience client : réclamations de la période pour 1 000 tickets
+        // (moins = mieux) — seule mesure « client » disponible côté panel.
+        $claimsPer1k = null;
+        if ($tickets > 0) {
+            $n = 0;
+            $fromT = (int)strtotime($period['from'] . ' 00:00:00');
+            $toT   = (int)strtotime($period['to'] . ' 23:59:59');
+            foreach ($this->claimsBySupplier($shopId, $fromT, $toT) as $claims) {
+                $n += count($claims);
+            }
+            $claimsPer1k = $n / $tickets * 1000;
+        }
+
         return [
-            'ticketsDay' => $ticketsDay,
-            'avgBasket'  => $basket !== null ? (float)$basket : null,
-            'foodPct'    => $foodPct,
-            'grossPct'   => $grossPct,
-            'evo'        => $evo,
+            'ticketsDay'  => $ticketsDay,
+            'avgBasket'   => $basket !== null ? (float)$basket : null,
+            'foodPct'     => $foodPct,
+            'grossPct'    => $grossPct,
+            'evo'         => $evo,
+            'labourPct'   => $labourPct,
+            'overheadPct' => $overheadPct,
+            'claimsPer1k' => $claimsPer1k,
+        ];
+    }
+
+    /**
+     * Labour et Overhead en % du CA pour la période — snapshot du mois
+     * (mac_shop_monthly_pnl) en priorité, sinon P&L du mois courant.
+     *
+     * @return array{0: ?float, 1: ?float} [labour %, overhead %]
+     */
+    private function costRatiosForPeriod(int $shopId, array $period): array
+    {
+        $ref  = new \DateTimeImmutable($period['from']);
+        $snap = $this->pnlSnapshots->forShopMonth($shopId, (int)$ref->format('Y'), (int)$ref->format('n'));
+        if (is_array($snap) && ($snap['ca'] ?? null) !== null && (float)$snap['ca'] > 0) {
+            $ca  = (float)$snap['ca'];
+            $lab = ($snap['labour'] ?? null) !== null ? (float)$snap['labour'] / $ca * 100 : null;
+            $ovh = ($snap['overhead'] ?? null) !== null ? (float)$snap['overhead'] / $ca * 100 : null;
+            if ($lab !== null || $ovh !== null) {
+                return [$lab, $ovh];
+            }
+        }
+        $pnl = $this->shopService->getPnl($shopId, 'month');
+        $ca  = $this->pnlNodeValue($pnl['turnover'] ?? null);
+        if ($ca === null || $ca <= 0) {
+            return [null, null];
+        }
+        $lab = $this->pnlNodeValue($pnl['labour'] ?? null);
+        $ovh = $this->pnlNodeValue($pnl['overhead'] ?? null);
+        return [
+            $lab !== null ? $lab / $ca * 100 : null,
+            $ovh !== null ? $ovh / $ca * 100 : null,
         ];
     }
 
@@ -1292,7 +1344,7 @@ class ReportService
     private function networkAverages(array $metricsByShop): array
     {
         $avg = [];
-        foreach (['ticketsDay', 'avgBasket', 'foodPct', 'grossPct', 'evo'] as $k) {
+        foreach (['ticketsDay', 'avgBasket', 'foodPct', 'grossPct', 'evo', 'labourPct', 'overheadPct', 'claimsPer1k'] as $k) {
             $vals = [];
             foreach ($metricsByShop as $m) {
                 if (isset($m[$k]) && $m[$k] !== null && is_finite((float)$m[$k])) {
@@ -1322,13 +1374,18 @@ class ReportService
             ['num' => 3, 'key' => 'recurrence', 'letter' => 'R', 'name' => 'Récurrence',        'color' => '#8a4a24', 'kpis' => [
                 ['metric' => 'avgBasket',  'dir' => 1,  'label' => 'Panier moyen', 'fmt' => 'eur'],
             ]],
-            ['num' => 2, 'key' => 'xp',         'letter' => 'E', 'name' => 'Expérience client', 'color' => '#2D7A3E', 'kpis' => []],
+            ['num' => 2, 'key' => 'xp',         'letter' => 'E', 'name' => 'Expérience client', 'color' => '#2D7A3E', 'kpis' => [
+                ['metric' => 'claimsPer1k', 'dir' => -1, 'label' => 'Réclamations / 1 000 tickets', 'fmt' => 'dec1'],
+            ]],
             ['num' => 5, 'key' => 'food',       'letter' => 'F', 'name' => 'Food Cost',         'color' => '#C9A227', 'kpis' => [
                 ['metric' => 'foodPct',    'dir' => -1, 'label' => 'Coût matière (% CA)', 'fmt' => 'pct'],
                 ['metric' => 'grossPct',   'dir' => 1,  'label' => 'Marge brute (% CA)',  'fmt' => 'pct'],
             ]],
-            ['num' => 6, 'key' => 'labour',     'letter' => 'L', 'name' => 'Labour Cost',       'color' => '#8D1D2C', 'kpis' => []],
+            ['num' => 6, 'key' => 'labour',     'letter' => 'L', 'name' => 'Labour Cost',       'color' => '#8D1D2C', 'kpis' => [
+                ['metric' => 'labourPct',  'dir' => -1, 'label' => 'Labour (% CA)', 'fmt' => 'pct'],
+            ]],
             ['num' => 7, 'key' => 'overhead',   'letter' => 'O', 'name' => 'Overhead Cost',     'color' => '#7a7168', 'kpis' => [
+                ['metric' => 'overheadPct', 'dir' => -1, 'label' => 'Overhead (% CA)', 'fmt' => 'pct'],
                 ['metric' => 'evo',        'dir' => 1,  'label' => 'Évolution CA vs N-1', 'fmt' => 'evo'],
             ]],
         ];
@@ -1413,6 +1470,7 @@ class ReportService
             'eur'   => $this->fmtEur($v),
             'pct'   => $this->fmtPct($v),
             'evo'   => $this->fmtEvo($v),
+            'dec1'  => number_format($v, 1, ',', ' '),
             default => (string)$v,
         };
     }
