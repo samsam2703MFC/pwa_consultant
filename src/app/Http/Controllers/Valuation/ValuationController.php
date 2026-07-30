@@ -18,6 +18,21 @@ class ValuationController extends Controller
     private const CACHE_TTL = 900; // 15 min
 
     /**
+     * Version du FORMAT de la réponse. À incrémenter dès que la structure ou
+     * les règles de calcul changent.
+     *
+     * Sans cela, un déploiement corrigeant un calcul reste invisible jusqu'à
+     * quinze minutes : l'ancienne réponse, toujours « exploitable », continue
+     * d'être servie telle quelle. Le correctif semble alors n'avoir rien fait.
+     */
+    private const CACHE_VERSION = 3;
+
+    private static function cachePath(): string
+    {
+        return sys_get_temp_dir() . '/pwa_consultant_valuation_cache_v' . self::CACHE_VERSION . '.json';
+    }
+
+    /**
      * Le résultat porte-t-il un P&L exploitable ?
      *
      * `shops` compte TOUJOURS une entrée par boutique, même quand aucune donnée
@@ -48,7 +63,7 @@ class ValuationController extends Controller
         // sans marge de temps, un backend lent coupe la réponse au milieu.
         @set_time_limit(180);
 
-        $cacheFile = sys_get_temp_dir() . '/pwa_consultant_valuation_cache.json';
+        $cacheFile = self::cachePath();
         $fresh     = isset($_GET['fresh']);
         if ($fresh) {
             ShopRepository::batchBreakerReset();
@@ -96,6 +111,11 @@ class ValuationController extends Controller
         if (isset($_GET['debug'])) {
             $out['debug'] = ShopRepository::batchDiagnostics();
         }
-        return $this->json($out);
+        // Jamais de cache navigateur sur ces réponses : le cache serveur est
+        // déjà là, versionné, et une couche de plus rendrait un correctif
+        // invisible sans qu'on sache laquelle interroger.
+        $res = $this->json($out);
+        $res->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        return $res;
     }
 }

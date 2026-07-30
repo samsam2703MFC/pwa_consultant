@@ -26,6 +26,19 @@ class TrendsController extends Controller
     private const CACHE_TTL = 900; // 15 min
 
     /**
+     * Version du FORMAT de la réponse. À incrémenter dès que la structure ou
+     * les règles de calcul changent : sinon un déploiement correctif reste
+     * invisible jusqu'à quinze minutes, l'ancienne réponse — toujours
+     * exploitable — continuant d'être servie telle quelle.
+     */
+    private const CACHE_VERSION = 2;
+
+    private static function cachePath(): string
+    {
+        return sys_get_temp_dir() . '/pwa_consultant_trends_cache_v' . self::CACHE_VERSION . '.json';
+    }
+
+    /**
      * Le résultat porte-t-il un chiffre d'affaires exploitable ?
      *
      * `months` compte toujours douze entrées, même quand aucune donnée n'a été
@@ -55,7 +68,7 @@ class TrendsController extends Controller
         // temps au repli SQL local si l'API ventes n'est pas disponible.
         @set_time_limit(180);
 
-        $cacheFile = sys_get_temp_dir() . '/pwa_consultant_trends_cache.json';
+        $cacheFile = self::cachePath();
         $fresh     = isset($_GET['fresh']);
         if ($fresh) {
             ShopRepository::batchBreakerReset();
@@ -116,6 +129,11 @@ class TrendsController extends Controller
             $diag['elapsed_s']   = round(microtime(true) - $t0, 1);
             $out['debug'] = $diag;
         }
-        return $this->json($out);
+        // Jamais de cache navigateur sur ces réponses : le cache serveur est
+        // déjà là, versionné, et une couche de plus rendrait un correctif
+        // invisible sans qu'on sache laquelle interroger.
+        $res = $this->json($out);
+        $res->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        return $res;
     }
 }
