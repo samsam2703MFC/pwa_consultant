@@ -473,6 +473,13 @@
         return nf.format(Math.round(v)) + ' €';
       };
       var dec = function (v) { return String(v).replace('.', ','); };
+      // « 2026-06 » → « juin 26 », dans la langue de l'interface.
+      var moFmt = new Intl.DateTimeFormat(document.documentElement.lang || 'fr', { month: 'short' });
+      var moShort = function (ym) {
+        if (!ym) { return ''; }
+        var d = new Date(ym + '-01T00:00:00');
+        return moFmt.format(d).replace('.', '') + ' ' + ym.slice(2, 4);
+      };
 
       toggle.addEventListener('click', function () {
         var open = panel.hidden;
@@ -495,12 +502,12 @@
         var win = d.months_window || 18, ann = d.annual_months || 12;
         var h = '<div class="valo-form">'
           + 'Valeur = CA annuel × marge × multiple ' + mult + '. '
-          + 'CA annuel = CA des ' + win + ' derniers mois ramené à ' + ann + ' mois — '
-          + ann + ' mois seuls laisseraient une saison exceptionnelle, ou un mois de fermeture, '
-          + 'décider de la valeur. '
-          + 'Marge nette constatée = (CA − coût matière − main d’œuvre − frais généraux) ÷ CA, '
-          + 'sur les cumuls des ' + win + ' mois du P&amp;L — d’où vient aussi le CA, pour que les '
-          + 'deux comptent la même chose. '
+          + 'CA annuel = moyenne mensuelle des ' + win + ' derniers mois × ' + ann + ' — '
+          + 'un chiffre d’affaires se juge sur la durée, saisons comprises. '
+          + 'Marge nette = (CA − coût matière − main d’œuvre − frais généraux) ÷ CA du '
+          + '<b>mois précédent</b>' + (d.margin_month ? ' (' + esc(moShort(d.margin_month)) + ')' : '')
+          + ' — elle dit où en est la boutique aujourd’hui. Le mois en cours est exclu : '
+          + 'ses charges ne sont pas toutes passées. '
           + 'La marge de ' + tgt + ' % n’est pas constatée : c’est la cible saisie dans les paramètres '
           + '(valuation_target_net_margin_pct), tout comme le multiple (valuation_multiple).</div>';
 
@@ -585,11 +592,10 @@
           } else {
             var over = s.margin_over ? ' over' : '';
             mg = '<span class="pct' + over + '">' + dec(Math.round(s.avg_margin * 10) / 10) + ' %</span>';
-            // Le nombre de mois n'apparaît que s'il est INCOMPLET : c'est là
-            // qu'il change la lecture. L'afficher partout élargissait la
-            // colonne pour ne rien apprendre.
-            if (d.months_window && (s.months_seen || 0) < d.months_window) {
-              mg += '<span class="mut"> · ' + (s.months_seen || 0) + ' m</span>';
+            // Le mois n'apparaît que si ce n'est PAS le mois précédent : la
+            // règle est connue, seule l'exception mérite d'être signalée.
+            if (!s.margin_is_prev && s.margin_month) {
+              mg += '<span class="mut"> · ' + esc(moShort(s.margin_month)) + '</span>';
             }
           }
           h += '<tr><td>' + esc(s.name) + '</td>'
