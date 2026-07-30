@@ -149,13 +149,14 @@
 
     <div class="af">
       <label class="shared"><input type="checkbox" name="shared" id="shared-cb" value="1" {{ (is_edit ? (edit.shared ? 'checked' : '') : 'checked') }}> <span>{{ translations.share_franchisee ?? 'Partager au franchisé' }}</span></label>
+      <label class="shared" id="send-report-lbl"><input type="checkbox" name="send_report" id="send-report-cb" value="1" {{ (is_edit ? ((edit.send_report ?? 1) ? 'checked' : '') : 'checked') }}> <span>{{ translations.send_report_cb ?? 'Joindre le rapport mensuel à l\'envoi' }}</span></label>
     </div>
 
     <div class="send" id="send-block">
       <div class="h">✉ {{ translations.auto_send ?? "À l'enregistrement (envoi serveur SMTP — à configurer)" }}</div>
       <div class="l">📧 {{ translations.send_email ?? 'E-mail au franchisé (but + rapport)' }}</div>
       <div class="l">📅 {{ translations.send_ics ?? 'Invitation Google Agenda (.ics)' }}</div>
-      <div class="l">📄 {{ translations.send_pdf ?? 'PDF du rapport en pièce jointe' }}</div>
+      <div class="l" id="send-pdf-line">📄 {{ translations.send_pdf ?? 'PDF du rapport en pièce jointe' }}</div>
     </div>
 
     <div class="note">⚠ {{ translations.checklist_note ?? 'Pendant la visite, respectez votre checklist — elle génère le rapport de visite à la fin.' }}</div>
@@ -170,12 +171,22 @@
   var note = document.getElementById('surprise-note');
   var send = document.getElementById('send-block');
   var cb = document.getElementById('shared-cb');
+  var repCb = document.getElementById('send-report-cb');
+  var repLbl = document.getElementById('send-report-lbl');
+  var pdfLine = document.getElementById('send-pdf-line');
   function sync() {
     var surprise = sel && sel.value === 'surprise';
     if (note) note.style.display = surprise ? 'block' : 'none';
     if (send) send.classList.toggle('off', surprise);
     if (cb) { cb.checked = surprise ? false : cb.checked; cb.disabled = surprise; }
+    // Rapport joint : sans partage (ou visite surprise), l'option n'a pas de sens.
+    var canSend = !surprise && cb && cb.checked;
+    if (repCb) { repCb.disabled = !canSend; }
+    if (repLbl) { repLbl.style.opacity = canSend ? '1' : '.5'; }
+    if (pdfLine) { pdfLine.style.opacity = (canSend && repCb && repCb.checked) ? '1' : '.4'; }
   }
+  if (cb) { cb.addEventListener('change', sync); }
+  if (repCb) { repCb.addEventListener('change', sync); }
   if (sel) { sel.addEventListener('change', sync); sync(); }
 
   // ── Leviers TREFLO : chargement par période + sélection « à travailler » ──
@@ -239,7 +250,12 @@
       .then(function (j) {
         loadBt.disabled = false;
         loadBt.textContent = old || LBL.load;
-        if (!j || !j.levers) { msg.textContent = LBL.err; return; }
+        // Erreur : on affiche le détail technique (diagnosticable) au lieu d'un
+        // message générique qui laisse croire à un bug silencieux.
+        if (!j || !j.levers || !Object.keys(j.levers).length) {
+          msg.textContent = LBL.err + (j && j.error ? ' (' + j.error + ')' : '');
+          return;
+        }
         // Applique le statut de chaque levier sur sa pastille (couleur + « à
         // travailler ») et met la valeur du KPI en infobulle (vérifiable).
         box.querySelectorAll('.tf').forEach(function (btn) {

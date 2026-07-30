@@ -110,6 +110,8 @@ class AgendaController extends Controller
                 'id_checklist'    => (int)$r->get('id_checklist') ?: null,
                 'checklist_name'  => trim((string)$r->get('checklist_name')) ?: null,
                 'lever_period'    => $this->validPeriod((string)$r->get('lever_period')),
+                // Rapport mensuel joint à l'envoi au franchisé (case à cocher).
+                'send_report'     => $r->get('send_report') ? 1 : 0,
                 'status'          => 'planned',
                 'report_ref'      => $this->reportLink($shopId),
                 'shared'          => $shared,
@@ -186,6 +188,7 @@ class AgendaController extends Controller
             'id_checklist' => (int)$r->get('id_checklist') ?: null,
             'checklist_name' => trim((string)$r->get('checklist_name')) ?: null,
             'lever_period' => $this->validPeriod((string)$r->get('lever_period')),
+            'send_report'  => $r->get('send_report') ? 1 : 0,
             'shared'       => $shared,
         ]);
 
@@ -326,12 +329,41 @@ class AgendaController extends Controller
         if ($shopId <= 0) {
             return $this->json(['ok' => false, 'error' => 'shop_id manquant'], 422);
         }
-        $levers = $this->safeFetch(fn() => $this->leverResults($shopId, $period), $this->errors, null, []);
-        return $this->json([
-            'ok'      => empty($this->errors),
-            'period'  => $period,
-            'levers'  => $levers,
-        ]);
+
+        // Le calcul compare la boutique à la moyenne réseau du mois : c'est
+        // coûteux (métriques de toutes les boutiques). Cache serveur par
+        // (boutique, période) — les mois passés ne changent plus.
+        $cache = sys_get_temp_dir() . '/pwa_consultant_levers_' . $shopId . '_' . $period . '.json';
+        if (!isset($_GET['fresh']) && is_file($cache) && (time() - (int)@filemtime($cache)) < 1800) {
+            $c = json_decode((string)@file_get_contents($cache), true);
+            if (is_array($c) && !empty($c['levers'])) {
+                return $this->json(['ok' => true, 'period' => $period, 'levers' => $c['levers'], 'cached' => true]);
+            }
+        }
+
+        @set_time_limit(120);
+        $t0 = microtime(true);
+        try {
+            $levers = $this->leverResults($shopId, $period);
+            @file_put_contents($cache, json_encode(['levers' => $levers]));
+            return $this->json([
+                'ok'        => true,
+                'period'    => $period,
+                'levers'    => $levers,
+                'elapsed_s' => round(microtime(true) - $t0, 1),
+            ]);
+        } catch (\Throwable $e) {
+            // Throwable : un TypeError ne doit pas devenir un 500 muet.
+            error_log('[agenda] leversJson ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            return $this->json([
+                'ok'        => false,
+                'period'    => $period,
+                'levers'    => [],
+                'error'     => get_class($e) . ' — ' . $e->getMessage(),
+                'elapsed_s' => round(microtime(true) - $t0, 1),
+            ]);
+        }
     }
 
     /** Type de visite valide (défaut : development). */

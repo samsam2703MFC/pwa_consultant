@@ -59,5 +59,6 @@
     "delete": "Supprimer",
     "confirm_delete": "Supprimer définitivement cette visite ?",
     "levers_nodata": "Donnée indisponible pour cette période.",
-    "pick_shop_first": "Choisissez une boutique pour charger ses leviers."
+    "pick_shop_first": "Choisissez une boutique pour charger ses leviers.",
+    "send_report_cb": "Joindre le rapport mensuel à l'envoi"
 }
