@@ -149,7 +149,11 @@ class ValuationService
             array_keys($ids)
         ));
         $shopsOut = [];
-        $sumCa = 0.0; $sumActuelle = 0.0; $sumObjectif = 0.0; $allMargins = [];
+        $sumCa = 0.0; $sumActuelle = 0.0; $sumObjectif = 0.0;
+        // CA des seules boutiques dont la marge est RÉELLE : c'est la base de
+        // la valorisation actuelle, donc la seule base sur laquelle la marge
+        // moyenne de la chaîne puisse être recalculée sans mentir.
+        $sumCaReal = 0.0; $shopsReal = 0;
         foreach ($ids as $id => $name) {
             $ca12 = (float)($ca12s["{$id}|{$from12}|{$to12}"]['ca'] ?? 0);
             $margins = $marginsByShop[$id] ?? [];
@@ -169,8 +173,11 @@ class ValuationService
             ];
             $sumCa += $ca12;
             $sumObjectif += $valoObjectif;
-            if ($valoActuelle !== null) { $sumActuelle += $valoActuelle; }
-            foreach ($margins as $m) { $allMargins[] = $m; }
+            if ($valoActuelle !== null) {
+                $sumActuelle += $valoActuelle;
+                $sumCaReal   += $ca12;
+                $shopsReal++;
+            }
         }
         usort($shopsOut, fn($a, $b) => ($b['valo_actuelle'] ?? 0) <=> ($a['valo_actuelle'] ?? 0));
 
@@ -198,9 +205,19 @@ class ValuationService
             'shops'             => $shopsOut,
             'network'           => [
                 'ca12m'         => $sumCa,
-                'avg_margin'    => $allMargins !== [] ? array_sum($allMargins) / count($allMargins) : null,
-                'valo_actuelle' => $sumActuelle,
+                // Marge de la chaîne PONDÉRÉE par le CA, et déduite des chiffres
+                // affichés : une moyenne simple des marges de chaque boutique
+                // donnerait autant de poids à la plus petite qu'à la plus
+                // grosse, et ne se retrouverait pas dans la valorisation.
+                'avg_margin'    => ($sumCaReal > 0)
+                    ? $sumActuelle / ($multiple * $sumCaReal) * 100 : null,
+                'ca12m_real'    => $sumCaReal,
+                'valo_actuelle' => $shopsReal > 0 ? $sumActuelle : null,
                 'valo_objectif' => $sumObjectif,
+                // De quoi dire à l'écran si « actuelle » repose sur des marges
+                // réelles, et sur combien de boutiques.
+                'shops_real'    => $shopsReal,
+                'shops_total'   => count($ids),
             ],
             'series' => [
                 'months'  => $months,

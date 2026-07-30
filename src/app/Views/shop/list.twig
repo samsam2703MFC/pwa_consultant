@@ -416,12 +416,24 @@
       .valo-net-v { font-size:1.05rem; font-weight:800; color:#241f1c; margin-top:3px; }
       .valo-net-v.obj { color:#8D1D2C; }
       .valo-form { font-size:.64rem; color:#9a9086; margin-bottom:10px; line-height:1.4; }
+      /* Détail du calcul : la formule renseignée avec les chiffres réels. */
+      .valo-calc { background:#faf7f2; border:1px solid #f1e9dd; border-radius:10px;
+                   padding:9px 11px; margin-bottom:10px; font-size:.68rem; line-height:1.65; color:#5f574f; }
+      .valo-calc .l { display:block; font-weight:800; color:#241f1c; font-size:.63rem;
+                      text-transform:uppercase; letter-spacing:.02em; }
+      .valo-calc .r { font-weight:800; color:#8D1D2C; }
+      .valo-calc .op { color:#9a9086; }
+      .valo-calc .row + .row { margin-top:7px; padding-top:7px; border-top:1px solid #f1e9dd; }
+      .valo-calc .warn { color:#b3730f; font-weight:700; }
+      .valo-calc .th { display:inline-block; background:rgba(230,126,34,.13); color:#b3730f;
+                       border-radius:6px; padding:0 5px; font-weight:800; font-size:.62rem; }
       .valo-tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
       .valo-tbl { width:100%; border-collapse:collapse; font-size:.82rem; }
       .valo-tbl th, .valo-tbl td { text-align:left; padding:6px 4px; border-bottom:1px solid rgba(0,0,0,.06); }
       .valo-tbl th { font-size:.66rem; text-transform:uppercase; color:#7a7168; font-weight:700; }
       .valo-tbl td.num, .valo-tbl th.num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
       .valo-tbl tr.valo-chain td { font-weight:800; color:#8D1D2C; border-top:2px solid rgba(141,29,44,.2); }
+      .valo-tbl .mut { color:#9a9086; font-weight:600; font-size:.72em; }
       .valo-chart-h { font-size:.66rem; font-weight:800; color:#8D1D2C; text-transform:uppercase; letter-spacing:.04em; margin:14px 0 4px; }
       .valo-chart-h .mut { color:#9a9086; font-weight:600; text-transform:none; letter-spacing:0; }
       .valo-sel { margin:6px 0; font-size:.76rem; border:1.5px solid #e7ded2; border-radius:9px; padding:6px 10px; background:#fff; }
@@ -474,6 +486,43 @@
           .catch(function () { loading.textContent = 'Erreur de chargement.'; });
       }
 
+      // Détail des deux calculs, formule renseignée avec les chiffres réels.
+      // « À l'objectif » est THÉORIQUE par nature : il applique la marge cible
+      // du paramétrage, pas une marge constatée — c'est dit à l'écran, pour ne
+      // pas laisser lire deux mesures là où il n'y en a qu'une.
+      function calcHtml(d) {
+        var n = d.network, mult = dec(d.multiple), tgt = dec(d.target_margin_pct);
+        var h = '<div class="valo-calc">';
+
+        h += '<div class="row"><span class="l">Valorisation actuelle</span>';
+        if (n.avg_margin == null) {
+          h += '<span class="warn">Aucune marge nette constatée : la valorisation actuelle '
+             + 'ne peut pas être calculée.</span> Elle le sera dès que le P&amp;L mensuel '
+             + 'des boutiques sera disponible.';
+        } else {
+          h += 'CA 12 mois <b>' + eur(n.ca12m_real) + '</b> '
+             + '<span class="op">×</span> marge nette constatée <b>' + dec(Math.round(n.avg_margin * 10) / 10) + ' %</b> '
+             + '<span class="op">×</span> multiple <b>' + mult + '</b> '
+             + '<span class="op">=</span> <span class="r">' + eur(n.valo_actuelle) + '</span>';
+          if (n.shops_real < n.shops_total) {
+            h += '<br><span class="warn">' + n.shops_real + ' boutique(s) sur ' + n.shops_total
+               + ' ont une marge constatée</span> — les autres ne sont pas comptées dans ce total.';
+          }
+        }
+        h += '</div>';
+
+        h += '<div class="row"><span class="l">À l’objectif <span class="th">théorique</span></span>'
+          + 'CA 12 mois <b>' + eur(n.ca12m) + '</b> '
+          + '<span class="op">×</span> marge CIBLE <b>' + tgt + ' %</b> '
+          + '<span class="op">×</span> multiple <b>' + mult + '</b> '
+          + '<span class="op">=</span> <span class="r">' + eur(n.valo_objectif) + '</span>'
+          + '<br>La marge de ' + tgt + ' % n’est pas constatée : c’est la cible saisie dans les '
+          + 'paramètres (valuation_target_net_margin_pct), tout comme le multiple de ' + mult
+          + ' (valuation_multiple).</div>';
+
+        return h + '</div>';
+      }
+
       function render() {
         if (!data || !data.shops) { content.innerHTML = '<div class="valo-empty">Données indisponibles.</div>'; return; }
         var d = data, h = '';
@@ -481,12 +530,42 @@
           + '<div class="valo-net-box"><div class="valo-net-l">Valorisation actuelle — chaîne</div><div class="valo-net-v">' + eur(d.network.valo_actuelle) + '</div></div>'
           + '<div class="valo-net-box"><div class="valo-net-l">À l\'objectif — chaîne</div><div class="valo-net-v obj">' + eur(d.network.valo_objectif) + '</div></div>'
           + '</div>';
-        h += '<div class="valo-form">Objectif = CA annuel × ' + dec(d.target_margin_pct) + ' % × ' + dec(d.multiple) + ' · Actuelle = marge nette moy. 12 mois × CA annuel × ' + dec(d.multiple) + '</div>';
-        h += '<div class="valo-tbl-wrap"><table class="valo-tbl"><thead><tr><th>Boutique</th><th class="num">Actuelle</th><th class="num">Objectif</th></tr></thead><tbody>';
+        // Le détail du calcul, formule RENSEIGNÉE avec les chiffres réels : une
+        // formule seule ne permet pas de vérifier un résultat.
+        h += calcHtml(d);
+        h += '<div class="valo-tbl-wrap"><table class="valo-tbl"><thead><tr>'
+          + '<th>Boutique</th><th class="num">CA 12 m</th><th class="num">Marge</th>'
+          + '<th class="num">Actuelle</th><th class="num">Objectif</th></tr></thead><tbody>';
         d.shops.forEach(function (s) {
-          h += '<tr><td>' + esc(s.name) + '</td><td class="num">' + keur(s.valo_actuelle) + '</td><td class="num">' + keur(s.valo_objectif) + '</td></tr>';
+          // « Marge » dit d'où sort la valorisation actuelle : le pourcentage
+          // réellement appliqué, et sur combien de mois il est mesuré.
+          var mg = (s.avg_margin == null)
+            ? '<span class="mut">—</span>'
+            : dec(Math.round(s.avg_margin * 10) / 10) + ' %<span class="mut"> · ' + (s.months_seen || 0) + ' m</span>';
+          h += '<tr><td>' + esc(s.name) + '</td>'
+            + '<td class="num">' + keur(s.ca12m) + '</td>'
+            + '<td class="num">' + mg + '</td>'
+            + '<td class="num">' + keur(s.valo_actuelle) + '</td>'
+            + '<td class="num">' + keur(s.valo_objectif) + '</td></tr>';
         });
-        h += '<tr class="valo-chain"><td>Chaîne</td><td class="num">' + keur(d.network.valo_actuelle) + '</td><td class="num">' + keur(d.network.valo_objectif) + '</td></tr>';
+        // La marge de la chaîne porte sur le CA des seules boutiques ayant une
+        // marge constatée. Quand ce n'est pas tout le réseau, on le dit dans la
+        // cellule : sinon le lecteur multiplie le CA total par ce pourcentage
+        // et ne retombe pas sur la valorisation affichée.
+        var netMg;
+        if (d.network.avg_margin == null) {
+          netMg = '<span class="mut">—</span>';
+        } else {
+          netMg = dec(Math.round(d.network.avg_margin * 10) / 10) + ' %';
+          if (d.network.ca12m_real != null && Math.abs(d.network.ca12m_real - d.network.ca12m) > 1) {
+            netMg += '<span class="mut"> · sur ' + keur(d.network.ca12m_real) + '</span>';
+          }
+        }
+        h += '<tr class="valo-chain"><td>Chaîne</td>'
+          + '<td class="num">' + keur(d.network.ca12m) + '</td>'
+          + '<td class="num">' + netMg + '</td>'
+          + '<td class="num">' + keur(d.network.valo_actuelle) + '</td>'
+          + '<td class="num">' + keur(d.network.valo_objectif) + '</td></tr>';
         h += '</tbody></table></div>';
 
         var months = (d.series && d.series.months) || [];
