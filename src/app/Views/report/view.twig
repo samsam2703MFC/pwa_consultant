@@ -572,7 +572,7 @@
                             <div class="dcell {{ d.color is null ? 'hm-nd' : '' }}"
                                  {% if d.color is not null %}style="background:{{ d.color }};"{% endif %}
                                  title="{{ d.date }}{{ d.pct is not null ? ' — ' ~ d.pct|number_format(1, ',', ' ') ~ ' %' : '' }}"
-                                 {% if d.pct is not null %}data-d="{{ {date: d.date, ca: d.ca, mv: d.mv, g: d.gross_pct, n: d.pct}|json_encode|e('html_attr') }}" role="button" tabindex="0"{% endif %}>
+                                 {% if d.pct is not null %}data-d="{{ {date: d.date, ca: d.ca, mv: d.mv, g: d.gross_pct, n: d.pct, lab: d.lab ?? null, ovh: d.ovh ?? null, lr: d.lab_real ?? false}|json_encode|e('html_attr') }}" role="button" tabindex="0"{% endif %}>
                                 <span class="dn">{{ d.num }}</span>
                                 <span class="dp">{{ d.pct is null ? '' : d.pct|number_format(0, ',', ' ') ~ '%' }}</span>
                             </div>
@@ -608,7 +608,7 @@
                             <span><span class="sw" style="background:{{ b.color }};"></span> {{ b.label }}</span>
                         {% endfor %}
                         {% if shop.heatmap.basis == 'net' %}
-                            <span>· {{ translations.hm_note ?? 'résultat net = marge brute − labour − overhead (répartis au prorata du CA), échelle relative au mois' }}{% if shop.heatmap.fixed_src == 'current_month' %} — {{ translations.hm_src_current ?? 'structure de coûts du mois courant' }}{% elseif shop.heatmap.fixed_src == 'snapshot' %} — {{ translations.hm_src_snapshot ?? 'structure de coûts de' }} {{ shop.heatmap.fixed_src_month }}{% endif %}</span>
+                            <span>· {{ translations.hm_note ?? 'résultat net = marge brute − labour − overhead (répartis par jour d\'ouverture ; créneaux par heures actives)' }}{% if shop.heatmap.labour_real %} — {{ translations.hm_labour_real ?? 'labour réel du jour' }}{% endif %}{% if shop.heatmap.fixed_src == 'current_month' %} — {{ translations.hm_src_current ?? 'structure de coûts du mois courant' }}{% elseif shop.heatmap.fixed_src == 'snapshot' %} — {{ translations.hm_src_snapshot ?? 'structure de coûts de' }} {{ shop.heatmap.fixed_src_month }}{% endif %}</span>
                         {% else %}
                             <span>· {{ translations.hm_note_gross ?? 'marge brute (CA − coût matière), échelle relative au mois — labour/overhead indisponibles' }}</span>
                         {% endif %}
@@ -808,10 +808,12 @@
         ca:       {{ (translations.pnl_ca ?? "Chiffre d'affaires")|json_encode|raw }},
         material: {{ (translations.pnl_material ?? 'Coût matière')|json_encode|raw }},
         gross:    {{ (translations.pnl_gross ?? 'Marge brute')|json_encode|raw }},
-        labour:   {{ (translations.pnl_labour ?? 'Labour (alloué)')|json_encode|raw }},
-        overhead: {{ (translations.pnl_overhead ?? 'Overhead (alloué)')|json_encode|raw }},
+        labour:   {{ (translations.pnl_labour ?? 'Labour (mois ÷ jours ouverts)')|json_encode|raw }},
+        labourReal: {{ (translations.pnl_labour_real ?? 'Labour (réel du jour)')|json_encode|raw }},
+        overhead: {{ (translations.pnl_overhead ?? 'Overhead (mois ÷ jours ouverts)')|json_encode|raw }},
         net:      {{ (translations.pnl_net ?? 'Résultat net')|json_encode|raw }},
-        allocNote:{{ (translations.pnl_alloc_note ?? 'Labour/overhead du mois répartis au prorata du CA du jour')|json_encode|raw }},
+        allocNote:{{ (translations.pnl_alloc_note ?? "Labour et overhead du mois répartis par jour d'ouverture")|json_encode|raw }},
+        allocNoteReal: {{ (translations.pnl_alloc_note_real ?? "Labour réel du jour ; overhead du mois réparti par jour d'ouverture")|json_encode|raw }},
         srcCur:   {{ (translations.hm_src_current ?? 'structure de coûts du mois courant')|json_encode|raw }},
         srcSnap:  {{ (translations.hm_src_snapshot ?? 'structure de coûts de')|json_encode|raw }},
         grossNote:{{ (translations.pnl_gross_note ?? 'Labour/overhead indisponibles — marge brute uniquement.')|json_encode|raw }},
@@ -848,13 +850,13 @@
         if (mv != null) {
             h += row('−', L.material, eur(ca - mv), null, '');
             h += row('=', L.gross, eur(mv), d.g, 'sub');
-            if (hm.basis === 'net' && hm.lp != null && hm.op != null) {
-                var lab = ca * hm.lp / 100, ovh = ca * hm.op / 100;
+            if (hm.basis === 'net' && d.lab != null && d.ovh != null) {
+                var lab = d.lab, ovh = d.ovh;
                 var net = mv - lab - ovh;
-                h += row('−', L.labour, eur(lab), hm.lp, '');
-                h += row('−', L.overhead, eur(ovh), hm.op, '');
+                h += row('−', d.lr ? L.labourReal : L.labour, eur(lab), ca > 0 ? lab / ca * 100 : null, '');
+                h += row('−', L.overhead, eur(ovh), ca > 0 ? ovh / ca * 100 : null, '');
                 h += row('=', L.net, '<span style="color:' + (net >= 0 ? '#2D7A3E' : '#c0182b') + ';">' + eur(net) + '</span>', d.n, 'net');
-                note = L.allocNote
+                note = (d.lr ? L.allocNoteReal : L.allocNote)
                     + (hm.src === 'current_month' ? ' — ' + L.srcCur : '')
                     + (hm.src === 'snapshot' && hm.srcm ? ' — ' + L.srcSnap + ' ' + hm.srcm : '')
                     + '.';

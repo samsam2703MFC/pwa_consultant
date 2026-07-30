@@ -172,6 +172,12 @@ class ShopService
         return $this->shopRepository->getMarginHeatmap($shopId, $from, $to);
     }
 
+    /** Labour réel par jour ('Y-m-d' => €), ou null si l'endpoint est absent. */
+    public function getDailyLabour(int $shopId, string $from, string $to): ?array
+    {
+        return $this->shopRepository->getDailyLabour($shopId, $from, $to);
+    }
+
     /**
      * Cartes de marge pour plusieurs fenêtres (magasin, from, to) en parallèle.
      *

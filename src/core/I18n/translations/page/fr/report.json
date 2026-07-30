@@ -82,7 +82,7 @@
     "week": "Semaine",
     "hm_low": "Résultat faible",
     "hm_high": "élevé",
-    "hm_note": "résultat net = marge brute − labour − overhead (répartis au prorata du CA), échelle relative au mois",
+    "hm_note": "résultat net = marge brute − labour − overhead (répartis par jour d'ouverture ; créneaux par heures actives)",
     "wd_mon": "L",
     "wd_tue": "M",
     "wd_wed": "M",
@@ -97,12 +97,15 @@
     "pnl_ca": "Chiffre d'affaires",
     "pnl_material": "Coût matière",
     "pnl_gross": "Marge brute",
-    "pnl_labour": "Labour (alloué)",
-    "pnl_overhead": "Overhead (alloué)",
+    "pnl_labour": "Labour (mois ÷ jours ouverts)",
+    "pnl_overhead": "Overhead (mois ÷ jours ouverts)",
     "pnl_net": "Résultat net",
-    "pnl_alloc_note": "Labour/overhead du mois répartis au prorata du CA du jour",
+    "pnl_alloc_note": "Labour et overhead du mois répartis par jour d'ouverture",
     "pnl_gross_note": "Labour/overhead indisponibles — marge brute uniquement.",
     "day_notes": "Commentaires du jour",
     "close": "Fermer",
-    "hm_src_snapshot": "structure de coûts de"
+    "hm_src_snapshot": "structure de coûts de",
+    "pnl_labour_real": "Labour (réel du jour)",
+    "pnl_alloc_note_real": "Labour réel du jour ; overhead du mois réparti par jour d'ouverture",
+    "hm_labour_real": "labour réel du jour"
 }

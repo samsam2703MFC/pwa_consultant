@@ -82,7 +82,7 @@
     "week": "Tydzień",
     "hm_low": "Niski wynik",
     "hm_high": "wysoki",
-    "hm_note": "wynik netto = marża brutto − labour − overhead (proporcjonalnie do obrotu), skala względna dla miesiąca",
+    "hm_note": "wynik netto = marża brutto − labour − overhead (rozłożone na dni otwarcia; pory dnia wg aktywnych godzin)",
     "wd_mon": "P",
     "wd_tue": "W",
     "wd_wed": "Ś",
@@ -97,12 +97,15 @@
     "pnl_ca": "Obrót",
     "pnl_material": "Koszt materiałów",
     "pnl_gross": "Marża brutto",
-    "pnl_labour": "Labour (alokowany)",
-    "pnl_overhead": "Overhead (alokowany)",
+    "pnl_labour": "Labour (miesiąc ÷ dni otwarcia)",
+    "pnl_overhead": "Overhead (miesiąc ÷ dni otwarcia)",
     "pnl_net": "Wynik netto",
-    "pnl_alloc_note": "Miesięczny labour/overhead alokowany proporcjonalnie do dziennego obrotu",
+    "pnl_alloc_note": "Miesięczny labour i overhead rozłożone na dni otwarcia",
     "pnl_gross_note": "Labour/overhead niedostępne — tylko marża brutto.",
     "day_notes": "Komentarze dnia",
     "close": "Zamknij",
-    "hm_src_snapshot": "struktura kosztów z"
+    "hm_src_snapshot": "struktura kosztów z",
+    "pnl_labour_real": "Labour (rzeczywisty, dzienny)",
+    "pnl_alloc_note_real": "Rzeczywisty dzienny labour; miesięczny overhead rozłożony na dni otwarcia",
+    "hm_labour_real": "rzeczywisty dzienny labour"
 }
