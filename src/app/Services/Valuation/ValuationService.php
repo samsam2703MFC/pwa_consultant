@@ -13,12 +13,13 @@ use App\Consultant\app\Services\Param\ParamService;
  *   Valo actuelle     = CA annuel × marge nette du MOIS PRÉCÉDENT × multiple
  *
  * Les deux grandeurs ne se lisent pas sur la même durée, et c'est voulu :
- *   - le CA annuel est une MOYENNE (18 mois observés × 12) — un chiffre
- *     d'affaires se juge sur la durée, saisons comprises ;
+ *   - le CA annuel est celui des 12 derniers mois CLÔTURÉS ;
  *   - la marge est celle du DERNIER MOIS CLOS — elle dit où en est la
- *     boutique aujourd'hui, pas où elle en était il y a un an et demi.
+ *     boutique aujourd'hui, pas où elle en était l'an dernier.
  *
- * Le mois en cours est exclu : ses charges ne sont pas toutes passées.
+ * Dans les deux cas, le mois en cours est exclu : son chiffre d'affaires est
+ * partiel et ses charges ne sont pas toutes passées. La fenêtre s'arrête donc
+ * au dernier jour du mois précédent.
  *
  * La marge nette est RECALCULÉE à partir des postes du P&L :
  *
@@ -38,7 +39,7 @@ use App\Consultant\app\Services\Param\ParamService;
  */
 class ValuationService
 {
-    private const WINDOW_MONTHS = 18;   // fenêtre d'observation, par défaut
+    private const WINDOW_MONTHS = 12;   // mois CLÔTURÉS observés, par défaut
     private const ANNUAL_MONTHS = 12;   // durée sur laquelle le CA est ramené
 
     public function __construct(
@@ -98,18 +99,24 @@ class ValuationService
             }
         }
 
-        // 2) Fenêtre d'observation glissante (18 mois par défaut).
-        $since   = $now->modify('-' . ($windowMonths - 1) . ' months');
-        $sinceY  = (int)$since->format('Y');
-        $sinceM  = (int)$since->format('n');
-        $fromWin = date('Y-m-d', (int)$since->format('U'));
-        $toWin   = date('Y-m-d');
+        // 2) Fenêtre d'observation : les N derniers mois CLÔTURÉS. Elle s'arrête
+        //    au dernier jour du mois précédent — le mois en cours a un chiffre
+        //    d'affaires partiel, et le compter comme un mois plein tirait la
+        //    moyenne vers le bas.
+        $lastClosed = $now->modify('-1 month');
+        $since      = $lastClosed->modify('-' . ($windowMonths - 1) . ' months');
+        $sinceY     = (int)$since->format('Y');
+        $sinceM     = (int)$since->format('n');
+        $fromWin    = $since->format('Y-m-d');
+        $toWin      = $lastClosed->modify('last day of this month')->format('Y-m-d');
 
         // P2 — historique P&L MENSUEL réel : la marge nette devient exacte
         // immédiatement (plus besoin d'attendre l'accumulation des
         // snapshots). Repli sur les snapshots si l'endpoint est absent.
+        // Jusqu'au mois PRÉCÉDENT : le mois en cours n'est pas clôturé, et ni
+        // son chiffre d'affaires ni ses charges ne sont complets.
         $fromYm = sprintf('%04d-%02d', $sinceY, $sinceM);
-        $toYm   = sprintf('%04d-%02d', $curY, $curM);
+        $toYm   = $lastClosed->format('Y-m');
         $rows    = [];
         $p2Shops = 0;
         // Toutes les boutiques en parallèle : une boucle séquentielle paierait
@@ -235,10 +242,11 @@ class ValuationService
             $caFromPnl = ($caPnl !== null && $caPnl > 0);
             $months    = (int)($cw['months'] ?? 0);
 
-            // CA ANNUEL : moyenne mensuelle de la fenêtre × 12. Sur le P&L, on
-            // divise par les mois réellement observés — une boutique ouverte
-            // depuis six mois ne doit pas voir son CA divisé par dix-huit. Sur
-            // le repli KPIs, la fenêtre est entière par construction.
+            // CA ANNUEL : les 12 derniers mois CLÔTURÉS. On divise par les mois
+            // réellement observés avant de ramener à douze — une boutique
+            // ouverte depuis six mois ne doit pas voir son CA divisé par douze.
+            // Quand les douze mois sont là, cela revient à leur somme. Sur le
+            // repli KPIs, la fenêtre est entière par construction.
             $ca12 = $caFromPnl
                 ? ($months > 0 ? $caPnl / $months * $annualMonths : 0.0)
                 : $caKpi / $windowMonths * $annualMonths;

@@ -502,8 +502,7 @@
         var win = d.months_window || 18, ann = d.annual_months || 12;
         var h = '<div class="valo-form">'
           + 'Valeur = CA annuel × marge × multiple ' + mult + '. '
-          + 'CA annuel = moyenne mensuelle des ' + win + ' derniers mois × ' + ann + ' — '
-          + 'un chiffre d’affaires se juge sur la durée, saisons comprises. '
+          + 'CA annuel = les ' + win + ' derniers mois <b>clôturés</b>. '
           + 'Marge nette = (CA − coût matière − main d’œuvre − frais généraux) ÷ CA du '
           + '<b>mois précédent</b>' + (d.margin_month ? ' (' + esc(moShort(d.margin_month)) + ')' : '')
           + ' — elle dit où en est la boutique aujourd’hui. Le mois en cours est exclu : '

@@ -28,10 +28,10 @@ class ParamRepository
         // cette borne, c'est qu'un poste de coût manque au P&L : signalé à
         // l'écran, jamais corrigé en douce.
         'valuation_max_net_margin_pct'    => ['15',  'Marge nette plausible maximale (%) — au-delà, un poste de coût manque au P&L'],
-        // On observe 18 mois et on ramène le CA à 12 : douze mois seuls
-        // laissent une saison exceptionnelle — ou un mois de fermeture —
-        // décider de la valeur. La marge nette est mesurée sur la même fenêtre.
-        'valuation_window_months'         => ['18', 'Valorisation : fenêtre d\'observation du CA et de la marge (mois)'],
+        // Le CA annuel porte sur les 12 derniers mois CLÔTURÉS : le mois en
+        // cours est partiel, le compter comme un mois plein tirerait la
+        // moyenne vers le bas. La marge, elle, est celle du mois précédent.
+        'valuation_window_months'         => ['12', 'Valorisation : nombre de mois clôturés observés pour le CA annuel'],
         'valuation_annual_months'         => ['12', 'Valorisation : durée sur laquelle le CA observé est ramené (mois)'],
         // Créneaux de la heatmap de rentabilité : bornes INCLUSES, exprimées en
         // tranches horaires (la borne 10 couvre 10:00 → 10:59). Les heures hors
