@@ -43,8 +43,20 @@ class DebugController extends Controller
         if (!str_starts_with($endpoint, '/consultant/')) {
             echo '<p>Ajoute <code>?endpoint=/consultant/…</code> (préfixe /consultant/ requis).</p>';
             echo '<p>Ex : <code>/pwa_consultant/api-debug?endpoint=/consultant/shops/summary</code></p>';
+            echo '<p>Les paramètres de l’endpoint se passent à la suite :<br>'
+               . '<code>?endpoint=/consultant/shops/4/pnl/monthly&amp;from=2025-07&amp;to=2026-06</code></p>';
             echo '</body>';
             return;
+        }
+
+        // Les autres paramètres de l'URL sont transmis à l'endpoint. Sans cela,
+        // « ?endpoint=/…/pnl/monthly?from=X » se coupait au premier « ? » :
+        // PHP lisait `from` comme un paramètre de la sonde, et l'endpoint
+        // partait sans sa fenêtre de dates — donc sans réponse utile.
+        $extra = $_GET;
+        unset($extra['endpoint']);
+        if ($extra !== []) {
+            $endpoint .= (str_contains($endpoint, '?') ? '&' : '?') . http_build_query($extra);
         }
 
         $resp = $this->apiClient->get($endpoint);
