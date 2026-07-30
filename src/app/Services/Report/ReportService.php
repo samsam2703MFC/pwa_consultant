@@ -324,6 +324,9 @@ class ReportService
                 'letter' => (string)($lev['letter'] ?? ''),
                 'name'   => (string)($lev['name'] ?? ''),
                 'status' => (string)($lev['status'] ?? 'nd'),
+                // Couleur OFFICIELLE du levier (of_tag si défini) — identité
+                // T R E F L O, la même que l'écran HEXm et les rapports.
+                'color'  => (string)($lev['color'] ?? ''),
                 'kpis'   => $lev['kpis'] ?? [],
             ];
         }

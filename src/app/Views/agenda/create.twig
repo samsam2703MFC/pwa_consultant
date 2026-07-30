@@ -19,10 +19,22 @@
   .st-ok { background:#2D7A3E; } .st-mid { background:#e67e22; } .st-bad { background:#c0182b; } .st-nd { background:#cfc7bb; color:#fff; }
   .treflo { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
   .treflo .tf { border:0; cursor:pointer; -webkit-tap-highlight-color:transparent; }
-  /* Levier à travailler (⚠ ou ●) : liseré + pastille d'alerte. */
-  .treflo .tf.todo { box-shadow:0 0 0 2px rgba(0,0,0,.12) inset; }
-  .treflo .tf.todo::after { content:'!'; font-size:.6rem; opacity:.9; }
-  .treflo .tf.picked { outline:2.5px solid #241f1c; outline-offset:1px; }
+  /* Le FOND porte la couleur OFFICIELLE du levier (inline, T R E F L O).
+     Le statut vs moyenne réseau vit dans une pastille BLANCHE : lisible sur
+     n'importe quelle couleur de fond (un liseré coloré serait illisible). */
+  .treflo .tf .sig {
+    font-style:normal; font-size:.62rem; font-weight:800; line-height:1;
+    background:#fff; border-radius:999px; padding:2px 5px; margin-left:2px;
+  }
+  .treflo .tf.sig-ok  .sig { color:#2D7A3E; }
+  .treflo .tf.sig-mid .sig { color:#e67e22; }
+  .treflo .tf.sig-bad .sig { color:#c0182b; }
+  .treflo .tf.sig-nd  { opacity:.72; }
+  .treflo .tf.sig-nd  .sig { color:#7a7168; }
+  /* Levier à travailler : liseré blanc interne (contraste sur tout fond). */
+  .treflo .tf.todo { box-shadow:0 0 0 2px rgba(255,255,255,.85) inset; }
+  .treflo .tf b { font-size:.74rem; }
+  .treflo .tf.picked { outline:2.5px solid #241f1c; outline-offset:2px; }
   /* Période + bouton sur une ligne, sans débordement sur mobile. */
   .lp-row { display:flex; gap:8px; align-items:stretch; }
   .lp-row > input { flex:1 1 auto; min-width:0; }
@@ -91,8 +103,14 @@
         {% for lev in levers %}
           {% set res = lever_results[lev.key] ?? null %}
           {% set st = res ? res.status : 'nd' %}
-          <button type="button" class="tf st-{{ st }} {{ (st == 'mid' or st == 'bad') ? 'todo' : '' }}"
-                  data-lever="{{ lev.key }}" data-status="{{ st }}" title="{{ lev.name }}">{{ lev.letter }} {{ lev.name }}</button>
+          {# Fond = couleur OFFICIELLE du levier (T R E F L O) ; le statut est
+             porté par le liseré + la pastille ✓ / ⚠ / ● / ·. #}
+          <button type="button" class="tf sig-{{ st }} {{ (st == 'mid' or st == 'bad') ? 'todo' : '' }}"
+                  style="background:{{ (res.color ?? lev.color) ?: '#7a7168' }};"
+                  data-lever="{{ lev.key }}" data-status="{{ st }}" title="{{ lev.name }}">
+            <b>{{ lev.letter }}</b> {{ lev.name }}
+            <i class="sig">{{ {'ok':'✓','mid':'⚠','bad':'●','nd':'·'}[st] ?? '·' }}</i>
+          </button>
         {% endfor %}
       </div>
       <div class="lp-hint" id="lever-msg"></div>
@@ -238,12 +256,18 @@
         }
         // Applique le statut de chaque levier sur sa pastille (couleur + « à
         // travailler ») et met la valeur du KPI en infobulle (vérifiable).
+        var SIG = { ok: '✓', mid: '⚠', bad: '●', nd: '·' };
         box.querySelectorAll('.tf').forEach(function (btn) {
           var k  = btn.getAttribute('data-lever');
           var lv = j.levers[k] || null;
           var st = (lv && lv.status) || 'nd';
-          btn.className = 'tf st-' + st + ((st === 'mid' || st === 'bad') ? ' todo' : '')
+          // Fond = couleur officielle du levier (inchangée) ; le liseré et le
+          // symbole portent le statut.
+          btn.className = 'tf sig-' + st + ((st === 'mid' || st === 'bad') ? ' todo' : '')
             + (btn.classList.contains('picked') ? ' picked' : '');
+          if (lv && lv.color) { btn.style.background = lv.color; }
+          var sig = btn.querySelector('.sig');
+          if (sig) { sig.textContent = SIG[st] || '·'; }
           btn.setAttribute('data-status', st);
           var tip = (lv && lv.name ? lv.name : k) + ' — ' + (j.period || '');
           if (lv && lv.kpis && lv.kpis.length) {
