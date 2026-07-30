@@ -420,6 +420,34 @@
                    padding:7px 9px; font-size:.66rem; color:#8a6212; line-height:1.5; }
       .valo-warn ul { margin:5px 0; padding-left:16px; }
       .valo-warn li { margin:2px 0; }
+
+      /* ── Modal de vérification mois par mois ── */
+      .valo-tbl tbody tr[data-shop] { cursor:pointer; }
+      .valo-tbl tbody tr[data-shop]:active td { background:#faf7f2; }
+      .valo-tbl td.name::after { content:' ›'; color:#c0b7ab; font-weight:800; }
+      .vm-back { position:fixed; inset:0; background:rgba(36,31,28,.55); z-index:1080;
+                 display:flex; align-items:flex-end; justify-content:center; }
+      .vm-back[hidden] { display:none; }
+      .vm { background:#fff; width:100%; max-width:640px; max-height:88vh; overflow:auto;
+            border-radius:18px 18px 0 0; padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+            -webkit-overflow-scrolling:touch; }
+      @media (min-width:700px) { .vm-back { align-items:center; } .vm { border-radius:18px; } }
+      .vm-h { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:2px; }
+      .vm-t { font-size:.95rem; font-weight:800; color:#241f1c; }
+      .vm-x { border:0; background:#f1ece4; color:#5f574f; width:30px; height:30px; border-radius:50%;
+              font-size:1rem; font-weight:800; line-height:1; flex-shrink:0; }
+      .vm-sub { font-size:.66rem; color:#9a9086; margin-bottom:9px; line-height:1.5; }
+      .vm-tbl { width:100%; border-collapse:collapse; font-size:.72rem; }
+      .vm-tbl th, .vm-tbl td { padding:5px 3px 5px 0; border-bottom:1px solid rgba(0,0,0,.06);
+                               text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+      .vm-tbl th { font-size:.58rem; text-transform:uppercase; color:#7a7168; font-weight:700; }
+      .vm-tbl th:first-child, .vm-tbl td:first-child { text-align:left; text-transform:capitalize; }
+      .vm-tbl td.pct { font-weight:800; }
+      .vm-tbl td.gap { color:#b3730f; font-weight:700; }
+      .vm-tbl tr.tot td { font-weight:800; color:#8D1D2C; background:rgba(141,29,44,.06);
+                          border-top:2px solid rgba(141,29,44,.35); border-bottom:none; }
+      .vm-tbl tr.ref td { background:rgba(193,122,42,.10); }
+      .vm-note { font-size:.63rem; color:#9a9086; margin-top:9px; line-height:1.5; }
       .valo-tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
       /* Six colonnes sur un écran de téléphone : resserré, et le tableau
          défile dans son cadre (.valo-tbl-wrap) sans pousser la page. */
@@ -454,6 +482,18 @@
         <div id="valoContent"></div>
       </div>
     </div>
+
+    {# Vérification mois par mois : CA − matière − main d'œuvre − frais généraux,
+       tels que le P&L mensuel les renvoie. #}
+    <div class="vm-back" id="vmBack" hidden>
+      <div class="vm" role="dialog" aria-modal="true" aria-labelledby="vmTitle">
+        <div class="vm-h">
+          <span class="vm-t" id="vmTitle"></span>
+          <button type="button" class="vm-x" id="vmClose" aria-label="{{ translations.close ?? 'Fermer' }}">✕</button>
+        </div>
+        <div id="vmBody"></div>
+      </div>
+    </div>
     <script>
     (function () {
       var toggle = document.getElementById('valoToggle'), panel = document.getElementById('valoPanel');
@@ -473,6 +513,8 @@
         return nf.format(Math.round(v)) + ' €';
       };
       var dec = function (v) { return String(v).replace('.', ','); };
+      // Montant EXACT à l'euro : le modal sert à vérifier, pas à survoler.
+      var eur0 = function (v) { return v == null ? '—' : nf.format(Math.round(v)) + ' €'; };
       // « 2026-06 » → « juin 26 », dans la langue de l'interface.
       var moFmt = new Intl.DateTimeFormat(document.documentElement.lang || 'fr', { month: 'short' });
       var moShort = function (ym) {
@@ -597,7 +639,7 @@
               mg += '<span class="mut"> · ' + esc(moShort(s.margin_month)) + '</span>';
             }
           }
-          h += '<tr><td>' + esc(s.name) + '</td>'
+          h += '<tr data-shop="' + s.id + '"><td class="name">' + esc(s.name) + '</td>'
             + '<td class="num">' + keur(s.ca12m) + '</td>'
             + '<td class="num">' + mg + '</td>'
             + '<td class="num">' + keur(s.valo_actuelle) + '</td>'
@@ -620,6 +662,74 @@
         h += '</tbody></table></div>';
         h += notesHtml(d);
         content.innerHTML = h;
+        content.querySelectorAll('tr[data-shop]').forEach(function (tr) {
+          tr.addEventListener('click', function () { openMonths(+tr.getAttribute('data-shop')); });
+        });
+      }
+
+      // ── Modal de vérification : le P&L mensuel, mois par mois ──────────────
+      var back = document.getElementById('vmBack');
+      var vmTitle = document.getElementById('vmTitle'), vmBody = document.getElementById('vmBody');
+      document.getElementById('vmClose').addEventListener('click', closeMonths);
+      back.addEventListener('click', function (e) { if (e.target === back) { closeMonths(); } });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !back.hidden) { closeMonths(); }
+      });
+      function closeMonths() { back.hidden = true; document.body.style.overflow = ''; }
+
+      function openMonths(shopId) {
+        var s = null;
+        (data.shops || []).forEach(function (x) { if (x.id === shopId) { s = x; } });
+        if (!s) { return; }
+        vmTitle.textContent = s.name;
+
+        var months = s.months || [];
+        if (!months.length) {
+          vmBody.innerHTML = '<div class="valo-empty">Aucun mois renvoyé par le P&amp;L mensuel.</div>';
+        } else {
+          var tCa = 0, tFc = 0, tLb = 0, tOv = 0, tNet = 0, complets = 0;
+          var rows = months.map(function (m) {
+            // Un mois dont un poste manque n'entre PAS dans le cumul : garder
+            // son CA au dénominateur pendant que ses coûts manquent au
+            // numérateur gonflerait la marge à proportion de ce qui manque.
+            var whole = m.material != null && m.labour != null && m.overhead != null;
+            if (whole) {
+              tCa += m.ca; tFc += m.material; tLb += m.labour; tOv += m.overhead;
+              tNet += m.ca - m.material - m.labour - m.overhead; complets++;
+            }
+            // Montants EXACTS, pas arrondis au millier : on ne vérifie pas un
+            // chiffre avec un arrondi.
+            var cell = function (v) {
+              return v == null ? '<td class="gap">—</td>' : '<td>' + eur0(v) + '</td>';
+            };
+            return '<tr' + (m.ym === s.margin_month ? ' class="ref"' : '') + '>'
+              + '<td>' + esc(moShort(m.ym)) + '</td>'
+              + '<td>' + eur0(m.ca) + '</td>' + cell(m.material) + cell(m.labour) + cell(m.overhead)
+              + '<td>' + eur0(m.net) + '</td>'
+              + '<td class="pct">' + (m.pct == null ? '—' : dec(m.pct) + ' %') + '</td></tr>';
+          }).join('');
+
+          vmBody.innerHTML = '<div class="vm-sub">CA − coût matière − main d’œuvre − frais généraux, '
+            + 'mois par mois, tels que le P&amp;L mensuel les renvoie. '
+            + 'La ligne surlignée est le mois qui sert de marge à la valorisation.</div>'
+            + '<div class="valo-tbl-wrap"><table class="vm-tbl"><thead><tr>'
+            + '<th>Mois</th><th>CA</th><th>FC</th><th>LB</th><th>OV</th><th>Net</th><th>%</th>'
+            + '</tr></thead><tbody>' + rows
+            + '<tr class="tot"><td>' + complets + ' mois</td><td>' + eur0(tCa) + '</td>'
+            + '<td>' + eur0(tFc) + '</td><td>' + eur0(tLb) + '</td><td>' + eur0(tOv) + '</td>'
+            + '<td>' + eur0(tNet) + '</td>'
+            + '<td>' + (tCa > 0 ? dec(Math.round(tNet / tCa * 1000) / 10) + ' %' : '—') + '</td>'
+            + '</tr></tbody></table></div>'
+            + '<div class="vm-note">FC = coût matière · LB = main d’œuvre · OV = frais généraux. '
+            + 'Le total ne retient que les mois dont les trois postes sont connus'
+            + (complets < months.length
+                ? ' — ' + (months.length - complets) + ' mois écarté(s), marqués « — »' : '')
+            + '. Marge nette annuelle : '
+            + (s.annual_margin ? dec(s.annual_margin.pct) + ' % sur ' + s.annual_margin.months + ' mois'
+                               : 'non calculable') + '.</div>';
+        }
+        back.hidden = false;
+        document.body.style.overflow = 'hidden';
       }
 
       function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
