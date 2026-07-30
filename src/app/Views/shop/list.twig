@@ -522,7 +522,9 @@
         // — sans quoi il ne reste qu'un chiffre dont on se méfie.
         if (d.margin_over && d.margin_over.length) {
           w += '<div class="valo-warn"><b>Marge nette au-dessus de ' + dec(d.max_margin_pct)
-             + ' %</b> — un point de vente ne dégage pas cela : il manque un coût au P&amp;L.<ul>';
+             + ' %</b> — un point de vente ne dégage pas cela : un coût manque au P&amp;L, '
+             + 'ou y figure pour trop peu.<ul>';
+        var mixLabel = { material: 'matière', labour: 'main d’œuvre', overhead: 'frais généraux' };
           d.margin_over.forEach(function (m) {
             var why;
             if (m.missing && m.missing.length) {
@@ -530,8 +532,20 @@
             } else if (m.from === 'result') {
               why = 'marge lue dans le champ « result » du back-office, faute des postes de coût';
             } else {
-              why = 'les trois postes sont fournis — le P&amp;L ne couvre donc pas tous les coûts '
-                  + '(loyer, redevances, énergie, amortissements ?)';
+              // Les trois postes sont là : ce n'est pas une ligne qui manque,
+              // c'est une ligne sous-évaluée. Les frais généraux couvrent le
+              // loyer, les redevances, l'énergie, les amortissements — leur
+              // part du CA dit tout de suite s'ils les couvrent vraiment.
+              why = 'les trois postes sont fournis : c’est l’un d’eux qui est sous-évalué';
+              if (m.cost_mix) {
+                var parts = [];
+                ['material', 'labour', 'overhead'].forEach(function (k) {
+                  if (m.cost_mix[k] != null) {
+                    parts.push(mixLabel[k] + ' ' + dec(m.cost_mix[k]) + ' %');
+                  }
+                });
+                if (parts.length) { why += ' — part du CA : ' + parts.join(' · '); }
+              }
             }
             w += '<li><b>' + esc(m.name) + '</b> ' + dec(m.pct) + ' % — ' + why + '</li>';
           });
