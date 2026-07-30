@@ -24,6 +24,10 @@ class ParamRepository
     public const DEFAULTS = [
         'valuation_multiple'              => ['4.5', 'Multiple de valorisation (× résultat net)'],
         'valuation_target_net_margin_pct' => ['15',  'Marge nette cible (%) — valorisation à l\'objectif'],
+        // Marge nette = CA − matière − main d'œuvre − frais généraux. Au-delà de
+        // cette borne, c'est qu'un poste de coût manque au P&L : signalé à
+        // l'écran, jamais corrigé en douce.
+        'valuation_max_net_margin_pct'    => ['20',  'Marge nette plausible maximale (%) — au-delà, un poste de coût manque au P&L'],
         // Créneaux de la heatmap de rentabilité : bornes INCLUSES, exprimées en
         // tranches horaires (la borne 10 couvre 10:00 → 10:59). Les heures hors
         // de ces trois plages ne sont comptées dans aucun créneau.

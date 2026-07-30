@@ -12,9 +12,16 @@ use App\Consultant\app\Services\Param\ParamService;
  *   Valo à l'objectif = CA annuel × marge cible × multiple
  *   Valo actuelle     = marge nette moyenne (12 mois) × CA annuel × multiple
  *
- * La marge nette 12 mois vient des snapshots mensuels (mac_shop_monthly_pnl) : à
- * chaque calcul on capture le mois courant (P&L : résultat ÷ CA), et la moyenne
- * se construit au fil des mois. Le CA annuel vient des KPIs ventes (12 mois).
+ * La marge nette est RECALCULÉE à partir des postes du P&L :
+ *
+ *   résultat net = CA − coût matière − main d'œuvre − frais généraux
+ *
+ * et non lue dans le champ `result` de l'API. Ce champ ne déduit pas toujours
+ * le coût matière : la marge montait alors bien au-delà de ce qu'un point de
+ * vente peut dégager, et la valorisation avec elle. Le champ `result` ne sert
+ * plus que de repli, quand les postes ne sont pas tous renseignés.
+ *
+ * Le CA annuel vient des KPIs ventes (12 mois).
  */
 class ValuationService
 {
@@ -35,6 +42,10 @@ class ValuationService
     {
         $multiple     = $this->params->getFloat('valuation_multiple', 4.5);
         $targetMargin = $this->params->getFloat('valuation_target_net_margin_pct', 15.0);
+        // Borne de plausibilité : au-delà, la marge nette ne vient pas d'un
+        // point de vente mais d'un poste de coût manquant dans le P&L. On ne
+        // corrige rien en douce — on le signale à l'écran.
+        $maxMargin    = $this->params->getFloat('valuation_max_net_margin_pct', 20.0);
 
         $shops = $this->shopService->getAllShops();
         $ids   = [];
@@ -57,9 +68,12 @@ class ValuationService
         foreach ($ids as $id => $name) {
             $pnl = is_array($pnls[$id] ?? null) ? $pnls[$id] : [];
             $ca  = $this->pnlValue($pnl['turnover'] ?? null);
-            $res = $this->pnlValue($pnl['result'] ?? null);
             $lab = $this->pnlValue($pnl['labour'] ?? null);
             $ovh = $this->pnlValue($pnl['overhead'] ?? null);
+            $mat = $this->pnlValue($pnl['material'] ?? null);
+            // Résultat net RECALCULÉ (CA − matière − main d'œuvre − frais) :
+            // le champ `result` de l'API ne déduit pas toujours la matière.
+            $res = $this->netResult($ca, $mat, $lab, $ovh, $this->pnlValue($pnl['result'] ?? null));
             $mg  = ($ca !== null && $ca > 0 && $res !== null) ? ($res / $ca) * 100 : null;
             if ($ca !== null || $mg !== null) {
                 $this->snap->upsertMonth($id, $curY, $curM, $ca, $mg, $res, $lab, $ovh);
@@ -98,12 +112,16 @@ class ValuationService
                     continue;
                 }
                 [$y, $m] = array_map('intval', explode('-', $ym));
+                $net = $this->netResult($ca, $p['material'], $p['labour'], $p['overhead'], $p['result']);
                 $rows[] = [
                     'id_shop'        => $id,
                     'year'           => $y,
                     'month'          => $m,
                     'ca'             => $ca,
-                    'net_margin_pct' => $p['result'] !== null ? $p['result'] / $ca * 100 : null,
+                    'material'       => $p['material'],
+                    'labour'         => $p['labour'],
+                    'overhead'       => $p['overhead'],
+                    'net_margin_pct' => $net !== null ? $net / $ca * 100 : null,
                 ];
             }
         }
@@ -127,10 +145,21 @@ class ValuationService
         }
         $marginsByShop = [];   // shopId => [pct, ...]
         $seriesByShop  = [];   // shopId => ['YYYY-MM' => valorisation mensuelle annualisée]
+        // Cumuls 12 mois des postes, pour que la marge affichée se refasse à la
+        // main : CA − matière − main d'œuvre − frais généraux.
+        $costsByShop = [];     // shopId => ['ca'=>…, 'material'=>…, 'labour'=>…, 'overhead'=>…]
         foreach ($rows as $r) {
             $sid = (int)$r['id_shop'];
             $mg  = $r['net_margin_pct'] !== null ? (float)$r['net_margin_pct'] : null;
             $ca  = $r['ca'] !== null ? (float)$r['ca'] : null;
+            if ($ca !== null) {
+                $costsByShop[$sid]['ca'] = ($costsByShop[$sid]['ca'] ?? 0.0) + $ca;
+                foreach (['material', 'labour', 'overhead'] as $k) {
+                    if (($r[$k] ?? null) !== null) {
+                        $costsByShop[$sid][$k] = ($costsByShop[$sid][$k] ?? 0.0) + (float)$r[$k];
+                    }
+                }
+            }
             if ($mg !== null) {
                 $marginsByShop[$sid][] = $mg;
             }
@@ -162,6 +191,7 @@ class ValuationService
             $valoObjectif = $ca12 * ($targetMargin / 100) * $multiple;
             $valoActuelle = ($avgMargin !== null) ? $ca12 * ($avgMargin / 100) * $multiple : null;
 
+            $c = $costsByShop[$id] ?? [];
             $shopsOut[] = [
                 'id'            => $id,
                 'name'          => $name,
@@ -170,6 +200,13 @@ class ValuationService
                 'valo_actuelle' => $valoActuelle,
                 'valo_objectif' => $valoObjectif,
                 'months_seen'   => count($margins),
+                // Postes cumulés sur les mois observés : la marge affichée doit
+                // pouvoir se refaire à la main à partir d'eux.
+                'pnl_ca'        => $c['ca']       ?? null,
+                'material'      => $c['material'] ?? null,
+                'labour'        => $c['labour']   ?? null,
+                'overhead'      => $c['overhead'] ?? null,
+                'margin_over'   => ($avgMargin !== null && $avgMargin > $maxMargin),
             ];
             $sumCa += $ca12;
             $sumObjectif += $valoObjectif;
@@ -219,6 +256,14 @@ class ValuationService
                 'shops_real'    => $shopsReal,
                 'shops_total'   => count($ids),
             ],
+            // Borne de plausibilité + boutiques qui la dépassent : une marge
+            // nette au-dessus veut dire qu'un poste de coût manque au P&L.
+            'months_window'     => self::MONTHS,
+            'max_margin_pct'    => $maxMargin,
+            'margin_over'       => array_values(array_map(
+                fn($s) => ['name' => $s['name'], 'pct' => round((float)$s['avg_margin'], 1)],
+                array_filter($shopsOut, fn($s) => !empty($s['margin_over']))
+            )),
             'series' => [
                 'months'  => $months,
                 'network' => $network,
@@ -226,6 +271,26 @@ class ValuationService
             ],
             'captured_month' => sprintf('%04d-%02d', $curY, $curM),
         ];
+    }
+
+    /**
+     * Résultat net d'un mois : CA − coût matière − main d'œuvre − frais
+     * généraux.
+     *
+     * Le champ `result` de l'API ne déduit pas toujours le coût matière ; s'y
+     * fier donnait des marges nettes très au-dessus de ce qu'un point de vente
+     * dégage, et une valorisation gonflée d'autant. On ne l'utilise donc qu'en
+     * REPLI, quand les postes ne sont pas tous renseignés — sans les trois
+     * postes, aucun recalcul n'est possible.
+     */
+    private function netResult(?float $ca, ?float $material, ?float $labour, ?float $overhead, ?float $apiResult): ?float
+    {
+        if ($ca !== null && $material !== null && $labour !== null && $overhead !== null) {
+            // Les postes de coût peuvent arriver signés (négatifs) selon le
+            // back-office : on raisonne en valeur absolue, un coût se retranche.
+            return $ca - abs($material) - abs($labour) - abs($overhead);
+        }
+        return $apiResult;
     }
 
     /** Valeur numérique d'un nœud P&L ({value:…} ou scalaire numérique). */
