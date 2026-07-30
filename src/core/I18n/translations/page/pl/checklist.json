@@ -56,5 +56,6 @@
     "a_consultant": "konsultanta",
     "not_compliant": "niezgodne",
     "owner_validate": "Zatwierdź",
-    "owner_ok": "zatwierdzone"
+    "owner_ok": "zatwierdzone",
+    "on_date": ""
 }

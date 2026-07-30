@@ -129,8 +129,6 @@ class ChecklistController extends Controller
             'id_shop'          => $shopId,
             'today'            => date('Y-m-d'),
             'active_nav'       => 'checklists',
-            // La case de validation n'apparaît qu'à qui peut valider.
-            'can_validate'     => $this->canValidate(),
         ]);
     }
 
