@@ -125,8 +125,9 @@
     .rpt-cal .dcell .dn { font-weight:800; opacity:.85; line-height:1; }
     .rpt-cal .dcell .dp { font-weight:800; font-size:.63rem; text-align:right; line-height:1; }
     .rpt-cal .dcell.blank { background:transparent; }
-    .hm-1 { background:#c0182b; } .hm-2 { background:#e67e22; } .hm-3 { background:#d9b13b; } .hm-4 { background:#7aa53f; } .hm-5 { background:#2D7A3E; }
+    /* Couleurs des cellules : bandes de kpi_threshold (inline) ; hm-nd = sans données. */
     .hm-nd { background:#efe9e0; color:#b6afa3 !important; }
+    .rpt-hm-legend .sw { vertical-align:-1px; margin-right:2px; }
     .rpt-hmv { display:inline-flex; min-width:56px; justify-content:center; border-radius:6px; color:#fff; font-weight:800; padding:3px 8px; font-size:.68rem; }
     .rpt-hm-legend { display:flex; gap:8px; align-items:center; font-size:.62rem; color:#7a7168; margin-top:8px; flex-wrap:wrap; }
     .rpt-hm-legend .sw { width:14px; height:10px; border-radius:3px; display:inline-block; }
@@ -135,6 +136,7 @@
     .rpt-cal .dcell[data-d] { cursor:pointer; }
     .rpt-cal .dcell[data-d]:hover { filter:brightness(1.08); }
     .rpt-hm-modal { position:fixed; inset:0; z-index:1200; display:flex; align-items:center; justify-content:center; padding:16px; }
+    .rpt-hm-modal[hidden] { display:none; }
     .rpt-hm-modal .bg { position:absolute; inset:0; background:rgba(20,12,8,.45); }
     .rpt-hm-modal .card { position:relative; background:#fff; border-radius:16px; box-shadow:0 18px 50px -12px rgba(0,0,0,.4); width:100%; max-width:380px; max-height:86vh; overflow:auto; padding:14px 16px 16px; }
     .rpt-hm-modal .hd { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
@@ -567,7 +569,8 @@
                         {% for w in [translations.wd_mon ?? 'L', translations.wd_tue ?? 'M', translations.wd_wed ?? 'M', translations.wd_thu ?? 'J', translations.wd_fri ?? 'V', translations.wd_sat ?? 'S', translations.wd_sun ?? 'D'] %}<div class="wd">{{ w }}</div>{% endfor %}
                         {% if shop.heatmap.days[0].wd > 1 %}{% for i in 1..(shop.heatmap.days[0].wd - 1) %}<div class="dcell blank"></div>{% endfor %}{% endif %}
                         {% for d in shop.heatmap.days %}
-                            <div class="dcell {{ d.lvl is null ? 'hm-nd' : 'hm-' ~ d.lvl }}"
+                            <div class="dcell {{ d.color is null ? 'hm-nd' : '' }}"
+                                 {% if d.color is not null %}style="background:{{ d.color }};"{% endif %}
                                  title="{{ d.date }}{{ d.pct is not null ? ' — ' ~ d.pct|number_format(1, ',', ' ') ~ ' %' : '' }}"
                                  {% if d.pct is not null %}data-d="{{ {date: d.date, ca: d.ca, mv: d.mv, g: d.gross_pct, n: d.pct}|json_encode|e('html_attr') }}" role="button" tabindex="0"{% endif %}>
                                 <span class="dn">{{ d.num }}</span>
@@ -591,8 +594,8 @@
                                 <td style="white-space:nowrap;font-weight:700;">{{ w.label }}</td>
                                 {% for slot in ['matin', 'midi', 'apm'] %}
                                     {% set v = attribute(w, slot) %}
-                                    {% set lvl = attribute(w, 'lvl_' ~ slot) %}
-                                    <td class="num"><span class="rpt-hmv {{ lvl is null ? 'hm-nd' : 'hm-' ~ lvl }}">{{ v is null ? '—' : v|number_format(1, ',', ' ') ~ ' %' }}</span></td>
+                                    {% set clr = attribute(w, 'color_' ~ slot) %}
+                                    <td class="num"><span class="rpt-hmv {{ clr is null ? 'hm-nd' : '' }}" {% if clr is not null %}style="background:{{ clr }};"{% endif %}>{{ v is null ? '—' : v|number_format(1, ',', ' ') ~ ' %' }}</span></td>
                                 {% endfor %}
                             </tr>
                         {% endfor %}
@@ -601,9 +604,9 @@
                     </div>
 
                     <div class="rpt-hm-legend">
-                        <span>{{ shop.heatmap.basis == 'net' ? (translations.hm_low ?? 'Résultat faible') : (translations.hm_low_gross ?? 'Marge faible') }}</span>
-                        <span class="sw hm-1"></span><span class="sw hm-2"></span><span class="sw hm-3"></span><span class="sw hm-4"></span><span class="sw hm-5"></span>
-                        <span>{{ translations.hm_high ?? 'élevé' }}</span>
+                        {% for b in shop.heatmap.bands %}
+                            <span><span class="sw" style="background:{{ b.color }};"></span> {{ b.label }}</span>
+                        {% endfor %}
                         {% if shop.heatmap.basis == 'net' %}
                             <span>· {{ translations.hm_note ?? 'résultat net = marge brute − labour − overhead (répartis au prorata du CA), échelle relative au mois' }}{% if shop.heatmap.fixed_src == 'current_month' %} — {{ translations.hm_src_current ?? 'structure de coûts du mois courant' }}{% elseif shop.heatmap.fixed_src == 'snapshot' %} — {{ translations.hm_src_snapshot ?? 'structure de coûts de' }} {{ shop.heatmap.fixed_src_month }}{% endif %}</span>
                         {% else %}

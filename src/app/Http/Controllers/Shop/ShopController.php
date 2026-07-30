@@ -6,6 +6,7 @@ use App\Consultant\app\Repositories\Google\GoogleRatingRepository;
 use App\Consultant\app\Repositories\Shop\ShopRepository;
 use App\Consultant\app\Repositories\Shop\ShopSalesRepository;
 use App\Consultant\app\Services\Shop\ShopService;
+use App\Consultant\app\Services\Kpi\KpiThresholdService;
 
 class ShopController extends Controller
 {
@@ -14,6 +15,7 @@ class ShopController extends Controller
         private ShopSalesRepository $shopSales,
         private ShopRepository $shopRepository,
         private GoogleRatingRepository $googleRating,
+        private KpiThresholdService $kpiThresholds,
     ) {}
 
     /**
@@ -120,6 +122,9 @@ class ShopController extends Controller
         $this->view('shop/list', [
             'shops'      => $shops,
             'active_nav' => 'shops',
+            // Bandes de couleur des marges (kpi_threshold) — mise en forme
+            // conditionnelle configurable en base, rien en dur dans la vue.
+            'kpi_bands'  => $this->kpiThresholds->all(),
         ]);
     }
 
