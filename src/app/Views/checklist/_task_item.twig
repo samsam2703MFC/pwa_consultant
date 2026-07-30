@@ -31,6 +31,19 @@
             <div class="task-by"><span class="me-1">{{ icons.svg('user-check') }}</span>{{ t.completed_by }}{% if t.completed_at %} · {{ t.completed_at | date('H:i') }}{% endif %}</div>
         {% endif %}
         {% if t.note %}<div class="task-note"><span class="me-1">{{ icons.svg('message-square') }}</span>{{ t.note }}</div>{% endif %}
+        {# Avis du consultant : présent dès qu'une note ou une conformité existe. #}
+        {% if t.review_rating is not null or t.review_is_accepted is not null or t.review_by %}
+            <div class="task-rev{{ t.review_is_accepted is not null and not t.review_is_accepted ? ' ko' : '' }}"
+                 data-rev="1">
+                {{ icons.svg('user-check', 12) }}
+                <span>{{ translations.verified_by ?? 'Vérifié par' }} {{ t.review_by ?? (translations.a_consultant ?? 'un consultant') }}</span>
+                {% if t.reviewed_at %}<span class="dt">· {{ t.reviewed_at|date('d/m H:i') }}</span>{% endif %}
+                {% if t.review_rating is not null %}<span class="rt">{{ '★★★★★'|slice(0, t.review_rating) }}</span>{% endif %}
+                {% if t.review_is_accepted is not null and not t.review_is_accepted %}
+                    <span class="ko-tag">{{ translations.not_compliant ?? 'non conforme' }}</span>
+                {% endif %}
+            </div>
+        {% endif %}
         {% if openable %}
             <div class="task-see">{{ icons.svg('image', 13) }}{{ translations.see_photo ?? 'Voir la photo' }}</div>
         {% endif %}

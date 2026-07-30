@@ -51,5 +51,8 @@
     "modal_save": "Zapisz ocenę",
     "modal_saving": "Zapisywanie…",
     "modal_saved": "Ocena zapisana.",
-    "modal_need_rate": "Wybierz ocenę od 1 do 5."
+    "modal_need_rate": "Wybierz ocenę od 1 do 5.",
+    "verified_by": "Sprawdzone przez",
+    "a_consultant": "konsultanta",
+    "not_compliant": "niezgodne"
 }
