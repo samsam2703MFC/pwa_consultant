@@ -280,6 +280,56 @@ class AgendaController extends Controller
         return $res['levers'] ?? [];
     }
 
+    /**
+     * Diagnostic du chargement des leviers (GET /agenda/levers?debug=1) :
+     * chaque étape de la chaîne avec son résultat et sa durée, pour
+     * identifier ce qui bloque (boutiques, ventes, food cost, statuts).
+     */
+    private function leversDiagnostic(int $shopId, string $period, float $t0): array
+    {
+        $out = ['debug' => true, 'shop_id' => $shopId, 'period' => $period, 'steps' => []];
+        $step = function (string $name, callable $fn) use (&$out) {
+            $t = microtime(true);
+            try {
+                $res = $fn();
+                $out['steps'][] = ['step' => $name, 'ok' => true, 'result' => $res, 's' => round(microtime(true) - $t, 2)];
+                return $res;
+            } catch (\Throwable $e) {
+                $out['steps'][] = [
+                    'step'  => $name,
+                    'ok'    => false,
+                    'error' => get_class($e) . ' — ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine(),
+                    's'     => round(microtime(true) - $t, 2),
+                ];
+                return null;
+            }
+        };
+
+        [$y, $m] = array_map('intval', explode('-', $period));
+        $first = sprintf('%04d-%02d-01', $y, $m);
+        $last  = date('Y-m-t', (int)strtotime($first));
+
+        $step('shops', function () {
+            $n = count($this->shopService->getAllShops());
+            return $n . ' boutique(s) actives';
+        });
+        $step('sales_kpis_shop', function () use ($shopId, $first, $last) {
+            $k = $this->shopService->getSalesKpis($shopId, $first, $last);
+            return ['ca' => $k['ca'] ?? null, 'tickets' => $k['tickets'] ?? null];
+        });
+        $step('material_cost_shop', fn() => $this->shopService->getMaterialCost($shopId, $first, $last));
+        $step('pnl_month', function () use ($shopId) {
+            $p = $this->shopService->getPnl($shopId, 'month');
+            return ['turnover' => $p['turnover']['value'] ?? null, 'labour' => $p['labour']['value'] ?? null,
+                    'overhead' => $p['overhead']['value'] ?? null];
+        });
+        $levers = $step('lever_statuses', fn() => $this->leverResults($shopId, $period));
+        $out['levers'] = is_array($levers) ? $levers : [];
+        $out['ok'] = !empty($out['levers']);
+        $out['elapsed_s'] = round(microtime(true) - $t0, 2);
+        return $out;
+    }
+
     /** Période 'YYYY-MM' valide ; défaut = mois précédent. */
     private function validPeriod(string $p): string
     {
@@ -328,6 +378,12 @@ class AgendaController extends Controller
         $period = $this->validPeriod((string)($_GET['period'] ?? ''));
         if ($shopId <= 0) {
             return $this->json(['ok' => false, 'error' => 'shop_id manquant'], 422);
+        }
+
+        // Diagnostic (?debug=1) : AVANT le cache, pour observer la chaîne réelle.
+        if (($_GET['debug'] ?? '') === '1') {
+            @set_time_limit(120);
+            return $this->json($this->leversDiagnostic($shopId, $period, microtime(true)));
         }
 
         // Le calcul compare la boutique à la moyenne réseau du mois : c'est
