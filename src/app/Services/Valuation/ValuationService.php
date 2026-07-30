@@ -7,12 +7,12 @@ use App\Consultant\app\Services\Param\ParamService;
 
 /**
  * Valorisation des boutiques et du réseau — AUCUNE constante en dur (multiple
- * et marge cible lus depuis consultant_param).
+ * et marge cible lus depuis mac_consultant_param).
  *
  *   Valo à l'objectif = CA annuel × marge cible × multiple
  *   Valo actuelle     = marge nette moyenne (12 mois) × CA annuel × multiple
  *
- * La marge nette 12 mois vient des snapshots mensuels (shop_monthly_pnl) : à
+ * La marge nette 12 mois vient des snapshots mensuels (mac_shop_monthly_pnl) : à
  * chaque calcul on capture le mois courant (P&L : résultat ÷ CA), et la moyenne
  * se construit au fil des mois. Le CA annuel vient des KPIs ventes (12 mois).
  */

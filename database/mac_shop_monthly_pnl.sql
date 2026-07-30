@@ -9,7 +9,7 @@
 -- Auto-création tentée par l'application ; sinon exécuter ce fichier (DBA).
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS shop_monthly_pnl (
+CREATE TABLE IF NOT EXISTS mac_shop_monthly_pnl (
     id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     id_shop        BIGINT UNSIGNED NOT NULL,
     year           SMALLINT UNSIGNED NOT NULL,
@@ -26,5 +26,10 @@ CREATE TABLE IF NOT EXISTS shop_monthly_pnl (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Installations antérieures (table déjà créée sans labour/overhead) :
--- ALTER TABLE shop_monthly_pnl ADD COLUMN labour   DECIMAL(14,2) NULL AFTER net_result;
--- ALTER TABLE shop_monthly_pnl ADD COLUMN overhead DECIMAL(14,2) NULL AFTER labour;
+-- ALTER TABLE mac_shop_monthly_pnl ADD COLUMN labour   DECIMAL(14,2) NULL AFTER net_result;
+-- ALTER TABLE mac_shop_monthly_pnl ADD COLUMN overhead DECIMAL(14,2) NULL AFTER labour;
+
+-- Migration depuis l'ancienne table (si elle existe) — l'app la fait aussi
+-- automatiquement au premier accès :
+-- INSERT IGNORE INTO mac_shop_monthly_pnl (id, id_shop, year, month, ca, net_margin_pct, net_result, labour, overhead, captured_at, updated_at)
+--   SELECT id, id_shop, year, month, ca, net_margin_pct, net_result, labour, overhead, captured_at, updated_at FROM shop_monthly_pnl;

@@ -10,7 +10,7 @@
 -- si le compte applicatif n'a pas le privilège CREATE, exécuter ce fichier.
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS kpi_threshold (
+CREATE TABLE IF NOT EXISTS mac_kpi_threshold (
     id      INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     metric  VARCHAR(32)   NOT NULL,   -- 'gross_margin' | 'net_margin'
     sort    SMALLINT      NOT NULL,   -- ordre des bandes (0 = la plus basse)
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS kpi_threshold (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seeds = échelles historiques de l'écran Boutiques (modifiables ensuite) :
-INSERT IGNORE INTO kpi_threshold (metric, sort, min_pct, color, label) VALUES
+INSERT IGNORE INTO mac_kpi_threshold (metric, sort, min_pct, color, label) VALUES
     ('net_margin',   0, NULL, '#8B0000', 'Perte'),
     ('net_margin',   1,    0, '#dc3545', '0–5 %'),
     ('net_margin',   2,    5, '#e67e22', '5–10 %'),
@@ -35,3 +35,7 @@ INSERT IGNORE INTO kpi_threshold (metric, sort, min_pct, color, label) VALUES
     ('gross_margin', 3,   50, '#8FA31E', '50–60 %'),
     ('gross_margin', 4,   60, '#27ae60', '60–70 %'),
     ('gross_margin', 5,   70, '#C9A227', '> 70 %');
+
+-- Migration depuis l'ancienne table (si elle existe) — l'app la fait aussi
+-- automatiquement au premier accès :
+-- INSERT IGNORE INTO mac_kpi_threshold SELECT * FROM kpi_threshold;

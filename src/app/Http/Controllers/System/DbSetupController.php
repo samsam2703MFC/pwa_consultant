@@ -40,17 +40,17 @@ class DbSetupController extends Controller
         }
 
         // Auto-création de tout ce que l'app sait provisionner (idempotent).
-        $this->params->ensureSchema();          // consultant_param
-        $this->snapshots->ensureSchema();       // shop_monthly_pnl (+ labour/overhead)
-        $this->kpiThresholds->ensureSchema();   // kpi_threshold
-        $this->agenda->ensureSchema();          // consultant_visit + consultant_lever_action
+        $this->params->ensureSchema();          // mac_consultant_param
+        $this->snapshots->ensureSchema();       // mac_shop_monthly_pnl (+ labour/overhead)
+        $this->kpiThresholds->ensureSchema();   // mac_kpi_threshold
+        $this->agenda->ensureSchema();          // mac_consultant_visit + mac_consultant_lever_action
 
         $tables = [
-            'consultant_param',
-            'shop_monthly_pnl',
-            'kpi_threshold',
-            'consultant_visit',
-            'consultant_lever_action',
+            'mac_consultant_param',
+            'mac_shop_monthly_pnl',
+            'mac_kpi_threshold',
+            'mac_consultant_visit',
+            'mac_consultant_lever_action',
         ];
         $out = [];
         foreach ($tables as $t) {
@@ -62,12 +62,28 @@ class DbSetupController extends Controller
             }
         }
         // Colonnes ajoutées après coup (migration douce) : labour/overhead.
-        if (!empty($out['shop_monthly_pnl']['exists'])) {
+        if (!empty($out['mac_shop_monthly_pnl']['exists'])) {
             try {
-                $pdo->query('SELECT labour, overhead FROM shop_monthly_pnl LIMIT 1');
-                $out['shop_monthly_pnl']['labour_overhead'] = true;
+                $pdo->query('SELECT labour, overhead FROM mac_shop_monthly_pnl LIMIT 1');
+                $out['mac_shop_monthly_pnl']['labour_overhead'] = true;
             } catch (\Throwable $e) {
-                $out['shop_monthly_pnl']['labour_overhead'] = false;
+                $out['mac_shop_monthly_pnl']['labour_overhead'] = false;
+            }
+        }
+        // Anciennes tables (sans préfixe mac_) : nombre de lignes, pour vérifier
+        // que la migration douce a bien tout copié. Absentes = rien à migrer.
+        $legacy = [
+            'mac_consultant_param'        => 'consultant_param',
+            'mac_shop_monthly_pnl'        => 'shop_monthly_pnl',
+            'mac_kpi_threshold'           => 'kpi_threshold',
+            'mac_consultant_visit'        => 'consultant_visit',
+            'mac_consultant_lever_action' => 'consultant_lever_action',
+        ];
+        foreach ($legacy as $new => $old) {
+            try {
+                $out[$new]['legacy_rows'] = (int)$pdo->query('SELECT COUNT(*) FROM `' . $old . '`')->fetchColumn();
+            } catch (\Throwable $e) {
+                // ancienne table absente — rien à signaler
             }
         }
 

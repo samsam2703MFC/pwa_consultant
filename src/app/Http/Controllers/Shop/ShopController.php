@@ -122,7 +122,7 @@ class ShopController extends Controller
         $this->view('shop/list', [
             'shops'      => $shops,
             'active_nav' => 'shops',
-            // Bandes de couleur des marges (kpi_threshold) — mise en forme
+            // Bandes de couleur des marges (mac_kpi_threshold) — mise en forme
             // conditionnelle configurable en base, rien en dur dans la vue.
             'kpi_bands'  => $this->kpiThresholds->all(),
         ]);

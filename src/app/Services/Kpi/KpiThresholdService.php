@@ -5,7 +5,7 @@ use App\Consultant\app\Repositories\Kpi\KpiThresholdRepository;
 
 /**
  * Mise en forme conditionnelle des KPI — bandes de couleur par métrique
- * (marge brute, marge nette), lues depuis kpi_threshold. La bande retenue
+ * (marge brute, marge nette), lues depuis mac_kpi_threshold. La bande retenue
  * pour une valeur est celle avec la plus grande borne basse ≤ valeur
  * (borne NULL = -infini).
  */

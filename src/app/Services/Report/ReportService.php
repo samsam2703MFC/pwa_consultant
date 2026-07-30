@@ -379,8 +379,8 @@ class ReportService
      * Analyse de RENTABILITÉ (rapport mensuel) : carte de marge brute du mois
      * (endpoint margin-heatmap) — jour par jour, puis créneaux matin / midi /
      * après-midi par semaine. Les bornes des créneaux viennent de
-     * consultant_param (rien en dur). Couleurs par bandes ABSOLUES
-     * configurables (table kpi_threshold, métrique net_margin ou gross_margin).
+     * mac_consultant_param (rien en dur). Couleurs par bandes ABSOLUES
+     * configurables (table mac_kpi_threshold, métrique net_margin ou gross_margin).
      * null si indisponible.
      */
     private function rentabilityHeatmap(int $shopId, array $period): ?array
@@ -491,7 +491,7 @@ class ReportService
             unset($w);
         }
 
-        // ── Couleurs : bandes ABSOLUES de la table kpi_threshold (marge nette
+        // ── Couleurs : bandes ABSOLUES de la table mac_kpi_threshold (marge nette
         //    ou brute selon la base) — mise en forme conditionnelle configurable
         //    en base, cohérente avec l'écran Boutiques.
         $metric = $basis === 'net' ? 'net_margin' : 'gross_margin';
@@ -535,7 +535,7 @@ class ReportService
      * Poids des coûts fixes (labour + overhead) en % du CA pour le mois du
      * rapport — pour convertir la heatmap de marge brute en RÉSULTAT NET
      * (résultat net = marge brute − labour − overhead) :
-     *   1. snapshot mensuel du mois du rapport (shop_monthly_pnl, capté par
+     *   1. snapshot mensuel du mois du rapport (mac_shop_monthly_pnl, capté par
      *      la valorisation) ;
      *   2. sinon P&L du mois COURANT (structure de coûts actuelle —
      *      approximation signalée dans le rapport).

@@ -9,7 +9,7 @@
 -- privilège CREATE, exécuter ce fichier via le DBA.
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS consultant_param (
+CREATE TABLE IF NOT EXISTS mac_consultant_param (
     param_key   VARCHAR(64)  NOT NULL,
     param_value VARCHAR(255) NOT NULL,
     label       VARCHAR(190) NULL,
@@ -18,8 +18,12 @@ CREATE TABLE IF NOT EXISTS consultant_param (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Valeurs initiales (modifiables ensuite en base) :
-INSERT IGNORE INTO consultant_param (param_key, param_value, label) VALUES
+INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('valuation_multiple',              '4.5', 'Multiple de valorisation (× résultat net)'),
     ('valuation_target_net_margin_pct', '15',  'Marge nette cible (%) — valorisation à l''objectif'),
     ('daypart_morning_until',           '12',  'Heatmap rentabilité : fin du créneau « matin » (heure)'),
     ('daypart_midday_until',            '14',  'Heatmap rentabilité : fin du créneau « midi » (heure)');
+
+-- Migration depuis l'ancienne table (si elle existe) — l'app la fait aussi
+-- automatiquement au premier accès :
+-- INSERT IGNORE INTO mac_consultant_param SELECT * FROM consultant_param;
