@@ -150,69 +150,89 @@ class TrendsService
         $mtdCheck = null;
         $perShop  = [];
         foreach ($months as $m) {
-            $caN = 0.0;
-            $caN1 = 0.0;
-            $obj = null;
+            $obj  = null;
             $ymN1 = date('Y-m', (int)strtotime($m['from'] . ' -1 year'));
-            // Mois complet + série disponible → lecture directe ; mois partiel
-            // → fenêtres tronquées (comparaison honnête).
-            $useSerie = $serie !== null && !$m['partial'];
+
+            // Les deux mesures possibles du mois, cote à cote :
+            //  - la SÉRIE mensuelle (P1), source des onze autres mois ;
+            //  - les FENÊTRES de dates (P3 / base locale), seules capables de
+            //    tronquer N et N-1 aux mêmes jours.
+            $serN = $serN1 = $winN = $winN1 = 0.0;
+            $perShopSerie = $perShopWin = [];
             foreach ($ids as $id) {
-                if ($useSerie) {
-                    // P1 : lecture directe de la série mensuelle.
+                if ($serie !== null) {
                     $one   = (float)($serie[$id][$m['ym']]['ca'] ?? 0);
-                    $caN  += $one;
-                    $caN1 += (float)(($serieN1[$id][$ymN1]['ca'] ?? $serie[$id][$ymN1]['ca'] ?? 0));
-                } else {
-                    $kn  = $kpis["{$id}|{$m['from']}|{$m['to']}"] ?? null;
-                    $kn1 = $kpis["{$id}|{$m['p_from']}|{$m['p_to']}"] ?? null;
-                    $one  = (float)($kn['ca'] ?? 0);
-                    $caN += $one;
-                    $caN1 += (float)($kn1['ca'] ?? 0);
+                    $serN += $one;
+                    $serN1 += (float)(($serieN1[$id][$ymN1]['ca'] ?? $serie[$id][$ymN1]['ca'] ?? 0));
+                    $perShopSerie[] = ['id' => $id, 'name' => $names[$id] ?? ('#' . $id), 'ca' => round($one, 2)];
                 }
-                // Détail du mois en cours, boutique par boutique : un total de
-                // réseau qu'on ne peut pas décomposer ne se vérifie pas.
-                if ($m['partial'] && !$m['empty']) {
-                    $perShop[] = ['id' => $id, 'name' => $names[$id] ?? ('#' . $id), 'ca' => round($one, 2)];
+                $kn  = $kpis["{$id}|{$m['from']}|{$m['to']}"] ?? null;
+                $kn1 = $kpis["{$id}|{$m['p_from']}|{$m['p_to']}"] ?? null;
+                if ($kn !== null || $kn1 !== null) {
+                    $one   = (float)($kn['ca'] ?? 0);
+                    $winN += $one;
+                    $winN1 += (float)($kn1['ca'] ?? 0);
+                    $perShopWin[] = ['id' => $id, 'name' => $names[$id] ?? ('#' . $id), 'ca' => round($one, 2)];
                 }
+
                 $t = $targets["{$id}|{$m['year']}|{$m['month']}"] ?? [];
                 $o = $this->caObjective(is_array($t) ? $t : []);
                 if ($o !== null) {
                     $obj = ($obj ?? 0.0) + $o;
                 }
             }
-            // Contrôle de cohérence du mois en cours : sa valeur vient des
-            // fenêtres tronquées (P3/local) alors que les onze autres viennent
-            // de la série mensuelle (P1). Deux endpoints, donc deux définitions
-            // possibles du « CA » — un écart passerait pour une envolée du mois
-            // en cours. On le mesure et on le publie plutôt que de le taire.
-            if ($m['partial'] && !$m['empty'] && $serie !== null) {
-                $fromSerie = 0.0;
-                foreach ($ids as $id) {
-                    $fromSerie += (float)($serie[$id][$m['ym']]['ca'] ?? 0);
-                }
-                if ($fromSerie > 0 && $caN > 0) {
+
+            // Le CA vient de la SÉRIE dès qu'elle a quelque chose à dire — y
+            // compris pour le mois en cours, dont l'entrée est un cumul à date
+            // par construction. Onze mois mesurés par un endpoint et le
+            // douzième par un autre, ce n'est pas une courbe : c'est deux
+            // courbes bout à bout, et le décrochage passe pour une envolée.
+            $fromSerie = $serN > 0;
+            $caN  = $fromSerie ? $serN : $winN;
+            $caN1 = $fromSerie ? $serN1 : $winN1;
+            $n1Estimated = false;
+
+            if ($m['partial'] && !$m['empty']) {
+                $perShop = $fromSerie ? $perShopSerie : $perShopWin;
+
+                // Écart entre les deux sources : mesuré et publié, jamais tu.
+                if ($fromSerie && $winN > 0) {
                     $mtdCheck = [
-                        'ym'      => $m['ym'],
-                        'window'  => round($caN, 2),
-                        'serie'   => round($fromSerie, 2),
-                        'gap_pct' => round(($caN - $fromSerie) / $fromSerie * 100, 1),
+                        'ym'       => $m['ym'],
+                        'window'   => round($winN, 2),
+                        'serie'    => round($serN, 2),
+                        'gap_pct'  => round(($winN - $serN) / $serN * 100, 1),
+                        'shown'    => 'serie',
                     ];
+                }
+                // Comparaison à périmètre égal. La série ne sait pas tronquer un
+                // mois passé : seules les fenêtres le peuvent. Leur RAPPORT est
+                // fiable même si leur niveau ne l'est pas — les deux côtés
+                // viennent du même endpoint — donc on ramène le N-1 sur
+                // l'échelle du CA affiché plutôt que de l'afficher tel quel.
+                if ($fromSerie) {
+                    if ($winN > 0 && $winN1 > 0) {
+                        $caN1        = $caN * $winN1 / $winN;
+                        $n1Estimated = true;
+                    } else {
+                        $caN1 = 0.0;   // mois complet N-1 : pas comparable à un cumul à date
+                    }
                 }
             }
 
             // 0 = aucune donnée (ni API ni base locale) → null, affiché « — »
             // plutôt qu'un faux « 0 € ».
             $rows[] = [
-                'ym'       => $m['ym'],
-                'partial'  => $m['partial'],
-                'days'     => $m['days'],
-                'to'       => $m['to'],
-                'ca_n'     => $caN > 0 ? round($caN, 2) : null,
-                'ca_n1'    => $caN1 > 0 ? round($caN1, 2) : null,
-                'objectif' => $obj !== null ? round($obj, 2) : null,
-                'evo_pct'  => ($caN > 0 && $caN1 > 0) ? round(($caN - $caN1) / $caN1 * 100, 1) : null,
-                'obj_pct'  => ($caN > 0 && $obj !== null && $obj > 0.0) ? round($caN / $obj * 100, 1) : null,
+                'ym'           => $m['ym'],
+                'partial'      => $m['partial'],
+                'days'         => $m['days'],
+                'to'           => $m['to'],
+                'ca_n'         => $caN > 0 ? round($caN, 2) : null,
+                'ca_n1'        => $caN1 > 0 ? round($caN1, 2) : null,
+                'n1_estimated' => $n1Estimated,
+                'objectif'     => $obj !== null ? round($obj, 2) : null,
+                'evo_pct'      => ($caN > 0 && $caN1 > 0) ? round(($caN - $caN1) / $caN1 * 100, 1) : null,
+                'obj_pct'      => ($caN > 0 && $obj !== null && $obj > 0.0) ? round($caN / $obj * 100, 1) : null,
             ];
         }
 
