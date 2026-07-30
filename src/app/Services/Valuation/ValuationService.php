@@ -10,7 +10,15 @@ use App\Consultant\app\Services\Param\ParamService;
  * et marge cible lus depuis mac_consultant_param).
  *
  *   Valo à l'objectif = CA annuel × marge cible × multiple
- *   Valo actuelle     = marge nette moyenne (12 mois) × CA annuel × multiple
+ *   Valo actuelle     = CA annuel × marge nette du MOIS PRÉCÉDENT × multiple
+ *
+ * Les deux grandeurs ne se lisent pas sur la même durée, et c'est voulu :
+ *   - le CA annuel est une MOYENNE (18 mois observés × 12) — un chiffre
+ *     d'affaires se juge sur la durée, saisons comprises ;
+ *   - la marge est celle du DERNIER MOIS CLOS — elle dit où en est la
+ *     boutique aujourd'hui, pas où elle en était il y a un an et demi.
+ *
+ * Le mois en cours est exclu : ses charges ne sont pas toutes passées.
  *
  * La marge nette est RECALCULÉE à partir des postes du P&L :
  *
@@ -160,32 +168,39 @@ class ValuationService
         // les mois à partir des jours plutôt que de lire un `result` amputé.
         $rows = $this->fillFromDailyPnl($rows, array_keys($ids), $fromWin, $toWin);
 
-        // Cumuls 12 mois des postes, par boutique. La marge se déduit d'EUX, pas
-        // d'une moyenne des pourcentages mensuels : moyenner des pourcentages
-        // donne autant de poids à un mois creux qu'à un mois plein, et le
-        // résultat ne se retrouve pas dans le P&L cumulé.
-        $costsByShop = [];   // shopId => ['ca','material','labour','overhead','months']
+        // Deux lectures différentes des mêmes lignes :
+        //   - le CA cumulé sur toute la fenêtre, qui donnera le CA annuel ;
+        //   - le détail mois par mois, où sera pris le MOIS DE RÉFÉRENCE de la
+        //     marge (le mois précédent).
+        $caByShop    = [];   // shopId => ['ca' => …, 'months' => …]
+        $monthByShop = [];   // shopId => 'YYYY-MM' => postes du mois
         foreach ($rows as $r) {
             $sid = (int)$r['id_shop'];
             $ca  = $r['ca'] !== null ? (float)$r['ca'] : null;
-            if ($ca === null) {
+            if ($ca === null || $ca <= 0) {
                 continue;
             }
-            $costsByShop[$sid]['ca']     = ($costsByShop[$sid]['ca'] ?? 0.0) + $ca;
-            $costsByShop[$sid]['months'] = ($costsByShop[$sid]['months'] ?? 0) + 1;
+            $caByShop[$sid]['ca']     = ($caByShop[$sid]['ca'] ?? 0.0) + $ca;
+            $caByShop[$sid]['months'] = ($caByShop[$sid]['months'] ?? 0) + 1;
+
+            $ym  = sprintf('%04d-%02d', (int)$r['year'], (int)$r['month']);
+            $ent = ['ca' => $ca, 'net' => null];
             foreach (['material', 'labour', 'overhead'] as $k) {
-                if (($r[$k] ?? null) !== null) {
-                    $costsByShop[$sid][$k] = ($costsByShop[$sid][$k] ?? 0.0) + abs((float)$r[$k]);
-                    $costsByShop[$sid][$k . '_n'] = ($costsByShop[$sid][$k . '_n'] ?? 0) + 1;
-                }
+                $ent[$k] = ($r[$k] ?? null) !== null ? abs((float)$r[$k]) : null;
             }
-            // Repli : quand les postes ne sont pas tous là, on cumule le
-            // résultat net mois par mois plutôt que de perdre la boutique.
-            if (($r['net_margin_pct'] ?? null) !== null) {
-                $costsByShop[$sid]['net'] = ($costsByShop[$sid]['net'] ?? 0.0)
-                    + $ca * (float)$r['net_margin_pct'] / 100;
+            if ($ent['material'] !== null && $ent['labour'] !== null && $ent['overhead'] !== null) {
+                $ent['net']  = $ca - $ent['material'] - $ent['labour'] - $ent['overhead'];
+                $ent['from'] = 'postes';
+            } elseif (($r['net_margin_pct'] ?? null) !== null) {
+                // Repli : le résultat net tel que le back-office le donne.
+                $ent['net']  = $ca * (float)$r['net_margin_pct'] / 100;
+                $ent['from'] = 'result';
             }
+            $monthByShop[$sid][$ym] = $ent;
         }
+        // Mois de référence de la marge : le mois PRÉCÉDENT. Le mois en cours
+        // n'est pas fini — sa marge se lirait sur des charges partielles.
+        $prevYm = $now->modify('-1 month')->format('Y-m');
 
         // 3) Valorisation par boutique. Le CA de référence est celui du P&L —
         //    le même que celui dont sont issus les coûts. Mélanger le CA des
@@ -203,53 +218,51 @@ class ValuationService
         // moyenne de la chaîne puisse être recalculée sans mentir.
         $sumCaReal = 0.0; $shopsReal = 0;
         foreach ($ids as $id => $name) {
-            $c        = $costsByShop[$id] ?? [];
-            $caPnl    = $c['ca'] ?? null;
-            $caKpi    = (float)($caWins["{$id}|{$fromWin}|{$toWin}"]['ca'] ?? 0);
+            $cw        = $caByShop[$id] ?? [];
+            $caPnl     = $cw['ca'] ?? null;
+            $caKpi     = (float)($caWins["{$id}|{$fromWin}|{$toWin}"]['ca'] ?? 0);
             $caFromPnl = ($caPnl !== null && $caPnl > 0);
+            $months    = (int)($cw['months'] ?? 0);
 
-            // Marge nette = (CA − matière − main d'œuvre − frais) ÷ CA, sur les
-            // cumuls de la fenêtre. Les trois postes doivent couvrir tous les
-            // mois observés, sinon le cumul de coûts serait incomplet face au CA.
-            $months  = (int)($c['months'] ?? 0);
-            $full    = $months > 0
-                && ($c['material_n'] ?? 0) === $months
-                && ($c['labour_n']   ?? 0) === $months
-                && ($c['overhead_n'] ?? 0) === $months;
-            // Postes absents d'au moins un mois : ce sont eux qui expliquent une
-            // marge invraisemblable. Les nommer transforme « le chiffre est
-            // faux » en « il manque les frais généraux de Namur ».
-            $missingCosts = [];
-            foreach (['material' => 'coût matière', 'labour' => 'main d\'œuvre',
-                      'overhead' => 'frais généraux'] as $k => $label) {
-                if ($months > 0 && ($c[$k . '_n'] ?? 0) < $months) {
-                    $missingCosts[] = $label;
-                }
-            }
-
-            $netTotal = null;
-            $marginFrom = null;
-            if ($full) {
-                $netTotal   = $c['ca'] - $c['material'] - $c['labour'] - $c['overhead'];
-                $marginFrom = 'postes';
-            } elseif (isset($c['net'])) {
-                // Repli : résultat net cumulé, tel que le back-office le donne.
-                // C'est précisément le chiffre dont on se méfie — on note d'où
-                // il vient pour pouvoir le dire à l'écran.
-                $netTotal   = $c['net'];
-                $marginFrom = 'result';
-            }
-            $avgMargin = ($netTotal !== null && ($c['ca'] ?? 0) > 0)
-                ? $netTotal / $c['ca'] * 100 : null;
-
-            // CA ANNUEL : le cumul de la fenêtre ramené à douze mois. Sur le
-            // P&L, on divise par les mois réellement observés — une boutique
-            // ouverte depuis six mois ne doit pas voir son CA divisé par
-            // dix-huit. Sur le repli KPIs, la fenêtre est entière par
-            // construction.
+            // CA ANNUEL : moyenne mensuelle de la fenêtre × 12. Sur le P&L, on
+            // divise par les mois réellement observés — une boutique ouverte
+            // depuis six mois ne doit pas voir son CA divisé par dix-huit. Sur
+            // le repli KPIs, la fenêtre est entière par construction.
             $ca12 = $caFromPnl
                 ? ($months > 0 ? $caPnl / $months * $annualMonths : 0.0)
                 : $caKpi / $windowMonths * $annualMonths;
+
+            // MARGE : celle du mois précédent, et de lui seul. À défaut, le
+            // mois complet le plus récent — mais on dit toujours lequel, sinon
+            // « 12 % » ne veut rien dire.
+            $mByShop     = $monthByShop[$id] ?? [];
+            $marginYm    = null;
+            if (isset($mByShop[$prevYm]) && $mByShop[$prevYm]['net'] !== null) {
+                $marginYm = $prevYm;
+            } else {
+                foreach (array_keys($mByShop) as $ym) {
+                    if ($ym < $prevYm && $mByShop[$ym]['net'] !== null
+                        && ($marginYm === null || $ym > $marginYm)) {
+                        $marginYm = $ym;
+                    }
+                }
+            }
+            $mo         = $marginYm !== null ? $mByShop[$marginYm] : null;
+            $avgMargin  = ($mo !== null && $mo['ca'] > 0) ? $mo['net'] / $mo['ca'] * 100 : null;
+            $marginFrom = $mo['from'] ?? null;
+
+            // Postes absents du mois de référence : ce sont eux qui expliquent
+            // une marge invraisemblable. Les nommer transforme « le chiffre est
+            // faux » en « il manque les frais généraux de Namur ».
+            $missingCosts = [];
+            if ($mo !== null) {
+                foreach (['material' => 'coût matière', 'labour' => 'main d\'œuvre',
+                          'overhead' => 'frais généraux'] as $k => $label) {
+                    if ($mo[$k] === null) {
+                        $missingCosts[] = $label;
+                    }
+                }
+            }
 
             $valoObjectif = $ca12 * ($targetMargin / 100) * $multiple;
             $valoActuelle = ($avgMargin !== null) ? $ca12 * ($avgMargin / 100) * $multiple : null;
@@ -262,15 +275,19 @@ class ValuationService
                 'valo_actuelle' => $valoActuelle,
                 'valo_objectif' => $valoObjectif,
                 'months_seen'   => $months,
-                // Postes cumulés sur les mois observés : la marge affichée doit
-                // pouvoir se refaire à la main à partir d'eux.
-                'material'      => $c['material'] ?? null,
-                'labour'        => $c['labour']   ?? null,
-                'overhead'      => $c['overhead'] ?? null,
+                // Le mois d'où sort la marge : « 12 % » ne veut rien dire sans
+                // lui, surtout quand le mois précédent n'était pas exploitable.
+                'margin_month'  => $marginYm,
+                'margin_is_prev' => $marginYm === $prevYm,
+                // Postes du mois de référence : la marge affichée doit pouvoir
+                // se refaire à la main à partir d'eux.
+                'material'      => $mo['material'] ?? null,
+                'labour'        => $mo['labour']   ?? null,
+                'overhead'      => $mo['overhead'] ?? null,
                 // Chaque poste en part du CA. C'est là qu'un poste sous-évalué
                 // se voit : des frais généraux à 4 % du CA ne couvrent pas un
                 // loyer, des redevances et de l'énergie.
-                'cost_mix'      => $this->costMix($c),
+                'cost_mix'      => $mo !== null ? $this->costMix($mo) : null,
                 // Le CA vient-il du P&L (même source que les coûts) ou, faute de
                 // P&L, des KPIs de vente ?
                 'ca_from_pnl'   => $caFromPnl,
@@ -314,6 +331,8 @@ class ValuationService
             // nette au-dessus veut dire qu'un poste de coût manque au P&L.
             'months_window'     => $windowMonths,
             'annual_months'     => $annualMonths,
+            // Mois de référence de la marge : le mois précédent.
+            'margin_month'      => $prevYm,
             'max_margin_pct'    => $maxMargin,
             'margin_over'       => array_values(array_map(
                 fn($s) => [
