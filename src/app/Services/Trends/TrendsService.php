@@ -38,11 +38,17 @@ class TrendsService
         $t0     = microtime(true);
         $budget = max(1, $this->params?->getInt('trends_budget_seconds', 30) ?? 30);
 
-        $ids = [];
+        // Une seule entrée par boutique : additionner deux fois la même ligne
+        // gonflerait le CA du réseau d'autant. getAllShops() dédoublonne déjà,
+        // mais ce total est le chiffre de référence du réseau — il ne doit
+        // dépendre d'aucune hypothèse sur ce que renvoie l'API.
+        $ids   = [];
+        $names = [];
         foreach ($this->shopService->getAllShops() as $s) {
             $id = (int)($s['id'] ?? 0);
-            if ($id > 0) {
-                $ids[] = $id;
+            if ($id > 0 && !isset($names[$id])) {
+                $ids[]       = $id;
+                $names[$id]  = trim((string)($s['representative_name'] ?? $s['name'] ?? '')) ?: ('#' . $id);
             }
         }
 
@@ -140,8 +146,9 @@ class TrendsService
             $objSkipped = true;
         }
 
-        $rows = [];
+        $rows     = [];
         $mtdCheck = null;
+        $perShop  = [];
         foreach ($months as $m) {
             $caN = 0.0;
             $caN1 = 0.0;
@@ -153,13 +160,20 @@ class TrendsService
             foreach ($ids as $id) {
                 if ($useSerie) {
                     // P1 : lecture directe de la série mensuelle.
-                    $caN  += (float)($serie[$id][$m['ym']]['ca'] ?? 0);
+                    $one   = (float)($serie[$id][$m['ym']]['ca'] ?? 0);
+                    $caN  += $one;
                     $caN1 += (float)(($serieN1[$id][$ymN1]['ca'] ?? $serie[$id][$ymN1]['ca'] ?? 0));
                 } else {
                     $kn  = $kpis["{$id}|{$m['from']}|{$m['to']}"] ?? null;
                     $kn1 = $kpis["{$id}|{$m['p_from']}|{$m['p_to']}"] ?? null;
-                    $caN  += (float)($kn['ca'] ?? 0);
+                    $one  = (float)($kn['ca'] ?? 0);
+                    $caN += $one;
                     $caN1 += (float)($kn1['ca'] ?? 0);
+                }
+                // Détail du mois en cours, boutique par boutique : un total de
+                // réseau qu'on ne peut pas décomposer ne se vérifie pas.
+                if ($m['partial'] && !$m['empty']) {
+                    $perShop[] = ['id' => $id, 'name' => $names[$id] ?? ('#' . $id), 'ca' => round($one, 2)];
                 }
                 $t = $targets["{$id}|{$m['year']}|{$m['month']}"] ?? [];
                 $o = $this->caObjective(is_array($t) ? $t : []);
@@ -222,11 +236,17 @@ class TrendsService
             }
         }
 
+        // Détail du mois en cours, de la plus grosse contribution à la plus
+        // petite : c'est là qu'une boutique en double ou une valeur aberrante
+        // se voit tout de suite.
+        usort($perShop, fn($a, $b) => $b['ca'] <=> $a['ca']);
+
         return [
-            'months'      => $rows,
-            'top3'        => $top3,
-            'current'     => $current,
-            'shops_count' => count($ids),
+            'months'        => $rows,
+            'top3'          => $top3,
+            'current'       => $current,
+            'current_shops' => $perShop,
+            'shops_count'   => count($ids),
             // Objectifs abandonnés faute de temps : signalé pour que les « — »
             // de la colonne Objectif ne passent pas pour « aucun objectif encodé ».
             'obj_skipped' => $objSkipped,
