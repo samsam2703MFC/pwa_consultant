@@ -254,37 +254,68 @@ class ReportService
                 $ids[] = $sid;
             }
         }
+        // La boutique demandée doit TOUJOURS être calculée, même si elle est
+        // absente de la liste (inactive, périmètre différent) — sinon la vue
+        // recevait une réponse vide et affichait « chargement impossible ».
+        if (!in_array($shopId, $ids, true)) {
+            $ids[] = $shopId;
+        }
 
-        // PRÉCHAUFFAGE PARALLÈLE : les ventes de la période ET de N-1 pour
-        // toutes les boutiques en 1 rafale (curl_multi). Les appels unitaires
-        // de hexmMetrics ci-dessous deviennent des lectures de cache — sans
-        // ça, ~2N appels séquentiels font expirer la requête AJAX.
+        // Moyennes réseau du mois : coûteuses (métriques de TOUTES les
+        // boutiques) mais IDENTIQUES pour toutes les boutiques et figées dès
+        // que le mois est passé → cache disque par période. Sans ce cache, le
+        // premier appel enchaînait ~50 requêtes API et la requête AJAX
+        // expirait avant de répondre.
+        $cacheFile = sys_get_temp_dir() . '/pwa_consultant_netavg_' . sprintf('%04d-%02d', $year, $month) . '.json';
+        $netAvg = null;
+        if (is_file($cacheFile) && (time() - (int)@filemtime($cacheFile)) < 1800) {
+            $c = json_decode((string)@file_get_contents($cacheFile), true);
+            if (is_array($c) && $c !== []) {
+                $netAvg = $c;
+            }
+        }
+
         $fromN1 = date('Y-m-d', (int)strtotime($period['from'] . ' -1 year'));
         $toN1   = date('Y-m-d', (int)strtotime($period['to'] . ' -1 year'));
-        $windows = [];
-        foreach ($ids as $sid) {
-            $windows[] = ['shop' => $sid, 'from' => $period['from'], 'to' => $period['to']];
-            $windows[] = ['shop' => $sid, 'from' => $fromN1, 'to' => $toN1];
-        }
-        $batch = $this->shopService->getSalesKpisBatch($windows);
-        // P&L du mois courant en parallèle aussi (repli labour/overhead).
-        $this->shopService->getPnlMany($ids, 'month');
 
-        // Moyenne réseau du MÊME mois (référence des statuts, comme l'écran HEXm).
-        $metricsByShop = [];
-        foreach ($ids as $sid) {
-            $k = $batch["{$sid}|{$period['from']}|{$period['to']}"]
-                ?? $this->shopService->getSalesKpis($sid, $period['from'], $period['to']);
-            $metricsByShop[$sid] = $this->hexmMetrics($sid, $period, $k);
+        if ($netAvg === null) {
+            // PRÉCHAUFFAGE PARALLÈLE (curl_multi) : ventes période + N-1 de
+            // toutes les boutiques en une rafale, P&L en une seconde. Les
+            // appels unitaires de hexmMetrics deviennent des lectures de cache.
+            $windows = [];
+            foreach ($ids as $sid) {
+                $windows[] = ['shop' => $sid, 'from' => $period['from'], 'to' => $period['to']];
+                $windows[] = ['shop' => $sid, 'from' => $fromN1, 'to' => $toN1];
+            }
+            $batch = $this->shopService->getSalesKpisBatch($windows);
+            $this->shopService->getPnlMany($ids, 'month');
+
+            $metricsByShop = [];
+            foreach ($ids as $sid) {
+                $k = $batch["{$sid}|{$period['from']}|{$period['to']}"]
+                    ?? $this->shopService->getSalesKpis($sid, $period['from'], $period['to']);
+                $metricsByShop[$sid] = $this->hexmMetrics($sid, $period, $k);
+            }
+            $netAvg = $this->networkAverages($metricsByShop);
+            @file_put_contents($cacheFile, json_encode($netAvg));
+        } else {
+            // Moyennes en cache : SEULE la boutique demandée est calculée.
+            $metricsByShop = [
+                $shopId => $this->hexmMetrics(
+                    $shopId,
+                    $period,
+                    $this->shopService->getSalesKpis($shopId, $period['from'], $period['to'])
+                ),
+            ];
         }
-        if (!isset($metricsByShop[$shopId])) {
-            return [];
+        // Tags officiels : purement décoratifs ici — leur indisponibilité ne
+        // doit pas empêcher le calcul des statuts.
+        try {
+            $ofTags = $this->consultantUsers->getOfficialTags();
+        } catch (\Throwable $e) {
+            $ofTags = [];
         }
-        $display = $this->hexmDisplay(
-            $metricsByShop[$shopId],
-            $this->networkAverages($metricsByShop),
-            $this->consultantUsers->getOfficialTags()
-        );
+        $display = $this->hexmDisplay($metricsByShop[$shopId] ?? [], $netAvg, $ofTags);
 
         $out = [];
         foreach (($display['levers'] ?? []) as $lev) {
