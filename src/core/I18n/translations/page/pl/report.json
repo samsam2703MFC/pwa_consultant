@@ -107,5 +107,10 @@
     "hm_src_snapshot": "struktura kosztów z",
     "pnl_labour_real": "Labour (rzeczywisty, dzienny)",
     "pnl_alloc_note_real": "Rzeczywisty dzienny labour; miesięczny overhead rozłożony na dni otwarcia",
-    "hm_labour_real": "rzeczywisty dzienny labour"
+    "hm_labour_real": "rzeczywisty dzienny labour",
+    "pnl_hours": "Godziny aktywne",
+    "pnl_slot_note": "Tygodniowy labour i overhead rozdzielone między pory dnia proporcjonalnie do AKTYWNYCH GODZIN",
+    "pnl_slot_gross": "Labour/overhead niedostępne — tylko marża brutto pory dnia.",
+    "pnl_labour_slot": "Koszt pracy w przedziale",
+    "pnl_overhead_slot": "Koszty stałe w przedziale"
 }

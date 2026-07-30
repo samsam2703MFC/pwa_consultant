@@ -547,21 +547,118 @@ class ShopRepository
     // absent (404) → l'appelant garde son mécanisme actuel : le panel reste
     // fonctionnel quel que soit l'état du backend.
 
-    /** Endpoints batch absents (404) → plus de sonde dans cette requête. */
+    /** Endpoints batch indisponibles → plus de sonde dans cette requête. */
     private static array $batchMissing = [];
+
+    /** Journal des sondes batch (statut + durée) pour les écrans ?debug=1. */
+    private static array $batchLog = [];
+
+    /**
+     * Disjoncteur : un endpoint batch qui échoue n'est plus sondé pendant un
+     * court moment.
+     *
+     * C'est vital. Le timeout cURL est de 10 s : sans disjoncteur, un endpoint
+     * lent ou en erreur coûte 10 s À CHAQUE sonde — la valorisation en fait une
+     * par boutique et le repli des tendances une par fenêtre, soit plusieurs
+     * minutes de mur avant même de commencer à calculer. Les replis donnent des
+     * données valides, donc renoncer vite est toujours préférable à insister.
+     */
+    private const BREAKER_TTL_ABSENT = 1800;  // 404 : l'endpoint n'existe pas
+    private const BREAKER_TTL_FAIL   = 300;   // timeout / 5xx / réponse illisible
+
+    private static function breakerPath(): string
+    {
+        return sys_get_temp_dir() . '/pwa_consultant_batch_breaker.json';
+    }
+
+    /** État du disjoncteur : lu une fois sur disque, tenu à jour en mémoire. */
+    private static ?array $breaker = null;
+
+    /** @return array<string, array{until:int, why:string}> */
+    private static function breakerCurrent(): array
+    {
+        if (self::$breaker === null) {
+            $raw   = @file_get_contents(self::breakerPath());
+            $state = ($raw !== false ? json_decode($raw, true) : null) ?: [];
+            if (!is_array($state)) {
+                $state = [];
+            }
+            foreach ($state as $k => $e) {
+                if (!is_array($e) || (int)($e['until'] ?? 0) <= time()) {
+                    unset($state[$k]);   // délai écoulé → on retentera
+                }
+            }
+            self::$breaker = $state;
+        }
+        return self::$breaker;
+    }
+
+    private static function breakerTrip(string $key, int $ttl, string $why): void
+    {
+        $state       = self::breakerCurrent();
+        $state[$key] = ['until' => time() + $ttl, 'why' => $why];
+        self::$breaker = $state;
+        @file_put_contents(self::breakerPath(), json_encode($state), LOCK_EX);
+    }
+
+    /** Réarme tous les endpoints batch (écrans ?fresh=1). */
+    public static function batchBreakerReset(): void
+    {
+        self::$batchMissing = [];
+        self::$breaker      = [];
+        @unlink(self::breakerPath());
+    }
+
+    /** Journal des sondes + disjoncteurs actifs (écrans ?debug=1). */
+    public static function batchDiagnostics(): array
+    {
+        $breaker = [];
+        foreach (self::breakerCurrent() as $k => $e) {
+            $breaker[$k] = [
+                'why'       => (string)($e['why'] ?? ''),
+                'retry_in_s' => max(0, (int)($e['until'] ?? 0) - time()),
+            ];
+        }
+        return ['probes' => self::$batchLog, 'breaker' => $breaker];
+    }
 
     private function batchGet(string $key, string $endpoint): ?array
     {
         if (!empty(self::$batchMissing[$key])) {
             return null;
         }
-        $r = $this->apiClient->get($endpoint);
-        if (empty($r['success']) || !is_array($r['data'] ?? null)) {
-            if (($r['error'] ?? null) === 404) {
-                self::$batchMissing[$key] = true;
-            }
+        $open = self::breakerCurrent()[$key] ?? null;
+        if ($open !== null) {
+            self::$batchMissing[$key] = true;
+            self::$batchLog[] = [
+                'key' => $key, 'endpoint' => $endpoint, 'status' => 'breaker',
+                'why' => (string)($open['why'] ?? ''), 'ms' => 0,
+            ];
             return null;
         }
+
+        $t0 = microtime(true);
+        $r  = $this->apiClient->get($endpoint);
+        $ms = (int)round((microtime(true) - $t0) * 1000);
+
+        if (empty($r['success']) || !is_array($r['data'] ?? null)) {
+            // 0 = timeout cURL (10 s) ou hôte injoignable ; [] = pas de code.
+            $code = is_int($r['error'] ?? null) ? (int)$r['error'] : 0;
+            $why  = $code === 404 ? 'http_404'
+                : ($code > 0 ? ('http_' . $code) : (empty($r['success']) ? 'timeout_or_unreachable' : 'bad_payload'));
+            // Toute panne — pas seulement un 404 — retire l'endpoint de la
+            // requête : re-sonder un endpoint qui vient d'échouer coûte un
+            // nouveau timeout pour le même résultat.
+            self::$batchMissing[$key] = true;
+            // Le disjoncteur persistant ne concerne pas l'authentification :
+            // un 401/403 dépend du jeton de l'appelant, pas de l'endpoint.
+            if (!in_array($code, [401, 403], true)) {
+                self::breakerTrip($key, $code === 404 ? self::BREAKER_TTL_ABSENT : self::BREAKER_TTL_FAIL, $why);
+            }
+            self::$batchLog[] = ['key' => $key, 'endpoint' => $endpoint, 'status' => $why, 'ms' => $ms];
+            return null;
+        }
+        self::$batchLog[] = ['key' => $key, 'endpoint' => $endpoint, 'status' => 'ok', 'ms' => $ms];
         return $r['data'];
     }
 
@@ -610,9 +707,82 @@ class ShopRepository
             'pnl_monthly',
             '/consultant/shops/' . $shopId . '/pnl/monthly?from=' . urlencode($from) . '&to=' . urlencode($to)
         );
-        if ($d === null) {
-            return null;
+        return $d !== null ? $this->parseMonthlyPnl($d) : null;
+    }
+
+    /**
+     * P2 en LOT : le P&L mensuel de plusieurs boutiques en parallèle
+     * (curl_multi). Une boucle séquentielle sur `getMonthlyPnl` paierait N fois
+     * la latence — et jusqu'à N × 10 s si l'endpoint traîne.
+     *
+     * @param int[] $shopIds
+     * @return array<int, array> map shopId => (map 'YYYY-MM' => postes) — les
+     *         boutiques sans données sont absentes.
+     */
+    public function getMonthlyPnlMany(array $shopIds, string $from, string $to): array
+    {
+        $shopIds = array_values(array_unique(array_map('intval', $shopIds)));
+        if ($shopIds === [] || !empty(self::$batchMissing['pnl_monthly'])
+            || isset(self::breakerCurrent()['pnl_monthly'])) {
+            self::$batchMissing['pnl_monthly'] = true;
+            return [];
         }
+
+        $byId = [];
+        foreach ($shopIds as $id) {
+            $byId[$id] = '/consultant/shops/' . $id . '/pnl/monthly?from='
+                . urlencode($from) . '&to=' . urlencode($to);
+        }
+        $t0        = microtime(true);
+        $responses = [];
+        foreach (array_chunk(array_values($byId), 16) as $chunk) {
+            $responses += $this->apiClient->getMany($chunk);
+        }
+        $ms = (int)round((microtime(true) - $t0) * 1000);
+
+        $out   = [];
+        $codes = [];
+        foreach ($byId as $id => $ep) {
+            $r = $responses[$ep] ?? null;
+            if (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) {
+                $parsed = $this->parseMonthlyPnl($r['data']);
+                if ($parsed !== null) {
+                    $out[$id] = $parsed;
+                    continue;
+                }
+                $codes[] = 'bad_payload';
+                continue;
+            }
+            $code    = is_int($r['error'] ?? null) ? (int)$r['error'] : 0;
+            $codes[] = $code === 404 ? 'http_404'
+                : ($code > 0 ? ('http_' . $code) : 'timeout_or_unreachable');
+        }
+
+        // Aucune boutique servie → l'endpoint est indisponible : on ouvre le
+        // disjoncteur pour que l'appelant reparte tout de suite sur son repli.
+        if ($out === [] && $codes !== []) {
+            $why = (string)array_key_first(array_count_values($codes));
+            self::$batchMissing['pnl_monthly'] = true;
+            if (!in_array($why, ['http_401', 'http_403'], true)) {
+                self::breakerTrip(
+                    'pnl_monthly',
+                    $why === 'http_404' ? self::BREAKER_TTL_ABSENT : self::BREAKER_TTL_FAIL,
+                    $why
+                );
+            }
+        }
+        self::$batchLog[] = [
+            'key'      => 'pnl_monthly',
+            'endpoint' => '/consultant/shops/{id}/pnl/monthly × ' . count($byId),
+            'status'   => $out !== [] ? 'ok (' . count($out) . '/' . count($byId) . ')' : ($codes[0] ?? 'empty'),
+            'ms'       => $ms,
+        ];
+        return $out;
+    }
+
+    /** @return array<string, array>|null map 'YYYY-MM' => postes P&L */
+    private function parseMonthlyPnl(array $d): ?array
+    {
         $num = fn($v) => is_numeric($v) ? (float)$v : null;
         $out = [];
         foreach (($d['months'] ?? $d) as $row) {
@@ -804,7 +974,8 @@ class ShopRepository
             }
             $sid = (int)($shop['shop_id'] ?? $shop['id'] ?? 0);
             if ($sid > 0) {
-                $out[$sid] = $shop;
+                // Le P&L peut être imbriqué (`pnl`) ou à plat sur la boutique.
+                $out[$sid] = is_array($shop['pnl'] ?? null) ? $shop['pnl'] : $shop;
             }
         }
         return $out !== [] ? $out : null;

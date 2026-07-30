@@ -48,15 +48,23 @@ class ShopMetricTargetRepository
                 return $out;
             }
         }
-        if (count($months) === 1 && count($shops) > 1) {
-            [$y, $m] = array_map('intval', explode('-', (string)reset($months)));
-            $all = $this->shops->getTargetsAllShops($y, $m);
-            if ($all !== null) {
-                foreach ($reqs as $q) {
-                    $sid = (int)$q['shop'];
-                    $out["{$sid}|{$y}|{$m}"] = $all[$sid] ?? [];
+        // P6a, mois par mois : plusieurs boutiques sur N mois → un appel global
+        // PAR MOIS (12 appels pour les tendances) au lieu d'un appel par couple
+        // (boutique, mois), soit plusieurs centaines. Le disjoncteur de
+        // ShopRepository fait que l'absence de P6a ne coûte qu'une seule sonde.
+        $served = [];
+        if (count($shops) > 1) {
+            foreach ($months as $ym) {
+                [$y, $m] = array_map('intval', explode('-', (string)$ym));
+                $all = $this->shops->getTargetsAllShops($y, $m);
+                if ($all === null) {
+                    break;   // endpoint indisponible → repli pour tous les mois
                 }
-                return $out;
+                foreach ($shops as $sid) {
+                    $sid = (int)$sid;
+                    $out["{$sid}|{$y}|{$m}"] = $all[$sid] ?? [];
+                    $served["{$sid}|{$y}|{$m}"] = true;
+                }
             }
         }
 
@@ -65,8 +73,14 @@ class ShopMetricTargetRepository
             $s = (int)($q['shop'] ?? 0);
             $y = (int)($q['year'] ?? 0);
             $m = (int)($q['month'] ?? 0);
+            if (isset($served["$s|$y|$m"])) {
+                continue;
+            }
             $out["$s|$y|$m"] = [];
             $byKey["$s|$y|$m"] = "/consultant/shops/{$s}/targets?year={$y}&month={$m}";
+        }
+        if ($byKey === []) {
+            return $out;
         }
         $responses = [];
         foreach (array_chunk(array_values(array_unique($byKey)), 24) as $chunk) {

@@ -129,6 +129,8 @@
     .hm-nd { background:#efe9e0; color:#b6afa3 !important; }
     .rpt-hm-legend .sw { vertical-align:-1px; margin-right:2px; }
     .rpt-hmv { display:inline-flex; min-width:56px; justify-content:center; border-radius:6px; color:#fff; font-weight:800; padding:3px 8px; font-size:.68rem; }
+    .rpt-hmv[data-slot] { cursor:pointer; }
+    .rpt-hmv[data-slot]:hover { filter:brightness(1.08); }
     .rpt-hm-legend { display:flex; gap:8px; align-items:center; font-size:.62rem; color:#7a7168; margin-top:8px; flex-wrap:wrap; }
     .rpt-hm-legend .sw { width:14px; height:10px; border-radius:3px; display:inline-block; }
 
@@ -595,7 +597,12 @@
                                 {% for slot in ['matin', 'midi', 'apm'] %}
                                     {% set v = attribute(w, slot) %}
                                     {% set clr = attribute(w, 'color_' ~ slot) %}
-                                    <td class="num"><span class="rpt-hmv {{ clr is null ? 'hm-nd' : '' }}" {% if clr is not null %}style="background:{{ clr }};"{% endif %}>{{ v is null ? '—' : v|number_format(1, ',', ' ') ~ ' %' }}</span></td>
+                                    {% set det = attribute(w, 'd_' ~ slot) ?? null %}
+                                    <td class="num">
+                                        <span class="rpt-hmv {{ clr is null ? 'hm-nd' : '' }}"
+                                              {% if clr is not null %}style="background:{{ clr }};"{% endif %}
+                                              {% if det is not null %}data-slot="{{ det|merge({label: attribute(shop.heatmap.labels, slot), week: w.label})|json_encode|e('html_attr') }}" role="button" tabindex="0"{% endif %}>{{ v is null ? '—' : v|number_format(1, ',', ' ') ~ ' %' }}</span>
+                                    </td>
                                 {% endfor %}
                             </tr>
                         {% endfor %}
@@ -803,7 +810,7 @@
 (function () {
     var modal = document.getElementById('hmModal');
     if (!modal) return;
-    var CUR = {{ currency_symbol|json_encode|raw }};
+    var CUR = {{ (currency_symbol ?: '€')|json_encode|raw }};
     var L = {
         ca:       {{ (translations.pnl_ca ?? "Chiffre d'affaires")|json_encode|raw }},
         material: {{ (translations.pnl_material ?? 'Coût matière')|json_encode|raw }},
@@ -816,12 +823,21 @@
         allocNoteReal: {{ (translations.pnl_alloc_note_real ?? "Labour réel du jour ; overhead du mois réparti par jour d'ouverture")|json_encode|raw }},
         srcCur:   {{ (translations.hm_src_current ?? 'structure de coûts du mois courant')|json_encode|raw }},
         srcSnap:  {{ (translations.hm_src_snapshot ?? 'structure de coûts de')|json_encode|raw }},
+        hours:    {{ (translations.pnl_hours ?? 'Heures actives')|json_encode|raw }},
+        {# Créneaux : l'assiette n'est pas « mois ÷ jours ouverts » mais
+           « semaine au prorata des heures actives » → libellés neutres. #}
+        labourSlot:   {{ (translations.pnl_labour_slot ?? 'Labour du créneau')|json_encode|raw }},
+        overheadSlot: {{ (translations.pnl_overhead_slot ?? 'Overhead du créneau')|json_encode|raw }},
+        slotNote: {{ (translations.pnl_slot_note ?? "Labour et overhead de la semaine répartis entre les créneaux au prorata des HEURES ACTIVES")|json_encode|raw }},
+        slotGross:{{ (translations.pnl_slot_gross ?? 'Labour/overhead indisponibles — marge brute du créneau uniquement.')|json_encode|raw }},
         grossNote:{{ (translations.pnl_gross_note ?? 'Labour/overhead indisponibles — marge brute uniquement.')|json_encode|raw }},
         dayNotes: {{ (translations.day_notes ?? 'Commentaires du jour')|json_encode|raw }}
     };
     var nf = new Intl.NumberFormat('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     var eur = function (v) { return nf.format(v) + ' ' + CUR; };
     var pctf = function (v) { return String(Math.round(v * 10) / 10).replace('.', ',') + ' %'; };
+    var nfh = new Intl.NumberFormat('fr-BE', { maximumFractionDigits: 1 });
+    var hf  = function (v) { return nfh.format(v) + ' h'; };
 
     function row(op, label, val, pct, cls) {
         return '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td class="op">' + op + '</td><td>' + label
@@ -879,15 +895,47 @@
     }
     function close() { modal.hidden = true; }
 
+    // ── Modale d'un CRÉNEAU (matin / midi / après-midi d'une semaine) ──
+    function openSlot(cell) {
+        var d;
+        try { d = JSON.parse(cell.getAttribute('data-slot')); } catch (e) { return; }
+        if (!d || d.ca == null) { return; }
+
+        document.getElementById('hmMTitle').textContent = (d.label || '') + ' · ' + (d.week || '');
+
+        var h = row('', L.ca, eur(d.ca), null, '');
+        h += row('−', L.material, eur(d.material), null, '');
+        h += row('=', L.gross, eur(d.mv), d.gross_pct, 'sub');
+        var note;
+        if (d.lab != null && d.ovh != null) {
+            h += row('−', L.labourSlot, eur(d.lab), d.ca > 0 ? d.lab / d.ca * 100 : null, '');
+            h += row('−', L.overheadSlot, eur(d.ovh), d.ca > 0 ? d.ovh / d.ca * 100 : null, '');
+            h += row('=', L.net, '<span style="color:' + (d.net >= 0 ? '#2D7A3E' : '#c0182b') + ';">' + eur(d.net) + '</span>', d.net_pct, 'net');
+            note = L.slotNote + ' (' + hf(d.hrs) + ' / ' + hf(d.hrs_total) + ').';
+        } else {
+            note = L.slotGross;
+        }
+        h += row('', L.hours, hf(d.hrs) + (d.hrs_total ? ' / ' + hf(d.hrs_total) : ''), null, '');
+
+        document.getElementById('hmMPnl').innerHTML = h;
+        document.getElementById('hmMNote').textContent = note;
+        document.getElementById('hmMNotes').innerHTML = '';   // pas de note par créneau
+        modal.hidden = false;
+    }
+
     document.addEventListener('click', function (e) {
         var cell = e.target.closest('.rpt-cal .dcell[data-d]');
-        if (cell) { open(cell); }
+        if (cell) { open(cell); return; }
+        var slot = e.target.closest('.rpt-hmv[data-slot]');
+        if (slot) { openSlot(slot); }
     });
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && !modal.hidden) close();
-        if (e.key === 'Enter') {
-            var cell = e.target.closest && e.target.closest('.rpt-cal .dcell[data-d]');
-            if (cell) open(cell);
+        if (e.key === 'Enter' && e.target.closest) {
+            var cell = e.target.closest('.rpt-cal .dcell[data-d]');
+            if (cell) { open(cell); return; }
+            var slot = e.target.closest('.rpt-hmv[data-slot]');
+            if (slot) { openSlot(slot); }
         }
     });
     document.getElementById('hmMBg').addEventListener('click', close);

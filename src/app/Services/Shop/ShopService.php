@@ -245,6 +245,17 @@ class ShopService
         return $this->shopRepository->getMonthlyPnl($shopId, $from, $to);
     }
 
+    /**
+     * P2 en lot — P&L mensuel de plusieurs boutiques en parallèle.
+     *
+     * @param int[] $shopIds
+     * @return array<int, array> map shopId => (map 'YYYY-MM' => postes)
+     */
+    public function getMonthlyPnlMany(array $shopIds, string $from, string $to): array
+    {
+        return $this->shopRepository->getMonthlyPnlMany($shopIds, $from, $to);
+    }
+
     /** P1 — ventes mensuelles de toutes les boutiques, ou null. */
     public function getMonthlySalesAllShops(string $from, string $to): ?array
     {

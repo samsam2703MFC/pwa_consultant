@@ -678,6 +678,15 @@ class ReportService
                         $wkCost += $lab + ($ovhByDate[$date] ?? $ovhDay);
                     }
                 }
+                // Part labour / overhead de la semaine (pour le détail).
+                $wkLab = 0.0;
+                $wkOvh = 0.0;
+                foreach ($labByDate as $date => $lab) {
+                    if ($date >= $w['from'] && $date <= $w['to']) {
+                        $wkLab += $lab;
+                        $wkOvh += $ovhByDate[$date] ?? $ovhDay;
+                    }
+                }
                 $hrsTotal = 0;
                 foreach ($w['_parts'] as $p) {
                     $hrsTotal += $p['hrs'];
@@ -686,10 +695,26 @@ class ReportService
                     $p = $w['_parts'][$slot];
                     if ($p['ca'] <= 0 || $hrsTotal === 0) {
                         $w[$slot] = null;
+                        $w['d_' . $slot] = null;
                         continue;
                     }
-                    $costPart = $wkCost * $p['hrs'] / $hrsTotal;
-                    $w[$slot] = ($p['mv'] - $costPart) / $p['ca'] * 100;
+                    $share    = $p['hrs'] / $hrsTotal;
+                    $lab      = $wkLab * $share;
+                    $ovh      = $wkOvh * $share;
+                    $w[$slot] = ($p['mv'] - $lab - $ovh) / $p['ca'] * 100;
+                    // Détail du créneau (modale) : chaque ligne du micro P&L.
+                    $w['d_' . $slot] = [
+                        'ca'        => round($p['ca'], 2),
+                        'material'  => round($p['ca'] - $p['mv'], 2),
+                        'mv'        => round($p['mv'], 2),
+                        'gross_pct' => $p['mv'] / $p['ca'] * 100,
+                        'lab'       => round($lab, 2),
+                        'ovh'       => round($ovh, 2),
+                        'net'       => round($p['mv'] - $lab - $ovh, 2),
+                        'net_pct'   => ($p['mv'] - $lab - $ovh) / $p['ca'] * 100,
+                        'hrs'       => $p['hrs'],
+                        'hrs_total' => $hrsTotal,
+                    ];
                 }
             }
             unset($w);
@@ -699,6 +724,18 @@ class ReportService
                 foreach (['matin', 'midi', 'apm'] as $slot) {
                     $p = $w['_parts'][$slot];
                     $w[$slot] = $p['ca'] > 0 ? $p['mv'] / $p['ca'] * 100 : null;
+                    $w['d_' . $slot] = $p['ca'] > 0 ? [
+                        'ca'        => round($p['ca'], 2),
+                        'material'  => round($p['ca'] - $p['mv'], 2),
+                        'mv'        => round($p['mv'], 2),
+                        'gross_pct' => $p['mv'] / $p['ca'] * 100,
+                        'lab'       => null,
+                        'ovh'       => null,
+                        'net'       => null,
+                        'net_pct'   => null,
+                        'hrs'       => $p['hrs'],
+                        'hrs_total' => null,
+                    ] : null;
                 }
             }
             unset($w);
