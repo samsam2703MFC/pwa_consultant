@@ -356,32 +356,50 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
         if (!current) { return; }
         if (!rating) { msg(L.needRate, false); return; }
         var btn = this;
+        var comment = document.getElementById('dnComment').value || null;
         btn.disabled = true;
         msg(L.saving, true);
         fetch(ROOT + '/checklists/reviews', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            // Le format attendu par /consultant/shops/{id}/task-reviews n'est
+            // pas documenté et la premiere tentative a ete refusee (« champs
+            // obligatoires manquants »). On envoie donc les noms plausibles en
+            // parallele ; le detail de l'erreur, affiche tel quel, permettra de
+            // resserrer sur les seuls champs utiles.
             body: JSON.stringify({
-                shop_id:       SHOP,
-                date:          DATE,
-                task_id:       current.task_id,
-                completion_id: current.completion_id,
-                rating:        rating,
-                comment:       document.getElementById('dnComment').value || null,
-                is_accepted:   accepted
+                shop_id:            SHOP,
+                id_shop:            SHOP,
+                date:               DATE,
+                task_id:            current.task_id,
+                id_task:            current.task_id,
+                completion_id:      current.completion_id,
+                id_completion:      current.completion_id,
+                task_completion_id: current.completion_id,
+                rating:             rating,
+                review_rating:      rating,
+                comment:            comment,
+                review_comment:     comment,
+                is_accepted:        accepted === null ? true : accepted,
+                review_is_accepted: accepted === null ? true : accepted
             })
         })
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (p) {
                 if (!p.ok || !(p.j && p.j.success)) {
-                    // Message du backend affiché tel quel : si le format
-                    // attendu diffère, on le sait tout de suite.
-                    throw new Error((p.j && (p.j.error || p.j.message)) || 'HTTP ' + (p.ok ? 200 : 'error'));
+                    // Message du backend affiché tel quel, avec le corps de sa
+                    // réponse : si le format attendu diffère, on lit lequel au
+                    // lieu de le deviner.
+                    var txt = (p.j && (p.j.error || p.j.message)) || ('HTTP ' + (p.ok ? 200 : 'error'));
+                    if (p.j && p.j.detail) {
+                        txt += ' — ' + (typeof p.j.detail === 'string' ? p.j.detail : JSON.stringify(p.j.detail));
+                    }
+                    throw new Error(txt);
                 }
                 msg(L.saved, true);
                 current.rating = rating;
-                current.comment = document.getElementById('dnComment').value || null;
+                current.comment = comment;
                 current.accepted = accepted;
             })
             .catch(function (e) { msg(String(e.message || e), false); })
