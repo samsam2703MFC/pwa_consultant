@@ -112,5 +112,17 @@
     "pnl_slot_note": "Weekly labour and overhead split across dayparts pro rata to ACTIVE HOURS",
     "pnl_slot_gross": "Labour/overhead unavailable — daypart gross margin only.",
     "pnl_labour_slot": "Slot labour cost",
-    "pnl_overhead_slot": "Slot overhead cost"
+    "pnl_overhead_slot": "Slot overhead cost",
+    "hm_weekday_month": "Day of week — monthly average",
+    "hm_weekday_week": "Day of week",
+    "days_short": "d",
+    "wd_long_mon": "Monday",
+    "wd_long_tue": "Tuesday",
+    "wd_long_wed": "Wednesday",
+    "wd_long_thu": "Thursday",
+    "wd_long_fri": "Friday",
+    "wd_long_sat": "Saturday",
+    "wd_long_sun": "Sunday",
+    "pnl_wd_note": "Total of the %d occurrences of this weekday over the period (revenue-weighted average)",
+    "hm_hrs_snapped": "opening hours outside the configured ranges: attached to the nearest slot"
 }

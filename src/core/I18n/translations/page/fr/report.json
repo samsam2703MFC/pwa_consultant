@@ -112,5 +112,17 @@
     "pnl_slot_note": "Labour et overhead de la semaine répartis entre les créneaux au prorata des HEURES ACTIVES",
     "pnl_slot_gross": "Labour/overhead indisponibles — marge brute du créneau uniquement.",
     "pnl_labour_slot": "Labour du créneau",
-    "pnl_overhead_slot": "Overhead du créneau"
+    "pnl_overhead_slot": "Overhead du créneau",
+    "hm_weekday_month": "Jour de semaine — moyenne du mois",
+    "hm_weekday_week": "Jour de semaine",
+    "days_short": "j",
+    "wd_long_mon": "Lundi",
+    "wd_long_tue": "Mardi",
+    "wd_long_wed": "Mercredi",
+    "wd_long_thu": "Jeudi",
+    "wd_long_fri": "Vendredi",
+    "wd_long_sat": "Samedi",
+    "wd_long_sun": "Dimanche",
+    "pnl_wd_note": "Cumul des %d jours de ce jour de semaine sur la période (moyenne pondérée par le CA)",
+    "hm_hrs_snapped": "heures d'ouverture hors plages configurées : rattachées au créneau le plus proche"
 }

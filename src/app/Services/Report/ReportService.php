@@ -207,9 +207,10 @@ class ReportService
                     'compare'            => $type === 'month'
                         ? $this->structuredCompare($shopId, $period, $kpis, $kpisByShop, $metricsByShop, $netAvg, $netFranchise)
                         : null,
-                    'heatmap'            => $type === 'month'
-                        ? $this->rentabilityHeatmap($shopId, $period)
-                        : null,
+                    // L'analyse de rentabilité existe aussi en HEBDO : la carte
+                    // par jour de semaine y montre les jours de la semaine, là
+                    // où le mensuel en donne la moyenne (tous les lundis, etc.).
+                    'heatmap'            => $this->rentabilityHeatmap($shopId, $period, $type),
                 ];
             }
         }
@@ -485,7 +486,7 @@ class ReportService
      * configurables (table mac_kpi_threshold, métrique net_margin ou gross_margin).
      * null si indisponible.
      */
-    private function rentabilityHeatmap(int $shopId, array $period): ?array
+    private function rentabilityHeatmap(int $shopId, array $period, string $type = 'month'): ?array
     {
         // P4 : découpage hebdo fourni par l'API (1 appel au lieu de 6).
         $month = $this->shopService->getMarginHeatmap($shopId, $period['from'], $period['to'], true);
@@ -493,8 +494,37 @@ class ReportService
             return null;
         }
 
-        $morningUntil = $this->params->getInt('daypart_morning_until', 12);
-        $middayUntil  = $this->params->getInt('daypart_midday_until', 14);
+        // Bornes des créneaux : INCLUSES, en tranches horaires (la borne 10
+        // couvre 10:00 → 10:59).
+        $slots = [
+            'matin' => [$this->params->getInt('daypart_morning_from', 6),    $this->params->getInt('daypart_morning_to', 10)],
+            'midi'  => [$this->params->getInt('daypart_midday_from', 11),    $this->params->getInt('daypart_midday_to', 14)],
+            'apm'   => [$this->params->getInt('daypart_afternoon_from', 15), $this->params->getInt('daypart_afternoon_to', 19)],
+        ];
+        // Une heure d'ouverture hors des plages configurées (magasin ouvert à
+        // 5 h ou jusqu'à 21 h) est RATTACHÉE au créneau le plus proche, jamais
+        // écartée : sinon son chiffre d'affaires disparaîtrait de l'analyse et
+        // les créneaux ne se réconcilieraient plus avec les jours et le mois.
+        // Le nombre d'heures rattachées est remonté (légende).
+        $snapped = 0;
+        $slotOf = function (int $hr) use ($slots, &$snapped): string {
+            foreach ($slots as $name => [$from, $to]) {
+                if ($hr >= $from && $hr <= $to) {
+                    return $name;
+                }
+            }
+            $snapped++;
+            $best = null;
+            $dist = PHP_INT_MAX;
+            foreach ($slots as $name => [$from, $to]) {
+                $d = $hr < $from ? $from - $hr : $hr - $to;
+                if ($d < $dist) {   // égalité → le créneau le plus tôt gagne
+                    $dist = $d;
+                    $best = $name;
+                }
+            }
+            return (string)$best;
+        };
 
         // ── Mois / jour ──
         $days = [];
@@ -565,6 +595,9 @@ class ReportService
                 'midi'  => ['ca' => 0.0, 'mv' => 0.0, 'hrs' => 0],
                 'apm'   => ['ca' => 0.0, 'mv' => 0.0, 'hrs' => 0],
             ];
+            // Heures actives de la semaine : base de répartition des coûts.
+            $hrsAll   = 0;
+            $snapped  = 0;   // heures rattachées au créneau le plus proche
             if (is_array($wk['hours'] ?? null)) {
                 foreach ($wk['hours'] as $h) {
                     if (!is_array($h)) {
@@ -584,17 +617,20 @@ class ReportService
                         continue;
                     }
                     $hr   = (int)($h['hour'] ?? -1);
-                    $slot = $hr < $morningUntil ? 'matin' : ($hr < $middayUntil ? 'midi' : 'apm');
+                    $hrsAll++;
+                    $slot = $slotOf($hr);
                     $parts[$slot]['ca'] += $ca;
                     $parts[$slot]['mv'] += $mv;
                     $parts[$slot]['hrs']++;
                 }
             }
             $weeks[] = [
-                'label'  => date('d/m', (int)strtotime($b['from'])) . '–' . date('d/m', (int)strtotime($b['to'])),
-                'from'   => $b['from'],
-                'to'     => $b['to'],
-                '_parts' => $parts,
+                'label'       => date('d/m', (int)strtotime($b['from'])) . '–' . date('d/m', (int)strtotime($b['to'])),
+                'from'        => $b['from'],
+                'to'          => $b['to'],
+                '_parts'      => $parts,
+                '_hrsAll'     => $hrsAll,
+                'hrs_snapped' => $snapped,
             ];
         }
 
@@ -687,10 +723,9 @@ class ReportService
                         $wkOvh += $ovhByDate[$date] ?? $ovhDay;
                     }
                 }
-                $hrsTotal = 0;
-                foreach ($w['_parts'] as $p) {
-                    $hrsTotal += $p['hrs'];
-                }
+                // Dénominateur : TOUTES les heures actives de la semaine (les
+                // heures hors créneaux gardent leur part de coûts).
+                $hrsTotal = (int)$w['_hrsAll'];
                 foreach (['matin', 'midi', 'apm'] as $slot) {
                     $p = $w['_parts'][$slot];
                     if ($p['ca'] <= 0 || $hrsTotal === 0) {
@@ -741,14 +776,70 @@ class ReportService
             unset($w);
         }
         foreach ($weeks as &$w) {
-            unset($w['_parts']);
+            unset($w['_parts'], $w['_hrsAll']);
         }
         unset($w);
+
+        // ── Jour de SEMAINE ──
+        //    Rapport mensuel : tous les lundis du mois agrégés, tous les mardis,
+        //    etc. → on voit quel jour porte ou plombe le mois. Rapport hebdo :
+        //    une seule date par colonne, donc le jour lui-même.
+        //    Moyenne PONDÉRÉE par le CA (somme des postes ÷ somme du CA) : la
+        //    moyenne arithmétique des pourcentages donnerait le même poids à un
+        //    lundi creux qu'à un lundi plein.
+        $wdAgg = [];
+        foreach ($days as $d) {
+            if ($d['pct'] === null || ($d['ca'] ?? null) === null || $d['ca'] <= 0) {
+                continue;
+            }
+            $wd = (int)$d['wd'];
+            $a  = $wdAgg[$wd] ?? ['ca' => 0.0, 'mv' => 0.0, 'lab' => 0.0, 'ovh' => 0.0, 'days' => 0, 'cost' => true];
+            $a['ca'] += $d['ca'];
+            $a['mv'] += $d['mv'] ?? ($d['ca'] * $d['gross_pct'] / 100);
+            $a['days']++;
+            if (($d['lab'] ?? null) !== null && ($d['ovh'] ?? null) !== null) {
+                $a['lab'] += $d['lab'];
+                $a['ovh'] += $d['ovh'];
+            } else {
+                $a['cost'] = false;   // un seul jour sans coûts → créneau en marge brute
+            }
+            $wdAgg[$wd] = $a;
+        }
+        $weekdays = [];
+        foreach ([1, 2, 3, 4, 5, 6, 7] as $wd) {
+            $a = $wdAgg[$wd] ?? null;
+            if ($a === null) {
+                $weekdays[] = ['wd' => $wd, 'pct' => null, 'days' => 0, 'detail' => null];
+                continue;
+            }
+            $net = $a['cost'] ? $a['mv'] - $a['lab'] - $a['ovh'] : null;
+            $pct = ($net ?? $a['mv']) / $a['ca'] * 100;
+            $weekdays[] = [
+                'wd'   => $wd,
+                'pct'  => $pct,
+                'days' => $a['days'],
+                'detail' => [
+                    'ca'        => round($a['ca'], 2),
+                    'material'  => round($a['ca'] - $a['mv'], 2),
+                    'mv'        => round($a['mv'], 2),
+                    'gross_pct' => $a['mv'] / $a['ca'] * 100,
+                    'lab'       => $a['cost'] ? round($a['lab'], 2) : null,
+                    'ovh'       => $a['cost'] ? round($a['ovh'], 2) : null,
+                    'net'       => $net !== null ? round($net, 2) : null,
+                    'net_pct'   => $net !== null ? $net / $a['ca'] * 100 : null,
+                    'days'      => $a['days'],
+                ],
+            ];
+        }
 
         // ── Couleurs : bandes ABSOLUES de la table mac_kpi_threshold (marge nette
         //    ou brute selon la base) — mise en forme conditionnelle configurable
         //    en base, cohérente avec l'écran Boutiques.
         $metric = $basis === 'net' ? 'net_margin' : 'gross_margin';
+        foreach ($weekdays as &$wdRow) {
+            $wdRow['color'] = $wdRow['pct'] !== null ? $this->kpiColors->colorFor($metric, $wdRow['pct']) : null;
+        }
+        unset($wdRow);
         foreach ($days as &$d) {
             $d['color'] = $d['pct'] !== null ? $this->kpiColors->colorFor($metric, $d['pct']) : null;
         }
@@ -766,6 +857,8 @@ class ReportService
         return [
             'days'         => $days,
             'weeks'        => $weeks,
+            'weekdays'     => $weekdays,
+            'scope'        => $type,
             'bands'        => $this->kpiColors->bands($metric),
             'basis'           => $basis,
             'fixed_pct'       => $fixedPct,
@@ -775,11 +868,15 @@ class ReportService
             'overhead_pct'    => $overheadPct,
             'labour_real'     => $labourReal,
             'open_days'       => $openDays,
+            // Bornes affichées telles qu'elles sont configurées en base.
             'labels' => [
-                'matin' => 'Matin (< ' . $morningUntil . ' h)',
-                'midi'  => 'Midi (' . $morningUntil . '–' . $middayUntil . ' h)',
-                'apm'   => 'Après-midi (≥ ' . $middayUntil . ' h)',
+                'matin' => 'Matin (' . $slots['matin'][0] . '–' . $slots['matin'][1] . ' h)',
+                'midi'  => 'Midi (' . $slots['midi'][0] . '–' . $slots['midi'][1] . ' h)',
+                'apm'   => 'Après-midi (' . $slots['apm'][0] . '–' . $slots['apm'][1] . ' h)',
             ],
+            // Heures d'ouverture hors plages, rattachées au créneau le plus
+            // proche (max sur les semaines) : signalé dans la légende.
+            'hrs_snapped' => max(array_map(fn($w) => (int)($w['hrs_snapped'] ?? 0), $weeks) ?: [0]),
             'totals' => [
                 'pct' => $grossTotal !== null ? ($basis === 'net' ? $grossTotal - $fixedPct : $grossTotal) : null,
                 'ca'  => isset($month['totals']['ca']) && is_numeric($month['totals']['ca']) ? (float)$month['totals']['ca'] : null,

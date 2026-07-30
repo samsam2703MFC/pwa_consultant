@@ -24,9 +24,25 @@ class ParamRepository
     public const DEFAULTS = [
         'valuation_multiple'              => ['4.5', 'Multiple de valorisation (× résultat net)'],
         'valuation_target_net_margin_pct' => ['15',  'Marge nette cible (%) — valorisation à l\'objectif'],
-        'daypart_morning_until'           => ['12',  'Heatmap rentabilité : fin du créneau « matin » (heure)'],
-        'daypart_midday_until'            => ['14',  'Heatmap rentabilité : fin du créneau « midi » (heure)'],
+        // Créneaux de la heatmap de rentabilité : bornes INCLUSES, exprimées en
+        // tranches horaires (la borne 10 couvre 10:00 → 10:59). Les heures hors
+        // de ces trois plages ne sont comptées dans aucun créneau.
+        'daypart_morning_from'            => ['6',  'Heatmap : début du créneau « matin » (heure incluse)'],
+        'daypart_morning_to'              => ['10', 'Heatmap : fin du créneau « matin » (heure incluse)'],
+        'daypart_midday_from'             => ['11', 'Heatmap : début du créneau « midi » (heure incluse)'],
+        'daypart_midday_to'               => ['14', 'Heatmap : fin du créneau « midi » (heure incluse)'],
+        'daypart_afternoon_from'          => ['15', 'Heatmap : début du créneau « après-midi » (heure incluse)'],
+        'daypart_afternoon_to'            => ['19', 'Heatmap : fin du créneau « après-midi » (heure incluse)'],
     ];
+
+    /**
+     * Clés retirées : l'application ne les lit plus (les créneaux ont des
+     * bornes début/fin explicites depuis daypart_*_from/_to). Les lignes
+     * restent en base — on les masque simplement pour que l'écran de
+     * configuration ne propose pas de réglages sans effet. Le DBA peut les
+     * supprimer avec le DELETE commenté dans database/mac_consultant_param.sql.
+     */
+    public const RETIRED = ['daypart_morning_until', 'daypart_midday_until'];
 
     private bool $ready = false;
 
@@ -83,6 +99,9 @@ class ParamRepository
         if ($pdo !== null) {
             try {
                 foreach ($pdo->query('SELECT param_key, param_value, label FROM mac_consultant_param') as $r) {
+                    if (in_array((string)$r['param_key'], self::RETIRED, true)) {
+                        continue;
+                    }
                     $out[(string)$r['param_key']] = [
                         'key'   => (string)$r['param_key'],
                         'value' => (string)$r['param_value'],
@@ -111,6 +130,9 @@ class ParamRepository
         try {
             $rows = $pdo->query('SELECT param_key, param_value FROM mac_consultant_param')->fetchAll();
             foreach ($rows as $r) {
+                if (in_array((string)$r['param_key'], self::RETIRED, true)) {
+                    continue;
+                }
                 $out[(string)$r['param_key']] = (string)$r['param_value'];
             }
         } catch (Throwable $e) {

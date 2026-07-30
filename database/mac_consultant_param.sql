@@ -18,11 +18,25 @@ CREATE TABLE IF NOT EXISTS mac_consultant_param (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Valeurs initiales (modifiables ensuite en base) :
+--
+-- Créneaux de la heatmap de rentabilité : bornes INCLUSES, en tranches
+-- horaires — la borne 10 couvre 10:00 → 10:59. Les heures hors de ces trois
+-- plages ne sont comptées dans aucun créneau (ni CA, ni coûts).
 INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('valuation_multiple',              '4.5', 'Multiple de valorisation (× résultat net)'),
     ('valuation_target_net_margin_pct', '15',  'Marge nette cible (%) — valorisation à l''objectif'),
-    ('daypart_morning_until',           '12',  'Heatmap rentabilité : fin du créneau « matin » (heure)'),
-    ('daypart_midday_until',            '14',  'Heatmap rentabilité : fin du créneau « midi » (heure)');
+    ('daypart_morning_from',            '6',   'Heatmap : début du créneau « matin » (heure incluse)'),
+    ('daypart_morning_to',              '10',  'Heatmap : fin du créneau « matin » (heure incluse)'),
+    ('daypart_midday_from',             '11',  'Heatmap : début du créneau « midi » (heure incluse)'),
+    ('daypart_midday_to',               '14',  'Heatmap : fin du créneau « midi » (heure incluse)'),
+    ('daypart_afternoon_from',          '15',  'Heatmap : début du créneau « après-midi » (heure incluse)'),
+    ('daypart_afternoon_to',            '19',  'Heatmap : fin du créneau « après-midi » (heure incluse)');
+
+-- Clés remplacées par les bornes début/fin ci-dessus. L'application ne les lit
+-- plus et les masque de l'écran de configuration ; à supprimer quand vous
+-- voulez :
+-- DELETE FROM mac_consultant_param
+--  WHERE param_key IN ('daypart_morning_until', 'daypart_midday_until');
 
 -- Migration depuis l'ancienne table (si elle existe) — l'app la fait aussi
 -- automatiquement au premier accès :
