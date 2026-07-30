@@ -2,6 +2,7 @@
 namespace App\Consultant\app\Repositories\Valuation;
 
 use App\Consultant\core\Db\Database;
+use App\Consultant\core\Db\LegacyTableMigration;
 use PDO;
 use Throwable;
 
@@ -12,6 +13,8 @@ use Throwable;
  */
 class PnlSnapshotRepository
 {
+    use LegacyTableMigration;
+
     private bool $ready = false;
 
     protected function pdo(): ?PDO
@@ -55,22 +58,9 @@ class PnlSnapshotRepository
                     // Colonne déjà présente — rien à faire.
                 }
             }
-            // Migration douce depuis l'ancienne table shop_monthly_pnl (copie
-            // unique si la nouvelle est vide ; l'ancienne est conservée).
-            try {
-                if ((int)$pdo->query('SELECT COUNT(*) FROM mac_shop_monthly_pnl')->fetchColumn() === 0) {
-                    $full = 'id, id_shop, year, month, ca, net_margin_pct, net_result, labour, overhead, captured_at, updated_at';
-                    try {
-                        $pdo->exec("INSERT IGNORE INTO mac_shop_monthly_pnl ($full) SELECT $full FROM shop_monthly_pnl");
-                    } catch (Throwable $e) {
-                        // Ancienne table sans labour/overhead → colonnes de base.
-                        $base = 'id, id_shop, year, month, ca, net_margin_pct, net_result, captured_at, updated_at';
-                        $pdo->exec("INSERT IGNORE INTO mac_shop_monthly_pnl ($base) SELECT $base FROM shop_monthly_pnl");
-                    }
-                }
-            } catch (Throwable $e) {
-                // ancienne table absente — rien à migrer
-            }
+            // Migration douce (intersection des colonnes — labour/overhead
+            // peuvent manquer dans l'ancienne table).
+            $this->migrateLegacyTable($pdo, 'shop_monthly_pnl', 'mac_shop_monthly_pnl');
         } catch (Throwable $e) {
             error_log('[valuation] ensureSchema: ' . $e->getMessage());
         }

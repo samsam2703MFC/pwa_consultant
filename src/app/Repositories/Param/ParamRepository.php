@@ -2,6 +2,7 @@
 namespace App\Consultant\app\Repositories\Param;
 
 use App\Consultant\core\Db\Database;
+use App\Consultant\core\Db\LegacyTableMigration;
 use PDO;
 use Throwable;
 
@@ -17,6 +18,8 @@ use Throwable;
  */
 class ParamRepository
 {
+    use LegacyTableMigration;
+
     /** Paramètres connus : clé => [valeur initiale, libellé]. Sert au seed. */
     public const DEFAULTS = [
         'valuation_multiple'              => ['4.5', 'Multiple de valorisation (× résultat net)'],
@@ -52,15 +55,8 @@ class ParamRepository
                 . 'PRIMARY KEY (param_key)'
                 . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
             );
-            // Migration douce depuis l'ancienne table (avant les seeds, pour
-            // conserver les valeurs personnalisées) ; l'ancienne est gardée.
-            try {
-                if ((int)$pdo->query('SELECT COUNT(*) FROM mac_consultant_param')->fetchColumn() === 0) {
-                    $pdo->exec('INSERT IGNORE INTO mac_consultant_param SELECT * FROM consultant_param');
-                }
-            } catch (Throwable $e) {
-                // ancienne table absente — rien à migrer
-            }
+            // Migration douce AVANT les seeds (conserve les valeurs perso).
+            $this->migrateLegacyTable($pdo, 'consultant_param', 'mac_consultant_param');
             $st = $pdo->prepare('INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES (:k, :v, :l)');
             foreach (self::DEFAULTS as $key => [$val, $label]) {
                 $st->execute([':k' => $key, ':v' => $val, ':l' => $label]);

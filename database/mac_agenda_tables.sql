@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS mac_consultant_visit (
     goal            TEXT            NULL,                    -- but de la visite
     status          VARCHAR(20)     NOT NULL DEFAULT 'planned', -- planned | done | cancelled
     report_ref      VARCHAR(255)    NULL,                   -- lien/réf du rapport indexé
+    id_checklist    BIGINT UNSIGNED NULL,                   -- checklist liée à la visite
+    checklist_name  VARCHAR(190)    NULL,
+    lever_period    CHAR(7)         NULL,                   -- 'YYYY-MM' : mois de référence des leviers
     shared          TINYINT(1)      NOT NULL DEFAULT 0,      -- partagé au franchisé
     created_at      DATETIME        NOT NULL,
     updated_at      DATETIME        NULL,
