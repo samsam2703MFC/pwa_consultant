@@ -46,11 +46,16 @@ class ValuationService
         }
 
         // 1) Capture du mois courant (CA + marge nette) par boutique.
+        //    P8 : le P&L de TOUTES les boutiques en un appel ; à défaut,
+        //    curl_multi (jamais une boucle séquentielle — N × 10 s de timeout
+        //    possible dépasserait le temps d'exécution de la page).
         $now   = new \DateTimeImmutable('first day of this month');
         $curY  = (int)$now->format('Y');
         $curM  = (int)$now->format('n');
+        $pnls  = $this->shopService->getPnlSummaryAllShops('month')
+            ?? $this->shopService->getPnlMany(array_keys($ids), 'month');
         foreach ($ids as $id => $name) {
-            $pnl = $this->shopService->getPnl($id, 'month');
+            $pnl = is_array($pnls[$id] ?? null) ? $pnls[$id] : [];
             $ca  = $this->pnlValue($pnl['turnover'] ?? null);
             $res = $this->pnlValue($pnl['result'] ?? null);
             $lab = $this->pnlValue($pnl['labour'] ?? null);
@@ -73,13 +78,20 @@ class ValuationService
         // snapshots). Repli sur les snapshots si l'endpoint est absent.
         $fromYm = sprintf('%04d-%02d', $sinceY, $sinceM);
         $toYm   = sprintf('%04d-%02d', $curY, $curM);
-        $rows   = [];
+        $rows    = [];
+        $p2Shops = 0;
+        // Toutes les boutiques en parallèle : une boucle séquentielle paierait
+        // N fois la latence de l'API (et jusqu'à N × 10 s si elle traîne).
+        $hists = $this->shopService->getMonthlyPnlMany(array_keys($ids), $fromYm, $toYm);
         foreach ($ids as $id => $name) {
-            $hist = $this->shopService->getMonthlyPnl($id, $fromYm, $toYm);
-            if ($hist === null) {
-                $rows = null;   // endpoint absent → repli global sur snapshots
-                break;
+            $hist = $hists[$id] ?? null;
+            if (!is_array($hist)) {
+                // Pas de données pour CETTE boutique : on continue, sans
+                // sacrifier les autres (une seule boutique muette ne doit pas
+                // vider toute la valorisation).
+                continue;
             }
+            $p2Shops++;
             foreach ($hist as $ym => $p) {
                 $ca = $p['turnover'];
                 if ($ca === null || $ca <= 0) {
@@ -95,9 +107,23 @@ class ValuationService
                 ];
             }
         }
-        if ($rows === null) {
-            // Snapshots par boutique (marge nette captée mois après mois).
+        if ($p2Shops === 0) {
+            // Aucune boutique servie par P2 (endpoint absent) → snapshots
+            // (marge nette captée mois après mois).
             $rows = $this->snap->forShopsSince(array_keys($ids), $sinceY, $sinceM);
+        } elseif ($p2Shops < count($ids)) {
+            // Couverture partielle : on complète avec les snapshots des
+            // boutiques que P2 n'a pas servies.
+            $served = [];
+            foreach ($rows as $r) {
+                $served[(int)$r['id_shop']] = true;
+            }
+            $missing = array_values(array_diff(array_keys($ids), array_keys($served)));
+            if ($missing !== []) {
+                foreach ($this->snap->forShopsSince($missing, $sinceY, $sinceM) as $r) {
+                    $rows[] = $r;
+                }
+            }
         }
         $marginsByShop = [];   // shopId => [pct, ...]
         $seriesByShop  = [];   // shopId => ['YYYY-MM' => valorisation mensuelle annualisée]
@@ -115,11 +141,17 @@ class ValuationService
             }
         }
 
-        // 3) Valorisation par boutique.
+        // 3) Valorisation par boutique. Le CA 12 mois de toutes les boutiques
+        //    porte la MÊME fenêtre : un seul appel multi-boutiques (P3), sinon
+        //    curl_multi — au lieu d'un aller-retour par boutique.
+        $ca12s = $this->shopService->getSalesKpisBatch(array_map(
+            fn($id) => ['shop' => $id, 'from' => $from12, 'to' => $to12],
+            array_keys($ids)
+        ));
         $shopsOut = [];
         $sumCa = 0.0; $sumActuelle = 0.0; $sumObjectif = 0.0; $allMargins = [];
         foreach ($ids as $id => $name) {
-            $ca12 = (float)($this->shopService->getSalesKpis($id, $from12, $to12)['ca'] ?? 0);
+            $ca12 = (float)($ca12s["{$id}|{$from12}|{$to12}"]['ca'] ?? 0);
             $margins = $marginsByShop[$id] ?? [];
             $avgMargin = $margins !== [] ? array_sum($margins) / count($margins) : null;
 

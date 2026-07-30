@@ -107,5 +107,10 @@
     "hm_src_snapshot": "cost structure from",
     "pnl_labour_real": "Labour (actual, daily)",
     "pnl_alloc_note_real": "Actual daily labour; monthly overhead allocated per open day",
-    "hm_labour_real": "actual daily labour"
+    "hm_labour_real": "actual daily labour",
+    "pnl_hours": "Active hours",
+    "pnl_slot_note": "Weekly labour and overhead split across dayparts pro rata to ACTIVE HOURS",
+    "pnl_slot_gross": "Labour/overhead unavailable — daypart gross margin only.",
+    "pnl_labour_slot": "Slot labour cost",
+    "pnl_overhead_slot": "Slot overhead cost"
 }

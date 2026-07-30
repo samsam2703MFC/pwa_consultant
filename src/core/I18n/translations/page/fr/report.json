@@ -107,5 +107,10 @@
     "hm_src_snapshot": "structure de coûts de",
     "pnl_labour_real": "Labour (réel du jour)",
     "pnl_alloc_note_real": "Labour réel du jour ; overhead du mois réparti par jour d'ouverture",
-    "hm_labour_real": "labour réel du jour"
+    "hm_labour_real": "labour réel du jour",
+    "pnl_hours": "Heures actives",
+    "pnl_slot_note": "Labour et overhead de la semaine répartis entre les créneaux au prorata des HEURES ACTIVES",
+    "pnl_slot_gross": "Labour/overhead indisponibles — marge brute du créneau uniquement.",
+    "pnl_labour_slot": "Labour du créneau",
+    "pnl_overhead_slot": "Overhead du créneau"
 }
