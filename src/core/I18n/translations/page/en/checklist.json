@@ -58,5 +58,6 @@
     "owner_validate": "Approve",
     "owner_ok": "approved",
     "on_date": "on",
-    "modal_saved_no_journal": "Review saved, but its author could not be recorded."
+    "modal_saved_no_journal": "Review saved, but its author could not be recorded.",
+    "verified": "Reviewed"
 }

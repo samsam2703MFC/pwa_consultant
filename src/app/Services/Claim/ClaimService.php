@@ -41,14 +41,23 @@ class ClaimService
     {
         $claims = [];
 
+        // Toutes les boutiques en UN aller-retour : une boucle d'appels
+        // unitaires payait autant d'attentes réseau qu'il y a de boutiques.
+        $ids = [];
+        foreach ($shops as $shop) {
+            $id = (int)($shop['id'] ?? 0);
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+        $byShop = $this->claimRepository->getClaimsForShops($ids);
         foreach ($shops as $shop) {
             $shopId = (int)($shop['id'] ?? 0);
             if ($shopId <= 0) {
                 continue;
             }
-
             $shopName = $shop['representative_name'] ?? $shop['name'] ?? 'Sklep';
-            foreach ($this->claimRepository->getClaimsForShop($shopId) as $claim) {
+            foreach (($byShop[$shopId] ?? []) as $claim) {
                 $claim['shop_id'] = $claim['id_shop'] ?? $shopId;
                 $claim['shop_name'] = $shopName;
                 $claims[] = $claim;
