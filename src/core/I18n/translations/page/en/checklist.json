@@ -51,5 +51,8 @@
     "modal_save": "Save review",
     "modal_saving": "Saving…",
     "modal_saved": "Review saved.",
-    "modal_need_rate": "Pick a rating from 1 to 5."
+    "modal_need_rate": "Pick a rating from 1 to 5.",
+    "verified_by": "Reviewed by",
+    "a_consultant": "a consultant",
+    "not_compliant": "not compliant"
 }

@@ -51,5 +51,8 @@
     "modal_save": "Enregistrer l'évaluation",
     "modal_saving": "Enregistrement…",
     "modal_saved": "Évaluation enregistrée.",
-    "modal_need_rate": "Choisissez une note de 1 à 5."
+    "modal_need_rate": "Choisissez une note de 1 à 5.",
+    "verified_by": "Vérifié par",
+    "a_consultant": "un consultant",
+    "not_compliant": "non conforme"
 }

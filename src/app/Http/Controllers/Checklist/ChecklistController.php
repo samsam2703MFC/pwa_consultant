@@ -2,11 +2,16 @@
 namespace App\Consultant\app\Http\Controllers\Checklist;
 
 use App\Consultant\app\Http\Controllers\Controller;
+use App\Consultant\app\Repositories\Checklist\TaskReviewRepository;
 use App\Consultant\app\Services\Checklist\ChecklistService;
+use App\Consultant\core\Support\GlobalRegistry;
 
 class ChecklistController extends Controller
 {
-    public function __construct(private ChecklistService $checklistService) {}
+    public function __construct(
+        private ChecklistService $checklistService,
+        private TaskReviewRepository $taskReviews
+    ) {}
 
     public function index(): void
     {
@@ -135,6 +140,29 @@ class ChecklistController extends Controller
                 }
             }
             unset($task);
+
+            // Qui a vérifié, et quand : l'API ne le dit pas (elle expose la
+            // note et le commentaire, pas leur auteur). Le panel le sait au
+            // moment où l'avis est posé et le consigne — on relit ici.
+            $journal = $this->taskReviews->forShopDate($shopId, $date);
+            if ($journal !== []) {
+                foreach ($tasks as &$task) {
+                    $j = $journal[(int)($task['task_id'] ?? 0)] ?? null;
+                    if ($j === null) {
+                        continue;
+                    }
+                    // Le jour où l'API exposera l'auteur, elle fera autorité.
+                    $task['review_by']   = $task['review_by']   ?? ($j['consultant_name'] ?: null);
+                    $task['reviewed_at'] = $task['reviewed_at'] ?? ($j['updated_at'] ?: null);
+                    foreach (['rating' => 'review_rating', 'is_accepted' => 'review_is_accepted',
+                              'comment' => 'review_comment'] as $src => $dst) {
+                        if (($task[$dst] ?? null) === null && ($j[$src] ?? null) !== null) {
+                            $task[$dst] = $j[$src];
+                        }
+                    }
+                }
+                unset($task);
+            }
         } catch (\Throwable $e) {
             error_log('[checklists] détail de réalisation : ' . $e->getMessage());
         }
@@ -205,7 +233,27 @@ class ChecklistController extends Controller
         $result = $this->checklistService->submitTaskReview($shopId, $data);
 
         if ($result['success'] ?? false) {
-            echo json_encode(['success' => true]);
+            // Journal local : l'API ne conserve pas l'auteur de l'avis. Sans
+            // cette trace, « Vérifié par … » serait impossible, et le suivi
+            // des consultants aussi.
+            $user = GlobalRegistry::get('user') ?? [];
+            $this->taskReviews->upsert([
+                'id_shop'         => $shopId,
+                'id_checklist'    => $data['checklist_id'] ?? null,
+                'id_task'         => $data['task_id'] ?? null,
+                'review_date'     => $data['review_date'] ?? date('Y-m-d'),
+                'completion_id'   => $data['completion_id'] ?? null,
+                'id_consultant'   => (int)($user['membership_id'] ?? $user['id'] ?? 0),
+                'consultant_name' => $user['display_name'] ?? null,
+                'rating'          => $data['rating'] ?? null,
+                'is_accepted'     => $data['is_accepted'] ?? null,
+                'comment'         => $data['comment'] ?? null,
+            ]);
+            echo json_encode([
+                'success' => true,
+                'by'      => $user['display_name'] ?? null,
+                'at'      => date('Y-m-d H:i:s'),
+            ], JSON_UNESCAPED_UNICODE);
         } else {
             http_response_code(422);
             // Réponse de l'API rendue INTÉGRALEMENT : le format attendu par

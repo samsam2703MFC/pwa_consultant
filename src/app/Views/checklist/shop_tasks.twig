@@ -71,6 +71,15 @@
     .cl-body { padding:8px 8px 4px; background:#fafbfc; }
     .cl-body .task-card { box-shadow:none; border:1px solid #f1f3f5; }
 
+    /* Avis du consultant, sur la vignette de la tâche */
+    .task-rev { display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin-top:5px;
+                font-size:.66rem; font-weight:700; color:#2D7A3E;
+                background:rgba(45,122,62,.09); border-radius:6px; padding:3px 7px; }
+    .task-rev.ko { color:#c0182b; background:rgba(192,24,43,.09); }
+    .task-rev .dt { font-weight:600; opacity:.75; }
+    .task-rev .rt { color:#C9A227; letter-spacing:-1px; }
+    .task-rev .ko-tag { font-weight:800; text-transform:uppercase; font-size:.58rem; }
+
     /* Tâche faite avec photo : carte cliquable + modale de réalisation */
     .task-openable { cursor:pointer; }
     .task-openable:hover { background:#fbfcfe; }
