@@ -53,9 +53,11 @@ class ValuationService
             $pnl = $this->shopService->getPnl($id, 'month');
             $ca  = $this->pnlValue($pnl['turnover'] ?? null);
             $res = $this->pnlValue($pnl['result'] ?? null);
+            $lab = $this->pnlValue($pnl['labour'] ?? null);
+            $ovh = $this->pnlValue($pnl['overhead'] ?? null);
             $mg  = ($ca !== null && $ca > 0 && $res !== null) ? ($res / $ca) * 100 : null;
             if ($ca !== null || $mg !== null) {
-                $this->snap->upsertMonth($id, $curY, $curM, $ca, $mg, $res);
+                $this->snap->upsertMonth($id, $curY, $curM, $ca, $mg, $res, $lab, $ovh);
             }
         }
 

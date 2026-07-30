@@ -9,6 +9,7 @@ use App\Consultant\app\Services\Task\TaskService;
 use App\Consultant\app\Services\Campaign\CampaignService;
 use App\Consultant\app\Services\Param\ParamService;
 use App\Consultant\app\Repositories\Consultant\ConsultantUserRepository;
+use App\Consultant\app\Repositories\Valuation\PnlSnapshotRepository;
 use App\Consultant\core\Support\GlobalRegistry;
 
 /**
@@ -48,7 +49,8 @@ class ReportService
         private TaskService $taskService,
         private ConsultantUserRepository $consultantUsers,
         private CampaignService $campaignService,
-        private ParamService $params
+        private ParamService $params,
+        private PnlSnapshotRepository $pnlSnapshots
     ) {}
 
     /**
@@ -416,6 +418,42 @@ class ReportService
             $weeks[] = $row;
         }
 
+        // ── Conversion en RÉSULTAT NET : marge brute − (labour + overhead),
+        //    répartis au prorata du CA (le P&L ne les donne pas par créneau).
+        //    Sans structure de coûts disponible, on reste en marge brute
+        //    (signalé dans le rapport).
+        [$fixedPct, $fixedSrc] = $this->fixedCostPct($shopId, $period);
+        $basis = $fixedPct !== null ? 'net' : 'gross';
+        if ($fixedPct !== null) {
+            foreach ($days as &$d) {
+                if ($d['pct'] !== null) {
+                    $d['pct'] -= $fixedPct;
+                }
+            }
+            unset($d);
+            foreach ($weeks as &$w) {
+                foreach (['matin', 'midi', 'apm'] as $slot) {
+                    if ($w[$slot] !== null) {
+                        $w[$slot] -= $fixedPct;
+                    }
+                }
+            }
+            unset($w);
+            $pcts = [];
+            foreach ($days as $d) {
+                if ($d['pct'] !== null) {
+                    $pcts[] = $d['pct'];
+                }
+            }
+            foreach ($weeks as $w) {
+                foreach (['matin', 'midi', 'apm'] as $slot) {
+                    if ($w[$slot] !== null) {
+                        $pcts[] = $w[$slot];
+                    }
+                }
+            }
+        }
+
         // ── Échelle : 5 niveaux relatifs au mois ──
         $min = $pcts !== [] ? min($pcts) : null;
         $max = $pcts !== [] ? max($pcts) : null;
@@ -439,21 +477,72 @@ class ReportService
         }
         unset($w);
 
+        $grossTotal = isset($month['totals']['margin_pct']) && is_numeric($month['totals']['margin_pct'])
+            ? (float)$month['totals']['margin_pct'] : null;
+
         return [
-            'days'   => $days,
-            'weeks'  => $weeks,
-            'min'    => $min,
-            'max'    => $max,
+            'days'      => $days,
+            'weeks'     => $weeks,
+            'min'       => $min,
+            'max'       => $max,
+            'basis'     => $basis,
+            'fixed_pct' => $fixedPct,
+            'fixed_src' => $fixedSrc,
             'labels' => [
                 'matin' => 'Matin (< ' . $morningUntil . ' h)',
                 'midi'  => 'Midi (' . $morningUntil . '–' . $middayUntil . ' h)',
                 'apm'   => 'Après-midi (≥ ' . $middayUntil . ' h)',
             ],
             'totals' => [
-                'pct' => isset($month['totals']['margin_pct']) && is_numeric($month['totals']['margin_pct']) ? (float)$month['totals']['margin_pct'] : null,
+                'pct' => $grossTotal !== null ? ($basis === 'net' ? $grossTotal - $fixedPct : $grossTotal) : null,
                 'ca'  => isset($month['totals']['ca']) && is_numeric($month['totals']['ca']) ? (float)$month['totals']['ca'] : null,
             ],
         ];
+    }
+
+    /**
+     * Poids des coûts fixes (labour + overhead) en % du CA pour le mois du
+     * rapport — pour convertir la heatmap de marge brute en RÉSULTAT NET
+     * (résultat net = marge brute − labour − overhead) :
+     *   1. snapshot mensuel du mois du rapport (shop_monthly_pnl, capté par
+     *      la valorisation) ;
+     *   2. sinon P&L du mois COURANT (structure de coûts actuelle —
+     *      approximation signalée dans le rapport).
+     *
+     * @return array{0: ?float, 1: ?string} [pct, 'report_month'|'current_month'|null]
+     */
+    private function fixedCostPct(int $shopId, array $period): array
+    {
+        $ref  = new \DateTimeImmutable($period['from']);
+        $snap = $this->pnlSnapshots->forShopMonth($shopId, (int)$ref->format('Y'), (int)$ref->format('n'));
+        if (is_array($snap)
+            && ($snap['ca'] ?? null) !== null && (float)$snap['ca'] > 0
+            && ($snap['labour'] ?? null) !== null && ($snap['overhead'] ?? null) !== null) {
+            return [((float)$snap['labour'] + (float)$snap['overhead']) / (float)$snap['ca'] * 100, 'report_month'];
+        }
+        $pnl = $this->shopService->getPnl($shopId, 'month');
+        $ca  = $this->pnlNodeValue($pnl['turnover'] ?? null);
+        $lab = $this->pnlNodeValue($pnl['labour'] ?? null);
+        $ovh = $this->pnlNodeValue($pnl['overhead'] ?? null);
+        if ($ca !== null && $ca > 0 && $lab !== null && $ovh !== null) {
+            return [($lab + $ovh) / $ca * 100, 'current_month'];
+        }
+        return [null, null];
+    }
+
+    /** Valeur numérique d'un nœud P&L ({value:…} ou scalaire numérique). */
+    private function pnlNodeValue($node): ?float
+    {
+        if (is_int($node) || is_float($node)) {
+            return (float)$node;
+        }
+        if (is_string($node) && is_numeric($node)) {
+            return (float)$node;
+        }
+        if (is_array($node) && isset($node['value']) && is_numeric($node['value'])) {
+            return (float)$node['value'];
+        }
+        return null;
     }
 
     /**

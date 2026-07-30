@@ -39,20 +39,38 @@ class PnlSnapshotRepository
                 . 'ca DECIMAL(14,2) NULL,'
                 . 'net_margin_pct DECIMAL(7,3) NULL,'
                 . 'net_result DECIMAL(14,2) NULL,'
+                . 'labour DECIMAL(14,2) NULL,'
+                . 'overhead DECIMAL(14,2) NULL,'
                 . 'captured_at DATETIME NOT NULL,'
                 . 'updated_at DATETIME NULL,'
                 . 'PRIMARY KEY (id),'
                 . 'UNIQUE KEY uq_shop_month (id_shop, year, month)'
                 . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
             );
+            // Installations antérieures : colonnes labour/overhead absentes.
+            foreach (['labour DECIMAL(14,2) NULL', 'overhead DECIMAL(14,2) NULL'] as $col) {
+                try {
+                    $pdo->exec('ALTER TABLE shop_monthly_pnl ADD COLUMN ' . $col);
+                } catch (Throwable $e) {
+                    // Colonne déjà présente — rien à faire.
+                }
+            }
         } catch (Throwable $e) {
             error_log('[valuation] ensureSchema: ' . $e->getMessage());
         }
     }
 
     /** Insère ou met à jour le snapshot d'un mois pour une boutique. */
-    public function upsertMonth(int $shopId, int $year, int $month, ?float $ca, ?float $marginPct, ?float $result): bool
-    {
+    public function upsertMonth(
+        int $shopId,
+        int $year,
+        int $month,
+        ?float $ca,
+        ?float $marginPct,
+        ?float $result,
+        ?float $labour = null,
+        ?float $overhead = null
+    ): bool {
         $this->ensureSchema();
         $pdo = $this->pdo();
         if ($pdo === null) {
@@ -60,20 +78,32 @@ class PnlSnapshotRepository
         }
         try {
             $st = $pdo->prepare(
-                'INSERT INTO shop_monthly_pnl (id_shop, year, month, ca, net_margin_pct, net_result, captured_at) '
-                . 'VALUES (:s, :y, :m, :ca, :mg, :res, :now) '
+                'INSERT INTO shop_monthly_pnl (id_shop, year, month, ca, net_margin_pct, net_result, labour, overhead, captured_at) '
+                . 'VALUES (:s, :y, :m, :ca, :mg, :res, :lab, :ovh, :now) '
                 . 'ON DUPLICATE KEY UPDATE ca = VALUES(ca), net_margin_pct = VALUES(net_margin_pct), '
-                . 'net_result = VALUES(net_result), updated_at = VALUES(captured_at)'
+                . 'net_result = VALUES(net_result), labour = VALUES(labour), overhead = VALUES(overhead), '
+                . 'updated_at = VALUES(captured_at)'
             );
             return $st->execute([
                 ':s' => $shopId, ':y' => $year, ':m' => $month,
                 ':ca' => $ca, ':mg' => $marginPct, ':res' => $result,
+                ':lab' => $labour, ':ovh' => $overhead,
                 ':now' => date('Y-m-d H:i:s'),
             ]);
         } catch (Throwable $e) {
             error_log('[valuation] upsertMonth: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /** Snapshot d'UN mois précis d'une boutique, ou null s'il n'existe pas. */
+    public function forShopMonth(int $shopId, int $year, int $month): ?array
+    {
+        $rows = $this->select(
+            'SELECT * FROM shop_monthly_pnl WHERE id_shop = :s AND year = :y AND month = :m',
+            [':s' => $shopId, ':y' => $year, ':m' => $month]
+        );
+        return $rows[0] ?? null;
     }
 
     /** Snapshots d'une boutique depuis (year,month) inclus, ordre chronologique. */

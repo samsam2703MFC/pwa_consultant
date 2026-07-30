@@ -536,7 +536,7 @@
                 {# Analyse rentabilité — heatmap de marge (rapport mensuel) #}
                 {% if shop.heatmap is defined and shop.heatmap is not null %}
                 <div class="rpt-sec">
-                    <div class="rpt-sec-h">{{ icons.svg('bar-chart', 14) }}{{ translations.rentability ?? 'Analyse rentabilité — marge brute' }}
+                    <div class="rpt-sec-h">{{ icons.svg('bar-chart', 14) }}{{ shop.heatmap.basis == 'net' ? (translations.rentability ?? 'Analyse rentabilité — résultat net') : (translations.rentability_gross ?? 'Analyse rentabilité — marge brute') }}
                         {% if shop.heatmap.totals.pct is not null %}<span style="margin-left:auto;font-weight:800;color:#212529;">{{ shop.heatmap.totals.pct|number_format(1, ',', ' ') }} %</span>{% endif %}
                     </div>
 
@@ -577,10 +577,14 @@
                     </div>
 
                     <div class="rpt-hm-legend">
-                        <span>{{ translations.hm_low ?? 'Marge faible' }}</span>
+                        <span>{{ shop.heatmap.basis == 'net' ? (translations.hm_low ?? 'Résultat faible') : (translations.hm_low_gross ?? 'Marge faible') }}</span>
                         <span class="sw hm-1"></span><span class="sw hm-2"></span><span class="sw hm-3"></span><span class="sw hm-4"></span><span class="sw hm-5"></span>
-                        <span>{{ translations.hm_high ?? 'élevée' }}</span>
-                        <span>· {{ translations.hm_note ?? 'marge brute (CA − coût matière), échelle relative au mois' }}</span>
+                        <span>{{ translations.hm_high ?? 'élevé' }}</span>
+                        {% if shop.heatmap.basis == 'net' %}
+                            <span>· {{ translations.hm_note ?? 'résultat net = marge brute − labour − overhead (répartis au prorata du CA), échelle relative au mois' }}{% if shop.heatmap.fixed_src == 'current_month' %} — {{ translations.hm_src_current ?? 'structure de coûts du mois courant' }}{% endif %}</span>
+                        {% else %}
+                            <span>· {{ translations.hm_note_gross ?? 'marge brute (CA − coût matière), échelle relative au mois — labour/overhead indisponibles' }}</span>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}
