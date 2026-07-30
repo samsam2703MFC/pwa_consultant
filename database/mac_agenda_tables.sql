@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS mac_consultant_visit (
     id_checklist    BIGINT UNSIGNED NULL,                   -- checklist liée à la visite
     checklist_name  VARCHAR(190)    NULL,
     lever_period    CHAR(7)         NULL,                   -- 'YYYY-MM' : mois de référence des leviers
+    send_report     TINYINT(1)      NOT NULL DEFAULT 1,     -- joindre le rapport mensuel à l'envoi
     shared          TINYINT(1)      NOT NULL DEFAULT 0,      -- partagé au franchisé
     created_at      DATETIME        NOT NULL,
     updated_at      DATETIME        NULL,

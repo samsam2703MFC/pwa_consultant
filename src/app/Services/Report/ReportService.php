@@ -247,14 +247,34 @@ class ReportService
             'label' => $this->monthName($month) . ' ' . $year,
         ];
 
-        // Moyenne réseau du MÊME mois (référence des statuts, comme l'écran HEXm).
-        $metricsByShop = [];
+        $ids = [];
         foreach ($this->shopService->getAllShops() as $shop) {
             $sid = (int)($shop['id'] ?? 0);
-            if ($sid <= 0) {
-                continue;
+            if ($sid > 0) {
+                $ids[] = $sid;
             }
-            $k = $this->shopService->getSalesKpis($sid, $period['from'], $period['to']);
+        }
+
+        // PRÉCHAUFFAGE PARALLÈLE : les ventes de la période ET de N-1 pour
+        // toutes les boutiques en 1 rafale (curl_multi). Les appels unitaires
+        // de hexmMetrics ci-dessous deviennent des lectures de cache — sans
+        // ça, ~2N appels séquentiels font expirer la requête AJAX.
+        $fromN1 = date('Y-m-d', (int)strtotime($period['from'] . ' -1 year'));
+        $toN1   = date('Y-m-d', (int)strtotime($period['to'] . ' -1 year'));
+        $windows = [];
+        foreach ($ids as $sid) {
+            $windows[] = ['shop' => $sid, 'from' => $period['from'], 'to' => $period['to']];
+            $windows[] = ['shop' => $sid, 'from' => $fromN1, 'to' => $toN1];
+        }
+        $batch = $this->shopService->getSalesKpisBatch($windows);
+        // P&L du mois courant en parallèle aussi (repli labour/overhead).
+        $this->shopService->getPnlMany($ids, 'month');
+
+        // Moyenne réseau du MÊME mois (référence des statuts, comme l'écran HEXm).
+        $metricsByShop = [];
+        foreach ($ids as $sid) {
+            $k = $batch["{$sid}|{$period['from']}|{$period['to']}"]
+                ?? $this->shopService->getSalesKpis($sid, $period['from'], $period['to']);
             $metricsByShop[$sid] = $this->hexmMetrics($sid, $period, $k);
         }
         if (!isset($metricsByShop[$shopId])) {

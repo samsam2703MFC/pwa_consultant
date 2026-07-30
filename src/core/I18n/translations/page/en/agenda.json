@@ -59,5 +59,6 @@
     "delete": "Delete",
     "confirm_delete": "Permanently delete this visit?",
     "levers_nodata": "No data for this period.",
-    "pick_shop_first": "Pick a shop to load its levers."
+    "pick_shop_first": "Pick a shop to load its levers.",
+    "send_report_cb": "Attach the monthly report to the email"
 }

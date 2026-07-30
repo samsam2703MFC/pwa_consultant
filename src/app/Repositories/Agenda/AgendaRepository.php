@@ -61,6 +61,7 @@ class AgendaRepository
                 . 'id_checklist BIGINT UNSIGNED NULL,'
                 . 'checklist_name VARCHAR(190) NULL,'
                 . 'lever_period CHAR(7) NULL,'
+                . 'send_report TINYINT(1) NOT NULL DEFAULT 1,'
                 . 'shared TINYINT(1) NOT NULL DEFAULT 0,'
                 . 'created_at DATETIME NOT NULL,'
                 . 'updated_at DATETIME NULL,'
@@ -75,6 +76,7 @@ class AgendaRepository
                 'id_checklist BIGINT UNSIGNED NULL',
                 'checklist_name VARCHAR(190) NULL',
                 'lever_period CHAR(7) NULL',
+                'send_report TINYINT(1) NOT NULL DEFAULT 1',
             ] as $col) {
                 try {
                     $pdo->exec('ALTER TABLE mac_consultant_visit ADD COLUMN ' . $col);
@@ -136,6 +138,7 @@ class AgendaRepository
             'id_checklist'    => !empty($v['id_checklist']) ? (int)$v['id_checklist'] : null,
             'checklist_name'  => $v['checklist_name'] ?? null,
             'lever_period'    => $v['lever_period'] ?? null,
+            'send_report'     => !empty($v['send_report']) ? 1 : 0,
             'shared'          => !empty($v['shared']) ? 1 : 0,
             'created_at'      => $v['created_at'],
         ]);
@@ -237,6 +240,7 @@ class AgendaRepository
             'id_checklist'   => !empty($v['id_checklist']) ? (int)$v['id_checklist'] : null,
             'checklist_name' => $v['checklist_name'] ?? null,
             'lever_period'   => $v['lever_period'] ?? null,
+            'send_report'    => !empty($v['send_report']) ? 1 : 0,
             'shared'         => !empty($v['shared']) ? 1 : 0,
             'updated_at'     => $this->now(),
         ];

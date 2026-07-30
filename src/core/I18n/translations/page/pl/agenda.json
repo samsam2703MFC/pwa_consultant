@@ -59,5 +59,6 @@
     "delete": "Usuń",
     "confirm_delete": "Trwale usunąć tę wizytę?",
     "levers_nodata": "Brak danych dla tego okresu.",
-    "pick_shop_first": "Wybierz sklep, aby wczytać dźwignie."
+    "pick_shop_first": "Wybierz sklep, aby wczytać dźwignie.",
+    "send_report_cb": "Załącz raport miesięczny do wysyłki"
 }
