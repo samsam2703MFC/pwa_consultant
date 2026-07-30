@@ -66,7 +66,9 @@ class Controller
         $data['dev_no_auth']        = defined('DEV_NO_AUTH') && DEV_NO_AUTH;
         $data['api_base_url']       = API_BASE_URL;
         $data['shared_files_url']   = SHARED_FILES_URL;
-        $data['currency_symbol']    = APP_CURRENCY_SYMBOL;
+        // CURRENCY_SYMBOL absent du .env → constante null → « 1140,90 null »
+        // dans les montants côté JS. Repli sur € (déploiement L'Atelier).
+        $data['currency_symbol']    = APP_CURRENCY_SYMBOL ?: '€';
         $data['lang_code']          = $langCode;
 
         $user = GlobalRegistry::get('user');

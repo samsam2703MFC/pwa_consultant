@@ -103,5 +103,6 @@
     "pnl_alloc_note": "Monthly labour/overhead allocated pro rata to the day's revenue",
     "pnl_gross_note": "Labour/overhead unavailable — gross margin only.",
     "day_notes": "Comments of the day",
-    "close": "Close"
+    "close": "Close",
+    "hm_src_snapshot": "cost structure from"
 }

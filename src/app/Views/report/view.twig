@@ -563,7 +563,7 @@
                     <div class="rpt-cmp-sub">{{ translations.hm_month_day ?? 'Mois / jour' }}</div>
                     <div class="rpt-cal"
                          data-notes="{{ (shop.notes_by_day ?? {})|json_encode|e('html_attr') }}"
-                         data-hm="{{ {basis: shop.heatmap.basis, lp: shop.heatmap.labour_pct, op: shop.heatmap.overhead_pct, src: shop.heatmap.fixed_src}|json_encode|e('html_attr') }}">
+                         data-hm="{{ {basis: shop.heatmap.basis, lp: shop.heatmap.labour_pct, op: shop.heatmap.overhead_pct, src: shop.heatmap.fixed_src, srcm: shop.heatmap.fixed_src_month}|json_encode|e('html_attr') }}">
                         {% for w in [translations.wd_mon ?? 'L', translations.wd_tue ?? 'M', translations.wd_wed ?? 'M', translations.wd_thu ?? 'J', translations.wd_fri ?? 'V', translations.wd_sat ?? 'S', translations.wd_sun ?? 'D'] %}<div class="wd">{{ w }}</div>{% endfor %}
                         {% if shop.heatmap.days[0].wd > 1 %}{% for i in 1..(shop.heatmap.days[0].wd - 1) %}<div class="dcell blank"></div>{% endfor %}{% endif %}
                         {% for d in shop.heatmap.days %}
@@ -605,7 +605,7 @@
                         <span class="sw hm-1"></span><span class="sw hm-2"></span><span class="sw hm-3"></span><span class="sw hm-4"></span><span class="sw hm-5"></span>
                         <span>{{ translations.hm_high ?? 'élevé' }}</span>
                         {% if shop.heatmap.basis == 'net' %}
-                            <span>· {{ translations.hm_note ?? 'résultat net = marge brute − labour − overhead (répartis au prorata du CA), échelle relative au mois' }}{% if shop.heatmap.fixed_src == 'current_month' %} — {{ translations.hm_src_current ?? 'structure de coûts du mois courant' }}{% endif %}</span>
+                            <span>· {{ translations.hm_note ?? 'résultat net = marge brute − labour − overhead (répartis au prorata du CA), échelle relative au mois' }}{% if shop.heatmap.fixed_src == 'current_month' %} — {{ translations.hm_src_current ?? 'structure de coûts du mois courant' }}{% elseif shop.heatmap.fixed_src == 'snapshot' %} — {{ translations.hm_src_snapshot ?? 'structure de coûts de' }} {{ shop.heatmap.fixed_src_month }}{% endif %}</span>
                         {% else %}
                             <span>· {{ translations.hm_note_gross ?? 'marge brute (CA − coût matière), échelle relative au mois — labour/overhead indisponibles' }}</span>
                         {% endif %}
@@ -810,6 +810,7 @@
         net:      {{ (translations.pnl_net ?? 'Résultat net')|json_encode|raw }},
         allocNote:{{ (translations.pnl_alloc_note ?? 'Labour/overhead du mois répartis au prorata du CA du jour')|json_encode|raw }},
         srcCur:   {{ (translations.hm_src_current ?? 'structure de coûts du mois courant')|json_encode|raw }},
+        srcSnap:  {{ (translations.hm_src_snapshot ?? 'structure de coûts de')|json_encode|raw }},
         grossNote:{{ (translations.pnl_gross_note ?? 'Labour/overhead indisponibles — marge brute uniquement.')|json_encode|raw }},
         dayNotes: {{ (translations.day_notes ?? 'Commentaires du jour')|json_encode|raw }}
     };
@@ -850,7 +851,10 @@
                 h += row('−', L.labour, eur(lab), hm.lp, '');
                 h += row('−', L.overhead, eur(ovh), hm.op, '');
                 h += row('=', L.net, '<span style="color:' + (net >= 0 ? '#2D7A3E' : '#c0182b') + ';">' + eur(net) + '</span>', d.n, 'net');
-                note = L.allocNote + (hm.src === 'current_month' ? ' — ' + L.srcCur : '') + '.';
+                note = L.allocNote
+                    + (hm.src === 'current_month' ? ' — ' + L.srcCur : '')
+                    + (hm.src === 'snapshot' && hm.srcm ? ' — ' + L.srcSnap + ' ' + hm.srcm : '')
+                    + '.';
             } else {
                 note = L.grossNote;
             }

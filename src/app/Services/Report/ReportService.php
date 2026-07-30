@@ -440,12 +440,20 @@ class ReportService
             $parts = ['matin' => ['ca' => 0.0, 'mv' => 0.0], 'midi' => ['ca' => 0.0, 'mv' => 0.0], 'apm' => ['ca' => 0.0, 'mv' => 0.0]];
             if (is_array($wk['hours'] ?? null)) {
                 foreach ($wk['hours'] as $h) {
-                    if (!is_array($h) || empty($h['has_data'])) {
+                    if (!is_array($h)) {
                         continue;
                     }
                     $ca = isset($h['ca']) && is_numeric($h['ca']) ? (float)$h['ca'] : 0.0;
+                    if ($ca <= 0 || (isset($h['has_data']) && !$h['has_data'])) {
+                        continue;
+                    }
+                    // Marge en valeur, sinon dérivée du % (certains déploiements
+                    // de l'endpoint n'exposent que margin_pct sur les heures).
                     $mv = isset($h['margin_value']) && is_numeric($h['margin_value']) ? (float)$h['margin_value'] : null;
-                    if ($ca <= 0 || $mv === null) {
+                    if ($mv === null && isset($h['margin_pct']) && is_numeric($h['margin_pct'])) {
+                        $mv = $ca * (float)$h['margin_pct'] / 100;
+                    }
+                    if ($mv === null) {
                         continue;
                     }
                     $hr   = (int)($h['hour'] ?? -1);
@@ -468,7 +476,7 @@ class ReportService
         //    répartis au prorata du CA (le P&L ne les donne pas par créneau).
         //    Sans structure de coûts disponible, on reste en marge brute
         //    (signalé dans le rapport).
-        [$fixedPct, $fixedSrc, $labourPct, $overheadPct] = $this->fixedCostPct($shopId, $period);
+        [$fixedPct, $fixedSrc, $labourPct, $overheadPct, $fixedSrcMonth] = $this->fixedCostPct($shopId, $period);
         $basis = $fixedPct !== null ? 'net' : 'gross';
         if ($fixedPct !== null) {
             foreach ($days as &$d) {
@@ -531,11 +539,12 @@ class ReportService
             'weeks'        => $weeks,
             'min'          => $min,
             'max'          => $max,
-            'basis'        => $basis,
-            'fixed_pct'    => $fixedPct,
-            'fixed_src'    => $fixedSrc,
-            'labour_pct'   => $labourPct,
-            'overhead_pct' => $overheadPct,
+            'basis'           => $basis,
+            'fixed_pct'       => $fixedPct,
+            'fixed_src'       => $fixedSrc,
+            'fixed_src_month' => $fixedSrcMonth,
+            'labour_pct'      => $labourPct,
+            'overhead_pct'    => $overheadPct,
             'labels' => [
                 'matin' => 'Matin (< ' . $morningUntil . ' h)',
                 'midi'  => 'Midi (' . $morningUntil . '–' . $middayUntil . ' h)',
@@ -557,20 +566,41 @@ class ReportService
      *   2. sinon P&L du mois COURANT (structure de coûts actuelle —
      *      approximation signalée dans le rapport).
      *
-     * @return array{0: ?float, 1: ?string, 2: ?float, 3: ?float}
-     *         [pct total, 'report_month'|'current_month'|null, labour %, overhead %]
+     * @return array{0: ?float, 1: ?string, 2: ?float, 3: ?float, 4: ?string}
+     *         [pct total, 'report_month'|'snapshot'|'current_month'|null,
+     *          labour %, overhead %, mois du snapshot 'YYYY-MM' (si snapshot)]
      */
     private function fixedCostPct(int $shopId, array $period): array
     {
-        $ref  = new \DateTimeImmutable($period['from']);
-        $snap = $this->pnlSnapshots->forShopMonth($shopId, (int)$ref->format('Y'), (int)$ref->format('n'));
+        $ref = new \DateTimeImmutable($period['from']);
+        $y   = (int)$ref->format('Y');
+        $m   = (int)$ref->format('n');
+
+        $ratios = function (array $s): array {
+            $lp = (float)$s['labour'] / (float)$s['ca'] * 100;
+            $op = (float)$s['overhead'] / (float)$s['ca'] * 100;
+            return [$lp, $op];
+        };
+
+        // 1) Snapshot du mois exact du rapport.
+        $snap = $this->pnlSnapshots->forShopMonth($shopId, $y, $m);
         if (is_array($snap)
             && ($snap['ca'] ?? null) !== null && (float)$snap['ca'] > 0
             && ($snap['labour'] ?? null) !== null && ($snap['overhead'] ?? null) !== null) {
-            $lp = (float)$snap['labour'] / (float)$snap['ca'] * 100;
-            $op = (float)$snap['overhead'] / (float)$snap['ca'] * 100;
-            return [$lp + $op, 'report_month', $lp, $op];
+            [$lp, $op] = $ratios($snap);
+            return [$lp + $op, 'report_month', $lp, $op, null];
         }
+
+        // 2) Snapshot complet le plus récent avant le mois du rapport — un mois
+        //    ENTIER capté vaut mieux que le mois courant partiel (l'overhead,
+        //    fixe, y est surpondéré tant que le mois n'est pas fini).
+        $snap = $this->pnlSnapshots->latestCostStructureUpTo($shopId, $y, $m);
+        if (is_array($snap)) {
+            [$lp, $op] = $ratios($snap);
+            return [$lp + $op, 'snapshot', $lp, $op, sprintf('%04d-%02d', (int)$snap['year'], (int)$snap['month'])];
+        }
+
+        // 3) P&L du mois courant (partiel) — dernier recours, signalé.
         $pnl = $this->shopService->getPnl($shopId, 'month');
         $ca  = $this->pnlNodeValue($pnl['turnover'] ?? null);
         $lab = $this->pnlNodeValue($pnl['labour'] ?? null);
@@ -578,9 +608,9 @@ class ReportService
         if ($ca !== null && $ca > 0 && $lab !== null && $ovh !== null) {
             $lp = $lab / $ca * 100;
             $op = $ovh / $ca * 100;
-            return [$lp + $op, 'current_month', $lp, $op];
+            return [$lp + $op, 'current_month', $lp, $op, null];
         }
-        return [null, null, null, null];
+        return [null, null, null, null, null];
     }
 
     /** Valeur numérique d'un nœud P&L ({value:…} ou scalaire numérique). */

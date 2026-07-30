@@ -103,5 +103,6 @@
     "pnl_alloc_note": "Miesięczny labour/overhead alokowany proporcjonalnie do dziennego obrotu",
     "pnl_gross_note": "Labour/overhead niedostępne — tylko marża brutto.",
     "day_notes": "Komentarze dnia",
-    "close": "Zamknij"
+    "close": "Zamknij",
+    "hm_src_snapshot": "struktura kosztów z"
 }
