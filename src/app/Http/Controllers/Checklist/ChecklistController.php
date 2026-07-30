@@ -212,12 +212,15 @@ class ChecklistController extends Controller
             // vide à l'écran.
             $desc = $result['description'] ?? null;
             echo json_encode([
-                'success' => false,
-                'error'   => is_string($desc) && $desc !== '' ? $desc : 'Erreur d\'enregistrement',
-                'code'    => $result['code'] ?? null,
-                'detail'  => $result['response'] ?? null,
-                'raw'     => $result['raw'] ?? null,
-                'sent'    => array_keys($data),
+                'success'   => false,
+                'error'     => is_string($desc) && $desc !== '' ? $desc : 'Erreur d\'enregistrement',
+                'code'      => $result['code'] ?? null,
+                // Panne de transport (code 0) : ni statut ni corps à montrer,
+                // seul le motif cURL explique quoi que ce soit.
+                'transport' => $result['transport'] ?? null,
+                'detail'    => $result['response'] ?? null,
+                'raw'       => $result['raw'] ?? null,
+                'sent'      => array_keys($data),
             ], JSON_UNESCAPED_UNICODE);
         }
         exit;

@@ -393,7 +393,10 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
                     // lieu de le deviner.
                     var j = p.j || {};
                     var txt = (typeof j.error === 'string' && j.error) ? j.error : 'Erreur';
-                    if (j.code) { txt += ' (HTTP ' + j.code + ')'; }
+                    // code 0 = la requête n'a pas abouti : c'est le motif de
+                    // transport qui explique, pas le statut ni le corps.
+                    txt += ' (HTTP ' + (j.code == null ? '?' : j.code) + ')';
+                    if (j.transport) { txt += ' — ' + j.transport; }
                     // Corps de la réponse de l'API, décodé ou brut : c'est là
                     // que se trouve le nom des champs manquants.
                     var body = j.detail ? JSON.stringify(j.detail) : (j.raw || '');
