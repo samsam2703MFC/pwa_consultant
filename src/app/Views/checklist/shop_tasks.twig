@@ -391,10 +391,14 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
                     // Message du backend affiché tel quel, avec le corps de sa
                     // réponse : si le format attendu diffère, on lit lequel au
                     // lieu de le deviner.
-                    var txt = (p.j && (p.j.error || p.j.message)) || ('HTTP ' + (p.ok ? 200 : 'error'));
-                    if (p.j && p.j.detail) {
-                        txt += ' — ' + (typeof p.j.detail === 'string' ? p.j.detail : JSON.stringify(p.j.detail));
-                    }
+                    var j = p.j || {};
+                    var txt = (typeof j.error === 'string' && j.error) ? j.error : 'Erreur';
+                    if (j.code) { txt += ' (HTTP ' + j.code + ')'; }
+                    // Corps de la réponse de l'API, décodé ou brut : c'est là
+                    // que se trouve le nom des champs manquants.
+                    var body = j.detail ? JSON.stringify(j.detail) : (j.raw || '');
+                    if (body) { txt += ' — ' + body; }
+                    if (j.sent) { txt += ' | envoyé : ' + j.sent.join(', '); }
                     throw new Error(txt);
                 }
                 msg(L.saved, true);
