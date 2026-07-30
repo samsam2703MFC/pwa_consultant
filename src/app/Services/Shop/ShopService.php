@@ -222,6 +222,16 @@ class ShopService
     }
 
     /**
+     * Journal des appels en lot de la requête : quel endpoint a répondu quoi,
+     * en combien de temps, et quels disjoncteurs sont ouverts. C'est ce qui
+     * transforme « aucune donnée » en « /pnl/monthly a répondu 404 ».
+     */
+    public function batchDiagnostics(): array
+    {
+        return ShopRepository::batchDiagnostics();
+    }
+
+    /**
      * P&L QUOTIDIEN de plusieurs boutiques en parallèle — la source qu'utilise
      * la heatmap de rentabilité, et celle qui porte réellement le coût matière.
      *
