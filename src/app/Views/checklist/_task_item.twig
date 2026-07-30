@@ -36,11 +36,13 @@
             <div class="task-rev{{ t.review_is_accepted is not null and not t.review_is_accepted ? ' ko' : '' }}"
                  data-rev="1">
                 {{ icons.svg('user-check', 12) }}
-                <span>{{ translations.verified_by ?? 'Vérifié par' }} {{ t.review_by ?? (translations.a_consultant ?? 'un consultant') }}</span>
-                {% if t.reviewed_at %}<span class="dt">· {{ t.reviewed_at|date('d/m H:i') }}</span>{% endif %}
-                {% if t.review_rating is not null %}<span class="rt">{{ '★★★★★'|slice(0, t.review_rating) }}</span>{% endif %}
+                {# Nom du consultant si on l'a, sinon son identifiant, sinon rien. #}
+                {% set who = t.review_by ?: (t.review_by_id ? '#' ~ t.review_by_id : null) %}
+                <span>{{ translations.verified_by ?? 'Vérifié par' }}{{ who ? ' ' ~ who : '' }}</span>
+                {% if t.reviewed_at %}<span class="sep">·</span><span class="dt">{{ t.reviewed_at|date('d/m H:i') }}</span>{% endif %}
+                {% if t.review_rating is not null %}<span class="sep">·</span><span class="rt">★{{ t.review_rating }}</span>{% endif %}
                 {% if t.review_is_accepted is not null and not t.review_is_accepted %}
-                    <span class="ko-tag">{{ translations.not_compliant ?? 'non conforme' }}</span>
+                    <span class="sep">·</span><span class="ko-tag">{{ translations.not_compliant ?? 'non conforme' }}</span>
                 {% endif %}
 
                 {# Contrôle de l'Owner : la case coche l'avis du consultant. #}
@@ -51,11 +53,11 @@
                                {{ t.owner_ok_at ? 'checked' : '' }}>
                         <span class="ov-box">✓</span>
                         <span class="ov-lbl">{{ t.owner_ok_at
-                            ? ((translations.owner_ok ?? 'validé') ~ (t.owner_ok_by ? ' · ' ~ t.owner_ok_by : ''))
+                            ? ((translations.owner_ok ?? 'validé') ~ (t.owner_ok_by ? ' ' ~ t.owner_ok_by : ''))
                             : (translations.owner_validate ?? 'Valider') }}</span>
                     </label>
                 {% elseif t.owner_ok_at %}
-                    <span class="ov-done">{{ icons.svg('check-check', 12) }}{{ translations.owner_ok ?? 'validé' }}{% if t.owner_ok_by %} · {{ t.owner_ok_by }}{% endif %}</span>
+                    <span class="ov-done">{{ icons.svg('check-check', 12) }}{{ translations.owner_ok ?? 'validé' }}{% if t.owner_ok_by %} {{ t.owner_ok_by }}{% endif %}</span>
                 {% endif %}
             </div>
         {% endif %}

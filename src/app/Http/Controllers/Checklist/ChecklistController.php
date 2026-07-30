@@ -227,9 +227,13 @@ class ChecklistController extends Controller
                     }
                     // Le jour où l'API exposera l'auteur, elle fera autorité.
                     $task['review_by']    = $task['review_by']   ?? ($j['consultant_name'] ?: null);
+                    // À défaut de nom, l'identifiant : « Vérifié par #12 » vaut
+                    // mieux qu'un « Vérifié par » anonyme quand il s'agit de
+                    // savoir QUI a contrôlé.
+                    $task['review_by_id'] = $task['review_by_id'] ?? ((int)($j['id_consultant'] ?? 0) ?: null);
                     $task['reviewed_at']  = $task['reviewed_at'] ?? ($j['updated_at'] ?: null);
                     $task['owner_ok_at']  = $j['owner_validated_at'] ?? null;
-                    $task['owner_ok_by']  = $j['owner_name'] ?? null;
+                    $task['owner_ok_by']  = $j['owner_name'] ?: ((int)($j['id_owner'] ?? 0) ? '#' . (int)$j['id_owner'] : null);
                     foreach (['rating' => 'review_rating', 'is_accepted' => 'review_is_accepted',
                               'comment' => 'review_comment'] as $src => $dst) {
                         if (($task[$dst] ?? null) === null && ($j[$src] ?? null) !== null) {
