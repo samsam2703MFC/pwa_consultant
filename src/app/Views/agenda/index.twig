@@ -54,17 +54,12 @@
      remplit. « display:contents » laissait le bouton hors grille : il ignorait
      la largeur de la colonne et débordait de la carte. */
   .ag-inline { display:flex; min-width:0; }
-  .ag-chip.p { background:rgba(26,115,232,.12); color:#1a73e8; }
-  .ag-chip.g { background:rgba(141,29,44,.09); color:#8D1D2C; }
-  .ag-chip.r { background:rgba(45,122,62,.12); color:#2D7A3E; }
   .ag-chip.e { background:#f1f3f5; color:#495057; }
-  /* Supprimer occupe sa propre ligne, détachée du reste : une action
-     irréversible ne doit pas border celle qu'on vise le plus souvent. */
-  .ag-inline.wide { grid-column:1 / -1; margin-top:2px; }
+  /* Supprimer garde un traitement distinct — liseré rouge et confirmation :
+     à côté de « Modifier », c'est la seule action irréversible des deux. */
   .ag-chip.d { background:rgba(192,24,43,.08); color:#c0182b;
                box-shadow:inset 0 0 0 1px rgba(192,24,43,.22); }
-  .ag-inline { display:inline; }
-  .ag-inline button { border:0; cursor:pointer; font-family:inherit; }
+  .ag-inline button { cursor:pointer; font-family:inherit; }
   /* Visite annulée : barrée et atténuée. */
   .ag-vitem.is-cancelled { opacity:.62; }
   .ag-vitem.is-cancelled .s { text-decoration:line-through; }
@@ -125,25 +120,12 @@
         <div class="ag-vc">
           <div class="s">{{ v.shop_name ?? '—' }} <span class="ag-type t-{{ v.type ?? 'development' }}">{{ translations['type_' ~ (v.type ?? 'development')] ?? v.type_label }}</span></div>
           {% if v.goal %}<div style="font-size:.74rem;color:#7a7168;margin-top:2px;">{{ v.goal }}</div>{% endif %}
+          {# Deux actions seulement. Rapport, invitation, agenda boutique et
+             annulation vivent dans la carte de la visite — la liste du mois
+             sert à repérer une visite, pas à tout faire dessus. #}
           <div class="ag-chips">
-            <a class="ag-chip g" href="{{ ROOT }}/agenda/shop/{{ v.id_shop }}">{{ icons.svg('store', 12) }} {{ translations.shop_agenda ?? 'Agenda boutique' }}</a>
-            <a class="ag-chip r" href="{{ ROOT }}/reports/view?type=month&scope={{ v.id_shop }}" target="_blank">📄 {{ translations.report ?? 'Rapport' }}</a>
-            <a class="ag-chip p" href="{{ ROOT }}/agenda/visits/{{ v.id }}/ics">📅 {{ translations.ics ?? '.ics' }}</a>
             <a class="ag-chip e" href="{{ ROOT }}/agenda/visits/{{ v.id }}/edit">✎ {{ translations.edit ?? 'Modifier' }}</a>
-            {% if v.status != 'cancelled' %}
-              <form method="POST" action="{{ ROOT }}/agenda/visits/{{ v.id }}/status" class="ag-inline">
-                <input type="hidden" name="status" value="cancelled">
-                <input type="hidden" name="back" value="agenda">
-                <button type="submit" class="ag-chip e">⊘ {{ translations.cancel_visit ?? 'Annuler' }}</button>
-              </form>
-            {% else %}
-              <form method="POST" action="{{ ROOT }}/agenda/visits/{{ v.id }}/status" class="ag-inline">
-                <input type="hidden" name="status" value="planned">
-                <input type="hidden" name="back" value="agenda">
-                <button type="submit" class="ag-chip p">↺ {{ translations.restore_visit ?? 'Rétablir' }}</button>
-              </form>
-            {% endif %}
-            <form method="POST" action="{{ ROOT }}/agenda/visits/{{ v.id }}/delete" class="ag-inline wide"
+            <form method="POST" action="{{ ROOT }}/agenda/visits/{{ v.id }}/delete" class="ag-inline"
                   onsubmit="return confirm({{ (translations.confirm_delete ?? 'Supprimer définitivement cette visite ?')|json_encode }});">
               <input type="hidden" name="back" value="agenda">
               <button type="submit" class="ag-chip d">🗑 {{ translations.delete ?? 'Supprimer' }}</button>
