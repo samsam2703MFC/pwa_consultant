@@ -1,0 +1,82 @@
+# À copier dans CHAQUE dépôt module, sous .github/workflows/notify-landing.yml
+#
+# Dès qu'une fiche change sur main, ce workflow ouvre une session SSH sur le
+# serveur de la landing et y déclenche la sync. Le contenu est en ligne une minute
+# plus tard (les pages sont en ISR, revalidate = 60).
+#
+# La clé SSH utilisée est à COMMANDE FORCÉE côté serveur : elle ne peut rien faire
+# d'autre que lancer la sync, même si elle fuite. Voir docs/DEPLOIEMENT-BASE.md §9.3
+# dans landing_tfb pour l'installation serveur.
+#
+# Secrets attendus dans le dépôt (Settings → Secrets and variables → Actions) :
+#   TFB_SSH_HOST         l'hôte du serveur, ex. 185.180.206.46
+#   TFB_SSH_KEY          la clé PRIVÉE de déploiement (ed25519, sans passphrase)
+#   TFB_SSH_KNOWN_HOSTS  la ligne known_hosts du serveur (recommandé)
+# Variables facultatives (Settings → Variables) :
+#   TFB_SSH_USER         défaut : deploy
+#   TFB_SSH_PORT         défaut : 22
+#
+# Sans TFB_SSH_HOST, le workflow ne fait rien et reste vert : un dépôt pas encore
+# configuré ne doit pas afficher un échec permanent.
+name: notify-landing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.tfb/**'
+      - 'docs/landing/**'
+  workflow_dispatch:
+
+# Un seul déclenchement à la fois, et on abandonne les précédents : trois pushes
+# d'affilée n'ont pas besoin de trois syncs.
+concurrency:
+  group: notify-landing
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    env:
+      HOST: ${{ secrets.TFB_SSH_HOST }}
+      USER: ${{ vars.TFB_SSH_USER || 'deploy' }}
+      PORT: ${{ vars.TFB_SSH_PORT || '22' }}
+    steps:
+      - name: Dépôt non configuré
+        if: env.HOST == ''
+        run: echo "::notice::TFB_SSH_HOST n'est pas défini — la landing se mettra à jour au prochain passage du minuteur."
+
+      - name: Préparer la clé
+        if: env.HOST != ''
+        env:
+          KEY: ${{ secrets.TFB_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.TFB_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEY" ]; then echo "::error::TFB_SSH_HOST est défini mais TFB_SSH_KEY manque."; exit 1; fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/tfb && chmod 600 ~/.ssh/tfb
+          if [ -n "$KNOWN_HOSTS" ]; then
+            printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            # Sans empreinte connue, on accepte celle présentée au premier contact.
+            # Ça protège des suivants, pas du premier : renseignez TFB_SSH_KNOWN_HOSTS.
+            echo "::warning::TFB_SSH_KNOWN_HOSTS absent — l'empreinte du serveur n'est pas vérifiée."
+            ssh-keyscan -p "$PORT" -H "$HOST" > ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Déclencher la sync
+        if: env.HOST != ''
+        run: |
+          set -euo pipefail
+          # La commande envoyée est ignorée : le serveur impose la sienne
+          # (command="…" dans authorized_keys). On l'écrit quand même, pour que
+          # le journal du serveur dise d'où vient la demande.
+          ssh -i ~/.ssh/tfb -p "$PORT" \
+              -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
+              "$USER@$HOST" "tfb-sync depuis ${GITHUB_REPOSITORY}@${GITHUB_SHA::7}"
+
+      - name: Effacer la clé
+        if: always()
+        run: rm -f ~/.ssh/tfb
