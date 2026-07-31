@@ -350,7 +350,7 @@ class DebugController extends Controller
         }
 
         echo '</div>';
-        $this->linesVsTicketsProbe($names, $kpis, $unitOf, $tol, $esc, $eur);
+        $this->linesVsTicketsProbe($from, $to, $names, $kpis, $unitOf, $tol, $esc, $eur);
     }
 
     /**
@@ -364,11 +364,12 @@ class DebugController extends Controller
      * coïncident, la cause est nommée et le correctif tient en une ligne de SQL.
      */
     private function linesVsTicketsProbe(
-        array $names, ?array $kpis, callable $unitOf, float $tol, callable $esc, callable $eur
+        string $from, string $to, array $names, ?array $kpis, callable $unitOf,
+        float $tol, callable $esc, callable $eur
     ): void {
         echo '<h3>Le multi-boutiques compte-t-il les lignes au lieu des tickets ?</h3>';
         echo '<div class="wrap"><table><tr><th>Boutique</th><th>unitaire</th><th>multi-boutiques</th>'
-           . '<th>rapport</th><th>articles / ticket</th><th>écart</th></tr>';
+           . '<th>rapport</th><th>lignes / ticket</th><th>écart</th><th>articles / ticket</th></tr>';
 
         $match = 0; $tested = 0; $divergent = 0; $pairs = 0;
         // Le rapport et le panier d'articles ne se mesurent pas au centime :
@@ -379,15 +380,23 @@ class DebugController extends Controller
             $u   = $unitOf((int)$id);
             $uCa = isset($u['ca']) ? (float)$u['ca'] : null;
             $bCa = isset($kpis[$id]['ca']) ? (float)$kpis[$id]['ca'] : null;
-            $ppt = isset($u['products_per_ticket']) && is_numeric($u['products_per_ticket'])
-                 ? (float)$u['products_per_ticket'] : null;
             $rat = ($uCa !== null && $uCa > 0 && $bCa !== null) ? $bCa / $uCa : null;
 
-            if ($rat !== null) {
-                $pairs++;
-                if (abs($rat - 1) * 100 > $tol) { $divergent++; }
+            // LIGNES, pas articles : une ligne « 3 croissants » vaut une ligne
+            // et trois articles. Un endpoint qui somme le ticket une fois par
+            // ligne se trahit par les lignes — les comparer aux articles ferait
+            // rejeter la bonne hypothèse.
+            $st  = $this->shopSales->getTicketLineStats((int)$id, $from, $to);
+            $lpt = ($st !== null && $st['tickets'] > 0) ? $st['lines'] / $st['tickets'] : null;
+            $apt = ($st !== null && $st['tickets'] > 0 && $st['articles'] > 0)
+                 ? $st['articles'] / $st['tickets'] : null;
+            if ($apt === null && isset($u['products_per_ticket']) && is_numeric($u['products_per_ticket'])) {
+                $apt = (float)$u['products_per_ticket'];
             }
-            $ecart = ($rat !== null && $ppt !== null && $ppt > 0) ? abs($rat - $ppt) / $ppt * 100 : null;
+            $rat !== null && $pairs++;
+            if ($rat !== null && abs($rat - 1) * 100 > $tol) { $divergent++; }
+
+            $ecart = ($rat !== null && $lpt !== null && $lpt > 0) ? abs($rat - $lpt) / $lpt * 100 : null;
             if ($ecart !== null) {
                 $tested++;
                 if ($ecart <= $band) { $match++; }
@@ -396,9 +405,11 @@ class DebugController extends Controller
             echo '<tr><td class="l" title="' . $esc($name) . '">' . $esc($name) . '</td>'
                . '<td>' . $esc($eur($uCa)) . '</td><td>' . $esc($eur($bCa)) . '</td>'
                . '<td>' . $esc($rat === null ? '—' : number_format($rat, 4, ',', ' ')) . '</td>'
-               . '<td>' . $esc($ppt === null ? '—' : number_format($ppt, 4, ',', ' ')) . '</td>'
+               . '<td>' . $esc($lpt === null ? '—' : number_format($lpt, 4, ',', ' ')) . '</td>'
                . '<td class="' . ($ecart === null ? '' : ($ecart <= $band ? 'oky' : 'ko')) . '">'
-               . $esc($ecart === null ? '—' : number_format($ecart, 1, ',', ' ') . ' %') . '</td></tr>';
+               . $esc($ecart === null ? '—' : number_format($ecart, 1, ',', ' ') . ' %') . '</td>'
+               . '<td style="color:#a2988c">' . $esc($apt === null ? '—' : number_format($apt, 4, ',', ' '))
+               . '</td></tr>';
         }
         echo '</table></div><div class="note">';
 
@@ -412,18 +423,24 @@ class DebugController extends Controller
                . $esc($pairs) . ' : <b>le défaut est dans <code>/consultant/shops/sales-kpis</code></b>, pas dans '
                . 'la donnée — <code>/shops/{id}/statistics/sales/kpis</code> lit la même base et tombe juste.</p>';
             if ($tested > 0 && $match === $tested) {
-                echo '<p class="s ko">Et le rapport est, boutique par boutique, <b>le nombre d\'articles par '
+                echo '<p class="s ko">Et le rapport est, boutique par boutique, <b>le nombre de lignes par '
                    . 'ticket</b> (à ' . $esc(number_format($band, 0, ',', ' ')) . ' % près sur les '
                    . $esc($tested) . ' boutiques testées). L\'endpoint multi-boutiques joint les lignes de '
                    . 'ticket et additionne le montant du ticket <b>une fois par ligne</b>. Correctif : sommer '
                    . 'sur les tickets — <code>GROUP BY</code> ticket, ou somme des lignes plutôt que du total '
                    . 'répété.</p>';
             } elseif ($tested > 0) {
-                echo '<p class="s">Le rapport ne suit pas le nombre d\'articles par ticket ('
+                echo '<p class="s">Le rapport ne suit pas le nombre de lignes par ticket ('
                    . $esc($match) . ' boutique(s) sur ' . $esc($tested) . ') : la duplication ne vient pas des '
                    . 'lignes de ticket. Piste suivante : une jointure sur les affectations de consultants, ou '
                    . 'un périmètre commercial différent.</p>';
             }
+            // La colonne « articles » est là pour situer : le rapport doit
+            // rester SOUS elle. Au-dessus, ce n'est plus une duplication de
+            // lignes, c'est autre chose.
+            echo '<p class="s" style="color:#7a7168">La colonne « articles / ticket » ne sert qu\'à situer : '
+               . 'une ligne « 3 croissants » vaut une ligne et trois articles, donc un facteur de duplication '
+               . 'par ligne reste toujours en dessous.</p>';
         }
         echo '</div>';
     }
