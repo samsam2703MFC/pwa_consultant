@@ -157,6 +157,28 @@ class ShopController extends Controller
         if ($ids !== []) {
             $this->shopService->getPnlMany($ids, 'month');
             $this->shopService->getPnlMany($ids, 'week');
+
+            // Préchauffage des KPI de vente, EN PARALLÈLE. La boucle ci-dessous
+            // en demande un par boutique : sans cela, vingt-cinq boutiques
+            // valaient vingt-cinq attentes réseau bout à bout. Les réponses
+            // atterrissent dans le cache de l'ApiClient ; les appels unitaires
+            // qui suivent n'en paient plus aucune.
+            //
+            // Deux fenêtres possibles selon que le P&L expose ou non ses dates,
+            // et on ne le sait qu'après l'avoir lu — les deux sont donc
+            // préchargées dans le même lot, ce qui ne coûte qu'un aller-retour.
+            $windows = [];
+            foreach ($ids as $sid) {
+                $pnl  = $this->shopService->getPnl($sid, 'month');
+                $from = isset($pnl['date_from']) ? substr((string)$pnl['date_from'], 0, 10) : '';
+                $to   = isset($pnl['date_to'])   ? substr((string)$pnl['date_to'], 0, 10)   : '';
+                if ($this->isDate($from) && $this->isDate($to)) {
+                    $windows[] = ['shop' => $sid, 'from' => $from, 'to' => $to];
+                } else {
+                    $windows[] = ['shop' => $sid, 'from' => date('Y-m-01'), 'to' => date('Y-m-t')];
+                }
+            }
+            $this->shopService->warmSalesKpis($windows);
         }
 
         foreach ($shops as &$shop) {

@@ -23,12 +23,15 @@
 {% block head %}
 <style>
     .sixl-shopsel {
-        width: 100%; padding: 10px 12px; border: 1px solid #e7ded2; border-radius: 12px;
+        width: 100%; min-height: 44px; padding: 10px 12px;
+        border: 1px solid #e7ded2; border-radius: 12px;
         background: #fff; font-size: .82rem; font-weight: 700; color: #241f1c; margin-bottom: 8px;
     }
     .sixl-period { display: flex; gap: 6px; margin-bottom: 12px; }
     .sixl-period .pnl-badge {
         flex: 1; text-align: center; padding: 6px 0; border-radius: 20px;
+        /* 26 px de haut : trop court pour un pouce. */
+        min-height: 44px;
         border: 1px solid #e0d8cd; background: #fff; font-size: .72rem;
         font-weight: 700; color: #7a7168; -webkit-tap-highlight-color: transparent;
         transition: all .15s;
