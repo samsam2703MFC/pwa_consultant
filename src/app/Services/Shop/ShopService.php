@@ -98,6 +98,18 @@ class ShopService
     }
 
     /**
+     * Le KPI unitaire SANS repli local — pour le diagnostic, qui compare des
+     * endpoints entre eux : un repli silencieux sur la base ferait passer un
+     * endpoint muet pour un endpoint d'accord.
+     *
+     * @return array{tickets:int, ca:float, products:int, avg_basket:?float, products_per_ticket:?float}|null
+     */
+    public function getSalesKpisApiOnly(int $shopId, string $from, string $to): ?array
+    {
+        return $this->shopRepository->getSalesKpisFromApi($shopId, $from, $to);
+    }
+
+    /**
      * KPI de vente pour PLUSIEURS fenêtres [shop, from, to] en un minimum
      * d'allers-retours (API en parallèle, repli local par fenêtre manquante) —
      * même sémantique que getSalesKpis(), pour les vues multi-mois (Tendances).

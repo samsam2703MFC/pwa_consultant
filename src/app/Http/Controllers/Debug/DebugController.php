@@ -254,11 +254,17 @@ class DebugController extends Controller
             foreach ($vat as $f) {
                 if (abs($m - $f) <= $tol / 100) { $hit = $f; break; }
             }
-            if ($hit !== null) {
+            if (abs($m - 1) <= $tol / 100) {
+                $txt .= ' — les deux sources sont d\'accord.';
+            } elseif ($hit !== null) {
                 $txt .= ' — soit un facteur ' . $esc(number_format($hit, 2, ',', ' '))
                       . ' : <b>une des deux sources est TTC, l\'autre HT</b>.';
-            } elseif (abs($m - 1) <= $tol / 100) {
-                $txt .= ' — les deux sources sont d\'accord.';
+            } elseif (abs($m - 1) <= 5 * $tol / 100) {
+                // Un écart de quelques dixièmes n'est pas une divergence de
+                // définition : l'annoncer comme un problème de périmètre
+                // enverrait le backend chercher une cause qui n'existe pas.
+                $txt .= ' — écart marginal (' . $esc(number_format(abs($m - 1) * 100, 2, ',', ' '))
+                      . ' %) : arrondis ou décalage d\'une journée. Ces deux sources disent la même chose.';
             } else {
                 $txt .= ' — ne correspond à aucun facteur de TVA connu : l\'écart vient d\'un périmètre '
                       . '(canal B2B, tickets annulés, jours sans clôture) et non d\'une taxe.';
@@ -266,10 +272,90 @@ class DebugController extends Controller
             echo $txt . '</p>';
         }
 
+        // Un rapport CONSTANT accuse une définition (TVA, unité). Un rapport
+        // qui varie d'une boutique à l'autre accuse une FENÊTRE : l'endpoint ne
+        // répond pas sur la période demandée. La sonde ci-dessous tranche.
+        $spread = ($rBA !== [] && min($rBA) > 0) ? max($rBA) / min($rBA) : 1.0;
+        if ($mBA !== null && abs($mBA - 1) > $tol / 100 && $spread > 1 + $tol / 100) {
+            $this->windowProbe($ym, $from, $to, $names, $kpis, $tol, $esc, $eur);
+        }
+
         echo '<p class="s" style="color:#7a7168">Mois clos par défaut ; le mois en cours n\'est pas comparable, '
            . 'les trois sources ne s\'arrêtent pas au même instant. Tolérance et facteurs de TVA se règlent dans '
            . 'la configuration (<code>diag_ca_tolerance_pct</code>, <code>diag_ca_vat_factors</code>).</p>';
         echo '</div></body>';
+    }
+
+    /**
+     * L'écart de sales-kpis vient-il de la FENÊTRE ou du PÉRIMÈTRE ?
+     *
+     * On redemande le même endpoint sur une seule journée, puis sur le mois
+     * précédent. Si les trois réponses sont identiques, l'endpoint ne lit pas
+     * ses dates — et tout l'écart s'explique par là. On confronte aussi
+     * l'endpoint multi-boutiques à l'endpoint unitaire, qui n'est pas le même
+     * chemin côté backend.
+     */
+    private function windowProbe(
+        string $ym, string $from, string $to, array $names, ?array $kpis,
+        float $tol, callable $esc, callable $eur
+    ): void {
+        $day  = (new \DateTimeImmutable($from))->modify('+14 days')->format('Y-m-d');
+        $prev = (new \DateTimeImmutable($from))->modify('-1 month');
+        $pFrom = $prev->format('Y-m-01');
+        $pTo   = $prev->modify('last day of this month')->format('Y-m-d');
+
+        $kDay  = $this->shopService->getSalesKpisAllShops($day, $day);
+        $kPrev = $this->shopService->getSalesKpisAllShops($pFrom, $pTo);
+
+        $first = array_key_first($names);
+        $unit  = $first !== null ? $this->shopService->getSalesKpisApiOnly((int)$first, $from, $to) : null;
+
+        echo '<h3>D\'où vient l\'écart : la fenêtre ou le périmètre ?</h3>';
+        echo '<div class="wrap"><table><tr><th>Boutique</th>'
+           . '<th>mois ' . $esc($ym) . '</th><th>1 seule journée</th><th>mois précédent</th></tr>';
+
+        $ignored = 0; $compared = 0;
+        foreach ($names as $id => $name) {
+            $m = isset($kpis[$id]['ca'])  ? (float)$kpis[$id]['ca']  : null;
+            $d = isset($kDay[$id]['ca'])  ? (float)$kDay[$id]['ca']  : null;
+            $p = isset($kPrev[$id]['ca']) ? (float)$kPrev[$id]['ca'] : null;
+            if ($m !== null && $d !== null && $m > 0) {
+                $compared++;
+                if (abs($d - $m) / $m * 100 <= $tol) { $ignored++; }
+            }
+            echo '<tr><td class="l" title="' . $esc($name) . '">' . $esc($name) . '</td>'
+               . '<td>' . $esc($eur($m)) . '</td><td>' . $esc($eur($d)) . '</td>'
+               . '<td>' . $esc($eur($p)) . '</td></tr>';
+        }
+        echo '</table></div>';
+
+        echo '<div class="note">';
+        if ($compared === 0) {
+            echo '<p class="s">Sonde non concluante : l\'endpoint n\'a pas répondu sur les fenêtres de contrôle.</p>';
+        } elseif ($ignored === $compared) {
+            echo '<p class="s ko">Une seule journée renvoie le même montant que le mois entier, sur les '
+               . $esc($compared) . ' boutiques testées : <b>l\'endpoint ne lit pas <code>date_from</code> / '
+               . '<code>date_to</code></b>. Il répond sur une période à lui. C\'est l\'explication de tout '
+               . 'l\'écart — ni TVA, ni périmètre commercial.</p>';
+        } else {
+            echo '<p class="s">La fenêtre est bien lue (' . $esc($compared - $ignored) . ' boutique(s) sur '
+               . $esc($compared) . ' donnent un montant différent sur une journée). L\'écart vient donc de '
+               . '<b>ce qui est compté</b>, pas de la période : canal B2B, tickets annulés, jours sans clôture.</p>';
+        }
+
+        if ($first !== null) {
+            $u = $unit['ca'] ?? null;
+            $b = $kpis[$first]['ca'] ?? null;
+            echo '<p class="s">Même boutique, même mois, deux chemins backend — '
+               . '<code>/consultant/shops/sales-kpis</code> : <b>' . $esc($eur(is_numeric($b) ? (float)$b : null))
+               . '</b> · <code>/shops/{id}/statistics/sales/kpis</code> : <b>'
+               . $esc($eur(is_numeric($u) ? (float)$u : null)) . '</b>. '
+               . (is_numeric($u) && is_numeric($b) && $u > 0 && abs((float)$b - (float)$u) / (float)$u * 100 > $tol
+                   ? 'Ils divergent : le défaut est dans l\'endpoint multi-boutiques, pas dans la donnée.'
+                   : 'Ils concordent : le défaut est commun aux deux, donc en amont.')
+               . '</p>';
+        }
+        echo '</div>';
     }
 
     #[Route('GET', '/pnl-debug')]
