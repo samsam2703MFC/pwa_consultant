@@ -37,13 +37,32 @@
   .ag-vt .h { font-size:.62rem; color:#9a9086; margin-top:2px; }
   .ag-vc { flex:1; min-width:0; }
   .ag-vc .s { font-size:.86rem; font-weight:800; color:#241f1c; }
-  .ag-chips { display:flex; gap:6px; margin-top:7px; flex-wrap:wrap; }
-  .ag-chip { display:inline-flex; align-items:center; gap:4px; font-size:.64rem; font-weight:700; border-radius:8px; padding:3px 9px; text-decoration:none; }
+  /* Actions d'une visite — pensées pour le pouce.
+     Les puces faisaient 20 px de haut et se suivaient au fil du texte :
+     viser « Modifier » sans toucher « Supprimer » relevait de l'adresse.
+     Elles sont désormais en grille, à 44 px de haut — la hauteur au-dessous
+     de laquelle une cible tactile devient un pari. */
+  .ag-chips { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; margin-top:9px; }
+  @media (min-width:560px) { .ag-chips { grid-template-columns:repeat(3, minmax(0, 1fr)); } }
+  .ag-chip { display:flex; align-items:center; justify-content:center; gap:5px; min-height:44px;
+             padding:6px 8px; font-size:.72rem; font-weight:700; border-radius:11px;
+             text-decoration:none; text-align:center; line-height:1.2; border:0;
+             width:100%; box-sizing:border-box; min-width:0;
+             -webkit-tap-highlight-color:transparent; }
+  .ag-chip:active { transform:scale(.97); }
+  /* Le <form> est un élément de la grille comme un autre, et son bouton le
+     remplit. « display:contents » laissait le bouton hors grille : il ignorait
+     la largeur de la colonne et débordait de la carte. */
+  .ag-inline { display:flex; min-width:0; }
   .ag-chip.p { background:rgba(26,115,232,.12); color:#1a73e8; }
   .ag-chip.g { background:rgba(141,29,44,.09); color:#8D1D2C; }
   .ag-chip.r { background:rgba(45,122,62,.12); color:#2D7A3E; }
   .ag-chip.e { background:#f1f3f5; color:#495057; }
-  .ag-chip.d { background:rgba(192,24,43,.1); color:#c0182b; }
+  /* Supprimer occupe sa propre ligne, détachée du reste : une action
+     irréversible ne doit pas border celle qu'on vise le plus souvent. */
+  .ag-inline.wide { grid-column:1 / -1; margin-top:2px; }
+  .ag-chip.d { background:rgba(192,24,43,.08); color:#c0182b;
+               box-shadow:inset 0 0 0 1px rgba(192,24,43,.22); }
   .ag-inline { display:inline; }
   .ag-inline button { border:0; cursor:pointer; font-family:inherit; }
   /* Visite annulée : barrée et atténuée. */
@@ -124,7 +143,7 @@
                 <button type="submit" class="ag-chip p">↺ {{ translations.restore_visit ?? 'Rétablir' }}</button>
               </form>
             {% endif %}
-            <form method="POST" action="{{ ROOT }}/agenda/visits/{{ v.id }}/delete" class="ag-inline"
+            <form method="POST" action="{{ ROOT }}/agenda/visits/{{ v.id }}/delete" class="ag-inline wide"
                   onsubmit="return confirm({{ (translations.confirm_delete ?? 'Supprimer définitivement cette visite ?')|json_encode }});">
               <input type="hidden" name="back" value="agenda">
               <button type="submit" class="ag-chip d">🗑 {{ translations.delete ?? 'Supprimer' }}</button>
