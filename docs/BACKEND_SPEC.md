@@ -1,7 +1,7 @@
 # Backend work requested by the Consultant Panel
 
-Seven tickets. Each one says **what to change**, shows the **JSON before and
-after**, and gives an **acceptance test** you can run with curl.
+Each ticket says **what to change**, shows the **JSON before and after**, and
+gives an **acceptance test** you can run with curl.
 
 Nothing here breaks existing clients: every change is an *added* field or a
 *new* endpoint.
@@ -12,7 +12,8 @@ Nothing here breaks existing clients: every change is an *added* field or a
 | T2 | Document the review POST | `POST …/task-reviews` | S | **2** |
 | T3 | Add completion fields to the day view | `GET …/shops/{id}/tasks` | M | **3** |
 | T4 | Multi-shop material complaints | new endpoint | M | 4 |
-| T5 | Multi-shop monthly P&L | new endpoint | M | 4 |
+| T5a | **`material` always present on the monthly P&L** | `GET …/{id}/pnl/monthly` | S | **1 — blocking** |
+| T5b | Multi-shop monthly P&L | new endpoint | M | 4 |
 | T6 | Owner validation of a review | new endpoint | M | 5 |
 | T7 | Cache headers on read-only aggregates | 5 endpoints | S | 5 |
 
@@ -205,10 +206,23 @@ Must include `checklist_id`, `completion_id`, `attachment_id`,
 ### What to create
 
 ```
+GET /consultant/shops/material-complaints
 GET /consultant/shops/material-complaints?status=OPEN
+GET /consultant/shops/material-complaints?from=2026-07-01&to=2026-07-31
 ```
 
-`status` optional. Same shape as your other batch endpoints:
+All three query parameters are **optional**. Without them, return everything the
+single-shop endpoint would return, for every shop the consultant may see.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `status` | string | filter, same values as today (`OPEN`, `CLOSED`, …) |
+| `from` | date `Y-m-d` | `reported_at` ≥ this date |
+| `to` | date `Y-m-d` | `reported_at` ≤ this date |
+
+### Response
+
+Same envelope as your other multi-shop endpoints (`/consultant/shops/monthly-sales`):
 
 ```json
 {
@@ -224,17 +238,31 @@ GET /consultant/shops/material-complaints?status=OPEN
 }
 ```
 
-Each complaint object: exactly what the single-shop endpoint returns today.
+Two rules that matter to us:
+
+1. **Every authorised shop appears**, even with an empty `complaints` array. A
+   missing shop and a shop with zero complaints are different facts, and the
+   panel has to tell them apart — one is "no problem", the other is "no data".
+2. Each complaint object is **exactly** what the single-shop endpoint returns
+   today. Don't reshape it; we already parse that form.
 
 ### Why
 
-The network view needs every shop. The panel currently fires one request per
-shop in a parallel batch — 25 shops means 25 concurrent requests on your side
-for one screen.
+Two screens need every shop's complaints at once: the network report and the
+Food-Cost lever.
+
+Today the panel calls `GET /shops/{id}/material-complaints` once per shop. They
+go out in parallel (`curl_multi`, in chunks of 32), so it is one wait for us —
+but it is **25 concurrent requests hitting your side** for a single screen, and
+25 authorisation checks, and 25 query round trips to your database.
+
+One endpoint means one query, and it lets you filter server-side instead of
+sending us everything to filter in PHP.
 
 ### Acceptance
 
 ```bash
+# 1. Every authorised shop is present, including those with no complaint.
 curl -H "Authorization: Bearer $TOKEN" \
   "$API/consultant/shops/material-complaints" | jq '.shops | length'
 ```
@@ -242,17 +270,43 @@ curl -H "Authorization: Bearer $TOKEN" \
 Must equal the number of shops the consultant may see — same
 `consultant_shop_assignment` rule as your other endpoints.
 
+```bash
+# 2. The per-shop payload matches the single-shop endpoint, shop by shop.
+diff \
+  <(curl -s -H "Authorization: Bearer $TOKEN" "$API/shops/4/material-complaints" | jq -S .) \
+  <(curl -s -H "Authorization: Bearer $TOKEN" "$API/consultant/shops/material-complaints" \
+    | jq -S '.shops[] | select(.shop_id == 4) | .complaints')
+```
+
+Must print nothing.
+
+```bash
+# 3. The filter narrows, and never widens.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/shops/material-complaints?status=OPEN" \
+  | jq '[.shops[].complaints[] | select(.status != "OPEN")] | length'
+```
+
+Must be `0`.
+
 ---
 
 ## T5 — Monthly P&L for all shops
 
 **Existing endpoint:** `GET /consultant/shops/{shopId}/pnl/monthly?from=&to=` (P2) — one shop.
 
-### What to create
+This ticket has **two parts**. The second one is the important one: the endpoint
+that exists today does not always return the cost line we need, and without it
+the valuation is wrong — not slow, *wrong*.
+
+### Part A — the multi-shop endpoint
 
 ```
 GET /consultant/shops/pnl/monthly?from=2025-08&to=2026-07
 ```
+
+`from` and `to` are months (`YYYY-MM`), inclusive. Same envelope as
+`/consultant/shops/monthly-sales`:
 
 ```json
 {
@@ -263,19 +317,104 @@ GET /consultant/shops/pnl/monthly?from=2025-08&to=2026-07
         { "month": "2025-08", "turnover": 52000, "material": 18000,
           "labour": 15000, "overhead": 9000, "result": 10000 }
       ]
-    }
+    },
+    { "shop_id": 2, "months": [] }
   ]
 }
 ```
 
-Same month object as the existing single-shop endpoint.
+Same month object as the existing single-shop endpoint. As in T4: every
+authorised shop appears, even with an empty `months` array.
 
-### Why
+### Part B — `material` must always be there
 
-The valuation screen needs 12 months of P&L for **every** shop. Today that is
-one request per shop, fired in parallel. This is the exact multi-shop pattern
-you already built for P1 (`/consultant/shops/monthly-sales`) — same shape,
-different payload.
+**This is the blocking part.**
+
+The panel computes the net margin of a shop as:
+
+```
+net margin = (turnover − material − labour − overhead) ÷ turnover
+```
+
+It does **not** use your `result` field, because `result` does not always deduct
+the material cost. When it doesn't, margins come out around 40 % — no bakery
+earns that, and the whole valuation follows the error.
+
+So every month object must carry the four lines, or say plainly that it can't:
+
+| Field | Type | Required |
+|---|---|---|
+| `turnover` | number | **yes** |
+| `material` | number | **yes** — the food cost of the month |
+| `labour` | number | **yes** |
+| `overhead` | number | **yes** — rent, royalties, energy, depreciation… |
+| `result` | number | optional; we no longer rely on it |
+
+`null` is acceptable and honest when a line genuinely doesn't exist for that
+month — the panel shows it as missing and says so on screen. What we cannot work
+with is a **silently absent** `material` next to a `result` that looks complete.
+
+**What happens today without it.** `/pnl/daily` *does* return `material` — the
+profitability heat map lives on it and its figures are right. So the panel falls
+back to the daily endpoint and re-aggregates a whole month day by day, just to
+recover one number the monthly endpoint should already have. That is an extra
+round trip per affected shop, on every valuation.
+
+### Two questions we need answered
+
+1. **What exactly does `overhead` cover?** We treat it as rent + royalties +
+   energy + depreciation. If some of those sit elsewhere, the margin is
+   overstated and we need to know where they are.
+2. **Is `result` meant to equal `turnover − material − labour − overhead`?** If
+   yes, it's currently not, and that's a bug on your side worth fixing anyway.
+   If no, tell us what it means and we'll stop mentioning it.
+
+### Why (Part A)
+
+The valuation screen needs 12 closed months of P&L for **every** shop. Today
+that's one request per shop, fired in parallel — same cost profile as T4: one
+wait for us, N concurrent requests for you.
+
+Measured on the current panel, the valuation endpoint costs **11 network waits**
+and the trends endpoint **12**. T5 removes the largest chunk of that.
+
+This is the exact multi-shop pattern you already built for P1
+(`/consultant/shops/monthly-sales`) — same shape, different payload.
+
+### Acceptance
+
+```bash
+# 1. Every authorised shop is present.
+curl -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/shops/pnl/monthly?from=2025-08&to=2026-07" | jq '.shops | length'
+```
+
+```bash
+# 2. THE ONE THAT MATTERS — no month may omit a cost line.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/shops/pnl/monthly?from=2025-08&to=2026-07" \
+  | jq '[.shops[].months[]
+         | select(has("material") and has("labour") and has("overhead") | not)]
+        | length'
+```
+
+Must be `0`. Present-and-`null` passes; absent does not.
+
+```bash
+# 3. The monthly endpoint agrees with the daily one, which we know is right.
+#    Pick one shop and one closed month.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/shops/4/pnl/daily?from=2026-06-01&to=2026-06-30" \
+  | jq '[.days[].material] | add'
+
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/shops/pnl/monthly?from=2026-06&to=2026-06" \
+  | jq '.shops[] | select(.shop_id == 4) | .months[0].material'
+```
+
+The two numbers must match. If they don't, the monthly aggregation is the one to
+fix — the daily figures are what the heat map uses, and those have been checked
+against your back-office.
 
 ---
 
@@ -359,7 +498,8 @@ whole requests instead of guessing.
 | T2 | the duplicated field names | a payload we can trust |
 | T3 | 2 round trips per page load | photo and review on the day view |
 | T4 | 25 concurrent requests | 1 request |
-| T5 | N parallel requests | 1 request |
+| T5a | the fallback that re-reads a whole month day by day | a net margin we can trust |
+| T5b | N parallel requests | 1 request |
 | T6 | a local table | validation visible to all clients |
 | T7 | our TTL guesses | fewer requests, fresher data |
 
