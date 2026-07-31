@@ -1,0 +1,91 @@
+{
+  "key": "consultant",
+  "slug": "consultant",
+  "group": "Terrain",
+  "icon": "clipboard-check",
+  "isNew": true,
+  "sortOrder": 8,
+  "name": {
+    "fr": "Panel consultant",
+    "en": "Consultant panel",
+    "ar": "لوحة المستشارين"
+  },
+  "description": {
+    "fr": "L'application terrain des animateurs réseau : visites, checklists notées, comptes rendus.",
+    "en": "The field app for network consultants: visits, rated checklists, reports.",
+    "ar": "تطبيق ميداني لمستشاري الشبكة: الزيارات وقوائم المهام والتقارير."
+  },
+  "overview": {
+    "fr": "L'animateur réseau passe sa journée en magasin, pas devant un tableur. Le panel lui donne son agenda de visites, les checklists à passer point de vente par point de vente, et de quoi noter et commenter chaque tâche vérifiée — avec le nom du vérificateur et l'horodatage, puisque c'est tout l'objet du contrôle. Les objectifs, les tendances et les leviers du magasin sont sur le même écran, et le compte rendu part de là.",
+    "en": "A network consultant spends the day in stores, not in a spreadsheet. The panel gives them their visit agenda, the checklists to run store by store, and a way to rate and comment every task reviewed — with the reviewer's name and a timestamp, since that is the entire point of supervision. The store's targets, trends and levers sit on the same screen, and the report starts from there."
+  },
+  "metric": {
+    "value": "0",
+    "label": { "fr": "ressaisie après la visite", "en": "re-keying after the visit" }
+  },
+  "features": [
+    {
+      "key": "agenda",
+      "icon": "calendar",
+      "name": { "fr": "Agenda des visites", "en": "Visit agenda" },
+      "description": {
+        "fr": "Les visites planifiées par point de vente, préparées avant de partir et retrouvées sur place. L'animateur sait ce qu'il va voir et ce qu'il a laissé ouvert la dernière fois.",
+        "en": "Visits planned per store, prepared before leaving and found again on site. The consultant knows what they are about to see and what they left open last time."
+      }
+    },
+    {
+      "key": "checklists",
+      "icon": "clipboard-check",
+      "name": { "fr": "Checklists de visite notées", "en": "Rated visit checklists" },
+      "description": {
+        "fr": "Chaque tâche du magasin est vérifiée, notée et commentée, et la revue porte le nom de son auteur et son horodatage. « Vérifié » sans savoir par qui ne vaut rien : c'est ce que cette fonction corrige.",
+        "en": "Every store task is reviewed, rated and commented, and the review carries its author's name and timestamp. \"Reviewed\" with no idea by whom is worth nothing — that is what this fixes."
+      }
+    },
+    {
+      "key": "objectifs",
+      "icon": "trending-up",
+      "name": { "fr": "Objectifs, tendances et leviers", "en": "Targets, trends and levers" },
+      "description": {
+        "fr": "Les cibles par indicateur et par magasin, la tendance sur la période, et les leviers identifiés pour la corriger. La discussion avec le franchisé s'appuie sur ces trois écrans.",
+        "en": "Targets per metric and per store, the trend over the period, and the levers identified to move it. The conversation with the franchisee runs on those three screens."
+      }
+    },
+    {
+      "key": "reclamations",
+      "icon": "triangle-alert",
+      "name": { "fr": "Réclamations matériel", "en": "Equipment complaints" },
+      "description": {
+        "fr": "Ce qui est cassé ou manquant se déclare pendant la visite, sur plusieurs magasins d'un coup quand le même problème revient dans le réseau.",
+        "en": "What is broken or missing is raised during the visit — across several stores at once when the same problem keeps coming back."
+      }
+    },
+    {
+      "key": "rapports",
+      "icon": "file-text",
+      "name": { "fr": "Comptes rendus de visite", "en": "Visit reports" },
+      "description": {
+        "fr": "Le compte rendu se construit à partir de ce qui a été vérifié sur place, et se valide côté propriétaire. Personne ne retape la visite le soir.",
+        "en": "The report is built from what was actually reviewed on site, and validated on the owner's side. Nobody retypes the visit in the evening."
+      }
+    },
+    {
+      "key": "notes",
+      "icon": "pencil",
+      "name": { "fr": "Notes de terrain", "en": "Field notes" },
+      "description": {
+        "fr": "Les remarques prises au passage, rattachées au magasin et retrouvées à la visite suivante — plutôt qu'un carnet qui reste dans la voiture.",
+        "en": "Remarks taken in passing, attached to the store and found again on the next visit — rather than a notebook that stays in the car."
+      }
+    },
+    {
+      "key": "kiosque",
+      "icon": "smartphone",
+      "name": { "fr": "Installable et plein écran", "en": "Installable and full screen" },
+      "description": {
+        "fr": "L'app s'installe depuis le navigateur et s'ouvre sans barre d'adresse. Sur un écran fixe en magasin, elle se lance en mode kiosque, sans interface autour.",
+        "en": "The app installs from the browser and opens without an address bar. On a fixed in-store screen it runs in kiosk mode, with no interface around it."
+      }
+    }
+  ]
+}
