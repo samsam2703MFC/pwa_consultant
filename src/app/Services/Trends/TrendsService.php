@@ -68,7 +68,13 @@ class TrendsService
         for ($i = self::MONTHS - 1; $i >= 0; $i--) {
             $start   = $curStart->modify("-{$i} months");
             $end     = $start->modify('last day of this month');
-            $partial = $end > $today;
+            // Un mois est PARTIEL dès qu'il dépasse le dernier jour qu'on
+            // accepte de compter — pas seulement dès qu'il dépasse aujourd'hui.
+            // Comparé à `today`, le mois en cours passait pour terminé LE
+            // DERNIER JOUR DU MOIS : il entrait au classement et au cumul
+            // comme un mois plein, alors que la journée courante n'était pas
+            // finie et n'était même pas comptée.
+            $partial = $end > $lastFull;
             if ($partial) {
                 $end = $lastFull;
             }

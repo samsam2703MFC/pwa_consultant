@@ -327,7 +327,11 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
 .dash { animation:dashIn .5s cubic-bezier(.22,1,.36,1) both; }
 .dash-eyebrow { font-size:11px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; color:var(--c-primary); }
 .dash-secthead { display:flex; align-items:baseline; justify-content:space-between; margin:22px 2px 10px; }
-.dash-seelink { font-size:12px; color:var(--c-muted); }
+.dash-seelink { font-size:12px; color:var(--c-muted);
+  /* Lien d'en-tête de section : 18 px de haut, à côté d'un titre.
+     On lui donne sa propre hauteur de touche sans bouger le titre. */
+  display:inline-flex; align-items:center; min-height:40px; padding:0 4px;
+  margin:-11px -4px; }
 .dash-seelink:hover { color:var(--c-primary); }
 
 /* KPI grid : 4 tuiles sur UNE ligne (grand écran) → 2 par ligne (tablette)
@@ -371,7 +375,8 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
 /* shortcuts */
 .dash-shortcuts { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:9px; }
 .dash-sc { background:#fff; border:1px solid var(--c-line); border-radius:15px; padding:13px 6px; text-align:center;
-  box-shadow:0 8px 22px -18px rgba(70,40,25,.25); text-decoration:none; }
+  box-shadow:0 8px 22px -18px rgba(70,40,25,.25); text-decoration:none;
+  min-height:64px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 .dash-sc > span { display:inline-flex; }
 .dash-sc > div { font-size:10.5px; color:var(--c-ink); margin-top:6px; font-weight:600; }
 .dash-sc:active { background:var(--c-bg-2); }
@@ -393,10 +398,12 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
    Checklists screen
    ============================================================ */
 .cl-datenav { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
-.cl-datenav-arrow { width:34px; height:34px; border-radius:50%; background:#fff; border:1px solid var(--c-line);
-  display:flex; align-items:center; justify-content:center; color:var(--c-muted); text-decoration:none; }
+.cl-datenav-arrow { width:44px; height:44px; border-radius:50%; background:#fff; border:1px solid var(--c-line);
+  display:flex; align-items:center; justify-content:center; color:var(--c-muted); text-decoration:none;
+  flex-shrink:0; -webkit-tap-highlight-color:transparent; }
 .cl-datenav-cur { font-size:13px; font-weight:600; color:var(--c-ink); background:#fff; border:1px solid var(--c-line);
-  border-radius:999px; padding:7px 16px; display:inline-flex; align-items:center; gap:7px; cursor:pointer; }
+  border-radius:999px; padding:7px 16px; min-height:44px; display:inline-flex; align-items:center; gap:7px;
+  cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .cl-datenav-today { font-size:12px; font-weight:600; color:#fff; background:var(--c-primary); border-radius:999px;
   padding:7px 14px; text-decoration:none; }
 
@@ -541,3 +548,17 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
   border:1px solid rgba(141,29,44,.28); background:#fff; color:var(--c-primary); border-radius:14px; padding:14px;
   font-size:14px; font-weight:600; text-decoration:none; }
 .pf-logout:active { background:rgba(141,29,44,.06); }
+
+
+/* ============================================================
+   Cibles tactiles — plancher commun
+   ------------------------------------------------------------
+   Mesuré sur les sept écrans principaux : 38 cibles passaient sous
+   40 px de haut. En dessous, viser au pouce devient un pari — et
+   c'est toute l'application qui donne l'impression d'être fragile.
+   Les boutons compacts de Bootstrap (.btn-sm) et les liens de
+   navigation de date en étaient les principaux fautifs.
+   ============================================================ */
+.app-topbar .btn-sm,
+.app-topbar-actions .btn-sm { min-height:40px; min-width:40px; }
+.cl-datenav-today { min-height:40px; display:inline-flex; align-items:center; }

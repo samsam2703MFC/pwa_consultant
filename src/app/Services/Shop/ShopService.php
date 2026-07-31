@@ -222,6 +222,23 @@ class ShopService
     }
 
     /**
+     * Préchauffe le cache des KPI de vente pour plusieurs fenêtres, en UN
+     * aller-retour parallèle.
+     *
+     * Les écrans qui lisent ensuite `getSalesKpis()` boutique par boutique n'en
+     * paient alors aucun : les réponses sont déjà en cache. Sans cela, chaque
+     * boutique coûte une attente réseau bout à bout.
+     *
+     * @param array $windows liste de ['shop'=>int,'from'=>'Y-m-d','to'=>'Y-m-d']
+     */
+    public function warmSalesKpis(array $windows): void
+    {
+        if ($windows !== []) {
+            $this->shopRepository->getSalesKpisManyFromApi($windows);
+        }
+    }
+
+    /**
      * Journal des appels en lot de la requête : quel endpoint a répondu quoi,
      * en combien de temps, et quels disjoncteurs sont ouverts. C'est ce qui
      * transforme « aucune donnée » en « /pnl/monthly a répondu 404 ».

@@ -76,11 +76,16 @@
             color: #6c757d;
         }
         /* HAMBURGER BUTTON */
+        /* Le menu est le bouton le plus utilisé de l'application : il vit sur
+           tous les écrans. Il mesurait 29×25 — sous le seuil au-dessous duquel
+           une cible tactile devient un pari. */
         .app-hamburger {
             background: none;
             border: none;
+            min-width: 44px;
+            min-height: 44px;
             padding: 6px 8px;
-            border-radius: 10px;
+            border-radius: 12px;
             color: #8D1D2C;
             cursor: pointer;
             display: flex;
@@ -144,10 +149,12 @@
             margin: 0;
             letter-spacing: -.01em;
         }
+        /* Fermer le menu : 30×30 auparavant, dans un coin d'écran — l'endroit
+           le plus difficile à viser au pouce. */
         .app-nav-sheet-close {
             background: rgba(0,0,0,.06);
             border: none;
-            width: 30px; height: 30px;
+            width: 44px; height: 44px;
             border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
             cursor: pointer;
@@ -204,6 +211,9 @@
            / écrans d'action). ── */
         .app-back-btn {
             display: inline-flex; align-items: center; gap: 6px;
+            /* 36 px auparavant : le retour est une action fréquente, elle
+               mérite la même hauteur que les autres. */
+            min-height: 44px;
             padding: 7px 14px 7px 10px; margin-bottom: 14px;
             border: 1.5px solid rgba(141,29,44,.18); border-radius: 999px; background: #fff;
             color: #8D1D2C; font-size: .82rem; font-weight: 700; text-decoration: none;

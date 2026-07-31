@@ -403,6 +403,10 @@
 
     {# ══ Bouton Drop : Valeurs réseau (valorisation) ══ #}
     <style>
+      /* Le nom de la boutique mène à ses notes : la zone cliquable couvre
+         nom ET ville, pas seulement la ligne de texte du nom (19 px). */
+      .shop-link { display:block; min-height:44px; display:flex; flex-direction:column;
+                   justify-content:center; }
       .valo-drop { margin-bottom:14px; }
       .valo-toggle { width:100%; display:flex; align-items:center; gap:10px; background:#fff; border:1px solid #ece4d8; border-radius:14px; padding:12px 14px; font-size:.86rem; font-weight:800; color:#8D1D2C; box-shadow:0 2px 8px rgba(0,0,0,.05); }
       .valo-toggle .ic { width:30px; height:30px; border-radius:9px; background:rgba(141,29,44,.1); display:flex; align-items:center; justify-content:center; }
@@ -845,7 +849,9 @@
                             <div class="shop-rank flex-shrink-0" aria-label="{{ translations.rank ?? 'Rang' }} {{ shop.rank }}">{{ shop.rank }}</div>
                             {% endif %}
                             <div class="flex-grow-1 min-w-0">
-                                <a href="{{ ROOT }}/shops/{{ shop.id }}/notes" class="text-decoration-none">
+                                {# Toute la zone nom + ville est cliquable : le
+                                   seul libellé ne faisait que 19 px de haut. #}
+                                <a href="{{ ROOT }}/shops/{{ shop.id }}/notes" class="text-decoration-none shop-link">
                                     <div class="fw-700 shop-name" style="font-size:.95rem;color:#212529;">{{ shop.representative_name ?? shop.name }}</div>
                                     <div class="text-muted text-truncate" style="font-size:.78rem;">{{ shop.city ?? '' }}</div>
                                 </a>
@@ -853,7 +859,7 @@
                             {# P&L toggle button #}
                             <button class="btn btn-sm border-0 pnl-toggle-btn flex-shrink-0"
                                     data-shop-id="{{ shop.id }}"
-                                    style="background:rgba(141,29,44,.08);color:#8D1D2C;border-radius:10px;padding:5px 9px;"
+                                    style="background:rgba(141,29,44,.08);color:#8D1D2C;border-radius:10px;padding:5px 9px;min-width:44px;min-height:44px;"
                                     aria-label="P&L"
                                     aria-expanded="false">
                                 <span style="font-size:.9rem;">{{ icons.svg('bar-chart') }}</span>
