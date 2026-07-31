@@ -426,9 +426,23 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
                     if (j.sent) { txt += ' | envoyé : ' + j.sent.join(', '); }
                     throw new Error(txt);
                 }
-                current.rating = rating;
-                current.comment = comment;
-                current.accepted = accepted;
+                // On enregistre ce qui a été ENVOYÉ, pas ce qui était coché :
+                // sans choix explicite, le panel envoie « conforme ». Garder
+                // `null` ici faisait revenir la modale sans conformité cochée
+                // alors que le serveur, lui, avait bien reçu « conforme ».
+                current.rating   = rating;
+                current.comment  = comment;
+                current.accepted = (accepted === null) ? true : accepted;
+                accepted = current.accepted;
+
+                // La modale relit `data-done` à CHAQUE ouverture : sans cette
+                // réécriture, l'évaluation qu'on vient d'enregistrer était
+                // perdue dès qu'on refermait — note, étoiles et conformité
+                // revenaient vides, alors que le serveur les avait bien.
+                if (openedCard) {
+                    try { openedCard.setAttribute('data-done', JSON.stringify(current)); }
+                    catch (e) { /* attribut non réécrit : la page rechargée les relira */ }
+                }
 
                 // L'avis est parti à l'API. Le nom du vérificateur, lui, vient
                 // du journal local : s'il n'a pas pu être écrit, la ligne
