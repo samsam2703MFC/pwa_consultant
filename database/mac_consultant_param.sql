@@ -36,7 +36,9 @@ INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('daypart_afternoon_to',            '19',  'Heatmap : fin du créneau « après-midi » (heure incluse)'),
     ('trends_budget_seconds',           '30',  'Tendances : budget de temps (s) — au-delà, le CA est rendu sans les objectifs'),
     ('trends_count_today',              '0',   'Tendances : compter la journée en cours dans le mois courant (0 = s''arrête à hier)'),
-    ('owner_validation_permission',     '',    'Checklists : permission requise pour valider un contrôle consultant (vide = tous)');
+    ('owner_validation_permission',     '',    'Checklists : permission requise pour valider un contrôle consultant (vide = tous)'),
+    ('diag_ca_tolerance_pct',           '0.5', 'Diagnostic CA : écart (%) en deçà duquel deux sources sont réputées d''accord'),
+    ('diag_ca_vat_factors',             '1.06,1.12,1.21', 'Diagnostic CA : facteurs de TVA reconnus dans un rapport entre sources');
 
 -- Clés remplacées par les bornes début/fin ci-dessus. L'application ne les lit
 -- plus et les masque de l'écran de configuration ; à supprimer quand vous

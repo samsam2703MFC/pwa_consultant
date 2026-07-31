@@ -51,6 +51,14 @@ class ParamRepository
         // Vide = tout utilisateur ayant accès à l'écran peut valider un contrôle.
         // Renseigner un code de permission restreint la case à ce rôle (Owner).
         'owner_validation_permission'     => ['',   'Checklists : permission requise pour valider un contrôle consultant (vide = tous)'],
+        // Trois endpoints renvoient le CA d'une boutique (monthly-sales,
+        // sales-kpis, pnl/monthly). En deçà de cet écart, on les considère
+        // d'accord : un centime d'arrondi n'est pas une divergence.
+        'diag_ca_tolerance_pct'           => ['0.5', 'Diagnostic CA : écart (%) en deçà duquel deux sources sont réputées d\'accord'],
+        // Un rapport constant entre deux sources trahit une TVA. Liste des
+        // facteurs à reconnaître, du plus courant au plus rare (BE : 6 %
+        // alimentaire, 12 % restauration, 21 % standard).
+        'diag_ca_vat_factors'             => ['1.06,1.12,1.21', 'Diagnostic CA : facteurs de TVA reconnus dans un rapport entre sources'],
     ];
 
     /**

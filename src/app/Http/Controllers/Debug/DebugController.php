@@ -2,7 +2,9 @@
 namespace App\Consultant\app\Http\Controllers\Debug;
 
 use App\Consultant\app\Http\Controllers\Controller;
+use App\Consultant\app\Repositories\Param\ParamRepository;
 use App\Consultant\app\Repositories\Shop\ShopSalesRepository;
+use App\Consultant\app\Services\Shop\ShopService;
 use App\Consultant\core\Cookie\CookieManager;
 use App\Consultant\core\Http\ApiClient;
 use App\Consultant\core\Support\Route;
@@ -20,16 +22,28 @@ class DebugController extends Controller
         private ApiClient $apiClient,
         private CookieManager $cookieManager,
         private ShopSalesRepository $shopSales,
+        private ShopService $shopService,
+        private ParamRepository $params,
     ) {}
 
     /**
      * Sonde générique : /api-debug?endpoint=/consultant/shops/summary
      * Affiche la réponse brute de n'importe quel endpoint /consultant/*.
+     *
+     * Cas particulier `?ca=1` : comparaison des trois sources de chiffre
+     * d'affaires. Elle ne demande PAS le drapeau serveur — elle ne montre que
+     * des montants que la session voit déjà sur Boutiques et Tendances, lus
+     * sous trois angles. Le reste de la sonde renvoie des réponses brutes
+     * arbitraires et reste derrière PNL_DIAG.
      */
     #[Route('GET', '/api-debug')]
     public function probe(): void
     {
         header('Content-Type: text/html; charset=utf-8');
+        if (($_GET['ca'] ?? '') === '1') {
+            $this->caCompare();
+            return;
+        }
         $flag = $_SERVER['PNL_DIAG'] ?? $_ENV['PNL_DIAG'] ?? getenv('PNL_DIAG') ?: '0';
         if ($flag !== '1') { http_response_code(404); echo 'Not found'; return; }
 
@@ -45,6 +59,7 @@ class DebugController extends Controller
             echo '<p>Ex : <code>/pwa_consultant/api-debug?endpoint=/consultant/shops/summary</code></p>';
             echo '<p>Les paramètres de l’endpoint se passent à la suite :<br>'
                . '<code>?endpoint=/consultant/shops/4/pnl/monthly&amp;from=2025-07&amp;to=2026-06</code></p>';
+            echo '<p>Comparaison des trois sources de CA : <code>?ca=1</code></p>';
             echo '</body>';
             return;
         }
@@ -77,6 +92,184 @@ class DebugController extends Controller
            . '</pre>';
         echo '<p style="font-family:sans-serif;color:#8D1D2C">⚠️ Diagnostic temporaire — retire <code>SetEnv PNL_DIAG 1</code> après usage.</p>';
         echo '</body>';
+    }
+
+    /**
+     * Trois endpoints renvoient le chiffre d'affaires d'une boutique. Pour une
+     * même boutique et un même mois CLOS, ils ne donnent pas toujours le même
+     * nombre — et le panneau n'a aucune règle pour arbitrer : il code une
+     * préférence par écran. Cette page pose les trois côte à côte pour que la
+     * question se règle sur des chiffres et non sur des impressions.
+     *
+     *   /api-debug?ca=1[&month=YYYY-MM][&shop=ID]
+     *
+     * Trois allers-retours pour tout le réseau : P1 et P3 couvrent toutes les
+     * boutiques en un appel chacun, P2 part en parallèle.
+     */
+    private function caCompare(): void
+    {
+        $esc = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $eur = fn(?float $v) => $v === null ? '—' : number_format($v, 2, ',', ' ');
+        $pct = fn(?float $v) => $v === null ? '—' : number_format($v, 2, ',', ' ') . ' %';
+
+        // Mois CLOS par défaut : le mois en cours est partiel, et trois sources
+        // arrêtées à trois instants différents ne se comparent pas.
+        $ym = (string)($_GET['month'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}$/', $ym) !== 1) {
+            $ym = (new \DateTimeImmutable('first day of this month'))->modify('-1 month')->format('Y-m');
+        }
+        $from = $ym . '-01';
+        $to   = (new \DateTimeImmutable($from))->modify('last day of this month')->format('Y-m-d');
+        $only = (int)($_GET['shop'] ?? 0);
+
+        // Une valeur vidée en base ne doit pas devenir une tolérance de zéro :
+        // tout écarterait alors, y compris un centime d'arrondi.
+        $tol = (float)($this->params->get('diag_ca_tolerance_pct') ?? '');
+        if ($tol <= 0) {
+            $tol = (float)ParamRepository::DEFAULTS['diag_ca_tolerance_pct'][0];
+        }
+        $vat = array_values(array_filter(array_map(
+            'floatval',
+            explode(',', (string)($this->params->get('diag_ca_vat_factors', '') ?? ''))
+        ), fn($f) => $f > 1));
+
+        $names = [];
+        foreach ($this->shopService->getAllShops() as $s) {
+            $id = (int)($s['id'] ?? 0);
+            if ($id > 0 && ($only === 0 || $id === $only)) {
+                $names[$id] = (string)($s['representative_name'] ?? $s['name'] ?? ('#' . $id));
+            }
+        }
+        $ids = array_keys($names);
+
+        $serie = $this->shopService->getMonthlySalesAllShops($ym, $ym);        // P1
+        $kpis  = $this->shopService->getSalesKpisAllShops($from, $to);         // P3
+        $pnl   = $ids !== [] ? $this->shopService->getMonthlyPnlMany($ids, $ym, $ym) : []; // P2
+
+        echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
+        echo '<style>'
+           . 'body{font-family:ui-monospace,Menlo,monospace;max-width:1000px;margin:20px auto;padding:0 14px;'
+           . 'color:#241f1c;background:#F4EFE8;line-height:1.5}'
+           . 'h2,h3,p.s{font-family:system-ui,sans-serif}'
+           . '.wrap{overflow-x:auto;background:#fff;border-radius:10px}'
+           . 'table{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap}'
+           . 'th{background:#8D1D2C;color:#fff;text-align:left;padding:7px 9px;font-weight:600}'
+           . 'td{padding:6px 9px;border-top:1px solid #eee;text-align:right}'
+           // Sur un téléphone, les trois montants sortent de l'écran : le nom
+           // reste accroché à gauche pendant qu'on fait défiler les colonnes,
+           // sinon on lit des chiffres sans savoir de quelle boutique.
+           . 'td.l,th:first-child{text-align:left;position:sticky;left:0;background:#fff;'
+           . 'max-width:46vw;overflow:hidden;text-overflow:ellipsis}'
+           . 'th:first-child{background:#8D1D2C}'
+           . 'tr.tot td.l{background:#fff}'
+           . 'tr.tot td{border-top:2px solid #241f1c;font-weight:700}'
+           . '.ko{color:#8D1D2C;font-weight:700}.oky{color:#1c7a4a;font-weight:700}'
+           . 'form{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0}'
+           . 'input,button{min-height:44px;font-size:16px;border-radius:8px;border:1px solid #d8cfc4;padding:0 12px}'
+           . 'button{background:#8D1D2C;color:#fff;border:none;min-width:110px;cursor:pointer}'
+           . '.note{background:#fff;border-radius:10px;padding:12px 14px;margin-top:16px;font-family:system-ui,sans-serif}'
+           . '</style><body>';
+        echo '<h2>CA : trois sources, un seul mois</h2>';
+        echo '<form method="get"><input type="hidden" name="ca" value="1">'
+           . ($only > 0 ? '<input type="hidden" name="shop" value="' . $esc($only) . '">' : '')
+           . '<label>Mois <input type="month" name="month" value="' . $esc($ym) . '"></label>'
+           . '<button type="submit">Comparer</button></form>';
+
+        $srcKo = [];
+        if ($serie === null) { $srcKo[] = 'monthly-sales (P1)'; }
+        if ($kpis  === null) { $srcKo[] = 'sales-kpis (P3)'; }
+        if ($ids !== [] && $pnl === []) { $srcKo[] = 'pnl/monthly (P2)'; }
+        if ($srcKo !== []) {
+            echo '<p class="s ko">Source(s) sans réponse sur ce mois : ' . $esc(implode(', ', $srcKo))
+               . '. Les colonnes correspondantes resteront vides — c\'est un résultat, pas une panne de la page.</p>';
+        }
+
+        echo '<div class="wrap"><table><tr>'
+           . '<th>Boutique</th><th>monthly-sales</th><th>sales-kpis</th><th>pnl/monthly</th>'
+           . '<th>écart</th><th>kpis / série</th><th>pnl / série</th></tr>';
+
+        $tA = $tB = $tC = 0.0;   // totaux sur les boutiques où les TROIS répondent
+        $complete = 0; $accord = 0;
+        $rBA = []; $rCA = [];
+
+        foreach ($names as $id => $name) {
+            $a = isset($serie[$id][$ym]['ca']) ? (float)$serie[$id][$ym]['ca'] : null;
+            $b = isset($kpis[$id]['ca'])       ? (float)$kpis[$id]['ca']       : null;
+            $c = $pnl[$id][$ym]['turnover']    ?? null;
+            $c = is_numeric($c) ? (float)$c : null;
+
+            $vals = array_values(array_filter([$a, $b, $c], fn($v) => $v !== null && $v > 0));
+            $gap  = count($vals) >= 2 && min($vals) > 0
+                ? (max($vals) - min($vals)) / min($vals) * 100
+                : null;
+            $ok = $gap !== null && $gap <= $tol;
+
+            if ($a !== null && $b !== null && $c !== null) {
+                $complete++; $tA += $a; $tB += $b; $tC += $c;
+                if ($ok) { $accord++; }
+            }
+            if ($a > 0 && $b !== null) { $rBA[] = $b / $a; }
+            if ($a > 0 && $c !== null) { $rCA[] = $c / $a; }
+
+            echo '<tr><td class="l" title="' . $esc($name) . '">' . $esc($name)
+               . ' <span style="color:#a2988c">#' . $esc($id) . '</span></td>'
+               . '<td>' . $esc($eur($a)) . '</td><td>' . $esc($eur($b)) . '</td><td>' . $esc($eur($c)) . '</td>'
+               . '<td class="' . ($gap === null ? '' : ($ok ? 'oky' : 'ko')) . '">' . $esc($pct($gap)) . '</td>'
+               . '<td>' . $esc($a > 0 && $b !== null ? number_format($b / $a, 4, ',', ' ') : '—') . '</td>'
+               . '<td>' . $esc($a > 0 && $c !== null ? number_format($c / $a, 4, ',', ' ') : '—') . '</td></tr>';
+        }
+
+        echo '<tr class="tot"><td class="l">Total (' . $esc($complete) . ' boutique(s) à trois sources)</td>'
+           . '<td>' . $esc($eur($tA)) . '</td><td>' . $esc($eur($tB)) . '</td><td>' . $esc($eur($tC)) . '</td>'
+           . '<td colspan="3"></td></tr>';
+        echo '</table></div>';
+
+        // Le total ne porte que sur les boutiques où les trois sources ont
+        // répondu : additionner des périmètres différents fabriquerait un écart
+        // qui n'existe pas.
+        $median = function (array $v): ?float {
+            if ($v === []) { return null; }
+            sort($v);
+            $n = count($v);
+            return $n % 2 ? $v[intdiv($n, 2)] : ($v[$n / 2 - 1] + $v[$n / 2]) / 2;
+        };
+        $mBA = $median($rBA);
+        $mCA = $median($rCA);
+
+        echo '<div class="note">';
+        echo '<p class="s"><b>Verdict</b> — ' . ($complete === 0
+            ? 'aucune boutique n\'a ses trois sources sur ' . $esc($ym) . '.'
+            : $esc($accord) . ' boutique(s) sur ' . $esc($complete)
+              . ' où les trois sources concordent à ' . $esc(number_format($tol, 2, ',', ' ')) . ' % près.')
+           . '</p>';
+
+        foreach ([['sales-kpis / monthly-sales', $mBA], ['pnl/monthly / monthly-sales', $mCA]] as [$lib, $m]) {
+            if ($m === null) { continue; }
+            $txt = '<p class="s"><b>' . $esc($lib) . '</b> : rapport médian '
+                 . $esc(number_format($m, 4, ',', ' '));
+            // Un rapport constant d'une boutique à l'autre n'est pas du bruit :
+            // c'est une définition qui diffère. S'il colle à un taux de TVA,
+            // autant le nommer.
+            $hit = null;
+            foreach ($vat as $f) {
+                if (abs($m - $f) <= $tol / 100) { $hit = $f; break; }
+            }
+            if ($hit !== null) {
+                $txt .= ' — soit un facteur ' . $esc(number_format($hit, 2, ',', ' '))
+                      . ' : <b>une des deux sources est TTC, l\'autre HT</b>.';
+            } elseif (abs($m - 1) <= $tol / 100) {
+                $txt .= ' — les deux sources sont d\'accord.';
+            } else {
+                $txt .= ' — ne correspond à aucun facteur de TVA connu : l\'écart vient d\'un périmètre '
+                      . '(canal B2B, tickets annulés, jours sans clôture) et non d\'une taxe.';
+            }
+            echo $txt . '</p>';
+        }
+
+        echo '<p class="s" style="color:#7a7168">Mois clos par défaut ; le mois en cours n\'est pas comparable, '
+           . 'les trois sources ne s\'arrêtent pas au même instant. Tolérance et facteurs de TVA se règlent dans '
+           . 'la configuration (<code>diag_ca_tolerance_pct</code>, <code>diag_ca_vat_factors</code>).</p>';
+        echo '</div></body>';
     }
 
     #[Route('GET', '/pnl-debug')]
