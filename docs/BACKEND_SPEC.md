@@ -16,6 +16,12 @@ Nothing here breaks existing clients: every change is an *added* field or a
 | T5b | Multi-shop monthly P&L | new endpoint | M | 4 |
 | T6 | Owner validation of a review | new endpoint | M | 5 |
 | T7 | Cache headers on read-only aggregates | 5 endpoints | S | 5 |
+| T8 | **Three endpoints, three different revenues** | 3 existing endpoints | S | **2** |
+
+**Start with T5a and T8.** They are the only two tickets on this list about
+figures being *wrong*. Everything else makes the panel faster or richer; T5a and
+T8 make it correct — T5a fixes the margin, T8 fixes the revenue that margin is a
+percentage of.
 
 **Why round trips matter.** The panel's HTTP client times out after **10 s per
 call**. A screen needing N sequential calls can take N × 10 s and be cut off by
@@ -490,6 +496,106 @@ whole requests instead of guessing.
 
 ---
 
+## T8 — One shop, one month, three different revenues
+
+**Endpoints concerned:**
+`GET /consultant/shops/monthly-sales` (P1) · `GET /consultant/shops/sales-kpis` (P3) · `GET /consultant/shops/{id}/pnl/monthly` (P2)
+
+Nothing to build here. This ticket asks you to **make three existing numbers
+agree — or to tell us why they shouldn't.**
+
+### The problem
+
+Three endpoints report the revenue of a shop, and for the *same shop* over the
+*same closed month* they do not return the same figure:
+
+| Source | Field | What the panel uses it for |
+|---|---|---|
+| P1 `monthly-sales` | `ca` | the 12-month trend series |
+| P3 `sales-kpis` | `ca` / `turnover` | reports, average basket, N vs N-1 |
+| P2 `pnl/monthly` | `turnover` | valuation, net margin |
+
+The panel cannot tell which one is right. It has no rule to pick a winner, so
+today it **hard-codes a preference per screen** — which is a workaround, not an
+answer, and it means two screens can legitimately show two different revenues
+for the same month.
+
+**One correction on our side, in fairness.** We reported a gap of roughly ×3
+earlier. Part of that was our bug: the panel was summing per-shop KPIs over a
+shop list that contained duplicates, while `monthly-sales` comes back keyed by
+`shop_id` and so was immune. That duplication is fixed. Please don't chase the
+×3 — run the comparison below and work from what it actually shows.
+
+### What we're asking for
+
+Either of these closes the ticket:
+
+1. **They agree.** The three figures match for an identical window, to the cent.
+2. **They legitimately differ**, and you document what each one counts. Then we
+   pick the right source per screen instead of guessing.
+
+If it's (2), these are the differences we'd expect to be told about:
+
+| Question | Why it matters to us |
+|---|---|
+| Gross or net of VAT? | a 6 % / 21 % mix changes every margin we compute |
+| Are discounts deducted? | changes the average basket, not just the total |
+| Are cancelled or voided tickets excluded? | one endpoint may filter them, another not |
+| Are B2B, delivery and wholesale channels included? | a shop with a B2B contract diverges from its neighbours for a real reason |
+| Days with no register closing — skipped or counted as zero? | changes a monthly total, and the day count behind an average |
+
+### What the panel does today
+
+- **Revenue level** comes from `monthly-sales`, and from `pnl/monthly` on the
+  valuation screen so that revenue and costs share one source. A margin built
+  from two endpoints is arithmetic on two different definitions.
+- **`sales-kpis` is no longer trusted for the level** — only for the **N / N-1
+  ratio at equal days**, which is the one thing it can do that the monthly
+  series cannot (truncating both years to the same day count). A ratio survives
+  a wrong level because both sides come from the same endpoint.
+- The gap between the two is **measured and shown on screen** above 2 %, rather
+  than being quietly absorbed.
+
+That's a lot of machinery to work around a question only you can answer.
+
+### Acceptance
+
+```bash
+# Pick one shop and one CLOSED month — no partial month, no ambiguity.
+SHOP=4; M=2026-06
+
+# 1. The monthly series.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/shops/monthly-sales?from=$M&to=$M" \
+  | jq --argjson s $SHOP '.shops[] | select(.shop_id == $s) | .months[0].ca'
+```
+
+```bash
+# 2. The sales KPIs, same window expressed as dates.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/shops/sales-kpis?date_from=2026-06-01&date_to=2026-06-30" \
+  | jq --argjson s $SHOP '.shops[] | select(.shop_id == $s) | (.ca // .turnover)'
+```
+
+```bash
+# 3. The P&L.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/shops/$SHOP/pnl/monthly?from=$M&to=$M" \
+  | jq '.months[0].turnover'
+```
+
+The three numbers must be equal. If they aren't, the answer we need is **which
+one is the revenue of that shop for that month**, and what the other two are
+counting instead.
+
+### Why
+
+This is the second correctness ticket on this list, next to T5a. T5a makes the
+margin right; T8 makes the number the margin is a percentage *of* right. A
+correct margin on the wrong revenue is still a wrong valuation.
+
+---
+
 ## What each ticket changes for the panel
 
 | Ticket | What we can delete | What we gain |
@@ -502,6 +608,7 @@ whole requests instead of guessing.
 | T5b | N parallel requests | 1 request |
 | T6 | a local table | validation visible to all clients |
 | T7 | our TTL guesses | fewer requests, fresher data |
+| T8 | a hard-coded source preference per screen | one revenue figure, the same on every screen |
 
 ---
 
