@@ -110,6 +110,19 @@ class ShopService
     }
 
     /**
+     * Idem pour plusieurs fenêtres, en parallèle : comparer l'endpoint unitaire
+     * à l'endpoint multi-boutiques sur TOUT le réseau ne doit coûter qu'une
+     * attente, pas une par boutique.
+     *
+     * @param array $windows liste de ['shop'=>int,'from'=>'Y-m-d','to'=>'Y-m-d']
+     * @return array<string, ?array> map "shop|from|to" => KPIs ou null
+     */
+    public function getSalesKpisManyApiOnly(array $windows): array
+    {
+        return $windows === [] ? [] : $this->shopRepository->getSalesKpisManyFromApi($windows);
+    }
+
+    /**
      * KPI de vente pour PLUSIEURS fenêtres [shop, from, to] en un minimum
      * d'allers-retours (API en parallèle, repli local par fenêtre manquante) —
      * même sémantique que getSalesKpis(), pour les vues multi-mois (Tendances).

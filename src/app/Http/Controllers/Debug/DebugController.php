@@ -307,8 +307,14 @@ class DebugController extends Controller
         $kDay  = $this->shopService->getSalesKpisAllShops($day, $day);
         $kPrev = $this->shopService->getSalesKpisAllShops($pFrom, $pTo);
 
-        $first = array_key_first($names);
-        $unit  = $first !== null ? $this->shopService->getSalesKpisApiOnly((int)$first, $from, $to) : null;
+        // L'endpoint unitaire sur TOUTES les boutiques, en parallèle : une
+        // attente, et la comparaison des deux chemins backend cesse de reposer
+        // sur une seule boutique.
+        $unitMany = $this->shopService->getSalesKpisManyApiOnly(array_map(
+            fn($id) => ['shop' => (int)$id, 'from' => $from, 'to' => $to],
+            array_keys($names)
+        ));
+        $unitOf = fn(int $id) => $unitMany["{$id}|{$from}|{$to}"] ?? null;
 
         echo '<h3>D\'où vient l\'écart : la fenêtre ou le périmètre ?</h3>';
         echo '<div class="wrap"><table><tr><th>Boutique</th>'
@@ -343,17 +349,81 @@ class DebugController extends Controller
                . '<b>ce qui est compté</b>, pas de la période : canal B2B, tickets annulés, jours sans clôture.</p>';
         }
 
-        if ($first !== null) {
-            $u = $unit['ca'] ?? null;
-            $b = $kpis[$first]['ca'] ?? null;
-            echo '<p class="s">Même boutique, même mois, deux chemins backend — '
-               . '<code>/consultant/shops/sales-kpis</code> : <b>' . $esc($eur(is_numeric($b) ? (float)$b : null))
-               . '</b> · <code>/shops/{id}/statistics/sales/kpis</code> : <b>'
-               . $esc($eur(is_numeric($u) ? (float)$u : null)) . '</b>. '
-               . (is_numeric($u) && is_numeric($b) && $u > 0 && abs((float)$b - (float)$u) / (float)$u * 100 > $tol
-                   ? 'Ils divergent : le défaut est dans l\'endpoint multi-boutiques, pas dans la donnée.'
-                   : 'Ils concordent : le défaut est commun aux deux, donc en amont.')
-               . '</p>';
+        echo '</div>';
+        $this->linesVsTicketsProbe($names, $kpis, $unitOf, $tol, $esc, $eur);
+    }
+
+    /**
+     * Le multi-boutiques compte-t-il les LIGNES de ticket au lieu des TICKETS ?
+     *
+     * Un ticket a plusieurs lignes. Une requête qui joint les lignes et somme
+     * le montant du ticket à chaque fois multiplie le CA par le nombre
+     * d'articles du ticket — un facteur qui varie d'une boutique à l'autre,
+     * exactement comme celui observé. On confronte donc, boutique par boutique,
+     * le rapport multi/unitaire au nombre d'articles par ticket. S'ils
+     * coïncident, la cause est nommée et le correctif tient en une ligne de SQL.
+     */
+    private function linesVsTicketsProbe(
+        array $names, ?array $kpis, callable $unitOf, float $tol, callable $esc, callable $eur
+    ): void {
+        echo '<h3>Le multi-boutiques compte-t-il les lignes au lieu des tickets ?</h3>';
+        echo '<div class="wrap"><table><tr><th>Boutique</th><th>unitaire</th><th>multi-boutiques</th>'
+           . '<th>rapport</th><th>articles / ticket</th><th>écart</th></tr>';
+
+        $match = 0; $tested = 0; $divergent = 0; $pairs = 0;
+        // Le rapport et le panier d'articles ne se mesurent pas au centime :
+        // une tolérance de comptage, plus large que celle des montants.
+        $band = max(5.0, 10 * $tol);
+
+        foreach ($names as $id => $name) {
+            $u   = $unitOf((int)$id);
+            $uCa = isset($u['ca']) ? (float)$u['ca'] : null;
+            $bCa = isset($kpis[$id]['ca']) ? (float)$kpis[$id]['ca'] : null;
+            $ppt = isset($u['products_per_ticket']) && is_numeric($u['products_per_ticket'])
+                 ? (float)$u['products_per_ticket'] : null;
+            $rat = ($uCa !== null && $uCa > 0 && $bCa !== null) ? $bCa / $uCa : null;
+
+            if ($rat !== null) {
+                $pairs++;
+                if (abs($rat - 1) * 100 > $tol) { $divergent++; }
+            }
+            $ecart = ($rat !== null && $ppt !== null && $ppt > 0) ? abs($rat - $ppt) / $ppt * 100 : null;
+            if ($ecart !== null) {
+                $tested++;
+                if ($ecart <= $band) { $match++; }
+            }
+
+            echo '<tr><td class="l" title="' . $esc($name) . '">' . $esc($name) . '</td>'
+               . '<td>' . $esc($eur($uCa)) . '</td><td>' . $esc($eur($bCa)) . '</td>'
+               . '<td>' . $esc($rat === null ? '—' : number_format($rat, 4, ',', ' ')) . '</td>'
+               . '<td>' . $esc($ppt === null ? '—' : number_format($ppt, 4, ',', ' ')) . '</td>'
+               . '<td class="' . ($ecart === null ? '' : ($ecart <= $band ? 'oky' : 'ko')) . '">'
+               . $esc($ecart === null ? '—' : number_format($ecart, 1, ',', ' ') . ' %') . '</td></tr>';
+        }
+        echo '</table></div><div class="note">';
+
+        if ($pairs === 0) {
+            echo '<p class="s">Sonde non concluante : l\'endpoint unitaire n\'a rien renvoyé.</p>';
+        } elseif ($divergent === 0) {
+            echo '<p class="s oky">Les deux chemins backend donnent le même montant : le défaut n\'est pas '
+               . 'dans l\'endpoint multi-boutiques.</p>';
+        } else {
+            echo '<p class="s ko">Les deux chemins backend divergent sur ' . $esc($divergent) . ' boutique(s) sur '
+               . $esc($pairs) . ' : <b>le défaut est dans <code>/consultant/shops/sales-kpis</code></b>, pas dans '
+               . 'la donnée — <code>/shops/{id}/statistics/sales/kpis</code> lit la même base et tombe juste.</p>';
+            if ($tested > 0 && $match === $tested) {
+                echo '<p class="s ko">Et le rapport est, boutique par boutique, <b>le nombre d\'articles par '
+                   . 'ticket</b> (à ' . $esc(number_format($band, 0, ',', ' ')) . ' % près sur les '
+                   . $esc($tested) . ' boutiques testées). L\'endpoint multi-boutiques joint les lignes de '
+                   . 'ticket et additionne le montant du ticket <b>une fois par ligne</b>. Correctif : sommer '
+                   . 'sur les tickets — <code>GROUP BY</code> ticket, ou somme des lignes plutôt que du total '
+                   . 'répété.</p>';
+            } elseif ($tested > 0) {
+                echo '<p class="s">Le rapport ne suit pas le nombre d\'articles par ticket ('
+                   . $esc($match) . ' boutique(s) sur ' . $esc($tested) . ') : la duplication ne vient pas des '
+                   . 'lignes de ticket. Piste suivante : une jointure sur les affectations de consultants, ou '
+                   . 'un périmètre commercial différent.</p>';
+            }
         }
         echo '</div>';
     }
