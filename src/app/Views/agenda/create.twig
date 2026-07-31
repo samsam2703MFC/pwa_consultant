@@ -65,6 +65,21 @@
   .subm { width:100%; background:#8D1D2C; color:#fff; border:0; border-radius:999px; padding:13px; font-size:.9rem; font-weight:800; }
   .sechd { font-size:.64rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#8D1D2C; margin:16px 2px 9px; }
   .surprise-note { display:none; background:#f3eaf6; border:1px solid #e2cdec; border-left:3px solid #8e44ad; border-radius:10px; padding:9px 12px; font-size:.75rem; color:#6c3483; margin:6px 0 12px; }
+
+  /* Actions de la visite ouverte — mêmes cibles tactiles que l'agenda :
+     44 px de haut, en grille, deux colonnes sur téléphone. */
+  .vis-acts { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:7px; margin-bottom:14px; }
+  @media (min-width:560px) { .vis-acts { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+  .va { display:flex; align-items:center; justify-content:center; gap:5px; min-height:44px;
+        padding:6px 8px; font-size:.72rem; font-weight:700; border-radius:11px; border:0;
+        text-decoration:none; text-align:center; line-height:1.2; width:100%;
+        box-sizing:border-box; min-width:0; -webkit-tap-highlight-color:transparent; }
+  .va:active { transform:scale(.97); }
+  .va-f { display:flex; min-width:0; }
+  .va.g { background:rgba(141,29,44,.09); color:#8D1D2C; }
+  .va.r { background:rgba(45,122,62,.12); color:#2D7A3E; }
+  .va.p { background:rgba(26,115,232,.12); color:#1a73e8; }
+  .va.e { background:#f1f3f5; color:#495057; }
 </style>
 {% endblock %}
 
@@ -72,6 +87,29 @@
 <div class="page-content-loaded px-3 pb-4">
 
   <a href="{{ ROOT }}/agenda" class="app-back-btn" style="margin-bottom:14px;">{{ icons.svg('chevron-left', 16) }}<span>{{ translations.back ?? 'Agenda' }}</span></a>
+
+  {# Actions de la visite. Elles encombraient chaque ligne de la liste du mois ;
+     leur place est ici, sur la visite qu'on a ouverte. #}
+  {% if is_edit %}
+    <div class="vis-acts">
+      <a class="va g" href="{{ ROOT }}/agenda/shop/{{ edit.id_shop }}">{{ icons.svg('store', 13) }} {{ translations.shop_agenda ?? 'Agenda boutique' }}</a>
+      <a class="va r" href="{{ ROOT }}/reports/view?type=month&scope={{ edit.id_shop }}" target="_blank">📄 {{ translations.report ?? 'Rapport' }}</a>
+      <a class="va p" href="{{ ROOT }}/agenda/visits/{{ edit.id }}/ics">📅 {{ translations.ics ?? 'Invitation (.ics)' }}</a>
+      {% if edit.status != 'cancelled' %}
+        <form method="POST" action="{{ ROOT }}/agenda/visits/{{ edit.id }}/status" class="va-f">
+          <input type="hidden" name="status" value="cancelled">
+          <input type="hidden" name="back" value="agenda">
+          <button type="submit" class="va e">⊘ {{ translations.cancel_visit ?? 'Annuler la visite' }}</button>
+        </form>
+      {% else %}
+        <form method="POST" action="{{ ROOT }}/agenda/visits/{{ edit.id }}/status" class="va-f">
+          <input type="hidden" name="status" value="planned">
+          <input type="hidden" name="back" value="agenda">
+          <button type="submit" class="va p">↺ {{ translations.restore_visit ?? 'Rétablir la visite' }}</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
 
   <form method="POST" action="{{ is_edit ? (ROOT ~ '/agenda/visits/' ~ edit.id ~ '/update') : (ROOT ~ '/agenda/visits') }}">
     <div class="af">
