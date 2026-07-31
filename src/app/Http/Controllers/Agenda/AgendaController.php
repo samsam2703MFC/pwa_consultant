@@ -55,11 +55,13 @@ class AgendaController extends Controller
         }
 
         // Période de référence des leviers : mois précédent par défaut,
-        // modifiable dans le formulaire (rechargement AJAX).
+        // modifiable dans le formulaire.
+        //
+        // Les statuts NE SONT PAS calculés ici. Le formulaire les charge de
+        // toute façon en AJAX dès son ouverture (GET /agenda/levers), et ce
+        // calcul — plusieurs endpoints par levier — retardait l'affichage de
+        // la page entière pour un résultat aussitôt remplacé.
         $period = $this->validPeriod((string)($_GET['period'] ?? ''));
-        $leverResults = $shopId > 0
-            ? $this->safeFetch(fn() => $this->leverResults($shopId, $period), $this->errors, null, [])
-            : [];
 
         $this->view('agenda/create', [
             'shops'         => $shops,
@@ -68,7 +70,7 @@ class AgendaController extends Controller
             'date'          => $date,
             'levers'        => AgendaService::LEVERS,
             'types'         => AgendaService::TYPES,
-            'lever_results' => $leverResults,
+            'lever_results' => [],
             'lever_period'  => $period,
             'checklists'    => $shopId > 0 ? $this->checklistsFor($shopId) : [],
             'active_nav'    => 'agenda',
@@ -148,7 +150,9 @@ class AgendaController extends Controller
             'date'        => $v['date'] ?? substr((string)$v['scheduled_at'], 0, 10),
             'levers'      => AgendaService::LEVERS,
             'types'       => AgendaService::TYPES,
-            'lever_results' => $shopId > 0 ? $this->safeFetch(fn() => $this->leverResults($shopId, $period), $this->errors, null, []) : [],
+            // Idem : les statuts arrivent par AJAX à l'ouverture du formulaire.
+            // Les calculer ici rendait « Modifier » très lent, pour rien.
+            'lever_results' => [],
             'lever_period' => $period,
             'checklists'  => $shopId > 0 ? $this->checklistsFor($shopId) : [],
             'edit'        => $v,
