@@ -276,6 +276,60 @@ class ShopSalesRepository
     }
 
     /**
+     * Tickets, LIGNES de ticket et ARTICLES d'un magasin sur une fenêtre.
+     *
+     * Les trois ne se confondent pas : une ligne « 3 croissants » compte pour
+     * une ligne et trois articles. La distinction tranche un diagnostic —
+     * un endpoint qui somme le montant du ticket une fois par ligne se trahit
+     * par un facteur égal aux lignes/ticket, jamais aux articles/ticket.
+     *
+     * @return array{tickets:int, lines:int, articles:int}|null null si la base
+     *         ou la table des lignes est hors d'atteinte
+     */
+    public function getTicketLineStats(int $shopId, string $fromDate, string $toDate): ?array
+    {
+        $pdo = Database::pdo();
+        if ($pdo === null) {
+            return null;
+        }
+        $cols = $this->transactionProductCols($pdo);
+        if ($cols === null) {
+            return null;
+        }
+        [$fk, $qty] = $cols;
+
+        try {
+            $from   = $fromDate . ' 00:00:00';
+            $toExcl = (new \DateTimeImmutable($toDate))->modify('+1 day')->format('Y-m-d 00:00:00');
+            $stmt = $pdo->prepare(
+                'SELECT COUNT(DISTINCT t.ticket_key)                      AS tickets,
+                        COUNT(tp.`' . $fk . '`)                           AS lines_n,
+                        ' . ($qty !== null ? 'COALESCE(SUM(tp.`' . $qty . '`), 0)' : 'COUNT(tp.`' . $fk . '`)')
+                      . '                                                 AS articles
+                 FROM transaction t
+                 LEFT JOIN transaction_product tp ON tp.`' . $fk . '` = t.id
+                 WHERE t.id_shop = :id
+                   AND t.insert_timestamp >= :from
+                   AND t.insert_timestamp <  :toExcl'
+            );
+            $stmt->execute([':id' => $shopId, ':from' => $from, ':toExcl' => $toExcl]);
+            $row = $stmt->fetch() ?: [];
+            $tickets = (int)($row['tickets'] ?? 0);
+            if ($tickets <= 0) {
+                return null;
+            }
+            return [
+                'tickets'  => $tickets,
+                'lines'    => (int)($row['lines_n'] ?? 0),
+                'articles' => (int)round((float)($row['articles'] ?? 0)),
+            ];
+        } catch (Throwable $e) {
+            error_log('[db] getTicketLineStats échoué: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * CA d'UN magasin sur trois paires de fenêtres N vs N-1 :
      * année à date, mois à date, semaine (lundi → aujourd'hui, N-1 = -364 j
      * pour rester aligné sur les jours de semaine). Une seule requête
