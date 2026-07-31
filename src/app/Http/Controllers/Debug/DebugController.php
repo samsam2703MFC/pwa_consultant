@@ -367,25 +367,41 @@ class DebugController extends Controller
         string $from, string $to, array $names, ?array $kpis, callable $unitOf,
         float $tol, callable $esc, callable $eur
     ): void {
-        echo '<h3>Le multi-boutiques compte-t-il les lignes au lieu des tickets ?</h3>';
-        echo '<div class="wrap"><table><tr><th>Boutique</th><th>unitaire</th><th>multi-boutiques</th>'
-           . '<th>rapport</th><th>lignes / ticket</th><th>écart</th><th>articles / ticket</th></tr>';
+        echo '<h3>Signature du défaut : le CA seul, ou les tickets aussi ?</h3>';
+        echo '<div class="wrap"><table><tr><th>Boutique</th><th>rapport CA</th><th>rapport tickets</th>'
+           . '<th>rapport articles</th><th>lignes / ticket</th><th>articles / ticket</th></tr>';
 
-        $match = 0; $tested = 0; $divergent = 0; $pairs = 0;
-        // Le rapport et le panier d'articles ne se mesurent pas au centime :
-        // une tolérance de comptage, plus large que celle des montants.
+        $divergent = 0; $pairs = 0;
+        $ratios = [];      // rapport CA par boutique
+        $tickRat = [];     // rapport tickets par boutique
+        $lptAll  = [];     // lignes/ticket lues en base
+        // Les comptages ne se mesurent pas au centime : tolérance plus large
+        // que celle des montants.
         $band = max(5.0, 10 * $tol);
+        $near = fn(?float $a, ?float $b) => $a !== null && $b !== null && $b > 0
+            && abs($a - $b) / $b * 100 <= $band;
 
         foreach ($names as $id => $name) {
-            $u   = $unitOf((int)$id);
-            $uCa = isset($u['ca']) ? (float)$u['ca'] : null;
-            $bCa = isset($kpis[$id]['ca']) ? (float)$kpis[$id]['ca'] : null;
-            $rat = ($uCa !== null && $uCa > 0 && $bCa !== null) ? $bCa / $uCa : null;
+            $u = $unitOf((int)$id);
+            $b = $kpis[$id] ?? null;
+            $num = fn($src, $k) => isset($src[$k]) && is_numeric($src[$k]) ? (float)$src[$k] : null;
 
-            // LIGNES, pas articles : une ligne « 3 croissants » vaut une ligne
-            // et trois articles. Un endpoint qui somme le ticket une fois par
-            // ligne se trahit par les lignes — les comparer aux articles ferait
-            // rejeter la bonne hypothèse.
+            $uCa = $num($u, 'ca');       $bCa = $num($b, 'ca');
+            $uTk = $num($u, 'tickets');  $bTk = $num($b, 'tickets');
+            $uPr = $num($u, 'products'); $bPr = $num($b, 'products');
+
+            $rCa = ($uCa !== null && $uCa > 0 && $bCa !== null) ? $bCa / $uCa : null;
+            $rTk = ($uTk !== null && $uTk > 0 && $bTk !== null) ? $bTk / $uTk : null;
+            $rPr = ($uPr !== null && $uPr > 0 && $bPr !== null) ? $bPr / $uPr : null;
+
+            if ($rCa !== null) {
+                $pairs++;
+                $ratios[] = $rCa;
+                if (abs($rCa - 1) * 100 > $tol) { $divergent++; }
+            }
+            if ($rTk !== null) { $tickRat[] = $rTk; }
+
+            // Repères lus dans la base locale, pour situer le facteur.
             $st  = $this->shopSales->getTicketLineStats((int)$id, $from, $to);
             $lpt = ($st !== null && $st['tickets'] > 0) ? $st['lines'] / $st['tickets'] : null;
             $apt = ($st !== null && $st['tickets'] > 0 && $st['articles'] > 0)
@@ -393,55 +409,83 @@ class DebugController extends Controller
             if ($apt === null && isset($u['products_per_ticket']) && is_numeric($u['products_per_ticket'])) {
                 $apt = (float)$u['products_per_ticket'];
             }
-            $rat !== null && $pairs++;
-            if ($rat !== null && abs($rat - 1) * 100 > $tol) { $divergent++; }
+            if ($lpt !== null) { $lptAll[] = $lpt; }
 
-            $ecart = ($rat !== null && $lpt !== null && $lpt > 0) ? abs($rat - $lpt) / $lpt * 100 : null;
-            if ($ecart !== null) {
-                $tested++;
-                if ($ecart <= $band) { $match++; }
-            }
-
+            $n4 = fn(?float $v) => $v === null ? '—' : number_format($v, 4, ',', ' ');
             echo '<tr><td class="l" title="' . $esc($name) . '">' . $esc($name) . '</td>'
-               . '<td>' . $esc($eur($uCa)) . '</td><td>' . $esc($eur($bCa)) . '</td>'
-               . '<td>' . $esc($rat === null ? '—' : number_format($rat, 4, ',', ' ')) . '</td>'
-               . '<td>' . $esc($lpt === null ? '—' : number_format($lpt, 4, ',', ' ')) . '</td>'
-               . '<td class="' . ($ecart === null ? '' : ($ecart <= $band ? 'oky' : 'ko')) . '">'
-               . $esc($ecart === null ? '—' : number_format($ecart, 1, ',', ' ') . ' %') . '</td>'
-               . '<td style="color:#a2988c">' . $esc($apt === null ? '—' : number_format($apt, 4, ',', ' '))
-               . '</td></tr>';
+               . '<td class="' . ($rCa !== null && abs($rCa - 1) * 100 > $tol ? 'ko' : '') . '">'
+               . $esc($n4($rCa)) . '</td>'
+               . '<td class="' . ($rTk === null ? '' : ($near($rTk, 1.0) ? 'oky' : 'ko')) . '">'
+               . $esc($n4($rTk)) . '</td>'
+               . '<td>' . $esc($n4($rPr)) . '</td>'
+               . '<td style="color:#a2988c">' . $esc($n4($lpt)) . '</td>'
+               . '<td style="color:#a2988c">' . $esc($n4($apt)) . '</td></tr>';
         }
         echo '</table></div><div class="note">';
 
+        $median = function (array $v): ?float {
+            if ($v === []) { return null; }
+            sort($v);
+            $n = count($v);
+            return $n % 2 ? $v[intdiv($n, 2)] : ($v[$n / 2 - 1] + $v[$n / 2]) / 2;
+        };
+        $mCa = $median($ratios);
+        $mTk = $median($tickRat);
+        $mLp = $median($lptAll);
+
         if ($pairs === 0) {
             echo '<p class="s">Sonde non concluante : l\'endpoint unitaire n\'a rien renvoyé.</p>';
-        } elseif ($divergent === 0) {
-            echo '<p class="s oky">Les deux chemins backend donnent le même montant : le défaut n\'est pas '
-               . 'dans l\'endpoint multi-boutiques.</p>';
-        } else {
-            echo '<p class="s ko">Les deux chemins backend divergent sur ' . $esc($divergent) . ' boutique(s) sur '
-               . $esc($pairs) . ' : <b>le défaut est dans <code>/consultant/shops/sales-kpis</code></b>, pas dans '
-               . 'la donnée — <code>/shops/{id}/statistics/sales/kpis</code> lit la même base et tombe juste.</p>';
-            if ($tested > 0 && $match === $tested) {
-                echo '<p class="s ko">Et le rapport est, boutique par boutique, <b>le nombre de lignes par '
-                   . 'ticket</b> (à ' . $esc(number_format($band, 0, ',', ' ')) . ' % près sur les '
-                   . $esc($tested) . ' boutiques testées). L\'endpoint multi-boutiques joint les lignes de '
-                   . 'ticket et additionne le montant du ticket <b>une fois par ligne</b>. Correctif : sommer '
-                   . 'sur les tickets — <code>GROUP BY</code> ticket, ou somme des lignes plutôt que du total '
-                   . 'répété.</p>';
-            } elseif ($tested > 0) {
-                echo '<p class="s">Le rapport ne suit pas le nombre de lignes par ticket ('
-                   . $esc($match) . ' boutique(s) sur ' . $esc($tested) . ') : la duplication ne vient pas des '
-                   . 'lignes de ticket. Piste suivante : une jointure sur les affectations de consultants, ou '
-                   . 'un périmètre commercial différent.</p>';
-            }
-            // La colonne « articles » est là pour situer : le rapport doit
-            // rester SOUS elle. Au-dessus, ce n'est plus une duplication de
-            // lignes, c'est autre chose.
-            echo '<p class="s" style="color:#7a7168">La colonne « articles / ticket » ne sert qu\'à situer : '
-               . 'une ligne « 3 croissants » vaut une ligne et trois articles, donc un facteur de duplication '
-               . 'par ligne reste toujours en dessous.</p>';
+            echo '</div>';
+            return;
         }
+        if ($divergent === 0) {
+            echo '<p class="s oky">Les deux chemins backend donnent le même montant : le défaut n\'est pas '
+               . 'dans l\'endpoint multi-boutiques.</p></div>';
+            return;
+        }
+
+        echo '<p class="s ko">Les deux chemins backend divergent sur ' . $esc($divergent) . ' boutique(s) sur '
+           . $esc($pairs) . ' : <b>le défaut est dans <code>/consultant/shops/sales-kpis</code></b>, pas dans '
+           . 'la donnée — <code>/shops/{id}/statistics/sales/kpis</code> lit la même base et tombe juste.</p>';
+
+        // Le discriminant : les tickets sont-ils gonflés autant que le CA ?
+        //  - oui  → la requête duplique des lignes de TRANSACTION (jointure) ;
+        //  - non  → les tickets sont comptés en DISTINCT et seule la somme
+        //           traverse une table fille.
+        // Les deux mènent à des correctifs différents ; les confondre ferait
+        // chercher au mauvais endroit.
+        if ($mTk === null) {
+            echo '<p class="s">L\'un des deux endpoints ne renvoie pas le nombre de tickets : impossible de dire '
+               . 'si la duplication porte sur les transactions ou seulement sur la somme. C\'est la première '
+               . 'chose à demander au backend.</p>';
+        } elseif ($mCa !== null && $near($mTk, $mCa)) {
+            echo '<p class="s ko">Les tickets sont gonflés dans la même proportion que le CA (× '
+               . $esc(number_format($mTk, 2, ',', ' ')) . ' contre × ' . $esc(number_format($mCa, 2, ',', ' '))
+               . ') : <b>la requête duplique des lignes de transaction</b>. Ce n\'est pas la colonne sommée qui '
+               . 'est en cause, c\'est une jointure qui multiplie les lignes — affectations de consultants, '
+               . 'taux de TVA, moyens de paiement. Le correctif est le <code>DISTINCT</code> ou le '
+               . '<code>GROUP BY</code> manquant sur cette jointure.</p>';
+        } elseif ($near($mTk, 1.0)) {
+            $txt = '<p class="s ko">Le nombre de tickets est <b>juste</b> (× '
+                 . $esc(number_format($mTk, 2, ',', ' ')) . ') alors que le CA est multiplié par '
+                 . $esc(number_format((float)$mCa, 2, ',', ' ')) . ' : la duplication ne touche que la somme. '
+                 . 'Les tickets sont comptés en <code>DISTINCT</code>, le montant non — il est additionné une '
+                 . 'fois par ligne d\'une table jointe au ticket.';
+            if ($mLp !== null) {
+                $txt .= ' Cette table n\'est pas celle des lignes de ticket : elle en compte '
+                      . $esc(number_format((float)$mCa, 2, ',', ' ')) . ' par ticket, contre '
+                      . $esc(number_format($mLp, 2, ',', ' ')) . ' pour les lignes.';
+            }
+            echo $txt . '</p>';
+        } else {
+            echo '<p class="s">Tickets × ' . $esc(number_format($mTk, 2, ',', ' ')) . ', CA × '
+               . $esc(number_format((float)$mCa, 2, ',', ' ')) . ' : les deux sont gonflés, mais pas dans la '
+               . 'même proportion. Il y a donc <b>deux causes</b>, pas une — une jointure qui duplique les '
+               . 'transactions, et un montant qui ne suit pas cette duplication.</p>';
+        }
+
+        echo '<p class="s" style="color:#7a7168">Les deux dernières colonnes sont lues dans la base locale, '
+           . 'pour situer le facteur : une ligne « 3 croissants » vaut une ligne et trois articles.</p>';
         echo '</div>';
     }
 
