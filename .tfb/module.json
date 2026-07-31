@@ -21,70 +21,252 @@
   },
   "metric": {
     "value": "0",
-    "label": { "fr": "ressaisie après la visite", "en": "re-keying after the visit" }
+    "label": {
+      "fr": "ressaisie après la visite",
+      "en": "re-keying after the visit"
+    }
   },
   "features": [
     {
+      "key": "dashboard",
+      "icon": "layout-dashboard",
+      "name": {
+        "fr": "Aperçu du jour",
+        "en": "Today at a glance"
+      },
+      "description": {
+        "fr": "L'écran d'ouverture : chiffre d'affaires du jour, tâches faites, checklists, alertes à traiter, et l'état en direct de chaque boutique — CA, clients, panier moyen, résultat.",
+        "en": "The opening screen: today's revenue, tasks done, checklists, alerts to handle, and each store's live state — revenue, customers, average basket, result."
+      }
+    },
+    {
+      "key": "shops",
+      "icon": "store",
+      "name": {
+        "fr": "Boutiques et compte de résultat",
+        "en": "Stores and P&L"
+      },
+      "description": {
+        "fr": "Les magasins classés par chiffre d'affaires du mois, chacun dépliable sur son compte de résultat au jour, à la semaine ou au mois, un comparatif avec l'année précédente et un croisement catégories × magasins.",
+        "en": "Stores ranked by monthly revenue, each expanding onto its P&L by day, week or month, a year-on-year comparison and a categories × stores cross-view."
+      }
+    },
+    {
+      "key": "sixl",
+      "icon": "tag",
+      "name": {
+        "fr": "HEXm — les six leviers",
+        "en": "HEXm — the six levers"
+      },
+      "description": {
+        "fr": "Un levier par ligne, trois indicateurs chacun, comparés à la moyenne du réseau avec un statut clair. Un comparateur magasins × leviers termine l'écran.",
+        "en": "One lever per row, three indicators each, compared against the network average with a clear status. A stores × levers comparator closes the screen."
+      }
+    },
+    {
       "key": "agenda",
       "icon": "calendar",
-      "name": { "fr": "Agenda des visites", "en": "Visit agenda" },
+      "name": {
+        "fr": "Agenda des visites",
+        "en": "Visit agenda"
+      },
       "description": {
-        "fr": "Les visites planifiées par point de vente, préparées avant de partir et retrouvées sur place. L'animateur sait ce qu'il va voir et ce qu'il a laissé ouvert la dernière fois.",
-        "en": "Visits planned per store, prepared before leaving and found again on site. The consultant knows what they are about to see and what they left open last time."
+        "fr": "Le calendrier des visites du consultant, et pour chaque boutique un agenda partagé entre tous les animateurs. Une visite se prépare avec ses actions par levier et les résultats du mois écoulé.",
+        "en": "The consultant's visit calendar, plus a per-store agenda shared across all consultants. A visit is prepared with its actions per lever and last month's results."
       }
     },
     {
       "key": "checklists",
       "icon": "clipboard-check",
-      "name": { "fr": "Checklists de visite notées", "en": "Rated visit checklists" },
+      "name": {
+        "fr": "Checklists notées",
+        "en": "Rated checklists"
+      },
       "description": {
-        "fr": "Chaque tâche du magasin est vérifiée, notée et commentée, et la revue porte le nom de son auteur et son horodatage. « Vérifié » sans savoir par qui ne vaut rien : c'est ce que cette fonction corrige.",
-        "en": "Every store task is reviewed, rated and commented, and the review carries its author's name and timestamp. \"Reviewed\" with no idea by whom is worth nothing — that is what this fixes."
+        "fr": "Les boutiques classées sur la réalisation des tâches du jour — faites, en attente, échouées, obligatoires, tendance sur sept jours. Chaque tâche reçoit l'avis noté et commenté de l'animateur, avec son nom et l'heure.",
+        "en": "Stores ranked on today's task completion — done, pending, failed, mandatory, seven-day trend. Every task carries the consultant's rating and comment, with their name and the time."
       }
     },
     {
-      "key": "objectifs",
+      "key": "targets",
       "icon": "trending-up",
-      "name": { "fr": "Objectifs, tendances et leviers", "en": "Targets, trends and levers" },
+      "name": {
+        "fr": "Objectifs du franchisé",
+        "en": "Franchisee targets"
+      },
       "description": {
-        "fr": "Les cibles par indicateur et par magasin, la tendance sur la période, et les leviers identifiés pour la corriger. La discussion avec le franchisé s'appuie sur ces trois écrans.",
-        "en": "Targets per metric and per store, the trend over the period, and the levers identified to move it. The conversation with the franchisee runs on those three screens."
+        "fr": "Les trois objectifs mensuels — B2B, clients en magasin contre l'an dernier, panier moyen — avec un verdict en couleur et le graphique comparatif au toucher. Les seuils s'encodent par boutique et par mois.",
+        "en": "The three monthly targets — B2B, in-store customers year-on-year, average basket — with a colour verdict and the comparison chart on tap. Thresholds are set per store and per month."
       }
     },
     {
-      "key": "reclamations",
-      "icon": "triangle-alert",
-      "name": { "fr": "Réclamations matériel", "en": "Equipment complaints" },
+      "key": "trends",
+      "icon": "chart-line",
+      "name": {
+        "fr": "Tendances sur douze mois",
+        "en": "Twelve-month trends"
+      },
       "description": {
-        "fr": "Ce qui est cassé ou manquant se déclare pendant la visite, sur plusieurs magasins d'un coup quand le même problème revient dans le réseau.",
-        "en": "What is broken or missing is raised during the visit — across several stores at once when the same problem keeps coming back."
-      }
-    },
-    {
-      "key": "rapports",
-      "icon": "file-text",
-      "name": { "fr": "Comptes rendus de visite", "en": "Visit reports" },
-      "description": {
-        "fr": "Le compte rendu se construit à partir de ce qui a été vérifié sur place, et se valide côté propriétaire. Personne ne retape la visite le soir.",
-        "en": "The report is built from what was actually reviewed on site, and validated on the owner's side. Nobody retypes the visit in the evening."
+        "fr": "Le chiffre d'affaires consolidé du réseau sur douze mois, en cumulé ou en mensuel, avec l'année précédente et les objectifs en regard.",
+        "en": "The network's consolidated revenue over twelve months, cumulative or monthly, against the previous year and the targets."
       }
     },
     {
       "key": "notes",
-      "icon": "pencil",
-      "name": { "fr": "Notes de terrain", "en": "Field notes" },
+      "icon": "file-text",
+      "name": {
+        "fr": "Notes de terrain",
+        "en": "Field notes"
+      },
       "description": {
-        "fr": "Les remarques prises au passage, rattachées au magasin et retrouvées à la visite suivante — plutôt qu'un carnet qui reste dans la voiture.",
-        "en": "Remarks taken in passing, attached to the store and found again on the next visit — rather than a notebook that stays in the car."
+        "fr": "Des notes rattachées à une boutique ou à une personne, avec leur catégorie, jusqu'à quatre photos et un fil de commentaires.",
+        "en": "Notes attached to a store or a person, with their category, up to four photos and a comment thread."
+      }
+    },
+    {
+      "key": "rapports",
+      "icon": "receipt",
+      "name": {
+        "fr": "Comptes rendus PDF",
+        "en": "PDF reports"
+      },
+      "description": {
+        "fr": "Un rapport hebdomadaire ou mensuel, sur une boutique ou sur tout le réseau, mis en page pour l'impression : chiffres, santé, points d'attention, campagnes, demandes en cours.",
+        "en": "A weekly or monthly report, for one store or the whole network, laid out for print: figures, health, points of attention, campaigns, open requests."
+      }
+    },
+    {
+      "key": "helpdesk",
+      "icon": "life-buoy",
+      "name": {
+        "fr": "Demandes et tickets",
+        "en": "Requests and tickets"
+      },
+      "description": {
+        "fr": "Les tickets du helpdesk assignés aux zones de l'animateur, filtrables par statut, avec pièces jointes, réponse, changement de statut et affectation d'un rendez-vous.",
+        "en": "Helpdesk tickets assigned to the consultant's zones, filterable by status, with attachments, replies, status changes and meeting assignment."
+      }
+    },
+    {
+      "key": "tasks",
+      "icon": "list-checks",
+      "name": {
+        "fr": "Tâches du consultant",
+        "en": "Consultant tasks"
+      },
+      "description": {
+        "fr": "Les tâches assignées au poste de l'animateur, avec le détail de chacune, les sous-tâches à cocher et la clôture par note et photo.",
+        "en": "Tasks assigned to the consultant's role, each with its detail, sub-tasks to tick and closing by note and photo."
+      }
+    },
+    {
+      "key": "claims",
+      "icon": "triangle-alert",
+      "name": {
+        "fr": "Réclamations matériel",
+        "en": "Equipment claims"
+      },
+      "description": {
+        "fr": "Les réclamations fournisseur d'une boutique ou de tout le réseau, avec leur motif, leur statut et leurs photos consultables.",
+        "en": "Supplier claims for one store or the whole network, with their reason, their status and viewable photos."
       }
     },
     {
       "key": "kiosque",
       "icon": "smartphone",
-      "name": { "fr": "Installable et plein écran", "en": "Installable and full screen" },
+      "name": {
+        "fr": "Installable et plein écran",
+        "en": "Installable and full screen"
+      },
       "description": {
-        "fr": "L'app s'installe depuis le navigateur et s'ouvre sans barre d'adresse. Sur un écran fixe en magasin, elle se lance en mode kiosque, sans interface autour.",
-        "en": "The app installs from the browser and opens without an address bar. On a fixed in-store screen it runs in kiosk mode, with no interface around it."
+        "fr": "L'app s'installe depuis le navigateur et s'ouvre sans barre d'adresse. Sur la tablette de l'animateur, elle se lance en mode plein écran, sans interface autour.",
+        "en": "The app installs from the browser and opens without an address bar. On the consultant's tablet it runs full screen, with no interface around it."
+      }
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "docs/landing/consultant-dashboard.png",
+      "alt": {
+        "fr": "Aperçu du jour",
+        "en": "Today at a glance"
+      }
+    },
+    {
+      "file": "docs/landing/consultant-shops.png",
+      "alt": {
+        "fr": "Boutiques et compte de résultat",
+        "en": "Stores and P&L"
+      }
+    },
+    {
+      "file": "docs/landing/consultant-sixl.png",
+      "alt": {
+        "fr": "HEXm — les six leviers",
+        "en": "HEXm — the six levers"
+      }
+    },
+    {
+      "file": "docs/landing/consultant-agenda.png",
+      "alt": {
+        "fr": "Agenda des visites",
+        "en": "Visit agenda"
+      }
+    },
+    {
+      "file": "docs/landing/consultant-checklists.png",
+      "alt": {
+        "fr": "Checklists notées",
+        "en": "Rated checklists"
+      }
+    },
+    {
+      "file": "docs/landing/consultant-targets.png",
+      "alt": {
+        "fr": "Objectifs du franchisé",
+        "en": "Franchisee targets"
+      }
+    },
+    {
+      "file": "docs/landing/consultant-trends.png",
+      "alt": {
+        "fr": "Tendances sur douze mois",
+        "en": "Twelve-month trends"
+      }
+    },
+    {
+      "file": "docs/landing/consultant-notes.png",
+      "alt": {
+        "fr": "Notes de terrain",
+        "en": "Field notes"
+      }
+    },
+    {
+      "file": "docs/landing/consultant-rapports.png",
+      "alt": {
+        "fr": "Comptes rendus PDF",
+        "en": "PDF reports"
+      }
+    },
+    {
+      "file": "docs/landing/consultant-helpdesk.png",
+      "alt": {
+        "fr": "Demandes et tickets",
+        "en": "Requests and tickets"
+      }
+    },
+    {
+      "file": "docs/landing/consultant-tasks.png",
+      "alt": {
+        "fr": "Tâches du consultant",
+        "en": "Consultant tasks"
+      }
+    },
+    {
+      "file": "docs/landing/consultant-claims.png",
+      "alt": {
+        "fr": "Réclamations matériel",
+        "en": "Equipment claims"
       }
     }
   ]
