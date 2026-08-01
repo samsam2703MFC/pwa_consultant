@@ -130,18 +130,40 @@
         .ck-days { grid-template-columns:repeat(3,1fr); }
     }
 
-    /* Impression / « Enregistrer en PDF » : on ne garde que le rapport. */
+    /* Impression / « Enregistrer en PDF » : on ne garde que le rapport.
+       Les classes sont celles du gabarit mobile_base — les mêmes que le
+       rapport de gestion, dont l'impression est éprouvée. Les avoir devinées
+       laissait la barre de navigation et la barre d'onglets sur le papier. */
     @media print {
-        .app-topbar, .app-nav, .app-bottom-nav, .app-back-btn,
-        #nav-progress, #pwa-banner, #pwa-ios-tip, .ck-noprint { display:none !important; }
+        .app-topbar, .app-tabbar-bar, .app-nav-sheet, .app-nav-backdrop,
+        .app-back-btn, #nav-progress, #pwa-banner, #pwa-ios-tip,
+        .ck-noprint { display:none !important; }
         body { background:#fff !important; }
+        main.app-content, .app-content { padding:0 !important; }
         .ck { max-width:none; }
-        .ck-fd, .ck-day, .ck-kpi, .ck-tw, .ck-bars { break-inside:avoid; }
-        /* Le détail des NC est replié à l'écran ; à l'impression il doit être
-           lisible, sinon le PDF envoyé au franchisé n'a que des compteurs. */
-        details { display:block; }
-        details > .ck-nc-list, details[open] > .ck-nc-list { display:block !important; }
+        a[href] { color:inherit; text-decoration:none; }
+
+        /* Un conteneur à défilement coupe ce qui dépasse au lieu de le
+           reporter : sur papier il n'y a rien à faire défiler. */
+        .ck-tw { overflow:visible !important; }
+        .ck-tbl { width:100% !important; }
+
+        .ck-fd, .ck-day, .ck-kpi, .ck-tw, .ck-bars, .ck-sec { break-inside:avoid; }
+        thead { display:table-header-group; }   /* en-tête répété par page */
+
+        /* Le détail des NC est replié à l'écran ; imprimé replié, le PDF
+           envoyé au franchisé n'aurait que des compteurs. Le script l'ouvre
+           avant impression, la règle couvre les navigateurs sans onbeforeprint. */
+        details > .ck-nc-list { display:block !important; }
         .ck-nc-toggle { min-height:0; }
-        * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+        /* Les pastilles et les barres gardent leurs couleurs sur papier :
+           sans cela, vert et rouge deviennent deux gris identiques. */
+        .ck-pill, .ck-sev, .ck-bar, .ck-bar i, .ck-day, .ck-kpi::before, .ck-chip,
+        .ck-tbl th, .ck-fd {
+            -webkit-print-color-adjust:exact; print-color-adjust:exact;
+        }
+
+        @page { margin:14mm 12mm; }
     }
 </style>
