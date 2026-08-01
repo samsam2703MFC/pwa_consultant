@@ -67,7 +67,8 @@
                 <div class="ck-kpi {{ m.kcls(t.pct_conf, th) }}">
                     <div class="ck-kpi-v">{{ t.pct_conf is null ? '—' : t.pct_conf|number_format(0, ',', ' ') ~ ' %' }}</div>
                     <div class="ck-kpi-l">{{ translations.kpi_conf ?? 'Taux de conformité' }}</div>
-                    <div class="ck-kpi-sub"><b>{{ t.conform }}</b> {{ translations.conform_of ?? 'conformes /' }} {{ t.reviewed }} {{ translations.reviewed ?? 'évaluées' }}</div>
+                    <div class="ck-kpi-sub"><b>{{ t.conform }}</b> {{ translations.conform_of ?? 'conformes /' }} {{ t.reviewed }} {{ translations.reviewed ?? 'évaluées' }}
+                        {%- if t.avg_rating is not null %} · {{ translations.rating ?? 'note' }} <b>{{ t.avg_rating|number_format(1, ',', ' ') }}/5</b>{% endif %}</div>
                 </div>
                 <div class="ck-kpi {{ t.nc > 0 ? 'k-ko' : 'k-ok' }}">
                     <div class="ck-kpi-v">{{ t.nc }}</div>
@@ -142,6 +143,7 @@
                     <th class="num">{{ translations.done_total ?? 'Fait / Total' }}</th>
                     <th class="num">{{ translations.pct_done ?? '% Fait' }}</th>
                     <th class="num">{{ translations.pct_conf ?? '% Conforme' }}</th>
+                    <th class="num">{{ translations.avg_rating ?? 'Note moy.' }}</th>
                     <th>{{ translations.ncs ?? 'Non-conformités' }}</th>
                 </tr></thead>
                 <tbody>
@@ -153,6 +155,11 @@
                         <td class="num">{{ d.done }} / {{ d.planned }}</td>
                         <td class="num">{{ m.pill(pd, th) }}</td>
                         <td class="num">{{ m.pill(pc, th) }}</td>
+                        {# La note du jour se recalcule ici : somme et effectif
+                           sont figés avec le jour, une moyenne de moyennes
+                           serait fausse. #}
+                        {% set nm = d.rating_count > 0 ? (d.rating_sum / d.rating_count) : null %}
+                        <td class="num">{{ nm is null ? '—' : nm|number_format(1, ',', ' ') ~ ' / 5' }}</td>
                         <td>
                         {% if d.nc is empty %}
                             <span style="color:#8a827a;font-size:.72rem;">{{ translations.none ?? '—' }}</span>
@@ -185,6 +192,7 @@
                     <td class="num">{{ t.done }} / {{ t.planned }}</td>
                     <td class="num">{{ t.pct_done is null ? '—' : t.pct_done|number_format(0, ',', ' ') ~ ' %' }}</td>
                     <td class="num">{{ t.pct_conf is null ? '—' : t.pct_conf|number_format(0, ',', ' ') ~ ' %' }}</td>
+                    <td class="num">{{ t.avg_rating is null ? '—' : t.avg_rating|number_format(1, ',', ' ') ~ ' / 5' }}</td>
                     <td>{{ t.nc }} {{ t.nc > 1 ? (translations.ncs_lc ?? 'non-conformités') : (translations.nc_lc ?? 'non-conformité') }}</td>
                 </tr></tfoot>
             </table></div>
