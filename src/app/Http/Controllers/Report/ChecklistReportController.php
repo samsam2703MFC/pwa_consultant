@@ -36,6 +36,12 @@ class ChecklistReportController extends Controller
             : new DateTimeImmutable('monday last week');
         $monday = $day->modify('monday this week')->format('Y-m-d');
 
+        // `?fresh=1` : ignorer les jours figés et tout redemander. Un jour figé
+        // pendant qu'un endpoint se taisait garderait sinon sa conformité vide
+        // pour toujours.
+        if (($_GET['fresh'] ?? '') === '1') {
+            $this->service->forceRefresh();
+        }
         $report = $this->safeFetch([$this->service, 'week'], $this->errors, [$shopId, $monday], []);
 
         $this->view('report/checklist_week', [
@@ -66,6 +72,9 @@ class ChecklistReportController extends Controller
             ? $ref
             : (new DateTimeImmutable('first day of last month'))->format('Y-m');
 
+        if (($_GET['fresh'] ?? '') === '1') {
+            $this->service->forceRefresh();
+        }
         $report = $this->safeFetch([$this->service, 'month'], $this->errors, [$shopId, $ym], []);
 
         $first = new DateTimeImmutable($ym . '-01');
