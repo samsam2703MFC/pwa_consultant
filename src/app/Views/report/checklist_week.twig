@@ -3,7 +3,12 @@
 {% import "report/_checklist_macros.twig" as m %}
 {% set active_nav = 'reports' %}
 
-{% block title %}{{ translations.ck_week_title ?? 'Rapport checklists — semaine' }} — Consultant Panel{% endblock %}
+{# Le navigateur tire le nom du fichier PDF de <title>. Il vaut donc mieux
+   « Checklist hebdo - Atelier by - Halle - S31 27-07 au 01-08-2026.pdf » qu'un
+   « Rapport — Consultant Panel.pdf » que rien ne distingue d'un autre.
+   Pas de « / » ni de « : » : les navigateurs les remplacent dans un nom de
+   fichier, et le résultat devient illisible. #}
+{% block title %}{{ translations.ck_week_file ?? 'Checklist hebdo' }} - {{ report.shop.name ?? '' }} - S{{ report.week_no }} {{ report.from|date('d-m') }} au {{ report.to|date('d-m-Y') }}{% endblock %}
 {% block page_title %}{{ translations.ck_week_title ?? 'Checklist Tâches' }}{% endblock %}
 {% block page_subtitle %}{{ report.shop.name ?? '' }}{% endblock %}
 

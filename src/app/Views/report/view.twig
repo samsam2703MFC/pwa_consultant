@@ -2,7 +2,12 @@
 {% import "components/_icons.twig" as icons %}
 {% set active_nav = 'reports' %}
 
-{% block title %}{{ translations.title ?? 'Rapport' }} — Consultant Panel{% endblock %}
+{# Le <title> devient le nom du fichier PDF à l'impression. « Rapport —
+   Consultant Panel.pdf » ne distingue pas deux boutiques ni deux mois ; on y
+   met donc le type, la boutique et la période. Les « / » des libellés de
+   période sont remplacés : un navigateur les transforme dans un nom de
+   fichier, et le résultat devient illisible. #}
+{% block title %}{{ translations.title ?? 'Rapport' }} {{ report.type_label ?? '' }} - {{ report.scope.label ?? '' }} - {{ (report.period.label ?? '')|replace({'/': '-', ':': '', 'du ': '', ' au ': ' au '}) }}{% endblock %}
 {% block page_title %}{{ translations.title ?? 'Rapport' }}{% endblock %}
 {% block page_subtitle %}{{ report.type_label ?? '' }}{% endblock %}
 
