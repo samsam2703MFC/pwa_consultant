@@ -32,6 +32,65 @@ single call faster.
 
 ---
 
+## Status — what is done, and what is left
+
+Two lists, because they are two different kinds of fact.
+
+The first is **verifiable from our source code**: it is what the panel already
+built to live without you. The second is **not verifiable from our side** — only
+a call against your API tells whether a ticket has shipped, so each line carries
+the one-liner that answers it in a few seconds.
+
+### DONE — on the panel side
+
+Every ticket below already has a workaround in production. Nothing is waiting on
+you to *function*; what waits on you is being correct, fast, or simple. The last
+column is the code we delete the day the ticket lands.
+
+| # | What the panel does today, instead | What we delete |
+|---|---|---|
+| T1 | Writes its own journal, `mac_task_review`, to remember who reviewed | the table, and the guessing that goes with it |
+| T2 | Sends every field twice — `rating` *and* `review_rating`, `comment` *and* `review_comment`, `is_accepted` *and* `review_is_accepted` | the duplicates |
+| T3 | Calls `/checklists` then one `/progress` per checklist, to find the photo and the review a day view should already carry | 1 + C calls per shop screen |
+| T4 | One parallel call per shop for material complaints | the fan-out |
+| T5a | Re-reads a whole month day by day when `material` is missing | the fallback, and the margin doubt |
+| T5b | N parallel monthly P&L calls | the fan-out |
+| T6 | Stores the Owner's validation in local columns of `mac_task_review` | those columns |
+| T7 | Guesses its own cache TTLs, per endpoint | our guesses |
+| T8 | Picks a revenue source per screen, by hand | the per-screen preference |
+| T9 | Keeps `mac_checklist_day_snapshot` and freezes closed days itself | the table **and** its freezing logic |
+| T10 | Nothing — there is no sector and no PDM flag anywhere today | nothing; this one only adds |
+
+Two of these are worth more than the others because they **remove** code rather
+than add a screen: **T1** deletes a table that only knows about reviews posted
+through the panel, and **T9** deletes a table that has already frozen days at
+zero and had to be taught to heal itself.
+
+### TO DO — on the backend side
+
+We cannot see your deployment from here. Run the line, read the answer, tick the
+box. `$API` and `$TOKEN` as usual; the full acceptance test for each ticket is
+in its own section below.
+
+| # | Shipped? Ask your API | Expected when done |
+|---|---|---|
+| T1 | `curl -s "$API/consultant/shops/4/checklists/44/progress?date=2026-07-30" -H "Authorization: Bearer $TOKEN" \| jq '[.tasks[] \| select(.review_id != null) \| has("review_by")] \| all'` | `true` |
+| T2 | — (a document, not an endpoint) | the contract, written down |
+| T3 | `curl -s "$API/consultant/shops/4/tasks?date=2026-07-30" -H "Authorization: Bearer $TOKEN" \| jq '[.data.tasks[] \| has("completion_id")] \| all'` | `true` |
+| T4 | `curl -s -o /dev/null -w '%{http_code}' "$API/consultant/shops/material-complaints?shop_ids=2,4" -H "Authorization: Bearer $TOKEN"` | `200` |
+| T5a | `curl -s "$API/consultant/shops/4/pnl/monthly?year=2026" -H "Authorization: Bearer $TOKEN" \| jq '[.data.months[] \| has("material")] \| all'` | `true` |
+| T5b | `curl -s -o /dev/null -w '%{http_code}' "$API/consultant/shops/pnl/monthly?shop_ids=2,4&year=2026" -H "Authorization: Bearer $TOKEN"` | `200` |
+| T6 | `curl -s -o /dev/null -w '%{http_code}' -X POST "$API/consultant/task-reviews/1/validate" -H "Authorization: Bearer $TOKEN"` | not `404` |
+| T7 | `curl -sI "$API/consultant/network/tasks/ranking?date=2026-07-30" -H "Authorization: Bearer $TOKEN" \| grep -i cache-control` | a `Cache-Control` line |
+| T8 | see the three curls in the T8 section — they must agree | one revenue, three times |
+| T9 | `curl -s -o /dev/null -w '%{http_code}' "$API/consultant/shops/4/checklists/progress?from=2026-07-01&to=2026-07-31" -H "Authorization: Bearer $TOKEN"` | `200` |
+| T10 | `curl -s "$API/shops/4/statistics/sales/product-category-groups?grouping=category&from=2026-07-01&to=2026-07-31" -H "Authorization: Bearer $TOKEN" \| jq '[.. \| objects \| select(has("product_id")) \| has("is_pdm")] \| all'` | `true` |
+
+**Nothing on this list has been confirmed shipped at the time of writing.** If
+one of them has landed since, the line above will say so faster than a meeting.
+
+---
+
 ## T1 — Review author and timestamp
 
 **Endpoint:** `GET /consultant/shops/{shopId}/checklists/{checklistId}/progress?date=YYYY-MM-DD`
