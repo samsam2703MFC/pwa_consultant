@@ -55,6 +55,14 @@ class ParamRepository
         // (1–5). En deçà de ce seuil (inclus), la NC est majeure. C'est une
         // décision de méthode, pas une constante du code.
         'checklist_nc_major_max_rating'   => ['2',  'Checklists : note (1–5) en deçà de laquelle une non-conformité est majeure'],
+        // Le consultant contrôle des dizaines de tâches par boutique : lui
+        // faire poser une note ET un verdict pour chacune double le geste.
+        // « Conforme » et « Non conforme » posent donc une note d'office, qu'il
+        // reste libre de corriger aux étoiles. Attention : la note KO commande
+        // la GRAVITÉ (voir checklist_nc_major_max_rating) — à 2, toute
+        // non-conformité est majeure par défaut.
+        'checklist_review_rating_ok'      => ['4',  'Checklists : note posée d\'office par le bouton « Conforme » (0 = aucune)'],
+        'checklist_review_rating_ko'      => ['2',  'Checklists : note posée d\'office par le bouton « Non conforme » (0 = aucune)'],
         // Code couleur du rapport Checklist : au-dessus du premier seuil c'est
         // vert, au-dessus du second orange, en dessous rouge.
         'checklist_green_pct'             => ['90', 'Rapport checklists : seuil vert (% de tâches faites)'],
