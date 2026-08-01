@@ -63,17 +63,6 @@
     .km-lg span { display:inline-flex; align-items:center; gap:5px; }
     .km-lg i { width:10px; height:10px; border-radius:50%; display:block; flex:0 0 auto; }
 
-    .km-prev { background:#faf7f2; border-radius:11px; padding:10px 12px; margin-top:14px; }
-    .km-prev-l { font-size:.6rem; font-weight:800; letter-spacing:.07em; text-transform:uppercase;
-                 color:#7a7168; }
-    .km-prev-r { display:flex; align-items:baseline; gap:9px; margin-top:3px; }
-    .km-prev-v { font-size:1.05rem; font-weight:800; font-variant-numeric:tabular-nums; }
-    .km-d { font-size:.72rem; font-weight:800; }
-    .km-d.up { color:#2D7A3E; } .km-d.down { color:#8D1D2C; } .km-d.na { color:#a2988c; }
-    .km-prev-s { font-size:.62rem; color:#a2988c; margin-top:2px; }
-
-    .km-rank { display:inline-flex; align-items:center; background:#f6e9d8; color:#8a6a35;
-               border-radius:999px; padding:4px 11px; font-size:.7rem; font-weight:800; margin-top:11px; }
     .km-note { margin-top:12px; font-size:.66rem; color:#7a7168; line-height:1.45;
                background:#faf7f2; border-radius:9px; padding:8px 10px; }
 
@@ -99,15 +88,9 @@
     <div class="km-sc" id="kmScale"></div>
     <div class="km-lg" id="kmLegend"></div>
 
-    <div class="km-prev">
-        <div class="km-prev-l">{{ translations.kpi_last_year ?? 'An dernier' }}</div>
-        <div class="km-prev-r">
-            <span class="km-prev-v" id="kmPrev">—</span>
-            <span class="km-d" id="kmDelta"></span>
-        </div>
-        <div class="km-prev-s" id="kmPrevSub"></div>
-    </div>
-
-    <div id="kmRankWrap"><span class="km-rank" id="kmRank"></span></div>
+    {# Ni bloc « an dernier », ni pastille de rang, ni note explicative : le rang
+       vit sur la carte (shop-pos), et la règle dit déjà où l'on est, où est la
+       moyenne et d'où l'on vient. La modale ne porte plus que ce qui ne tient
+       pas sur la tuile. La note ne sert qu'à expliquer une ABSENCE de règle. #}
     <div class="km-note" id="kmNote" hidden></div>
 </div>

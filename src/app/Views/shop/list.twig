@@ -307,6 +307,15 @@
         animation: shimmer 1.4s infinite;
     }
 
+    /* Le rang et son dénominateur, juste avant le bouton de dépliage. */
+    .shop-pos {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-height: 24px; padding: 3px 9px; border-radius: 999px;
+        background: #f6e9d8; color: #8a6a35;
+        font-size: .7rem; font-weight: 800; font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
     /* Shop header row toggle */
     .shop-toggle-btn {
         background: none;
@@ -338,21 +347,6 @@
         overflow: hidden;
         line-height: 1.25;
         overflow-wrap: anywhere;
-    }
-
-    /* Rang du magasin (1 = plus gros CA) */
-    .shop-rank {
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        background: #8D1D2C;
-        color: #fff;
-        font-size: .78rem;
-        font-weight: 700;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        line-height: 1;
     }
 
     /* Synthèse magasin (CA / tickets / panier / produits) — grille 2×2 */
@@ -845,9 +839,6 @@
                     {# ── Shop header (tap to open notes / long-press / chevron to expand P&L) ── #}
                     <div class="card-body py-3">
                         <div class="d-flex align-items-center gap-3">
-                            {% if shop.rank is defined %}
-                            <div class="shop-rank flex-shrink-0" aria-label="{{ translations.rank ?? 'Rang' }} {{ shop.rank }}">{{ shop.rank }}</div>
-                            {% endif %}
                             <div class="flex-grow-1 min-w-0">
                                 {# Toute la zone nom + ville est cliquable : le
                                    seul libellé ne faisait que 19 px de haut. #}
@@ -856,6 +847,15 @@
                                     <div class="text-muted text-truncate" style="font-size:.78rem;">{{ shop.city ?? '' }}</div>
                                 </a>
                             </div>
+                            {# Le rang, avec son DÉNOMINATEUR. La pastille ronde de
+                               gauche donne « 1 » sans dire sur combien — et
+                               « 1er sur 4 » quand la liste en montre 5 apprend
+                               au passage qu'une boutique n'a pas de CA. #}
+                            {% set kpi_total = kpi_network.ca_month.count ?? (shops|length) %}
+                            {% if shop.rank is defined and kpi_total > 1 %}
+                            <span class="shop-pos flex-shrink-0"
+                                  title="{{ translations.rank ?? 'Rang' }} {{ shop.rank }} / {{ kpi_total }}">{{ shop.rank }}/{{ kpi_total }}</span>
+                            {% endif %}
                             {# P&L toggle button #}
                             <button class="btn btn-sm border-0 pnl-toggle-btn flex-shrink-0"
                                     data-shop-id="{{ shop.id }}"
