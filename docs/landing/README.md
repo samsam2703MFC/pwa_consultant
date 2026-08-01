@@ -28,31 +28,47 @@ Les douze attendues :
 | `consultant-tasks.png` | `/tasks` — Tâches du consultant |
 | `consultant-claims.png` | `/claims` — Réclamations matériel |
 
-## Les produire
+## Les produire — automatique
 
-Le panel est un poste **tablette** : les captures se prennent en 1194 × 834,
-densité 2. Le script du dépôt landing s'en charge, depuis une instance qui
-tourne :
+**Actions → captures-landing → Run workflow.** Le workflow ouvre une session
+sur l'instance, prend les douze écrans en 1194 × 834 densité 2, et les commite
+ici s'ils ont changé. Le push déclenche `notify-landing`, qui demande à la
+landing de resynchroniser. Il repasse aussi tout seul le 1er de chaque mois.
+
+Trois secrets à renseigner une fois, dans Settings → Secrets and variables →
+Actions :
+
+| Secret | Valeur |
+|---|---|
+| `CAPTURE_BASE` | `https://185.180.206.46/pwa_consultant` |
+| `CAPTURE_USER` | le téléphone d'un compte consultant |
+| `CAPTURE_PASS` | son mot de passe |
+
+Prenez un compte qui voit plusieurs boutiques : les écrans seront remplis
+plutôt que vides, et c'est ce qui fait la différence sur la fiche.
+
+Tant que `CAPTURE_BASE` est vide, le workflow ne fait rien et reste vert.
+
+## Les produire — à la main
+
+Le même script, depuis un poste qui atteint l'instance :
 
 ```bash
-# dans une copie de samsam2703MFC/landing_tfb
-node pipeline/capturer-ecrans.mjs \
-  --module=consultant \
-  --base=https://<serveur>/pwa_consultant \
-  --cookie="PHPSESSID=<session ouverte>"
+npm i -D playwright && npx playwright install chromium
+
+ CAPTURE_USER='0600000000' CAPTURE_PASS='…' \
+ node tools/capturer-ecrans.mjs \
+   --module=consultant \
+   --base=https://<serveur>/pwa_consultant
 ```
 
-Le cookie est indispensable : hors `/auth`, tous les écrans renvoient vers la
-connexion, et l'authentification passe par l'API (`/consultant/auth/login`).
-Sans session, le script le dit écran par écran plutôt que d'enregistrer douze
-pages de login.
+Les images sont écrites directement dans `docs/landing/`. L'authentification
+passe par l'API (`/consultant/auth/login`) : sans session, tous les écrans sauf
+`/auth` renvoient vers la connexion, et le script le dit plutôt que
+d'enregistrer douze pages de login.
 
-Puis, ici :
-
-```bash
-cp <sortie>/*.png docs/landing/
-git add docs/landing && git commit -m "Publier les captures de la fiche landing"
-```
+`--attente=5000` si les graphiques sortent vides — c'est le temps laissé aux
+données avant le déclic.
 
 ## Ce qui se passe ensuite
 
