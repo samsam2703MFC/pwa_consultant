@@ -28,6 +28,10 @@ class NetworkTaskListService
     /** Diagnostic du dernier appel : ce qui a été demandé, ce qui est revenu. */
     private array $diag = [];
 
+    /** Périmètre d'évaluation, lu une fois par rendu (voir enrich()). */
+    private bool $needsPhoto = true;
+    private bool $needsMandatory = true;
+
     public function diagnostics(): array
     {
         return $this->diag;
@@ -51,6 +55,10 @@ class NetworkTaskListService
                 ];
             }
         }
+
+        // Périmètre de ce que le consultant évalue — lu une fois par rendu.
+        $this->needsPhoto     = $this->params->getInt('checklist_review_needs_photo', 1) === 1;
+        $this->needsMandatory = $this->params->getInt('checklist_review_needs_mandatory', 1) === 1;
 
         // Garde-fou : un parc qui grandit ne doit pas transformer l'écran en
         // attente de trente secondes. Au-delà, on tronque et on le DIT.
@@ -197,15 +205,25 @@ class NetworkTaskListService
         $accepted = $t['review_is_accepted'] ?? $src['review_is_accepted'] ?? $j['is_accepted'] ?? null;
         $status   = strtoupper((string)($t['status'] ?? ''));
         $done     = $status === 'DONE';
+        $photo    = !empty($t['requires_photo']);
+        $obligatoire = !empty($t['is_mandatory']);
+
+        // Ce que le consultant évalue : une tâche qui exige une PHOTO — sans
+        // preuve, il n'y a rien à juger — et qui est OBLIGATOIRE. Une tâche
+        // faite hors de ce périmètre s'affiche « Faite » : elle n'a rien à
+        // réclamer et ne doit pas gonfler la file d'attente.
+        $evaluable = (!$this->needsPhoto || $photo) && (!$this->needsMandatory || $obligatoire);
 
         // Un avis existe dès qu'une note OU un verdict est posé. Sans note, la
-        // gravité serait indéterminée — mais l'avis, lui, a bien eu lieu.
+        // gravité serait indéterminée — mais l'avis, lui, a bien eu lieu. Un
+        // avis déjà posé s'affiche TOUJOURS, même hors périmètre : le cacher
+        // ferait disparaître un jugement réellement rendu.
         $state = 'na';
         if ($done) {
-            if ($rating === null && $accepted === null) {
-                $state = 'todo';
-            } else {
+            if ($rating !== null || $accepted !== null) {
                 $state = ((int)$accepted === 0 && $accepted !== null) ? 'ko' : 'ok';
+            } else {
+                $state = $evaluable ? 'todo' : 'done';
             }
         }
 
@@ -214,8 +232,8 @@ class NetworkTaskListService
             'name'          => (string)($t['task_name'] ?? $t['name'] ?? ''),
             'status'        => $status,
             'is_done'       => $done,
-            'is_mandatory'  => !empty($t['is_mandatory']),
-            'requires_photo' => !empty($t['requires_photo']),
+            'is_mandatory'  => $obligatoire,
+            'requires_photo' => $photo,
             'completed_by'  => (string)($t['completed_by'] ?? $src['completed_by'] ?? ''),
             'completed_at'  => (string)($t['completed_at'] ?? $src['completed_at'] ?? ''),
             'note'          => (string)($t['note'] ?? $src['note'] ?? ''),
@@ -227,6 +245,7 @@ class NetworkTaskListService
             'review_accepted' => $accepted === null ? null : (int)$accepted === 1,
             'review_comment' => (string)($t['review_comment'] ?? $src['review_comment'] ?? $j['comment'] ?? ''),
             'review_by'      => (string)($j['consultant_name'] ?? ''),
+            'evaluable'      => $evaluable,
             'review_state'   => $state,
         ];
     }
