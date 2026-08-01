@@ -45,13 +45,50 @@
     {% if total == 0 %}
         <div class="cl-empty">{{ icons.svg('list-checks', 34) }}<div>{{ translations.none ?? 'Aucune tâche assignée pour le moment.' }}</div></div>
     {% else %}
+        {# ── Regroupement par section ──
+           « Contrôle des franchisés » et « Stratégie et développement » ne sont
+           pas deux étiquettes de plus : ce sont deux métiers, faits à deux
+           moments différents de la semaine. Les voir mélangés dans une liste
+           unique oblige à trier de tête à chaque ouverture.
+
+           L'ordre vient de l'API — première apparition d'une section — parce
+           que c'est celui dans lequel le poste a été défini ; le réordonner
+           ferait passer devant ce que quelqu'un a délibérément mis derrière. #}
+        {% set groups = {} %}
         {% for task in tasks %}
+            {% set sec = task.section_name ?? task.category_name ?? (translations.tk_other ?? 'Autres tâches') %}
+            {% set groups = groups|merge({ (sec): (groups[sec] ?? [])|merge([task]) }) %}
+        {% endfor %}
+
+        {% for section, group in groups %}
+            {# Un intitulé seul ne titre rien : sans deuxième section, la liste
+               se lit d'elle-même et l'en-tête n'ajoute qu'une ligne. #}
+            {% if groups|length > 1 %}
+                {% set gdone = 0 %}
+                {% for t in group %}{% if t.is_done %}{% set gdone = gdone + 1 %}{% endif %}{% endfor %}
+                <div class="tk-secthead">
+                    <span class="tk-secthead-t">{{ section }}</span>
+                    <span class="tk-secthead-n">{{ gdone }}/{{ group|length }}</span>
+                </div>
+            {% endif %}
+
+        {% for task in group %}
             {% set is_done = task.is_done %}
             <div class="tk-card" style="border-left-color:{{ is_done ? '#2D7A3E' : '#8D1D2C' }}">
                 <div class="tk-card-top">
                     <div class="tk-card-id">
                         <div class="tk-card-name">{{ task.name }}</div>
-                        <div class="tk-card-path">{{ task.section_name ?? task.category_name ?? '' }}{% if task.subcategory_name %} · {{ task.subcategory_name }}{% endif %}</div>
+                        {# La section est devenue l'en-tête du groupe : la
+                           répéter sur chaque carte n'apprendrait plus rien. Ne
+                           reste que ce qui distingue la tâche de ses voisines. #}
+                        <div class="tk-card-path">
+                            {%- if groups|length <= 1 -%}
+                                {{ task.section_name ?? task.category_name ?? '' }}
+                                {%- if task.subcategory_name %} · {{ task.subcategory_name }}{% endif -%}
+                            {%- else -%}
+                                {{ task.subcategory_name ?? '' }}
+                            {%- endif -%}
+                        </div>
                     </div>
                     {% if is_done %}
                         <span class="tk-badge tk-badge-done">{{ icons.svg('check', 13) }}Fait</span>
@@ -72,7 +109,39 @@
                 {% endif %}
             </div>
         {% endfor %}
+        {% endfor %}
     {% endif %}
 
 </div>
+{% endblock %}
+
+{% block head %}
+<style>
+    /* Une tâche par ligne, à toute largeur — c'est délibéré et non pas subi.
+       Une tâche porte un titre, une description, des méta et un bouton : en
+       colonnes, tout se serre et on lit deux fois moins vite ce qu'on doit
+       faire une seule fois. */
+    .tk > .tk-card { width: 100%; }
+
+    /* L'en-tête d'un groupe de tâches. Le compteur dit l'avancement du bloc :
+       « 2/5 » se lit d'un coup d'œil, cinq cartes à parcourir non. */
+    .tk-secthead {
+        display: flex; align-items: baseline; gap: 10px;
+        margin: 10px 2px 0;
+    }
+    .tk-secthead:first-of-type { margin-top: 2px; }
+    .tk-secthead-t {
+        flex: 1; min-width: 0;
+        font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+        color: var(--c-primary, #8D1D2C);
+    }
+    .tk-secthead-n {
+        flex: 0 0 auto;
+        font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+        color: var(--c-muted, #7a7168);
+        background: var(--c-bg-2, #F4EFE8);
+        border: 1px solid var(--c-line, rgba(36,26,22,.09));
+        border-radius: 999px; padding: 3px 9px;
+    }
+</style>
 {% endblock %}
