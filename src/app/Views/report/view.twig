@@ -182,16 +182,64 @@
         #nav-progress, #pwa-banner, #pwa-ios-tip, .rpt-noprint { display:none !important; }
         body { background:#fff !important; }
         main.app-content, .app-content { padding:0 !important; }
-        .rpt-shop { break-inside:avoid; box-shadow:none; }
+        .rpt-shop { box-shadow:none; }
         a[href] { color:inherit; text-decoration:none; }
         /* À l'impression : on déplie les 3 onglets réseau et on titre chacun. */
-        .rpt-tabview, .rpt-tabview[hidden] { display:block !important; break-inside:avoid; }
+        .rpt-tabview, .rpt-tabview[hidden] { display:block !important; }
         .rpt-print-title { display:block !important; }
         /* Les cellules de heatmap gardent leurs couleurs sur papier. */
         .rpt-cal .dcell, .rpt-hmv, .rpt-heat-cell, .rpt-hm-legend .sw {
             -webkit-print-color-adjust:exact; print-color-adjust:exact;
         }
-        .rpt-cal, .rpt-tblwrap { break-inside:avoid; }
+
+        /* ── Où le papier a le droit de couper ──────────────────────────
+           Un tableau coupé en deux se relit deux fois : on cherche la ligne
+           qui manque sur la page suivante, on revient vérifier l'en-tête, et
+           on a perdu le fil. La règle est donc : un bloc qui porte UNE idée
+           ne se coupe pas ; s'il ne tient pas sur la fin de page, il descend
+           entier sur la suivante.
+
+           Un bloc plus haut qu'une page reste coupé — c'est le comportement
+           du navigateur, et c'est le bon : mieux vaut une coupe qu'une page
+           blanche suivie d'un débordement. */
+
+        /* Le défilement horizontal n'existe pas sur papier. Tant qu'il est
+           déclaré, Chrome traite le conteneur comme une zone de défilement et
+           ignore `break-inside` dessus — c'est précisément ce qui laissait le
+           tableau « Semaine / période » se faire couper en deux. */
+        .rpt-tbl-wrap, .rpt-tblwrap { overflow:visible !important; }
+        /* Même raison pour la carte boutique : son `overflow:hidden` n'est là
+           que pour arrondir les coins. Sur papier il fait d'elle une zone
+           rognée, et un contenu rogné ne se fragmente pas proprement — les
+           règles de coupe de tout ce qu'elle contient sautent avec. */
+        .rpt-shop { overflow:visible !important; }
+
+        .rpt-sec, .rpt-cal, .rpt-wd, .rpt-tbl-wrap, .rpt-tblwrap,
+        .rpt-hexm, .rpt-kpi, .rpt-note, .rpt-pnl-cm, .rpt-hm-legend,
+        .rpt-head, .rpt-shop-name { break-inside:avoid; }
+
+        /* Une ligne de tableau, un levier, une ligne de synthèse : la plus
+           petite unité qui veuille dire quelque chose. */
+        tr, .rpt-lev, .rpt-syn-item, .rpt-cmp-row { break-inside:avoid; }
+        /* L'en-tête se répète en haut de chaque page quand un tableau est
+           malgré tout plus long qu'une page. */
+        thead { display:table-header-group; }
+
+        /* Un titre seul en bas de page ne titre rien : il descend avec ce
+           qu'il annonce. */
+        .rpt-sec-h, .rpt-cmp-sub, .rpt-pnl-nh, .rpt-syn-h,
+        .rpt-print-title, .rpt-shop-name { break-after:avoid; }
+
+        /* Une boutique est l'unité de lecture du rapport : chacune repart en
+           haut de page. La première suit l'en-tête — une page de garde pour
+           quatre lignes de méta ne servirait personne. */
+        .rpt-shop + .rpt-shop { break-before:page; }
+        /* Idem pour les trois onglets réseau, dépliés à l'impression. */
+        .rpt-tabview + .rpt-tabview { break-before:page; }
+
+        /* Jamais une ligne seule séparée de son paragraphe. */
+        p, li, .rpt-note-text, .rpt-pnl-note { orphans:3; widows:3; }
+
         @page { margin:14mm 12mm; }
     }
 </style>
