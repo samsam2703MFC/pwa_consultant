@@ -1,12 +1,15 @@
 {# « Ce qui manque » — le premier bloc de l'accueil.
 
    L'écran comptait ce qu'il y avait à valider ; sur les données réelles ce
-   compteur vaut zéro parce que les tâches n'ont pas été faites. Ici on montre
-   d'abord le manque, et la file de contrôle passe en second, en gris. Le
-   compteur « 0 » ne disparaît pas : il cesse d'être le titre de l'écran.
+   compteur vaut zéro parce que les tâches n'ont pas été faites. On montre donc
+   le manque, et rien d'autre : UN constat, qui mène au classement.
 
-   Attend `shortfall` (NetworkShortfallService::monthToDate) et
-   `shortfall_shops` (combien de boutiques lister). #}
+   Le détail par boutique et le raccourci « À évaluer » ont été retirés après
+   essai sur données réelles — trois lignes à 0 % se répétant mot pour mot ne
+   disaient rien de plus que le total. Le service continue de les calculer
+   (même charge réseau, même agrégation) : le tableau de bord CEO les attend.
+
+   Attend `shortfall` (NetworkShortfallService::monthToDate). #}
 {# Les macros et les noms de mois sont importés ICI plutôt qu'hérités du
    gabarit appelant : une vue qui ne fonctionne que sous un seul parent est une
    vue qu'on casse en la déplaçant. #}
@@ -47,64 +50,4 @@
         </div>
     </a>
 
-    {% set liste = sf.shops|slice(0, shortfall_shops|default(3)) %}
-    {% if liste is not empty %}
-    <div class="dash-card sf-card">
-        <div class="sf-head">
-            <div class="sf-head-t">{{ translations.shortfall_worst ?? 'Les plus en retard' }}</div>
-            {% if sf.shops|length > liste|length %}
-                <a href="{{ ROOT }}/checklists?date={{ date }}" class="dash-seelink">
-                    {{ translations.see_the ?? 'Voir les' }} {{ sf.shops|length }} ›</a>
-            {% endif %}
-        </div>
-        {% for s in liste %}
-            {% set p = s.pct ?? 0 %}
-            {# Les mêmes seuils que le rapport Checklist, lus en configuration. #}
-            {% set vert = green_pct|default(90) %}
-            {% set orange = orange_pct|default(75) %}
-            {% set grad = p >= vert ? 'linear-gradient(90deg,#49a05d,#2D7A3E)'
-                        : (p >= orange ? 'linear-gradient(90deg,#e0a04a,#C17A2A)'
-                                       : 'linear-gradient(90deg,#b8253a,#8D1D2C)') %}
-            {% set tint = p >= vert ? 'ok' : (p >= orange ? 'mid' : 'bad') %}
-            <div class="sf-row">
-                <div class="sf-row-top">
-                    <span class="sf-name">{{ s.name ?: ('#' ~ s.shop_id) }}</span>
-                    <span class="sf-pct {{ tint }}">{{ s.pct is not null ? (s.pct|round) ~ ' %' : '—' }}</span>
-                    <span class="sf-ratio">{{ s.done }} / {{ s.planned }}</span>
-                </div>
-                <div class="sf-bar"><i style="width:{{ p > 0 and p < 1.5 ? 1.5 : p }}%;background:{{ grad }}"></i></div>
-                <div class="sf-why">
-                    {% set bouts = [] %}
-                    {% if s.idle_days > 0 %}
-                        {% set bouts = bouts|merge([s.idle_days ~ ' ' ~ (s.idle_days > 1
-                            ? (translations.shortfall_idle_days ?? 'jours sans aucune tâche')
-                            : (translations.shortfall_idle_day ?? 'jour sans aucune tâche'))]) %}
-                    {% endif %}
-                    {% if s.last_full %}
-                        {% set bouts = bouts|merge([(translations.shortfall_last_full ?? 'dernière journée complète le')
-                            ~ ' ' ~ s.last_full|date('d/m')]) %}
-                    {% elseif s.done > 0 %}
-                        {% set bouts = bouts|merge([translations.shortfall_never_full ?? 'aucune journée complète ce mois']) %}
-                    {% endif %}
-                    {% if s.missed > 0 %}
-                        {% set bouts = bouts|merge([s.missed ~ ' ' ~ (translations.shortfall_missed ?? 'obligatoires manquées')]) %}
-                    {% endif %}
-                    {{ bouts|join(' · ') }}
-                </div>
-            </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    {# La file de contrôle, en second et en gris. Elle n'affiche pas de
-       compteur : le calculer coûte trois appels par boutique, et l'accueil est
-       le premier écran d'après connexion. Le chiffre vit sur l'écran qui le
-       paie déjà. #}
-    <a href="{{ ROOT }}/checklists/review?date={{ date }}" class="dash-card sf-quiet">
-        <div>
-            <div class="sf-quiet-t">{{ translations.shortfall_review ?? 'À évaluer' }}</div>
-            <div class="sf-quiet-s">{{ translations.shortfall_review_sub ?? 'Contrôler les tâches faites — obligatoires, avec photo' }}</div>
-        </div>
-        {{ icons.svg('chevron-right', 18) }}
-    </a>
 {% endif %}

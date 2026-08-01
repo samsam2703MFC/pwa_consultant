@@ -22,7 +22,8 @@ class NetworkTaskListService
     public function __construct(
         private ChecklistService $checklists,
         private TaskReviewRepository $reviews,
-        private ParamService $params
+        private ParamService $params,
+        private ReviewRating $notes
     ) {}
 
     /** Diagnostic du dernier appel : ce qui a été demandé, ce qui est revenu. */
@@ -243,8 +244,12 @@ class NetworkTaskListService
         $src    = $detail[$shopId . '|' . $taskId] ?? [];
         $j      = $journal[$shopId . '|' . $taskId] ?? [];
 
-        $rating   = $t['review_rating']      ?? $src['review_rating']      ?? $j['rating']      ?? null;
+        $brut     = $t['review_rating']      ?? $src['review_rating']      ?? $j['rating']      ?? null;
         $accepted = $t['review_is_accepted'] ?? $src['review_is_accepted'] ?? $j['is_accepted'] ?? null;
+        // Un verdict sans note vaut la note qu'aurait posée le bouton :
+        // conforme → 4, non conforme → 2. Sinon la ligne affiche « Conforme »
+        // avec une colonne note vide, et la moyenne l'oublie.
+        [$rating, $deduite] = $this->notes->resolve($brut, ReviewRating::verdict($accepted));
         $status   = strtoupper((string)($t['status'] ?? ''));
         $done     = $status === 'DONE';
         $photo    = !empty($t['requires_photo']);
@@ -281,8 +286,11 @@ class NetworkTaskListService
             'completion_id' => (int)($t['completion_id'] ?? $src['completion_id'] ?? 0) ?: null,
             'attachment_id' => (int)($t['attachment_id'] ?? $src['attachment_id'] ?? 0) ?: null,
             'attachment_filename' => (string)($t['attachment_filename'] ?? $src['attachment_filename'] ?? ''),
-            'review_rating'  => $rating === null ? null : (int)$rating,
-            'review_accepted' => $accepted === null ? null : (int)$accepted === 1,
+            'review_rating'  => $rating,
+            // Vraie ou déduite : l'écran peut vouloir le dire, la moyenne non —
+            // c'est la même note dans les deux cas.
+            'review_rating_derived' => $deduite,
+            'review_accepted' => ReviewRating::verdict($accepted),
             'review_comment' => (string)($t['review_comment'] ?? $src['review_comment'] ?? $j['comment'] ?? ''),
             'review_by'      => (string)($j['consultant_name'] ?? ''),
             'evaluable'      => $evaluable,

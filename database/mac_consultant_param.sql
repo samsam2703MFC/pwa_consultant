@@ -47,7 +47,6 @@ INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('dashboard_shortfall_enabled',     '1',   'Accueil : afficher « ce qui manque » (tâches prévues non faites)'),
     ('dashboard_shortfall_days_max',    '31',  'Accueil « ce qui manque » : journées relues au maximum par ouverture'),
     ('dashboard_shortfall_days_nodb',   '7',   'Accueil « ce qui manque » : fenêtre (jours) quand la base ne peut rien conserver'),
-    ('dashboard_shortfall_shops',       '3',   'Accueil « ce qui manque » : boutiques listées sous le total'),
     ('dashboard_shortfall_min_days',    '7',   'Accueil « ce qui manque » : en deçà de ce quantième, fenêtre roulante au lieu du mois'),
     ('dashboard_shortfall_rolling_days','30',  'Accueil « ce qui manque » : longueur (jours) de la fenêtre roulante'),
     ('checklist_green_pct',             '90',  'Rapport checklists : seuil vert (% de tâches faites)'),

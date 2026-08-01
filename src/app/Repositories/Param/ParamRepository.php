@@ -85,7 +85,6 @@ class ParamRepository
         'dashboard_shortfall_enabled'     => ['1',  'Accueil : afficher « ce qui manque » (tâches prévues non faites)'],
         'dashboard_shortfall_days_max'    => ['31', 'Accueil « ce qui manque » : journées relues au maximum par ouverture'],
         'dashboard_shortfall_days_nodb'   => ['7',  'Accueil « ce qui manque » : fenêtre (jours) quand la base ne peut rien conserver'],
-        'dashboard_shortfall_shops'       => ['3',  'Accueil « ce qui manque » : boutiques listées sous le total'],
         // Les premiers jours du mois, le mois en cours ne contient presque
         // rien : on glisse alors sur une fenêtre roulante, et l'écran le dit.
         'dashboard_shortfall_min_days'    => ['7',  'Accueil « ce qui manque » : en deçà de ce quantième, fenêtre roulante au lieu du mois'],
@@ -109,7 +108,9 @@ class ParamRepository
      * configuration ne propose pas de réglages sans effet. Le DBA peut les
      * supprimer avec le DELETE commenté dans database/mac_consultant_param.sql.
      */
-    public const RETIRED = ['daypart_morning_until', 'daypart_midday_until'];
+    public const RETIRED = ['daypart_morning_until', 'daypart_midday_until',
+                            // L'accueil n'affiche plus le détail par boutique.
+                            'dashboard_shortfall_shops'];
 
     private bool $ready = false;
 

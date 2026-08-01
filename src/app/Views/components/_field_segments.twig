@@ -1,0 +1,42 @@
+{# Les deux faces du terrain : le réseau, et mes tâches à moi.
+
+   « Checklists » et « Tâches » étaient deux onglets pour le même objet. Ils
+   n'en font plus qu'un ; ce segment remplace l'aller-retour par la barre du
+   bas. Il tient lieu de bouton retour sur ces écrans — d'où sa place, tout en
+   haut, là où le retour se trouvait.
+
+   Attend `seg` : 'network' ou 'mine'. #}
+<style>
+    .fseg { display:grid; grid-template-columns:1fr 1fr; gap:3px; padding:3px;
+            background:#e7e1d8; border-radius:999px; margin:0 0 12px; }
+    .fseg a { display:flex; align-items:center; justify-content:center; gap:6px;
+              min-height:38px; border-radius:999px; font-size:.8rem; font-weight:800;
+              color:#8a827a; text-decoration:none; -webkit-tap-highlight-color:transparent; }
+    .fseg a.on { background:#fff; color:var(--c-ink, #241f1c);
+                 box-shadow:0 1px 2px rgba(70,40,25,.08); }
+    .fseg a:active { transform:scale(.99); }
+
+    /* Le classement par boutique n'est plus un onglet : il reste à un doigt,
+       sur la face « réseau » où il a du sens. */
+    .fseg-more { display:flex; justify-content:flex-end; margin:-6px 0 10px; }
+    .fseg-more a { font-size:.72rem; font-weight:800; color:var(--c-primary, #8D1D2C); }
+</style>
+
+<nav class="fseg" aria-label="{{ translations.nav_field ?? 'Terrain' }}">
+    <a href="{{ ROOT }}/checklists/tasks{% if date is defined and date %}?date={{ date }}{% endif %}"
+       class="{{ (seg ?? 'network') == 'network' ? 'on' : '' }}"
+       {{ (seg ?? 'network') == 'network' ? 'aria-current="page"' : '' }}>
+        {{ translations.field_network ?? 'Le réseau' }}
+    </a>
+    <a href="{{ ROOT }}/tasks" class="{{ (seg ?? '') == 'mine' ? 'on' : '' }}"
+       {{ (seg ?? '') == 'mine' ? 'aria-current="page"' : '' }}>
+        {{ translations.field_mine ?? 'Mes tâches' }}
+    </a>
+</nav>
+
+{% if (seg ?? 'network') == 'network' %}
+<div class="fseg-more">
+    <a href="{{ ROOT }}/checklists{% if date is defined and date %}?date={{ date }}{% endif %}">
+        {{ translations.field_ranking ?? 'Classement des boutiques' }} ›</a>
+</div>
+{% endif %}
