@@ -25,15 +25,16 @@
 <style>
     /* Outils collants : la recherche et les filtres restent atteignables
        quel que soit le nombre de tâches déjà parcourues. */
-    .nq-tools { position:sticky; top:0; z-index:6; background:var(--c-bg); padding:8px 0; }
-    .nq-search { width:100%; min-height:44px; border-radius:12px; border:1px solid rgba(0,0,0,.08);
-                 background:#fff; padding:0 13px; font-size:.82rem; color:#241f1c; }
+    .nq-tools { position:sticky; top:0; z-index:6; background:var(--c-bg); padding:6px 0 8px; }
+    .nq-search { width:100%; min-height:44px; margin-top:8px; border-radius:12px;
+                 border:1px solid rgba(0,0,0,.08); background:#fff; padding:0 13px;
+                 font-size:.82rem; color:#241f1c; }
     .nq-search::placeholder { color:#a2988c; }
     /* La barre PASSE À LA LIGNE plutôt que de défiler : un filtre à moitié
        coupé au bord de l'écran ne se voit pas, et on ne cherche pas ce qu'on
        ne soupçonne pas. Deux boutons cycliques et deux bascules tiennent sur
        deux lignes courtes. */
-    .nq-filters { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .nq-filters { display:flex; flex-wrap:wrap; gap:6px; }
     .nq-f { flex-shrink:0; min-height:36px; display:inline-flex; align-items:center; gap:5px; padding:0 11px;
             border-radius:999px; font-size:.72rem; font-weight:800; background:#fff; color:#6c757d;
             border:1px solid rgba(0,0,0,.07); cursor:pointer; -webkit-tap-highlight-color:transparent; }
@@ -52,6 +53,24 @@
     .nq-sep { flex-shrink:0; width:1px; align-self:stretch; margin:4px 2px;
               background:rgba(0,0,0,.12); }
     .nq-count { font-size:.66rem; color:#8a827a; margin:6px 2px 2px; }
+
+    /* Bande des boutiques : elle défile, elle. Trente boutiques empilées
+       mangeraient l'écran ; en ligne, on en voit trois et on pousse. */
+    .nq-shops { display:flex; gap:6px; overflow-x:auto; margin-top:6px; padding-bottom:2px;
+                -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+    .nq-shops::-webkit-scrollbar { display:none; }
+    .nq-sh { flex-shrink:0; min-height:34px; display:inline-flex; align-items:center; gap:5px;
+             padding:0 12px; border-radius:999px; border:1px solid rgba(0,0,0,.07);
+             background:#fff; color:#57504a; font-size:.71rem; font-weight:700;
+             font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .nq-sh .nm { max-width:11ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .nq-sh .n { font-weight:900; color:#8D1D2C; }
+    .nq-sh .n:empty { display:none; }
+    .nq-sh.on { background:#241f1c; border-color:#241f1c; color:#fff; }
+    .nq-sh.on .n { color:#F2C9A0; }
+    /* Une boutique sans rien à montrer sous les filtres courants reste
+       cliquable mais s'efface : elle dit « rien ici », pas « rien nulle part ». */
+    .nq-sh.creuse { opacity:.42; }
 
     /* Entrée de la pile de contrôle — même facture que les tuiles de l'écran
        Tâches : c'est le même geste, vu d'un autre écran. */
@@ -197,9 +216,13 @@
         <span class="car">›</span>
     </a>
 
+    {# La recherche n'est PAS collante : on remonte pour taper, alors qu'on
+       filtre en cours de route. Collante, elle prenait 44 px de haut en
+       permanence pour un champ qu'on touche une fois sur dix. #}
+    <input type="search" class="nq-search" id="nqSearch" autocomplete="off"
+           placeholder="{{ translations.search_task ?? 'Rechercher une tâche, une boutique…' }}">
+
     <div class="nq-tools">
-        <input type="search" class="nq-search" id="nqSearch" autocomplete="off"
-               placeholder="{{ translations.search_task ?? 'Rechercher une tâche, une boutique…' }}">
         {# Deux boutons CYCLIQUES plutôt que cinq pastilles : la barre débordait
            de l'écran et il fallait la faire défiler pour atteindre le dernier
            filtre. Chaque bouton porte une DIMENSION et affiche l'état courant
@@ -222,6 +245,21 @@
             <span class="nq-f nq-scope{{ scope_mandatory ? ' on' : '' }}" data-s="mandatory">{{ translations.f_mandatory_one ?? 'Obligatoire' }}</span>
             <span class="nq-f nq-scope{{ scope_photo ? ' on' : '' }}" data-s="photo">{{ translations.f_photo_one ?? 'Photo' }}</span>
         </div>
+
+        {# Les boutiques, en bande défilante. Elle DÉFILE là où les filtres
+           passent à la ligne : un parc peut compter trente boutiques, les
+           empiler mangerait l'écran. On sait toujours où l'on est — le nom de
+           la boutique sélectionnée reste le premier visible. #}
+        {% if shops|length > 1 %}
+            <div class="nq-shops" id="nqShops">
+                <button type="button" class="nq-sh on" data-shop="">{{ translations.f_all_shops ?? 'Toutes' }}</button>
+                {% for s in shops %}
+                    <button type="button" class="nq-sh" data-shop="{{ s.shop_id }}">
+                        <span class="nm">{{ s.shop_name }}</span><b class="n"></b>
+                    </button>
+                {% endfor %}
+            </div>
+        {% endif %}
     </div>
 
     {# Le total et la note moyenne du jour ne bougent pas quand on filtre :
@@ -365,18 +403,36 @@
         photo:     barre.querySelector('[data-s="photo"]').classList.contains('on')
     };
 
+    /* Boutique choisie dans la bande ('' = toutes). Une troisième dimension,
+       qui se combine aux deux autres comme le périmètre. */
+    var bande = document.getElementById('nqShops');
+    var boutique = '';
+
     /** Une vue restreinte : le dépliage automatique n'a de sens que là. */
     function actif() {
-        return val('ctrl') !== 'any' || val('real') !== 'any'
+        return val('ctrl') !== 'any' || val('real') !== 'any' || boutique !== ''
             || perim.mandatory || perim.photo || (search.value || '').trim() !== '';
     }
 
-    /** Le périmètre et la recherche — ce qui s'applique à TOUT. */
+    /** Le périmètre, la boutique et la recherche — ce qui s'applique à TOUT. */
     function dansPerimetre(r) {
+        if (boutique !== '' && r.getAttribute('data-shop') !== boutique) { return false; }
         if (perim.mandatory && r.getAttribute('data-mandatory') !== '1') { return false; }
         if (perim.photo     && r.getAttribute('data-photo') !== '1')     { return false; }
         var q = (search.value || '').trim().toLowerCase();
         return q === '' || (r.getAttribute('data-name') || '').indexOf(q) !== -1;
+    }
+
+    /** Ce qu'une boutique donnerait, tous les AUTRES filtres appliqués. */
+    function pourBoutique(id) {
+        return rows.filter(function (r) {
+            if (id !== '' && r.getAttribute('data-shop') !== id) { return false; }
+            if (perim.mandatory && r.getAttribute('data-mandatory') !== '1') { return false; }
+            if (perim.photo     && r.getAttribute('data-photo') !== '1')     { return false; }
+            var q = (search.value || '').trim().toLowerCase();
+            if (q !== '' && (r.getAttribute('data-name') || '').indexOf(q) === -1) { return false; }
+            return dansCtrl(r, val('ctrl')) && dansReal(r, val('real'));
+        }).length;
     }
 
     /** L'avis : à évaluer, conforme, non conforme — ou peu importe. */
@@ -412,6 +468,17 @@
                     : dansReal(r, e.v) && dansCtrl(r, val('ctrl'));
             }).length;
             b.querySelector('.n').textContent = e.v === 'any' ? '' : n;
+        });
+        if (!bande) { return; }
+        // Chaque boutique annonce ce qu'elle donnerait — et s'efface si elle ne
+        // donnerait rien, sans devenir inatteignable pour autant.
+        [].slice.call(bande.querySelectorAll('.nq-sh')).forEach(function (b) {
+            var id = b.getAttribute('data-shop');
+            var n = pourBoutique(id);
+            var c = b.querySelector('.n');
+            if (c) { c.textContent = n; }
+            b.classList.toggle('on', id === boutique);
+            b.classList.toggle('creuse', n === 0 && id !== boutique);
         });
     }
 
@@ -504,6 +571,17 @@
         }
         appliquer();
     });
+    if (bande) {
+        bande.addEventListener('click', function (e) {
+            var b = e.target.closest('.nq-sh');
+            if (!b) { return; }
+            var id = b.getAttribute('data-shop');
+            // Re-cliquer la boutique courante la désélectionne : sortir d'un
+            // filtre doit coûter le même geste que d'y entrer.
+            boutique = (id === boutique) ? '' : id;
+            appliquer();
+        });
+    }
     search.addEventListener('input', appliquer);
 
     appliquer();
