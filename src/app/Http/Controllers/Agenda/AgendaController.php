@@ -116,6 +116,7 @@ class AgendaController extends Controller
                 'send_report'     => $r->get('send_report') ? 1 : 0,
                 'status'          => 'planned',
                 'report_ref'      => $this->reportLink($shopId),
+                'checklist_ref'   => $this->checklistReportLink($shopId),
                 'shared'          => $shared,
             ]);
 
@@ -189,6 +190,7 @@ class AgendaController extends Controller
             'type'         => $type,
             'goal'         => trim((string)$r->get('goal')) ?: null,
             'report_ref'   => $this->reportLink($shopId),
+            'checklist_ref' => $this->checklistReportLink($shopId),
             'id_checklist' => (int)$r->get('id_checklist') ?: null,
             'checklist_name' => trim((string)$r->get('checklist_name')) ?: null,
             'lever_period' => $this->validPeriod((string)$r->get('lever_period')),
@@ -432,10 +434,23 @@ class AgendaController extends Controller
         return array_key_exists($t, AgendaService::TYPES) ? $t : 'development';
     }
 
-    /** Lien qui exécute le rapport mensuel de la boutique. */
+    /** Lien qui exécute le rapport mensuel de gestion de la boutique. */
     private function reportLink(int $shopId): string
     {
         return ROOT . '/reports/view?type=month&scope=' . $shopId;
+    }
+
+    /**
+     * Lien du rapport mensuel « Checklist Tâches » de la boutique.
+     *
+     * Même principe que le rapport de gestion : un lien, pas une pièce jointe.
+     * La visite le rejoue à l'ouverture, donc il reflète toujours l'état réel —
+     * un PDF figé au moment de la planification serait périmé le jour de la
+     * visite.
+     */
+    private function checklistReportLink(int $shopId): string
+    {
+        return ROOT . '/reports/checklist/month?scope=' . $shopId;
     }
 
     /** Enregistre les actions par levier (champs action_<key>). */

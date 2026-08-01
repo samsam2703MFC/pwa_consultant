@@ -196,6 +196,12 @@
         <span class="ic">PDF</span>
         <a href="{{ ROOT }}/reports/view?type=month&scope={{ is_edit ? edit.id_shop : shop_id }}" target="_blank">{{ translations.open_report ?? 'Ouvrir le rapport mensuel' }} ↗</a>
       </div>
+      {# Second rapport, même principe : un lien rejoué à l'ouverture, jamais
+         un PDF figé qui serait périmé le jour de la visite. #}
+      <div class="rep" style="margin-top:6px;">
+        <span class="ic">✓</span>
+        <a href="{{ ROOT }}/reports/checklist/month?scope={{ is_edit ? edit.id_shop : shop_id }}" target="_blank">{{ translations.open_ck_report ?? 'Ouvrir le rapport checklists' }} ↗</a>
+      </div>
     </div>
 
     <div class="af">

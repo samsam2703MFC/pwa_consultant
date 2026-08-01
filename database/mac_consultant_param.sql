@@ -37,6 +37,9 @@ INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('trends_budget_seconds',           '30',  'Tendances : budget de temps (s) — au-delà, le CA est rendu sans les objectifs'),
     ('trends_count_today',              '0',   'Tendances : compter la journée en cours dans le mois courant (0 = s''arrête à hier)'),
     ('owner_validation_permission',     '',    'Checklists : permission requise pour valider un contrôle consultant (vide = tous)'),
+    ('checklist_nc_major_max_rating',   '2',   'Checklists : note (1–5) en deçà de laquelle une non-conformité est majeure'),
+    ('checklist_green_pct',             '90',  'Rapport checklists : seuil vert (% de tâches faites)'),
+    ('checklist_orange_pct',            '75',  'Rapport checklists : seuil orange (% de tâches faites)'),
     ('diag_ca_tolerance_pct',           '0.5', 'Diagnostic CA : écart (%) en deçà duquel deux sources sont réputées d''accord'),
     ('diag_ca_vat_factors',             '1.06,1.12,1.21', 'Diagnostic CA : facteurs de TVA reconnus dans un rapport entre sources');
 

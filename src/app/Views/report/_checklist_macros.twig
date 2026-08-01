@@ -1,0 +1,39 @@
+{# Pastilles et couleurs du rapport Checklist Tâches.
+
+   Une seule définition des seuils pour les deux rapports : sans cela, l'hebdo
+   et le mensuel finiraient par colorer différemment le même pourcentage. #}
+
+{# Classe de couleur d'une carte KPI d'après un pourcentage. #}
+{% macro kcls(pct, th) %}
+{%- if pct is null -%}{%- else -%}
+{{- pct >= th.green_pct ? 'k-ok' : (pct >= th.orange_pct ? 'k-mid' : 'k-ko') -}}
+{%- endif -%}
+{% endmacro %}
+
+{# Pastille d'un pourcentage. « — » quand il n'y a rien à mesurer : afficher
+   « 0 % » là où aucune tâche n'était prévue serait un jugement faux. #}
+{% macro pill(pct, th) %}
+{%- if pct is null -%}
+    <span class="ck-pill ck-p-na">—</span>
+{%- else -%}
+    <span class="ck-pill {{ pct >= th.green_pct ? 'ck-p-ok' : (pct >= th.orange_pct ? 'ck-p-mid' : 'ck-p-ko') }}">
+        {{- pct|number_format(0, ',', ' ') }} %</span>
+{%- endif -%}
+{% endmacro %}
+
+{# Flèche de tendance entre deux valeurs. `worse_up` inverse la couleur : pour
+   des non-conformités, une hausse est une mauvaise nouvelle. #}
+{% macro trend(now, before, worse_up, unit) %}
+{%- if now is null or before is null -%}{%- else -%}
+    {%- set d = now - before -%}
+    {%- if d|abs < 0.05 -%}
+        <span class="ck-trend ck-t-fl">=</span>
+    {%- else -%}
+        {%- set good = worse_up ? (d < 0) : (d > 0) -%}
+        <span class="ck-trend {{ good ? 'ck-t-up' : 'ck-t-dn' }}">
+            {{- d > 0 ? '▲' : '▼' }} {{ d|abs|number_format(unit == 'pts' ? 0 : 0, ',', ' ') }}
+            {{- unit ? ' ' ~ unit : '' -}}
+        </span>
+    {%- endif -%}
+{%- endif -%}
+{% endmacro %}
