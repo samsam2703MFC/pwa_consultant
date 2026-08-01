@@ -1,0 +1,24 @@
+{% extends "layouts/standalone_base.twig" %}
+
+{% block title %}{{ share.label }}{% endblock %}
+
+{% block head %}
+<style>
+    .sa-rpt { background:#fff; border-radius:16px; padding:14px 12px; margin-bottom:14px;
+              box-shadow:0 10px 24px -20px rgba(70,40,25,.3); }
+    /* Le second rapport commence sur une nouvelle feuille : deux rapports
+       soudés au milieu d'une page ne se lisent pas. */
+    @media print {
+        .sa-rpt { background:none; border-radius:0; padding:0; margin:0;
+                  box-shadow:none; }
+        .sa-second { break-before:page; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{# Le HTML a été FIGÉ au moment du partage — il ne provient d'aucune saisie et
+   n'a pas été retouché depuis. C'est le seul endroit du panel où l'on rend du
+   HTML brut, et c'est le nôtre. #}
+{{ html|raw }}
+{% endblock %}

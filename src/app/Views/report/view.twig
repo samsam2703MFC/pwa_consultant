@@ -252,20 +252,71 @@
            cela, vert et rouge deviennent deux gris identiques. */
         .rpt, .rpt * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     }
+
+    /* Partage par lien : le résultat s'affiche sous la barre d'actions, pas
+       dans une modale — l'adresse doit rester lisible pendant qu'on la copie. */
+    .rpt-share { background:#fff; border:1px solid var(--c-line); border-radius:14px;
+                 padding:11px 13px; margin-bottom:14px;
+                 box-shadow:0 10px 24px -20px rgba(70,40,25,.3); }
+    .rpt-share[hidden] { display:none; }
+    .rpt-share .rs-lbl { font-size:.72rem; font-weight:800; color:#8D1D2C; margin-bottom:7px; }
+    .rpt-share .rs-row { display:flex; gap:7px; }
+    .rpt-share input { flex:1; min-width:0; min-height:40px; border:1px solid var(--c-line);
+                       border-radius:10px; padding:0 10px; font-size:.76rem; color:#241f1c;
+                       background:#faf7f2; font-family:inherit; }
+    .rpt-share button { flex-shrink:0; min-height:40px; padding:0 14px; border:0;
+                        border-radius:999px; background:#8D1D2C; color:#fff;
+                        font-size:.76rem; font-weight:800; font-family:inherit; cursor:pointer; }
+    .rpt-share .rs-sub { display:flex; align-items:center; gap:10px; margin-top:8px;
+                         font-size:.68rem; color:#8a827a; }
+    .rpt-share .rs-sub button { min-height:32px; padding:0 11px; background:none;
+                                color:#c0182b; text-decoration:underline; font-weight:700; }
+    .rpt-share.ko .rs-lbl { color:#c0182b; }
 </style>
 {% endblock %}
 
 {% block content %}
+{# Macros importées DANS le bloc : rendu isolément — ce que fait le
+   partage par lien — un import de tête n’est pas mis en place. #}
+{% import "components/_icons.twig" as icons %}
 <div class="page-content-loaded">
 
+    {# Rapport PARTAGÉ : la barre d'actions n'est pas émise. Le gabarit autonome
+       fournit son propre bouton d'impression. #}
+    {% if not (shared ?? false) %}
     <div class="rpt-actions rpt-noprint">
         <a href="{{ ROOT }}/reports" class="app-back-btn" style="margin-bottom:0;">
             {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back ?? 'Rapports' }}</span>
         </a>
-        <button type="button" onclick="window.print()" class="btn btn-primary rounded-pill px-3 fw-700 ms-auto" style="font-size:.82rem;">
+        {# Le partage n'a de sens que sur un rapport MENSUEL d'UNE boutique :
+           c'est ce qui s'envoie à un franchisé. Un rapport « toutes boutiques »
+           partagé lui montrerait les chiffres de ses voisins. #}
+        {% if report.type == 'month' and report.scope.mode == 'shop' and report.scope.id %}
+            <button type="button" id="rptShare"
+                    class="btn btn-light rounded-pill px-3 fw-700 ms-auto"
+                    data-shop="{{ report.scope.id }}" data-ym="{{ report.period.from|date('Y-m') }}"
+                    style="font-size:.82rem;">
+                <span class="me-1">{{ icons.svg('external-link', 16) }}</span>{{ translations.share_link ?? 'Envoyer un lien' }}
+            </button>
+        {% endif %}
+        <button type="button" onclick="window.print()" class="btn btn-primary rounded-pill px-3 fw-700 {{ report.type == 'month' and report.scope.mode == 'shop' ? '' : 'ms-auto' }}" style="font-size:.82rem;">
             <span class="me-1">{{ icons.svg('download', 16) }}</span>{{ translations.print_pdf ?? 'Imprimer / PDF' }}
         </button>
     </div>
+
+    {# Résultat du partage : l'adresse, sa date de fin, et de quoi la couper. #}
+    <div class="rpt-share rpt-noprint" id="rptShareBox" hidden>
+        <div class="rs-lbl" id="rptShareMsg"></div>
+        <div class="rs-row">
+            <input type="text" id="rptShareUrl" readonly onclick="this.select()">
+            <button type="button" id="rptShareCopy">{{ translations.copy ?? 'Copier' }}</button>
+        </div>
+        <div class="rs-sub">
+            <span id="rptShareExp"></span>
+            <button type="button" id="rptShareRevoke">{{ translations.revoke ?? 'Révoquer' }}</button>
+        </div>
+    </div>
+    {% endif %}
 
     {% if report.shops is not defined %}
         <div class="rpt-empty">{{ translations.no_data ?? 'Données indisponibles.' }}</div>
@@ -1167,6 +1218,89 @@
     });
     document.getElementById('hmMBg').addEventListener('click', close);
     document.getElementById('hmMClose').addEventListener('click', close);
+})();
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Partage d'un rapport mensuel par lien.
+
+   Le rapport est FIGÉ côté serveur au moment du clic : la page publique
+   n'appellera jamais l'API. C'est pourquoi la génération prend une seconde ou
+   deux — elle construit les deux rapports du mois. */
+(function () {
+    var bouton = document.getElementById('rptShare');
+    if (!bouton) { return; }
+    var ROOT  = window.__consultantRoot || '';
+    var boite = document.getElementById('rptShareBox');
+    var champ = document.getElementById('rptShareUrl');
+    var msg   = document.getElementById('rptShareMsg');
+    var exp   = document.getElementById('rptShareExp');
+    var jeton = null;
+
+    function dire(texte, erreur) {
+        boite.hidden = false;
+        boite.classList.toggle('ko', !!erreur);
+        msg.textContent = texte;
+    }
+
+    bouton.addEventListener('click', function () {
+        bouton.disabled = true;
+        dire({{ (translations.share_building ?? 'Génération du rapport…')|json_encode|raw }}, false);
+        champ.value = '';
+        exp.textContent = '';
+        fetch(ROOT + '/reports/share', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({
+                shop_id: parseInt(bouton.getAttribute('data-shop'), 10),
+                ym:      bouton.getAttribute('data-ym')
+            })
+        })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (p) {
+                if (!p.ok || !p.j.success) { throw new Error(p.j.error || 'Erreur'); }
+                jeton = p.j.token;
+                champ.value = p.j.url;
+                exp.textContent = {{ (translations.share_valid_until ?? 'Valable jusqu’au')|json_encode|raw }}
+                    + ' ' + p.j.expires_at + ' · ' + p.j.days + ' '
+                    + {{ (translations.days ?? 'jours')|json_encode|raw }};
+                dire({{ (translations.share_ready ?? 'Lien prêt — il ouvre CE rapport seul, sans accès au reste du panel.')|json_encode|raw }}, false);
+            })
+            .catch(function (e) { dire(String(e.message || e), true); })
+            .then(function () { bouton.disabled = false; });
+    });
+
+    document.getElementById('rptShareCopy').addEventListener('click', function () {
+        if (!champ.value) { return; }
+        champ.select();
+        // `clipboard` n'existe pas hors HTTPS ni sur les vieux navigateurs :
+        // la sélection reste, on peut copier à la main.
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(champ.value).then(function () {
+                dire({{ (translations.share_copied ?? 'Lien copié.')|json_encode|raw }}, false);
+            }).catch(function () {});
+        }
+    });
+
+    document.getElementById('rptShareRevoke').addEventListener('click', function () {
+        if (!jeton) { return; }
+        fetch(ROOT + '/reports/share/revoke', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ token: jeton })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (!j.success) { throw new Error(j.error || 'Erreur'); }
+                jeton = null;
+                champ.value = '';
+                exp.textContent = '';
+                dire({{ (translations.share_revoked ?? 'Lien révoqué : il ne s’ouvre plus.')|json_encode|raw }}, false);
+            })
+            .catch(function (e) { dire(String(e.message || e), true); });
+    });
 })();
 </script>
 {% endblock %}

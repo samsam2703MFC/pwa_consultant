@@ -1,0 +1,28 @@
+{# Lien mort : expiré, révoqué, ou jamais existé. Les trois disent la même
+   chose — préciser lequel renseignerait qui essaie des jetons au hasard. #}
+<!DOCTYPE html>
+<html lang="{{ lang_code ?? 'fr' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <title>{{ translations.share_gone_title ?? 'Lien expiré' }}</title>
+    <link rel="stylesheet" href="{{ ROOT }}/assets/css/atelier-theme.css">
+    <style>
+        body { background:var(--c-bg); margin:0; font-family:system-ui,-apple-system,sans-serif;
+               display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
+        .g { background:#fff; border-radius:20px; padding:34px 26px; max-width:380px; text-align:center;
+             box-shadow:0 16px 34px -22px rgba(70,40,25,.35); }
+        .g h1 { font-size:1.1rem; color:#8D1D2C; margin:0 0 10px; }
+        .g p { font-size:.84rem; color:#6c757d; line-height:1.5; margin:0; }
+    </style>
+</head>
+<body>
+    <div class="g">
+        <h1>{{ translations.share_gone_title ?? 'Ce lien n’est plus valable' }}</h1>
+        <p>{{ translations.share_gone_sub ?? 'Il a peut-être expiré ou été retiré par son auteur.
+            Demandez-en un nouveau à votre consultant.' }}</p>
+    </div>
+</body>
+</html>

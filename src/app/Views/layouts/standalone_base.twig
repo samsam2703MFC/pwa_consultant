@@ -1,0 +1,83 @@
+{# Gabarit AUTONOME — la page d'un rapport partagé par lien.
+
+   Deux exigences, et la seconde est une exigence de sécurité :
+
+   1. Aucune navigation. Pas de barre du haut, pas de barre d'onglets, pas de
+      volet de menu, pas un seul lien vers l'application. Le porteur du lien
+      voit CE rapport et rien d'autre.
+   2. Aucune requête. La page est figée au moment du partage : elle ne connaît
+      pas l'API, ne porte pas de jeton, et n'en demandera pas. Un rapport
+      recalculé à l'ouverture exigerait des identifiants que le destinataire
+      n'a pas — et les lui donner reviendrait à lui ouvrir tout le panel.
+
+   Les moteurs de recherche et les référents sont écartés : une adresse qui
+   fuit par un clic sortant ou par un index reste lisible des mois. #}
+<!DOCTYPE html>
+<html lang="{{ lang_code ?? 'fr' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow, noarchive, noimageindex">
+    <meta name="referrer" content="no-referrer">
+    <title>{% block title %}{{ translations.consultant_panel ?? 'Rapport' }}{% endblock %}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ ROOT }}/assets/mazer/compiled/css/app.css">
+    <link rel="stylesheet" href="{{ ROOT }}/assets/css/atelier-theme.css">
+    <meta name="theme-color" content="#8D1D2C">
+
+    {% block head %}{% endblock %}
+
+    <style>
+        body { background:var(--c-bg); margin:0; }
+        .app-content { padding:14px 0 40px; }
+        .sa-head { background:#8D1D2C; color:#fff; padding:12px 0; margin-bottom:4px; }
+        .sa-head .container { display:flex; align-items:center; gap:10px; }
+        .sa-t { flex:1; min-width:0; }
+        .sa-t b { display:block; font-size:.94rem; font-weight:800; line-height:1.2; }
+        .sa-t span { display:block; font-size:.68rem; opacity:.75; margin-top:2px; }
+        .sa-print { flex-shrink:0; min-height:40px; display:inline-flex; align-items:center;
+                    gap:6px; padding:0 14px; border:0; border-radius:999px;
+                    background:rgba(255,255,255,.16); color:#fff; font-size:.78rem;
+                    font-weight:800; font-family:inherit; cursor:pointer; }
+        .sa-foot { text-align:center; font-size:.66rem; color:#a2988c; padding:22px 14px 8px; }
+
+        /* Le rapport garde ses gabarits d'origine, donc ses boutons de
+           navigation. Ici ils ne mènent nulle part : on les retire. */
+        .app-back-btn, .app-topbar, .app-tabbar-bar, .app-nav-sheet, .app-nav-backdrop,
+        #nav-progress, #pwa-banner, #pwa-ios-tip, .ck-nav, .rpt-actions,
+        .nq-start, .ck-noprint a { display:none !important; }
+
+        @media print {
+            .sa-head, .sa-foot { display:none !important; }
+            .app-content { padding:0 !important; }
+        }
+    </style>
+</head>
+<body class="sa">
+    <div class="sa-head">
+        <div class="container">
+            <div class="sa-t">
+                <b>{{ share.label }}</b>
+                <span>{{ translations.shared_by ?? 'Partagé par' }} {{ share.consultant_name ?? '—' }}
+                      · {{ translations.shared_until ?? 'valable jusqu’au' }} {{ share.expires_at|date('d.m.Y') }}</span>
+            </div>
+            <button type="button" class="sa-print" onclick="window.print()">
+                {{ translations.print_pdf ?? 'Imprimer / PDF' }}
+            </button>
+        </div>
+    </div>
+
+    <main class="app-content">
+        <div class="container">{% block content %}{% endblock %}</div>
+    </main>
+
+    <div class="sa-foot">
+        {{ translations.shared_foot ?? 'Document généré par The Franchise Buddy. Lien personnel, à ne pas rediffuser.' }}
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

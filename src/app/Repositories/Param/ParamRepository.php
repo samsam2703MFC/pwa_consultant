@@ -71,6 +71,9 @@ class ParamRepository
         // Mettre 0 à l'une des deux clés élargit la file d'un cran.
         'checklist_review_needs_photo'     => ['1', 'Checklists : n\'évaluer que les tâches exigeant une photo'],
         'checklist_review_needs_mandatory' => ['1', 'Checklists : n\'évaluer que les tâches obligatoires'],
+        // Un lien de partage donne accès au rapport SANS authentification :
+        // sa durée de vie est une décision de sécurité, pas une constante.
+        'report_share_days'               => ['14', 'Partage de rapport : durée de validité du lien (jours)'],
         // L'écran « toutes les tâches » interroge trois endpoints par boutique.
         // Un parc qui grandit ne doit pas le transformer en attente : au-delà
         // de ce nombre, la liste est tronquée et le dit à l'écran.

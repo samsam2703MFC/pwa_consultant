@@ -42,6 +42,7 @@ INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('checklist_review_rating_ko',      '2',   'Checklists : note posée d''office par le bouton « Non conforme » (0 = aucune)'),
     ('checklist_review_needs_photo',     '1',   'Checklists : n''évaluer que les tâches exigeant une photo'),
     ('checklist_review_needs_mandatory', '1',   'Checklists : n''évaluer que les tâches obligatoires'),
+    ('report_share_days',               '14',  'Partage de rapport : durée de validité du lien (jours)'),
     ('checklist_all_tasks_max_shops',   '30',  'Toutes les tâches : nombre de boutiques lues au maximum'),
     ('checklist_green_pct',             '90',  'Rapport checklists : seuil vert (% de tâches faites)'),
     ('checklist_orange_pct',            '75',  'Rapport checklists : seuil orange (% de tâches faites)'),
