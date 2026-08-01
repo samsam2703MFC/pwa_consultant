@@ -29,6 +29,7 @@
         moiJe:    {{ (translations.kpi_this_shop ?? 'cette boutique')|json_encode|raw }},
         anDer:    {{ (translations.kpi_last_year ?? 'an dernier')|json_encode|raw }},
         autres:   {{ (translations.kpi_other_shops ?? 'les autres boutiques')|json_encode|raw }},
+        horsRegle: {{ (translations.kpi_off_scale ?? '(hors règle)')|json_encode|raw }},
         rang:     {{ (translations.kpi_rank ?? '%s sur %s')|json_encode|raw }},
         vsRes:    {{ (translations.kpi_vs_network ?? 'vs moyenne réseau')|json_encode|raw }},
         sansRef:  {{ (translations.kpi_no_last_year ?? 'Pas de référence l’an dernier pour cette boutique.')|json_encode|raw }},
@@ -51,72 +52,143 @@
         return unite === '€' ? s + ' ' + DEVISE : s;
     }
 
+    /** Écart minimal de l'échelle, en part du maximum. Voir domaine(). */
+    var ETALEMENT_MIN = 0.06;
+    /** En deçà de cet écart (en % de largeur), deux points se chevauchent. */
+    var COLLE = 5.5;
+
     /**
-     * La place d'une valeur sur la règle, en pourcentage.
+     * Les bornes de la règle.
      *
-     * L'échelle part de zéro : une échelle qui commencerait au minimum du
-     * réseau ferait passer un écart de 2 % pour la moitié de la largeur, et
-     * la boutique la plus faible serait toujours collée à gauche, quel que
-     * soit son niveau réel. On garde une marge à droite pour que le maximum
-     * ne touche pas le bord.
+     * Une échelle partant de zéro entasse tout à droite dès que les boutiques
+     * se ressemblent : quatre paniers entre 12,29 € et 19,47 € occupaient le
+     * tiers droit, moitié gauche vide, et on ne voyait plus qui était où. La
+     * règle sert à SÉPARER les boutiques : elle se cale donc sur l'étendue
+     * réelle, avec une marge de part et d'autre.
+     *
+     * Le garde-fou est l'inverse : si toutes les boutiques sont à 1 % les unes
+     * des autres, zoomer transformerait ce rien en gouffre. On impose alors un
+     * étalement minimal, et l'écart reste visuellement petit — ce qu'il est.
+     *
+     * Les deux bornes sont ÉCRITES aux extrémités : une règle qui ne part pas
+     * de zéro doit dire où elle commence, sinon la distance se lit comme une
+     * proportion.
      */
-    function place(v, max) {
-        if (v === null || v === undefined || !isFinite(v) || max <= 0) { return null; }
-        return Math.max(3, Math.min(95, (v / max) * 88 + 4));
+    function domaine(vals) {
+        var min = Infinity, max = -Infinity;
+        for (var i = 0; i < vals.length; i++) {
+            if (vals[i] < min) { min = vals[i]; }
+            if (vals[i] > max) { max = vals[i]; }
+        }
+        if (!isFinite(min) || !isFinite(max)) { return null; }
+
+        var etendue = max - min;
+        var plancher = Math.abs(max) * ETALEMENT_MIN;
+        if (etendue < plancher) {
+            // Élargi autour du centre : personne ne se retrouve collé au bord
+            // pour un écart qui n'existe pas.
+            var centre = (min + max) / 2;
+            min = centre - plancher / 2;
+            max = centre + plancher / 2;
+            etendue = plancher;
+        }
+        var marge = etendue * 0.14;
+        return { lo: Math.max(0, min - marge), hi: max + marge };
+    }
+
+    /** La place d'une valeur, en pourcentage de la règle — null si hors bornes. */
+    function place(v, d) {
+        if (v === null || v === undefined || !isFinite(v) || !d || d.hi <= d.lo) { return null; }
+        return ((v - d.lo) / (d.hi - d.lo)) * 100;
+    }
+
+    /**
+     * Les points, écartés VERTICALEMENT quand ils se marchent dessus.
+     *
+     * Sur un réseau resserré, deux boutiques peuvent tomber à un pixel l'une de
+     * l'autre. Les décaler horizontalement mentirait sur leur valeur ; les
+     * empiler les rend comptables sans déplacer personne.
+     */
+    function etager(positions) {
+        var tri = positions.slice().sort(function (a, b) { return a - b; });
+        var etage = {};
+        var n = 0;
+        for (var i = 0; i < tri.length; i++) {
+            if (i > 0 && tri[i] - tri[i - 1] < COLLE) { n++; } else { n = 0; }
+            etage[tri[i].toFixed(4)] = n;
+        }
+        return etage;
     }
 
     function dessinerRegle(cle, moi, net) {
         var sc = el('kmScale');
         var vals = (net && net.values) || [];
-        // L'échelle est celle du RÉSEAU D'AUJOURD'HUI. Laisser l'an dernier la
-        // fixer suffirait qu'une seule boutique ait été deux fois plus grosse
-        // pour écraser toutes les autres à gauche — la règle sert à situer
-        // parmi les boutiques, pas à mesurer le passé. Un an dernier hors
-        // échelle vient buter sur le bord ; sa valeur exacte est écrite dessous.
-        var max = 0;
-        for (var i = 0; i < vals.length; i++) { if (vals[i] > max) { max = vals[i]; } }
 
         // Une seule valeur dans le réseau : il n'y a pas de position à montrer.
-        if (vals.length < 2 || max <= 0) {
+        if (vals.length < 2) {
             sc.innerHTML = '';
             sc.hidden = true;
             el('kmLegend').innerHTML = '';
             return false;
         }
+        var d = domaine(vals);
+        if (d === null) { sc.hidden = true; return false; }
         sc.hidden = false;
 
         var h = ['<div class="km-line"></div>'];
-        var pMoi = place(moi.now, max);
-        var pAn  = place(moi.prev, max);
+        var pMoi = place(moi.now, d);
+        var etages = etager(vals.map(function (v) { return place(v, d); })
+                                .filter(function (p) { return p !== null; }));
+        var haut = function (p) { return (etages[p.toFixed(4)] || 0) * 11; };
 
-        // Le déplacement depuis l'an dernier, avant les points : un trait
-        // par-dessus les pastilles les masquerait.
+        // L'an dernier n'entre PAS dans le domaine : une boutique deux fois plus
+        // grosse l'an dernier écraserait tout le réseau d'aujourd'hui. Hors
+        // bornes, il devient un chevron au bord — jamais un point aligné sur le
+        // maximum, qui se lirait comme « à égalité avec la meilleure ».
+        var anBrut = place(moi.prev, d);
+        var anDehors = anBrut !== null && (anBrut < 0 || anBrut > 100);
+        var pAn = anBrut === null ? null : Math.max(1.5, Math.min(98.5, anBrut));
+
         if (pMoi !== null && pAn !== null) {
             var a = Math.min(pMoi, pAn), b = Math.max(pMoi, pAn);
             h.push('<div class="km-mv" style="left:' + a + '%;width:' + (b - a) + '%"></div>');
         }
-        var pMoy = place(net.avg, max);
-        if (pMoy !== null) {
+        var pMoy = place(net.avg, d);
+        if (pMoy !== null && pMoy >= 0 && pMoy <= 100) {
             h.push('<div class="km-avg" style="left:' + pMoy + '%"></div>');
-            h.push('<div class="km-avg-l" style="left:' + Math.min(88, Math.max(12, pMoy)) + '%">'
+            h.push('<div class="km-avg-l" style="left:' + Math.min(84, Math.max(16, pMoy)) + '%">'
                  + esc(L.moy) + ' ' + esc(fmt(net.avg, net.decimals, net.unit)) + '</div>');
         }
         for (var j = 0; j < vals.length; j++) {
             if (moi.now !== null && Math.abs(vals[j] - moi.now) < 1e-9) { continue; }
-            var p = place(vals[j], max);
-            if (p !== null) { h.push('<div class="km-pt" style="left:' + p + '%"></div>'); }
+            var p = place(vals[j], d);
+            if (p === null) { continue; }
+            h.push('<div class="km-pt" style="left:' + p + '%;margin-top:-' + haut(p) + 'px"></div>');
         }
-        if (pAn !== null) { h.push('<div class="km-pt y1" style="left:' + pAn + '%"></div>'); }
+        if (pAn !== null) {
+            h.push(anDehors
+                ? '<div class="km-out" style="left:' + pAn + '%">'
+                  + (anBrut > 100 ? '›' : '‹') + '</div>'
+                : '<div class="km-pt y1" style="left:' + pAn + '%"></div>');
+        }
         if (pMoi !== null) {
-            h.push('<div class="km-pt me" style="left:' + pMoi + '%"></div>');
-            h.push('<div class="km-me-l" style="left:' + Math.min(92, Math.max(8, pMoi)) + '%">'
+            var pm = Math.max(1.5, Math.min(98.5, pMoi));
+            h.push('<div class="km-pt me" style="left:' + pm + '%;margin-top:-' + haut(pMoi) + 'px"></div>');
+            h.push('<div class="km-me-l" style="left:' + Math.min(90, Math.max(10, pm)) + '%">'
                  + esc(fmt(moi.now, net.decimals, net.unit)) + '</div>');
         }
+        // Les bornes, écrites : sans elles, une règle zoomée se lirait comme
+        // une proportion et un écart de 5 % passerait pour un doublement.
+        h.push('<div class="km-b lo">' + esc(fmt(d.lo, net.decimals, net.unit)) + '</div>');
+        h.push('<div class="km-b hi">' + esc(fmt(d.hi, net.decimals, net.unit)) + '</div>');
         sc.innerHTML = h.join('');
 
         var lg = ['<span><i style="background:#8D1D2C"></i>' + esc(L.moiJe) + '</span>'];
         if (pAn !== null) {
-            lg.push('<span><i style="background:#fff;border:1.5px dashed #b8ab99"></i>'
+            lg.push(anDehors
+                ? '<span><i style="background:#fff;border:1.5px dashed #b8ab99"></i>'
+                  + esc(L.anDer) + ' ' + esc(L.horsRegle) + '</span>'
+                : '<span><i style="background:#fff;border:1.5px dashed #b8ab99"></i>'
                   + esc(L.anDer) + '</span>');
         }
         lg.push('<span><i style="background:#cfc3b2"></i>' + esc(L.autres) + '</span>');
