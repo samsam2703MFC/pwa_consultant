@@ -190,28 +190,42 @@ class ChecklistReportService
      */
     private function fetchDays(int $shopId, array $dates): array
     {
-        $lists = $this->checklists->getChecklistsForDates($shopId, $dates);
+        // SOURCE PRIMAIRE : les tâches du jour. C'est l'endpoint sur lequel
+        // l'écran des checklists s'appuie, et le seul dont la défaillance se
+        // verrait immédiatement. Bâtir le rapport sur /checklists seul le
+        // rendait dépendant d'un appel que l'écran, lui, enveloppe dans un
+        // try/catch — d'où un rapport à « 0 tâche planifiée » là où l'écran
+        // en affichait trente-quatre.
+        $byDateTasks = $this->checklists->getShopTasksForDates($shopId, $dates);
 
+        // SOURCE SECONDAIRE : l'avancement des checklists, qui seul porte la
+        // note et la conformité. Son absence dégrade le rapport (plus de
+        // conformité) sans l'effacer.
+        $lists = $this->checklists->getChecklistsForDates($shopId, $dates);
         $pairs = [];
-        $namesByDate = [];
         foreach ($lists as $date => $payload) {
             foreach ($this->extractChecklists($payload) as $cl) {
                 $pairs[] = ['date' => $date, 'checklist_id' => $cl['id']];
-                $namesByDate[$date][$cl['id']] = $cl['name'];
             }
         }
-        if ($pairs === []) {
-            return [];
-        }
+        $progress = $pairs !== [] ? $this->checklists->getProgressForPairs($shopId, $pairs) : [];
 
-        $progress = $this->checklists->getProgressForPairs($shopId, $pairs);
+        // Avis par (date, tâche) : la jointure se fait sur task_id, comme sur
+        // l'écran du jour.
+        $reviewBy = [];
+        foreach ($progress as $key => $prog) {
+            $date = explode('|', $key)[0];
+            foreach (($prog['tasks'] ?? []) as $t) {
+                if (is_array($t) && !empty($t['task_id'])) {
+                    $reviewBy[$date][(int)$t['task_id']] = $t;
+                }
+            }
+        }
 
         $out = [];
         foreach ($dates as $date) {
             $day = $this->emptyDay($date);
-            foreach ($namesByDate[$date] ?? [] as $cid => $name) {
-                $this->foldChecklist($day, $progress["{$date}|{$cid}"] ?? [], (int)$cid, $name);
-            }
+            $this->foldTasks($day, $byDateTasks[$date] ?? [], $reviewBy[$date] ?? []);
             $out[$date] = $day;
         }
         return $out;
@@ -251,42 +265,51 @@ class ChecklistReportService
         return $out;
     }
 
-    /** Agrège l'avancement d'une checklist dans le jour en construction. */
-    private function foldChecklist(array &$day, array $progress, int $cid, string $name): void
+    /**
+     * Agrège les tâches d'une journée, enrichies de leur avis quand il existe.
+     *
+     * @param array $tasks   tâches du jour (/consultant/shops/{id}/tasks)
+     * @param array $reviews avis par task_id (/checklists/{cid}/progress)
+     */
+    private function foldTasks(array &$day, array $tasks, array $reviews): void
     {
-        $tasks = is_array($progress['tasks'] ?? null) ? $progress['tasks'] : [];
         if ($tasks === []) {
             return;
         }
         $maxMajor = $this->thresholds()['nc_major_max_rating'];
-
-        $cl = ['id' => $cid, 'name' => $name, 'planned' => 0, 'done' => 0, 'reviewed' => 0, 'conform' => 0];
+        $byChecklist = [];
 
         foreach ($tasks as $t) {
             if (!is_array($t)) {
                 continue;
             }
-            $status = (string)($t['status'] ?? 'PENDING');
-            $done   = $status === 'DONE';
+            $taskId = (int)($t['task_id'] ?? 0);
+            $rev    = $reviews[$taskId] ?? [];
+            $name   = (string)($t['checklist_name'] ?? $rev['checklist_name'] ?? '—');
 
+            $byChecklist[$name] ??= ['name' => $name, 'planned' => 0, 'done' => 0,
+                                     'reviewed' => 0, 'conform' => 0];
+            $cl = &$byChecklist[$name];
+
+            $done = (string)($t['status'] ?? 'PENDING') === 'DONE';
             $day['planned']++; $cl['planned']++;
             if ($done) { $day['done']++; $cl['done']++; }
 
             // Une tâche OBLIGATOIRE non faite est bloquante. Elle n'a pas de
-            // note, donc pas de gravité : elle est comptée à part, jamais
-            // fondue dans les non-conformités.
+            // note, donc pas de gravité : comptée à part, jamais fondue dans
+            // les non-conformités où elle disparaîtrait.
             if (!$done && !empty($t['is_mandatory'])) {
                 $day['blocking_missed']++;
             }
 
-            $accepted = $t['review_is_accepted'] ?? null;
+            $accepted = $t['review_is_accepted'] ?? $rev['review_is_accepted'] ?? null;
             if (!$done || $accepted === null) {
                 continue;   // pas d'avis : ni conforme, ni non conforme
             }
 
             $day['reviewed']++; $cl['reviewed']++;
-            $rating = isset($t['review_rating']) && is_numeric($t['review_rating'])
-                ? (int)$t['review_rating'] : null;
+            $raw    = $t['review_rating'] ?? $rev['review_rating'] ?? null;
+            $rating = is_numeric($raw) ? (int)$raw : null;
             if ($rating !== null) {
                 $day['rating_sum'] += $rating;
                 $day['rating_count']++;
@@ -299,31 +322,33 @@ class ChecklistReportService
                 // tâches repassées conformes, « NC levée » ne serait qu'une
                 // déduction par absence — et une tâche simplement retirée de
                 // la checklist passerait pour une correction.
-                if (!empty($t['task_id'])) {
-                    $day['conform_ids'][] = (int)$t['task_id'];
+                if ($taskId > 0) {
+                    $day['conform_ids'][] = $taskId;
                 }
                 continue;
             }
 
-            // Non-conformité. La gravité vient de la NOTE du consultant.
-            // Sans note, on ne peut pas décider : « mineure » par défaut, et
-            // le rapport affiche « — » plutôt qu'une note inventée.
+            // Non-conformité. La gravité vient de la NOTE du consultant. Sans
+            // note, on ne peut pas décider : « mineure » par défaut, et le
+            // rapport affiche « — » plutôt qu'une note inventée.
             $major = $rating !== null && $rating <= $maxMajor;
             $major ? $day['nc_major']++ : $day['nc_minor']++;
 
             $day['nc'][] = [
-                'task_id'   => (int)($t['task_id'] ?? 0),
+                'task_id'   => $taskId,
                 'title'     => (string)($t['task_name'] ?? $t['name'] ?? ''),
                 'checklist' => $name,
                 'severity'  => $major ? 'major' : 'minor',
                 'rating'    => $rating,
-                'comment'   => (string)($t['review_comment'] ?? ''),
-                'photo'     => !empty($t['attachment_id']) ? (int)$t['attachment_id'] : null,
+                'comment'   => (string)($t['review_comment'] ?? $rev['review_comment'] ?? ''),
+                'photo'     => !empty($t['attachment_id']) ? (int)$t['attachment_id']
+                             : (!empty($rev['attachment_id']) ? (int)$rev['attachment_id'] : null),
                 'lifted'    => false,
             ];
+            unset($cl);
         }
 
-        $day['checklists'][] = $cl;
+        $day['checklists'] = array_values($byChecklist);
     }
 
     /**

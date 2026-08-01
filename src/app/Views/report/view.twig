@@ -803,53 +803,44 @@
             </div>
             <div class="rpt-shop-body">
             {% if ts %}
-                {# Rapport de BOUTIQUE : les checklists de cette boutique, la
-                   seule lecture possible de « tâches réalisées » ici. #}
+                {# Rapport de BOUTIQUE : deux chiffres, et c'est tout. Ce qu'on
+                   veut savoir d'un coup d'œil, c'est si la boutique a fait ses
+                   tâches et combien n'étaient pas conformes. Le détail vit dans
+                   le rapport Checklist Tâches. #}
                 {% if ts.totals.planned == 0 %}
                     <div class="rpt-empty">{{ translations.no_checklist ?? 'Aucune checklist planifiée sur la période.' }}</div>
                 {% else %}
-                    <div class="rpt-kpis" style="margin-bottom:10px;">
+                    {% set nc_pct = ts.totals.reviewed > 0 ? (ts.totals.nc / ts.totals.reviewed * 100) : null %}
+                    <div class="rpt-kpis">
                         <div class="rpt-kpi">
-                            <div class="rpt-kpi-v">{{ ts.totals.pct_done is null ? '—' : ts.totals.pct_done|number_format(0, ',', ' ') ~ ' %' }}</div>
-                            <div class="rpt-kpi-l">{{ translations.kpi_done ?? 'Réalisation' }}</div>
+                            <div class="rpt-kpi-v">{{ ts.totals.done }} / {{ ts.totals.planned }}
+                                <span style="font-size:.9rem;color:{{
+                                    ts.totals.pct_done >= 90 ? '#1f9d55' : (ts.totals.pct_done >= 75 ? '#e08e0b' : '#c0392b') }};">
+                                    {{- ts.totals.pct_done is null ? '' : ' · ' ~ ts.totals.pct_done|number_format(0, ',', ' ') ~ ' %' }}</span>
+                            </div>
+                            <div class="rpt-kpi-l">{{ translations.tasks_done_lbl ?? 'Tâches faites' }}</div>
                         </div>
                         <div class="rpt-kpi">
-                            <div class="rpt-kpi-v">{{ ts.totals.pct_conf is null ? '—' : ts.totals.pct_conf|number_format(0, ',', ' ') ~ ' %' }}</div>
-                            <div class="rpt-kpi-l">{{ translations.kpi_conf ?? 'Conformité' }}</div>
-                        </div>
-                        <div class="rpt-kpi">
-                            <div class="rpt-kpi-v">{{ ts.totals.nc }}</div>
-                            <div class="rpt-kpi-l">{{ translations.kpi_nc ?? 'Non-conformités' }}</div>
+                            <div class="rpt-kpi-v" style="color:{{ ts.totals.nc > 0 ? '#c0392b' : '#1f9d55' }};">
+                                {{ ts.totals.nc }}
+                                {%- if nc_pct is not null %} <span style="font-size:.9rem;">· {{ nc_pct|number_format(0, ',', ' ') }} %</span>{% endif %}
+                            </div>
+                            <div class="rpt-kpi-l">{{ translations.tasks_nc_lbl ?? 'Tâches non conformes' }}</div>
                         </div>
                     </div>
 
-                    {# Une ligne par jour : complet, jamais tronqué, et ça tient
-                       en 31 lignes là où la liste des tâches en ferait 600. #}
-                    <div class="rpt-tbl-wrap"><table class="rpt-tbl">
-                        <thead><tr>
-                            <th style="width:88px;">{{ translations.date ?? 'Date' }}</th>
-                            <th class="num">{{ translations.done_total ?? 'Fait / Total' }}</th>
-                            <th class="num">{{ translations.pct_conf ?? '% Conforme' }}</th>
-                            <th class="num">NC</th>
-                        </tr></thead>
-                        <tbody>
-                        {% for d in ts.days %}
-                            {% if d.planned > 0 %}
-                                {% set pc = d.reviewed > 0 ? (d.conform / d.reviewed * 100) : null %}
-                                <tr>
-                                    <td style="white-space:nowrap;color:#6c757d;">{{ d.date }}</td>
-                                    <td class="num">{{ d.done }} / {{ d.planned }}</td>
-                                    <td class="num">{{ pc is null ? '—' : pc|number_format(0, ',', ' ') ~ ' %' }}</td>
-                                    <td class="num" style="color:{{ (d.nc_major + d.nc_minor) > 0 ? '#c0392b' : '#6c757d' }};">
-                                        {{ d.nc_major + d.nc_minor }}</td>
-                                </tr>
-                            {% endif %}
-                        {% endfor %}
-                        </tbody>
-                    </table></div>
-
+                    {# Le pourcentage de non-conformes se rapporte aux tâches
+                       ÉVALUÉES : sur les tâches faites, il serait flatté par
+                       tout ce que le consultant n'a pas encore relu. #}
+                    {% if ts.totals.reviewed < ts.totals.done %}
+                        <div style="font-size:.7rem;color:#8a827a;margin-top:6px;font-style:italic;">
+                            {{ translations.nc_base ?? 'Non-conformité rapportée aux' }} {{ ts.totals.reviewed }}
+                            {{ translations.reviewed_tasks ?? 'tâche(s) évaluée(s)' }} ;
+                            {{ ts.totals.done - ts.totals.reviewed }} {{ translations.not_reviewed_yet ?? 'sans avis à ce jour.' }}
+                        </div>
+                    {% endif %}
                     {% if ts.totals.blocking_missed > 0 %}
-                        <div class="rpt-empty" style="margin-top:8px;color:#8D1D2C;border-style:solid;">
+                        <div style="font-size:.72rem;color:#8D1D2C;margin-top:6px;font-weight:700;">
                             {{ ts.totals.blocking_missed }} {{ translations.blocking_missed_note ??
                                 'tâche(s) obligatoire(s) non réalisée(s) sur la période.' }}
                         </div>
