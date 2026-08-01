@@ -27,7 +27,7 @@
     .km-p { font-size:.68rem; color:#7a7168; padding-bottom:4px; margin-left:auto; }
 
     /* La règle du réseau */
-    .km-sc { margin-top:16px; position:relative; height:56px; }
+    .km-sc { margin-top:22px; position:relative; height:58px; }
     .km-line { position:absolute; left:0; right:0; top:24px; height:3px; border-radius:99px;
                background:linear-gradient(90deg,#efe7dc,#ded2c0); }
     .km-avg { position:absolute; top:14px; width:2px; height:23px; background:#1F4F6B; border-radius:2px; }
@@ -42,6 +42,15 @@
                color:var(--c-primary,#8D1D2C); transform:translateX(-50%); white-space:nowrap; }
     .km-mv { position:absolute; top:24px; height:3px; background:rgba(141,29,44,.3);
              border-radius:2px; z-index:1; }
+    /* L'an dernier hors de l'échelle : un chevron au bord, pas un point aligné
+       sur le maximum — qui se lirait « à égalité avec la meilleure ». */
+    .km-out { position:absolute; top:15px; transform:translateX(-50%); z-index:2;
+              font-size:.95rem; font-weight:800; color:#b8ab99; line-height:1; }
+    /* Les bornes de la règle : une échelle qui ne part pas de zéro doit dire
+       où elle commence. */
+    .km-b { position:absolute; top:39px; font-size:.58rem; font-weight:700; color:#a2988c;
+            white-space:nowrap; }
+    .km-b.lo { left:0; } .km-b.hi { right:0; }
 
     .km-lg { display:flex; flex-wrap:wrap; gap:11px; margin-top:8px; font-size:.64rem; color:#7a7168; }
     .km-lg span { display:inline-flex; align-items:center; gap:5px; }
