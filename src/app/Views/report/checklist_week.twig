@@ -77,7 +77,19 @@
                         <b>{{ t.lifted }}</b> {{ translations.lifted ?? 'levées' }}</div>
                 </div>
             </div>
-            {% if t.reviewed < t.done %}
+            {% if t.reviewed == 0 %}
+                {# Note moyenne, taux de conformité et conformité par checklist
+                   viennent TOUS de l'avis consultant. Quand il n'y en a aucun,
+                   il faut dire lequel des deux cas s'applique — sinon on laisse
+                   croire à une boutique irréprochable ou à un bug. #}
+                <div class="ck-note">
+                    {% if (report.diag.progress_payloads ?? 0) == 0 %}
+                        {{ translations.no_progress ?? 'Conformité indisponible : l’avancement des checklists n’a rien renvoyé sur la période. Les tâches sont comptées, mais rien ne peut être jugé conforme ou non.' }}
+                    {% else %}
+                        {{ translations.no_review_yet ?? 'Aucune tâche évaluée sur la période : la conformité et la note moyenne restent vides tant qu’aucun avis n’est posé.' }}
+                    {% endif %}
+                </div>
+            {% elseif t.reviewed < t.done %}
                 {# Une tâche faite mais jamais relue n'est ni conforme ni non
                    conforme : la compter comme conforme flatterait le taux. #}
                 <div class="ck-note">{{ translations.unreviewed_note ?? 'Le taux de conformité porte sur les tâches évaluées.' }}
