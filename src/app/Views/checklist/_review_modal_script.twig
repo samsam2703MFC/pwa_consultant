@@ -197,71 +197,25 @@
         var comment = document.getElementById('dnComment').value || null;
         btn.disabled = true;
         msg(L.saving, true);
-        fetch(ROOT + '/checklists/reviews', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            // checklist_id, task_id et review_date sont EXIGÉS par
-            // ChecklistService::submitTaskReview avant tout appel à l'API.
-            // Les variantes review_* accompagnent les champs d'évaluation :
-            // l'API expose ces noms-là en lecture.
-            body: JSON.stringify({
-                shop_id:            shopOf(openedCard),
-                checklist_id:       current.checklist_id,
-                task_id:            current.task_id,
-                review_date:        DATE,
-                completion_id:      current.completion_id,
-                rating:             rating,
-                review_rating:      rating,
-                comment:            comment,
-                review_comment:     comment,
-                is_accepted:        accepted === null ? true : accepted,
-                review_is_accepted: accepted === null ? true : accepted
-            })
+        // Le contrat d'envoi vit dans _review_submit.twig : la modale et la
+        // pile de contrôle postent exactement la même chose.
+        window.tfbReview.submit({
+            shop_id:       shopOf(openedCard),
+            checklist_id:  current.checklist_id,
+            task_id:       current.task_id,
+            date:          DATE,
+            completion_id: current.completion_id,
+            rating:        rating,
+            accepted:      accepted,
+            comment:       comment
         })
-            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-            .then(function (p) {
-                if (!p.ok || !(p.j && p.j.success)) {
-                    // Message du backend affiché tel quel, avec le corps de sa
-                    // réponse : si le format attendu diffère, on lit lequel au
-                    // lieu de le deviner.
-                    var j = p.j || {};
-                    var txt = (typeof j.error === 'string' && j.error) ? j.error : 'Erreur';
-                    // code 0 = la requête n'a pas abouti : c'est le motif de
-                    // transport qui explique, pas le statut ni le corps.
-                    txt += ' (HTTP ' + (j.code == null ? '?' : j.code) + ')';
-                    if (j.transport) { txt += ' — ' + j.transport; }
-                    // Corps de la réponse de l'API, décodé ou brut : c'est là
-                    // que se trouve le nom des champs manquants.
-                    var body = j.detail ? JSON.stringify(j.detail) : (j.raw || '');
-                    if (body) { txt += ' — ' + body; }
-                    if (j.sent) { txt += ' | envoyé : ' + j.sent.join(', '); }
-                    throw new Error(txt);
-                }
-                // On enregistre ce qui a été ENVOYÉ, pas ce qui était coché :
-                // sans choix explicite, le panel envoie « conforme ». Garder
-                // `null` ici faisait revenir la modale sans conformité cochée
-                // alors que le serveur, lui, avait bien reçu « conforme ».
-                current.rating   = rating;
-                current.comment  = comment;
-                current.accepted = (accepted === null) ? true : accepted;
-                accepted = current.accepted;
-
-                // La modale relit `data-done` à CHAQUE ouverture : sans cette
-                // réécriture, l'évaluation qu'on vient d'enregistrer était
-                // perdue dès qu'on refermait — note, étoiles et conformité
-                // revenaient vides, alors que le serveur les avait bien.
-                if (openedCard) {
-                    try { openedCard.setAttribute('data-done', JSON.stringify(current)); }
-                    catch (e) { /* attribut non réécrit : la page rechargée les relira */ }
-                }
-
+            .then(function (res) {
                 // L'avis est parti à l'API. Le nom du vérificateur, lui, vient
                 // du journal local : s'il n'a pas pu être écrit, la ligne
                 // « Vérifié par » restera anonyme — autant le dire tout de suite.
-                if (p.j.journal === false) {
+                if (!res.journal) {
                     // Avertissement à lire : la modale reste ouverte.
-                    msg(L.savedNoJournal + (p.j.journal_error ? ' — ' + p.j.journal_error : ''), false);
+                    msg(L.savedNoJournal + (res.journalError ? ' — ' + res.journalError : ''), false);
                 } else {
                     msg(L.saved, true);
                     stampReview();

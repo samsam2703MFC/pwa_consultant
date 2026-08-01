@@ -1,0 +1,363 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% import "components/_icons.twig" as icons %}
+{% set active_nav = 'checklists' %}
+
+{% block title %}{{ translations.stack_title ?? 'Contrôler' }} — Panel consultant{% endblock %}
+{% block page_title %}{{ translations.stack_title ?? 'Contrôler' }}{% endblock %}
+{% block page_subtitle %}{{ date|date('d.m.Y') }}{% endblock %}
+
+{% block head %}
+<style>
+    /* Avancement : le consultant doit savoir à tout moment ce qu'il reste, sinon
+       une file sans fin visible se lit comme une file sans fin. */
+    .rs-prog { display:flex; align-items:center; gap:9px; margin:10px 0 12px; }
+    .rs-track { flex:1; height:6px; border-radius:99px; background:#e6ded2; overflow:hidden; }
+    .rs-track i { display:block; height:100%; background:#8D1D2C; border-radius:99px;
+                  transition:width .25s ease; }
+    .rs-count { font-size:.72rem; font-weight:800; color:#8D1D2C; flex-shrink:0; }
+    .rs-left { font-size:.72rem; font-weight:800; color:#a2988c; flex-shrink:0; }
+
+    .rs-card { background:#fff; border:1px solid var(--c-line); border-radius:20px; overflow:hidden;
+               box-shadow:0 16px 34px -22px rgba(70,40,25,.35); }
+    .rs-ph { width:100%; aspect-ratio:4/3; background:#efe9e1; display:flex; align-items:center;
+             justify-content:center; position:relative; }
+    .rs-ph img { width:100%; height:100%; object-fit:cover; display:block; }
+    .rs-ph .msg { font-size:.76rem; color:#9a9086; padding:20px; text-align:center; }
+    .rs-zoom { position:absolute; right:9px; bottom:9px; min-height:34px; display:inline-flex;
+               align-items:center; padding:0 12px; border-radius:999px; border:0;
+               background:rgba(24,18,14,.62); color:#fff; font-size:.7rem; font-weight:700; }
+
+    .rs-body { padding:13px 15px 15px; }
+    .rs-eyebrow { font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+                  color:var(--c-primary); }
+    .rs-n { font-family:'Vank','Gotham',serif; font-size:19px; color:var(--c-ink);
+            margin-top:3px; line-height:1.25; }
+    .rs-m { font-size:.7rem; color:#a2988c; margin-top:5px; }
+    .rs-chips { display:flex; gap:6px; margin-top:9px; flex-wrap:wrap; }
+    .rs-chip { font-size:11px; font-weight:600; color:var(--c-muted); background:var(--c-bg-2);
+               border:1px solid var(--c-line); border-radius:999px; padding:4px 10px; }
+    /* La note laissée par la personne qui a fait la tâche : on ne juge pas
+       sans avoir lu ce qu'on nous a écrit. */
+    .rs-note { margin-top:9px; font-size:.78rem; color:#241f1c; line-height:1.45;
+               background:#faf7f2; border-radius:10px; padding:9px 11px; }
+    .rs-note.vide { color:#9a9086; font-style:italic; }
+
+    .rs-acts { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:14px; }
+    .rs-big { min-height:54px; border-radius:15px; border:0; font-size:.86rem; font-weight:800;
+              display:flex; align-items:center; justify-content:center; gap:7px; cursor:pointer; }
+    .rs-big.ok { background:#2D7A3E; color:#fff; }
+    .rs-big.no { background:#fff; color:#8D1D2C; border:1.5px solid #8D1D2C; }
+    .rs-big[disabled] { opacity:.5; }
+    .rs-skip { display:block; width:100%; text-align:center; margin-top:11px; border:0;
+               background:none; min-height:40px; font-size:.74rem; font-weight:700; color:#a2988c; }
+
+    /* Le détail — note sur 5 et commentaire — est REPLIÉ : le verdict pose déjà
+       la note, et le commentaire est facultatif. On ne montre que ce qu'il faut
+       pour le geste courant, le reste est à un doigt. */
+    .rs-more { margin-top:11px; border-top:1px solid #f2ede5; padding-top:9px; }
+    .rs-more > summary { list-style:none; cursor:pointer; min-height:36px; display:flex;
+                         align-items:center; gap:6px; font-size:.74rem; font-weight:800;
+                         color:#8D1D2C; -webkit-tap-highlight-color:transparent; }
+    .rs-more > summary::-webkit-details-marker { display:none; }
+    .rs-more > summary .car { transition:transform .15s ease; display:flex; }
+    .rs-more[open] > summary .car { transform:rotate(90deg); }
+    .rs-more > summary .cur { margin-left:auto; font-weight:900; color:#b8860b; }
+    .rs-stars { display:flex; align-items:center; gap:2px; margin-top:8px; }
+    .rs-stars .st { border:0; background:none; padding:0 3px; font-size:1.55rem; line-height:1;
+                    color:#e2dbd0; cursor:pointer; }
+    .rs-stars .st.on { color:#C9A227; }
+    .rs-clear { margin-left:8px; font-size:.68rem; color:#9a9086; cursor:pointer;
+                text-decoration:underline; }
+    .rs-cm { width:100%; margin-top:9px; border:1.5px solid #e7ded2; border-radius:10px;
+             padding:9px 11px; font-size:.8rem; font-family:inherit; resize:vertical; }
+
+    .rs-msg { margin-top:10px; font-size:.74rem; border-radius:8px; padding:8px 10px; }
+    .rs-msg[hidden] { display:none; }
+    .rs-msg.ok { background:rgba(45,122,62,.1); color:#2D7A3E; }
+    .rs-msg.ko { background:rgba(192,24,43,.1); color:#c0182b; }
+
+    .rs-end { background:#fff; border:1px solid var(--c-line); border-radius:20px; padding:34px 22px;
+              text-align:center; box-shadow:0 16px 34px -22px rgba(70,40,25,.35); }
+    .rs-end .ico { color:#2D7A3E; }
+    .rs-end h2 { font-family:'Vank','Gotham',serif; font-size:20px; color:var(--c-ink);
+                 margin:12px 0 6px; }
+    .rs-end p { font-size:.8rem; color:#8a827a; margin:0 0 16px; }
+    .rs-end a { display:inline-flex; align-items:center; min-height:46px; padding:0 20px;
+                border-radius:999px; background:#8D1D2C; color:#fff; font-size:.82rem; font-weight:800; }
+
+    /* Photo en grand : la vignette suffit rarement à juger une chambre froide. */
+    .rs-lb { position:fixed; inset:0; z-index:1090; background:rgba(24,18,14,.9);
+             display:flex; align-items:center; justify-content:center; padding:12px; }
+    .rs-lb[hidden] { display:none; }
+    .rs-lb img { max-width:100%; max-height:100%; border-radius:10px; }
+    .rs-lb .x { position:absolute; top:12px; right:12px; width:44px; height:44px; border:0;
+                border-radius:50%; background:rgba(255,255,255,.9); font-size:1.1rem; font-weight:800; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-content-loaded">
+
+    <a href="{{ ROOT }}/checklists/tasks?date={{ date }}" class="app-back-btn">
+        {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_tasks ?? 'Tâches' }}</span>
+    </a>
+
+    {% if queue is empty %}
+        <div class="rs-end">
+            <span class="ico">{{ icons.svg('check-check', 40) }}</span>
+            <h2>{{ translations.stack_none ?? 'Rien à contrôler' }}</h2>
+            <p>{{ translations.stack_none_sub ?? 'Toutes les tâches obligatoires avec photo de cette journée ont déjà un avis.' }}</p>
+            <a href="{{ ROOT }}/checklists/tasks?date={{ date }}">{{ translations.back_to_list ?? 'Revenir à la liste' }}</a>
+        </div>
+    {% else %}
+        <div class="rs-prog">
+            <span class="rs-count" id="rsPos">1 / {{ queue|length }}</span>
+            <span class="rs-track"><i id="rsBar" style="width:0%"></i></span>
+            <span class="rs-left" id="rsLeft">{{ queue|length }} {{ translations.remaining ?? 'restantes' }}</span>
+        </div>
+
+        <div class="rs-card" id="rsCard">
+            <div class="rs-ph" id="rsPhoto"></div>
+            <div class="rs-body">
+                <div class="rs-eyebrow" id="rsWhere"></div>
+                <div class="rs-n" id="rsName"></div>
+                <div class="rs-m" id="rsWho"></div>
+                <div class="rs-chips" id="rsChips"></div>
+                <div class="rs-note" id="rsNote"></div>
+
+                <div class="rs-acts">
+                    <button type="button" class="rs-big ok" id="rsOk">✓ {{ translations.modal_ok ?? 'Conforme' }}</button>
+                    <button type="button" class="rs-big no" id="rsKo">✕ {{ translations.modal_ko ?? 'Non conforme' }}</button>
+                </div>
+                <button type="button" class="rs-skip" id="rsSkip">{{ translations.stack_skip ?? 'Passer cette tâche' }}</button>
+
+                {# Note et commentaire : repliés, parce que le verdict pose déjà
+                   la note et que le commentaire est facultatif. #}
+                <details class="rs-more" id="rsMore">
+                    <summary>
+                        <span class="car">{{ icons.svg('chevron-right', 13) }}</span>
+                        <span>{{ translations.stack_detail ?? 'Note et commentaire' }}</span>
+                        <span class="cur" id="rsCur"></span>
+                    </summary>
+                    <div class="rs-stars" id="rsStars" role="radiogroup"
+                         aria-label="{{ translations.modal_rate ?? 'Votre évaluation' }}">
+                        {% for n in 1..5 %}
+                            <button type="button" class="st" data-n="{{ n }}" role="radio"
+                                    aria-checked="false" aria-label="{{ n }}/5">★</button>
+                        {% endfor %}
+                        <span class="rs-clear" id="rsClear">{{ translations.modal_clear ?? 'effacer' }}</span>
+                    </div>
+                    <textarea class="rs-cm" id="rsComment" rows="2"
+                              placeholder="{{ translations.modal_comment ?? 'Commentaire (facultatif)' }}"></textarea>
+                </details>
+
+                <div class="rs-msg" id="rsMsg" hidden></div>
+            </div>
+        </div>
+
+        <div class="rs-end" id="rsDone" hidden>
+            <span class="ico">{{ icons.svg('check-check', 40) }}</span>
+            <h2>{{ translations.stack_over ?? 'File terminée' }}</h2>
+            <p id="rsDoneSub"></p>
+            <a href="{{ ROOT }}/checklists/tasks?date={{ date }}">{{ translations.back_to_list ?? 'Revenir à la liste' }}</a>
+        </div>
+
+        <div class="rs-lb" id="rsLightbox" hidden>
+            <button type="button" class="x" id="rsLbClose" aria-label="{{ translations.close ?? 'Fermer' }}">✕</button>
+            <img id="rsLbImg" alt="">
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% include "checklist/_review_submit.twig" %}
+<script>
+/* La pile de contrôle : une tâche à la fois, deux boutons, la suivante arrive
+   seule. Toute la file est déjà dans la page — avancer ne doit rien attendre du
+   réseau. Seule la photo est demandée à l'ouverture, et celle de la tâche
+   SUIVANTE est préchargée pendant qu'on juge la courante. */
+(function () {
+    var QUEUE = {{ queue|json_encode|raw }};
+    if (!QUEUE.length) { return; }
+    var ROOT = window.__consultantRoot || '';
+    var DATE = {{ (date ?? '')|json_encode|raw }};
+    var RATE_OK = {{ rating_ok|default(4)|json_encode|raw }};
+    var RATE_KO = {{ rating_ko|default(2)|json_encode|raw }};
+    var L = {
+        loading: {{ (translations.modal_loading ?? 'Chargement de la photo…')|json_encode|raw }},
+        failed:  {{ (translations.modal_failed ?? 'Photo indisponible.')|json_encode|raw }},
+        noPhoto: {{ (translations.stack_no_photo ?? 'Cette tâche ne demande pas de photo.')|json_encode|raw }},
+        noNote:  {{ (translations.modal_no_note ?? 'Aucune note laissée.')|json_encode|raw }},
+        zoom:    {{ (translations.stack_zoom ?? 'Agrandir')|json_encode|raw }},
+        saving:  {{ (translations.modal_saving ?? 'Enregistrement…')|json_encode|raw }},
+        noJournal: {{ (translations.modal_saved_no_journal ?? "Avis enregistré, mais son auteur n'a pas pu être consigné.")|json_encode|raw }},
+        mandatory: {{ (translations.mandatory_one ?? 'Obligatoire')|json_encode|raw }},
+        photo:   {{ (translations.photo_required ?? 'Photo requise')|json_encode|raw }},
+        remaining: {{ (translations.remaining ?? 'restantes')|json_encode|raw }},
+        doneSub: {{ (translations.stack_done_sub ?? '%d tâche(s) contrôlée(s), %d passée(s).')|json_encode|raw }}
+    };
+
+    var i = 0, rating = 0, ratingManual = false, faites = 0, passees = 0;
+    var urls = {};                       // pièce jointe → URL signée, mise en cache
+    var el = function (id) { return document.getElementById(id); };
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+    function msg(texte, ok) {
+        var m = el('rsMsg');
+        if (!texte) { m.hidden = true; m.textContent = ''; return; }
+        m.hidden = false;
+        m.className = 'rs-msg ' + (ok ? 'ok' : 'ko');
+        m.textContent = texte;
+    }
+
+    function setRating(n, manuel) {
+        rating = n || 0;
+        ratingManual = !!manuel;
+        [].slice.call(el('rsStars').querySelectorAll('.st')).forEach(function (b) {
+            var v = parseInt(b.getAttribute('data-n'), 10);
+            b.classList.toggle('on', v <= rating);
+            b.setAttribute('aria-checked', v === rating ? 'true' : 'false');
+        });
+        el('rsCur').textContent = rating ? rating + '/5' : '';
+    }
+
+    /** L'URL signée d'une pièce jointe, demandée une seule fois. */
+    function photoUrl(att) {
+        if (!att) { return Promise.resolve(null); }
+        if (urls[att]) { return Promise.resolve(urls[att]); }
+        return fetch(ROOT + '/helpdesk/attachments/' + encodeURIComponent(att) + '/url',
+                     { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                var u = j && j.data && j.data.url;
+                if (u) { urls[att] = u; }
+                return u || null;
+            })
+            .catch(function () { return null; });
+    }
+
+    function montrer() {
+        if (i >= QUEUE.length) { terminer(); return; }
+        var t = QUEUE[i];
+
+        el('rsPos').textContent = (i + 1) + ' / ' + QUEUE.length;
+        el('rsBar').style.width = Math.round(i / QUEUE.length * 100) + '%';
+        el('rsLeft').textContent = (QUEUE.length - i) + ' ' + L.remaining;
+
+        el('rsWhere').textContent = t.shop + ' · ' + (t.checklist || '—');
+        el('rsName').textContent = t.name;
+        el('rsWho').textContent = (t.by || '') + (t.at ? ' · ' + String(t.at).slice(11, 16) : '');
+
+        var chips = '';
+        if (t.mandatory) { chips += '<span class="rs-chip">' + esc(L.mandatory) + '</span>'; }
+        if (t.photo)     { chips += '<span class="rs-chip">' + esc(L.photo) + '</span>'; }
+        el('rsChips').innerHTML = chips;
+
+        // On ne juge pas sans avoir lu ce que la personne a écrit.
+        var note = el('rsNote');
+        note.textContent = t.note || L.noNote;
+        note.classList.toggle('vide', !t.note);
+
+        setRating(0, false);
+        el('rsComment').value = '';
+        el('rsMore').open = false;
+        msg(null);
+        el('rsOk').disabled = false;
+        el('rsKo').disabled = false;
+
+        var ph = el('rsPhoto');
+        if (!t.att) {
+            ph.innerHTML = '<div class="msg">' + esc(L.noPhoto) + '</div>';
+        } else {
+            ph.innerHTML = '<div class="msg">' + esc(L.loading) + '</div>';
+            var jeton = i;
+            photoUrl(t.att).then(function (u) {
+                if (jeton !== i) { return; }          // on a déjà avancé
+                ph.innerHTML = u
+                    ? '<img src="' + esc(u) + '" alt="' + esc(t.name) + '">'
+                      + '<button type="button" class="rs-zoom" id="rsZoom">' + esc(L.zoom) + '</button>'
+                    : '<div class="msg">' + esc(L.failed) + '</div>';
+            });
+        }
+        // La photo suivante pendant qu'on juge celle-ci : le geste courant est
+        // « juger, suivant, juger » — une attente réseau à chaque suivant le
+        // casserait.
+        if (QUEUE[i + 1] && QUEUE[i + 1].att) { photoUrl(QUEUE[i + 1].att); }
+    }
+
+    function terminer() {
+        el('rsCard').hidden = true;
+        el('rsPos').textContent = QUEUE.length + ' / ' + QUEUE.length;
+        el('rsBar').style.width = '100%';
+        el('rsLeft').textContent = '';
+        el('rsDoneSub').textContent = L.doneSub.replace('%d', faites).replace('%d', passees);
+        el('rsDone').hidden = false;
+    }
+
+    function enregistrer(conforme) {
+        var t = QUEUE[i];
+        el('rsOk').disabled = true;
+        el('rsKo').disabled = true;
+        msg(L.saving, true);
+        window.tfbReview.submit({
+            shop_id:       t.shop_id,
+            checklist_id:  t.checklist_id,
+            task_id:       t.task_id,
+            date:          DATE,
+            completion_id: t.completion_id,
+            // Le verdict pose la note ; les étoiles la corrigent.
+            rating:        rating || (conforme ? RATE_OK : RATE_KO),
+            accepted:      conforme,
+            comment:       el('rsComment').value || null
+        })
+            .then(function (res) {
+                faites++;
+                if (!res.journal) {
+                    // Avertissement à lire : on ne file pas à la suivante.
+                    msg(L.noJournal + (res.journalError ? ' — ' + res.journalError : ''), false);
+                    el('rsOk').disabled = false;
+                    el('rsKo').disabled = false;
+                    return;
+                }
+                i++;
+                montrer();
+            })
+            .catch(function (e) {
+                msg(String(e.message || e), false);
+                el('rsOk').disabled = false;
+                el('rsKo').disabled = false;
+            });
+    }
+
+    el('rsOk').addEventListener('click', function () { enregistrer(true); });
+    el('rsKo').addEventListener('click', function () { enregistrer(false); });
+    el('rsSkip').addEventListener('click', function () { passees++; i++; montrer(); });
+    el('rsClear').addEventListener('click', function () { setRating(0, false); });
+    el('rsStars').addEventListener('click', function (e) {
+        var b = e.target.closest('.st');
+        if (b) { setRating(parseInt(b.getAttribute('data-n'), 10), true); }
+    });
+
+    // Photo en grand.
+    el('rsPhoto').addEventListener('click', function (e) {
+        if (!e.target.closest('#rsZoom')) { return; }
+        var img = el('rsPhoto').querySelector('img');
+        if (!img) { return; }
+        el('rsLbImg').src = img.src;
+        el('rsLightbox').hidden = false;
+    });
+    var fermerLb = function () { el('rsLightbox').hidden = true; };
+    el('rsLbClose').addEventListener('click', fermerLb);
+    el('rsLightbox').addEventListener('click', function (e) {
+        if (e.target === el('rsLightbox')) { fermerLb(); }
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !el('rsLightbox').hidden) { fermerLb(); }
+    });
+
+    montrer();
+})();
+</script>
+{% endblock %}

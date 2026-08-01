@@ -46,6 +46,18 @@
               background:rgba(0,0,0,.12); }
     .nq-count { font-size:.66rem; color:#8a827a; margin:6px 2px 2px; }
 
+    /* Entrée de la pile de contrôle — même facture que les tuiles de l'écran
+       Tâches : c'est le même geste, vu d'un autre écran. */
+    .nq-start { display:flex; align-items:center; gap:11px; min-height:56px; margin:0 0 4px;
+                padding:12px 15px; border-radius:18px; background:#8D1D2C; color:#fff;
+                box-shadow:0 12px 26px -18px rgba(141,29,44,.7); }
+    .nq-start .ico { flex-shrink:0; display:flex; }
+    .nq-start .txt { flex:1; min-width:0; }
+    .nq-start .eyebrow { display:block; font-size:10.5px; font-weight:600; letter-spacing:.12em;
+                         text-transform:uppercase; opacity:.75; margin-bottom:2px; }
+    .nq-start .big { display:block; font-family:'Vank','Gotham',serif; font-size:17px; }
+    .nq-start .car { flex-shrink:0; font-size:1.2rem; opacity:.7; }
+
     /* Bandeau boutique : collant sous les outils, il dit toujours où l'on est,
        et se déplie. 44 px de haut — il se tape au pouce. */
     .nq-shop { position:sticky; top:96px; z-index:5; display:flex; align-items:center; gap:8px;
@@ -138,8 +150,23 @@
 <div class="page-content-loaded">
 
     <a href="{{ ROOT }}/checklists" class="app-back-btn">
-        {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_checklists ?? 'Checklists' }}</span>
+        {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_tasks ?? 'Tâches' }}</span>
     </a>
+
+    {# La liste sert à CHOISIR. Quand la décision est prise — « je fais ma
+       tournée » — choisir devient du travail perdu : ce bouton lance la file,
+       une tâche à la fois. Il disparaît quand il n'y a rien à contrôler, au
+       lieu de mener à un écran vide. #}
+    {% if (totals.to_review ?? 0) > 0 %}
+        <a href="{{ ROOT }}/checklists/review?date={{ date }}" class="nq-start">
+            <span class="ico">{{ icons.svg('square-check', 20) }}</span>
+            <span class="txt">
+                <span class="eyebrow">{{ translations.start_eyebrow ?? 'Une tâche à la fois' }}</span>
+                <span class="big">{{ translations.start_cta ?? 'Contrôler' }} ({{ totals.to_review }})</span>
+            </span>
+            <span class="car">›</span>
+        </a>
+    {% endif %}
 
     <div class="nq-tools">
         <input type="search" class="nq-search" id="nqSearch" autocomplete="off"
@@ -401,5 +428,6 @@
     appliquer();
 })();
 </script>
+{% include "checklist/_review_submit.twig" %}
 {% include "checklist/_review_modal_script.twig" %}
 {% endblock %}

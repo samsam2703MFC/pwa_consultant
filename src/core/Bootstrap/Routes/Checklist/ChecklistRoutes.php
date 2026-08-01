@@ -18,6 +18,13 @@ return function (RouteCollector $r) {
         'method'     => 'networkTasks',
     ]);
 
+    // La pile de contrôle : la même file que /checklists/tasks, une tâche à la
+    // fois.
+    $r->addRoute('GET', '/checklists/review', [
+        'controller' => ChecklistController::class,
+        'method'     => 'reviewStack',
+    ]);
+
     $r->addRoute('GET', '/checklists/shops/{shopId:\d+}/tasks', [
         'controller' => ChecklistController::class,
         'method'     => 'shopTasks',
