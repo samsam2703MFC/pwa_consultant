@@ -808,7 +808,21 @@
                    tâches et combien n'étaient pas conformes. Le détail vit dans
                    le rapport Checklist Tâches. #}
                 {% if ts.totals.planned == 0 %}
-                    <div class="rpt-empty">{{ translations.no_checklist ?? 'Aucune checklist planifiée sur la période.' }}</div>
+                    {# Zéro tâche planifiée est une AFFIRMATION. Elle n'est vraie
+                       que si l'API a bien été interrogée et n'a rien rendu :
+                       sinon c'est une panne, et le rapport doit le dire plutôt
+                       que d'accuser la boutique. #}
+                    <div class="rpt-empty">
+                        {{ translations.no_checklist ?? 'Aucune checklist planifiée sur la période.' }}
+                        {% if ts.diag is defined %}
+                            <div style="margin-top:6px;font-size:.7rem;color:#8a827a;">
+                                {{ ts.diag.days_asked }} {{ translations.days_asked ?? 'jour(s) demandé(s)' }} ·
+                                {{ ts.diag.days_fetched }} {{ translations.days_fetched ?? 'relu(s) à l’API' }}
+                                {%- if ts.diag.days_fetched == 0 %} —
+                                    {{ translations.all_from_cache ?? 'tous lus en cache local' }}{% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
                 {% else %}
                     {% set nc_pct = ts.totals.reviewed > 0 ? (ts.totals.nc / ts.totals.reviewed * 100) : null %}
                     <div class="rpt-kpis">

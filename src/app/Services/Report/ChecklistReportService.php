@@ -28,6 +28,13 @@ class ChecklistReportService
     /** Jours ouvrés du commerce : lundi → samedi. Le dimanche est fermé. */
     private const RETAIL_DAYS = 6;
 
+    /**
+     * Combien de jours ont été relus à l'API lors de la dernière génération.
+     * Publié avec le rapport : un rapport à zéro doit pouvoir dire s'il n'a
+     * rien trouvé ou s'il n'a rien demandé.
+     */
+    private int $fetched = 0;
+
     public function __construct(
         private ChecklistService $checklists,
         private ChecklistSnapshotRepository $snapshots,
@@ -147,7 +154,14 @@ class ChecklistReportService
             return [$rank($a), $a['rating'] ?? 9, $b['date']] <=> [$rank($b), $b['rating'] ?? 9, $a['date']];
         });
 
-        return ['days' => array_values($days), 'totals' => $this->totals($days), 'nc' => $nc];
+        return [
+            'days'   => array_values($days),
+            'totals' => $this->totals($days),
+            'nc'     => $nc,
+            // Un rapport vide n'est pas une réponse : il faut pouvoir dire si
+            // l'API a été interrogée et ce qu'elle a rendu.
+            'diag'   => ['days_asked' => count($dates), 'days_fetched' => $this->fetched],
+        ];
     }
 
     /**
@@ -166,9 +180,23 @@ class ChecklistReportService
         if ($missing !== []) {
             foreach ($this->fetchDays($shopId, $missing) as $date => $day) {
                 $known[$date] = $day;
-                // Un jour est CLOS dès le lendemain : plus aucune tâche ne s'y
-                // ajoute. Le jour courant reste ouvert et sera relu.
-                $this->snapshots->put($shopId, $day, $date < date('Y-m-d'));
+                $this->fetched++;
+
+                // Un jour est figé à DEUX conditions : il est clos (plus aucune
+                // tâche ne s'y ajoutera), ET il porte quelque chose.
+                //
+                // Figer un jour VIDE serait le piège classique : « zéro tâche
+                // planifiée » et « l'API n'a pas répondu » se ressemblent, et
+                // graver le second rendrait la panne définitive — le rapport
+                // afficherait 0/0 pour toujours sans plus jamais réinterroger.
+                // C'est exactement ce qui s'est produit ici. Un jour vide est
+                // donc relu à chaque génération ; comme tous les jours manquants
+                // partent dans le même appel groupé, cela ne coûte rien de plus.
+                $this->snapshots->put(
+                    $shopId,
+                    $day,
+                    $date < date('Y-m-d') && (int)$day['planned'] > 0
+                );
             }
         }
 
