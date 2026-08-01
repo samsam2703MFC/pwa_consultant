@@ -174,7 +174,9 @@ class NetworkTaskListService
             $groups[$key]['total']++;
             if ($t['is_done']) {
                 $groups[$key]['done']++;
-                if ($t['review_state'] === 'todo') { $groups[$key]['to_review']++; }
+                // « À évaluer » compte le périmètre par défaut : c'est ce que
+                // le consultant verra en arrivant, filtres pré-activés.
+                if ($t['review_state'] === 'todo' && $t['evaluable']) { $groups[$key]['to_review']++; }
                 if ($t['review_state'] === 'ko')   { $groups[$key]['nc']++; }
             } elseif ($t['is_mandatory']) {
                 $groups[$key]['mandatory_pending']++;
@@ -209,22 +211,20 @@ class NetworkTaskListService
         $obligatoire = !empty($t['is_mandatory']);
 
         // Ce que le consultant évalue : une tâche qui exige une PHOTO — sans
-        // preuve, il n'y a rien à juger — et qui est OBLIGATOIRE. Une tâche
-        // faite hors de ce périmètre s'affiche « Faite » : elle n'a rien à
-        // réclamer et ne doit pas gonfler la file d'attente.
+        // preuve, il n'y a rien à juger — et qui est OBLIGATOIRE. Ce périmètre
+        // n'est PAS appliqué ici : il devient l'état initial de deux filtres
+        // que l'écran affiche et que le consultant peut relâcher. Une
+        // restriction qu'on subit sans la voir se lit comme une donnée
+        // manquante ; un filtre pré-activé se lit comme un choix.
         $evaluable = (!$this->needsPhoto || $photo) && (!$this->needsMandatory || $obligatoire);
 
         // Un avis existe dès qu'une note OU un verdict est posé. Sans note, la
-        // gravité serait indéterminée — mais l'avis, lui, a bien eu lieu. Un
-        // avis déjà posé s'affiche TOUJOURS, même hors périmètre : le cacher
-        // ferait disparaître un jugement réellement rendu.
+        // gravité serait indéterminée — mais l'avis, lui, a bien eu lieu.
         $state = 'na';
         if ($done) {
-            if ($rating !== null || $accepted !== null) {
-                $state = ((int)$accepted === 0 && $accepted !== null) ? 'ko' : 'ok';
-            } else {
-                $state = $evaluable ? 'todo' : 'done';
-            }
+            $state = ($rating !== null || $accepted !== null)
+                ? (((int)$accepted === 0 && $accepted !== null) ? 'ko' : 'ok')
+                : 'todo';
         }
 
         return [

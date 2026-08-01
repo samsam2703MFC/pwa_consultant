@@ -143,6 +143,10 @@ class ChecklistController extends Controller
             'id_shop'    => 0,
             'rating_ok'  => $this->params->getInt('checklist_review_rating_ok', 4),
             'rating_ko'  => $this->params->getInt('checklist_review_rating_ko', 2),
+            // Périmètre pré-activé des deux bascules de l'écran : ce que le
+            // consultant vérifie par défaut — obligatoire et avec photo.
+            'scope_mandatory' => $this->params->getInt('checklist_review_needs_mandatory', 1) === 1,
+            'scope_photo'     => $this->params->getInt('checklist_review_needs_photo', 1) === 1,
             'active_nav' => 'checklists',
         ]);
     }
