@@ -84,6 +84,16 @@ const ANONYMAT = {
   photos:
     '[class*="photo"] img, [class*="attach"] img, .rpt-thumb, .nt-reply-thumb,' +
     ' .claim-photo, .photo-box img, .photo-preview img',
+  // Les tiers : un fournisseur nomme, c'est une relation commerciale du
+  // reseau qui devient publique.
+  tiers: '.claim-supplier-bar, .claim-status-eyebrow',
+  // Le texte libre saisi en magasin. Personne ne relit ce qu'un employe
+  // ecrit dans une reclamation ou une note : ca peut nommer quelqu'un,
+  // decrire un incident, citer un client. Floute — la capture montre que la
+  // fonction existe, sans donner a lire.
+  libres: '.claim-description, .nt-note-texte, .nt-reply-texte, .nt-ctx-title',
+  // Les references internes : ORD-4-9E53…, CMP-4-553D…
+  references: true,
   courriels: true,
   telephones: true,
 };
@@ -412,6 +422,11 @@ async function anonymiser(page, regles) {
       for (const enseigne of r.enseignes || []) {
         sortie = sortie.replace(new RegExp(`\\b${enseigne}\\b`, 'gi'), 'Enseigne');
       }
+      if (r.references) {
+        // Un identifiant technique ne dit rien de sensible en soi, mais il
+        // relie la capture a une commande reelle.
+        sortie = sortie.replace(/\b[A-Z]{3}-\d+-[0-9A-F]{8,}\b/g, (m) => `${m.split('-')[0]}-0-XXXXXXXX`);
+      }
       if (r.courriels) {
         sortie = sortie.replace(/[\w.+-]+@[\w-]+\.[\w.]{2,}/g, 'contact@exemple.eu');
       }
@@ -445,6 +460,14 @@ async function anonymiser(page, regles) {
       else el.textContent = '··';
     }
 
+    // Les tiers nommes : fournisseurs, prestataires.
+    for (const el of document.querySelectorAll(r.tiers || '')) {
+      const brut = (el.textContent || '').trim();
+      if (!brut || el.dataset.anonyme) continue;
+      el.dataset.anonyme = '1';
+      el.textContent = pseudo(brut, 'Fournisseur', window.__gens);
+    }
+
     // ── Le texte, y compris celui d'un graphique en SVG ────────────────────
     const marcheur = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const aTraiter = [];
@@ -466,6 +489,14 @@ async function anonymiser(page, regles) {
     //    la capture continue de montrer que la fonction existe. ─────────────
     for (const el of document.querySelectorAll(r.photos || '')) {
       el.style.filter = 'blur(14px)';
+    }
+
+    // Le texte libre saisi en magasin, floute plutot que remplace : on ne
+    // peut pas deviner ce qu'il contient, et le remplacer par une phrase
+    // inventee ferait passer une invention pour une capture.
+    for (const el of document.querySelectorAll(r.libres || '')) {
+      el.style.filter = 'blur(5px)';
+      el.style.userSelect = 'none';
     }
 
     // Le logo du client : une image ne se remplace pas par du texte, on la
