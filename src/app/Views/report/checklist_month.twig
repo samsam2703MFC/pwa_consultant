@@ -11,8 +11,16 @@
 {% block head %}{% include "report/_checklist_style.twig" %}{% endblock %}
 
 {% block content %}
+{# Macros importées DANS le bloc : rendu isolément — ce que fait le
+   partage par lien — un import de tête n’est pas mis en place. #}
+{% import "components/_icons.twig" as icons %}
+{% import "report/_checklist_macros.twig" as m %}
 <div class="page-content-loaded">
 
+    {# Rapport PARTAGÉ : aucun lien vers l'application n'est ÉMIS. Les masquer
+       par CSS suffirait tant que la feuille de style arrive — ce qu'on ne peut
+       pas garantir sur le téléphone d'un tiers. #}
+    {% if not (shared ?? false) %}
     <a href="{{ ROOT }}/reports" class="app-back-btn ck-noprint">
         {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_reports ?? 'Rapports' }}</span>
     </a>
@@ -28,6 +36,7 @@
             <span class="me-1">{{ icons.svg('download', 15) }}</span>{{ translations.print_pdf ?? 'PDF' }}
         </button>
     </div>
+    {% endif %}
 
 {% if report.totals is not defined %}
     <div class="ck-empty">{{ translations.no_data ?? 'Rapport indisponible.' }}</div>
@@ -108,7 +117,7 @@
                         {{ translations.all_frozen ?? 'Conformité indisponible : tous les jours de la période ont été
                         lus dans le cache local, aucun n’a été redemandé à l’API. Ils ont pu être figés à un moment où
                         la conformité n’était pas disponible.' }}
-                        <a href="?{{ 'scope=' ~ shop_id ~ '&month=' ~ ym }}&fresh=1" class="ck-noprint">{{ translations.recalc ?? 'Recalculer en interrogeant l’API' }} ↻</a>
+                        {% if not (shared ?? false) %}<a href="?{{ 'scope=' ~ shop_id ~ '&month=' ~ ym }}&fresh=1" class="ck-noprint">{{ translations.recalc ?? 'Recalculer en interrogeant l’API' }} ↻</a>{% endif %}
                     {% elseif (dg.checklists_found ?? 0) == 0 %}
                         {{ translations.no_checklists_at_all ?? 'Conformité indisponible : sur cette période,
                         /consultant/shops/{id}/checklists n’a renvoyé aucune checklist — alors que les tâches, elles,

@@ -10,7 +10,11 @@
 {% for c in feed %}
     {% set sev = c.lifted ? 'lift' : (c.severity == 'major' ? 'maj' : 'min') %}
     <div class="ck-fd f-{{ sev }}">
-        {% if c.photo %}
+        {# Sur un rapport PARTAGÉ, la photo ne peut pas s'ouvrir : son URL est
+           signée et se demande à l'API, que le porteur du lien n'a pas le droit
+           d'appeler. Un bouton qui répond toujours « indisponible » est pire
+           qu'une absence de bouton. #}
+        {% if c.photo and not (shared ?? false) %}
             <button type="button" class="ck-fd-img ck-photo" data-att="{{ c.photo }}"
                     title="{{ translations.see_photo ?? 'Voir la photo' }}"
                     aria-label="{{ translations.see_photo ?? 'Voir la photo' }}">

@@ -15,6 +15,10 @@
 {% block head %}{% include "report/_checklist_style.twig" %}{% endblock %}
 
 {% block content %}
+{# Macros importées DANS le bloc : rendu isolément — ce que fait le
+   partage par lien — un import de tête n’est pas mis en place. #}
+{% import "components/_icons.twig" as icons %}
+{% import "report/_checklist_macros.twig" as m %}
 <div class="page-content-loaded">
 
     <a href="{{ ROOT }}/reports" class="app-back-btn ck-noprint">

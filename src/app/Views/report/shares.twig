@@ -1,0 +1,55 @@
+{% extends "layouts/mobile_base.twig" %}
+{% import "components/_icons.twig" as icons %}
+{% set active_nav = 'reports' %}
+
+{% block title %}{{ translations.shares_title ?? 'Liens partagés' }} — Consultant Panel{% endblock %}
+{% block page_title %}{{ translations.shares_title ?? 'Liens partagés' }}{% endblock %}
+
+{% block head %}
+<style>
+    .sh-row { background:#fff; border:1px solid var(--c-line); border-radius:14px;
+              padding:11px 13px; margin-bottom:9px;
+              box-shadow:0 10px 24px -20px rgba(70,40,25,.3); }
+    .sh-t { font-size:.86rem; font-weight:800; color:#241f1c; }
+    .sh-m { font-size:.68rem; color:#8a827a; margin-top:3px; }
+    .sh-m b { color:#241f1c; }
+    .sh-st { display:inline-block; font-size:.62rem; font-weight:800; padding:2px 8px;
+             border-radius:999px; margin-left:6px; }
+    .sh-live { background:rgba(45,122,62,.12); color:#2D7A3E; }
+    .sh-dead { background:rgba(0,0,0,.06); color:#8a827a; }
+    .sh-u { display:block; font-size:.66rem; color:#8D1D2C; margin-top:6px; word-break:break-all; }
+    .sh-empty { background:#fff; border-radius:14px; padding:26px 18px; text-align:center;
+                color:#a2988c; font-size:.82rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-content-loaded">
+    <a href="{{ ROOT }}/reports" class="app-back-btn">
+        {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back ?? 'Rapports' }}</span>
+    </a>
+
+    {# Qui a partagé quoi, jusqu'à quand, et combien de fois ça a été ouvert.
+       Le jour où l'on se demande qui a vu un P&L, la réponse est ici. #}
+    {% for s in shares %}
+        {% set mort = s.revoked_at or s.expires_at < 'now'|date('Y-m-d H:i:s') %}
+        <div class="sh-row">
+            <div class="sh-t">{{ s.label }}
+                <span class="sh-st {{ mort ? 'sh-dead' : 'sh-live' }}">
+                    {{ mort ? (translations.share_dead ?? 'inactif') : (translations.share_live ?? 'actif') }}
+                </span>
+            </div>
+            <div class="sh-m">
+                {{ translations.created ?? 'Créé le' }} <b>{{ s.created_at|date('d.m.Y') }}</b> ·
+                {{ translations.until ?? 'jusqu’au' }} <b>{{ s.expires_at|date('d.m.Y') }}</b> ·
+                <b>{{ s.opens }}</b> {{ translations.opens ?? 'ouverture(s)' }}
+                {%- if s.last_opened_at %} · {{ translations.last ?? 'dernière' }}
+                    {{ s.last_opened_at|date('d.m.Y H:i') }}{% endif %}
+            </div>
+            {% if not mort %}<span class="sh-u">{{ base }}{{ s.token }}</span>{% endif %}
+        </div>
+    {% else %}
+        <div class="sh-empty">{{ translations.shares_none ?? 'Aucun lien partagé pour le moment.' }}</div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -12,8 +12,17 @@ use function FastRoute\simpleDispatcher;
 
 class App {
 
+    /**
+     * Les seuls contrôleurs joignables SANS session.
+     *
+     * SharedReportController ne sait faire qu'une chose : relire un HTML déjà
+     * figé, désigné par un jeton de 32 octets d'aléa, expirable et révocable.
+     * Il n'appelle pas l'API et n'ouvre aucun autre rapport. Ajouter quoi que
+     * ce soit ici demande la même démonstration.
+     */
     private array $publicControllers = [
         AuthController::class,
+        \App\Consultant\app\Http\Controllers\Report\SharedReportController::class,
     ];
 
     public function __construct(

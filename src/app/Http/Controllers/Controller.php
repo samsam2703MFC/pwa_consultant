@@ -47,8 +47,29 @@ class Controller
 
     public function view(string $name, array $data = []): void
     {
-        $baseViewPath = __DIR__ . '/../../../app/Views/';
+        echo $this->viewToString($name, $data);
+    }
 
+    /**
+     * Le même rendu que view(), rendu en CHAÎNE.
+     *
+     * Le partage d'un rapport a besoin du HTML pour le figer ; le faire par un
+     * second chemin de rendu garantirait qu'un jour les deux divergent.
+     */
+    public function viewToString(string $name, array $data = []): string
+    {
+        $baseViewPath = __DIR__ . '/../../../app/Views/';
+        $data = $this->viewData($name, $data);
+        $twigTemplate = $name . '.twig';
+
+        return file_exists($baseViewPath . $twigTemplate)
+            ? $this->twig($baseViewPath)->render($twigTemplate, $data)
+            : $this->twig($baseViewPath)->render('errors/404.twig', $data);
+    }
+
+    /** Les variables que TOUTE vue reçoit : traductions, messages, contexte. */
+    private function viewData(string $name, array $data): array
+    {
         $splittedPathElems = explode('/', $name);
         $moduleName = $splittedPathElems[0] ?? 'login';
 
@@ -75,22 +96,33 @@ class Controller
         $data['permissions'] = (array)($user['permissions'] ?? []);
         $data['current_user'] = $user;
 
-        $twigTemplate = $name . '.twig';
+        return $data;
+    }
 
-        if (file_exists($baseViewPath . $twigTemplate)) {
-            $this->render($baseViewPath, $twigTemplate, $data);
-        } else {
-            $this->render($baseViewPath, 'errors/404.twig', $data);
+    /**
+     * Des BLOCS d'une vue, rendus séparément — `head`, `content`, `scripts`.
+     *
+     * Le partage d'un rapport a besoin du corps, pas de la page qui l'entoure.
+     * Twig sait isoler un bloc d'un gabarit qui hérite ; le faire autrement
+     * reviendrait à découper du HTML à l'expression régulière.
+     *
+     * @param string[] $blocks
+     * @return array<string, string> map nom de bloc => HTML ('' si absent)
+     */
+    public function viewBlocks(string $name, array $blocks, array $data = []): array
+    {
+        $baseViewPath = __DIR__ . '/../../../app/Views/';
+        $data = $this->viewData($name, $data);
+        $tpl  = $this->twig($baseViewPath)->load($name . '.twig');
+        $out  = [];
+        foreach ($blocks as $b) {
+            $out[$b] = $tpl->hasBlock($b, $data) ? $tpl->renderBlock($b, $data) : '';
         }
+        return $out;
     }
 
     /** Moteur Twig partagé pour toute la requête (évite de le reconstruire à chaque view()). */
     private static ?Environment $twig = null;
-
-    private function render(string $baseViewPath, string $twigTemplate, array $data): void
-    {
-        echo $this->twig($baseViewPath)->render($twigTemplate, $data);
-    }
 
     /**
      * Moteur Twig avec CACHE DES TEMPLATES COMPILÉS.
