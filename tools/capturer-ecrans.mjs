@@ -85,8 +85,12 @@ const ANONYMAT = {
     '[class*="photo"] img, [class*="attach"] img, .rpt-thumb, .nt-reply-thumb,' +
     ' .claim-photo, .photo-box img, .photo-preview img',
   // Les tiers : un fournisseur nomme, c'est une relation commerciale du
-  // reseau qui devient publique.
-  tiers: '.claim-supplier-bar, .claim-status-eyebrow',
+  // reseau qui devient publique. Leurs noms ne portent pas de classe propre,
+  // mais les boutons de filtre les exposent en attribut — on les recolte la,
+  // puis on remplace la chaine partout. Plus sur que de deviner un selecteur :
+  // un `.claim-status-eyebrow` bien intentionne avait remplace l'etiquette
+  // « TOUTES LES BOUTIQUES » par « Fournisseur 2 ».
+  tiersAttribut: '[data-supplier]',
   // Le texte libre saisi en magasin. Personne ne relit ce qu'un employe
   // ecrit dans une reclamation ou une note : ca peut nommer quelqu'un,
   // decrire un incident, citer un client. Floute — la capture montre que la
@@ -405,8 +409,22 @@ async function anonymiser(page, regles) {
       return table.get(cle);
     };
 
+    // Les noms de tiers presents dans la page, releves une fois.
+    const tiers = [];
+    for (const el of document.querySelectorAll(r.tiersAttribut || '')) {
+      const v = (el.getAttribute('data-supplier') || '').trim();
+      if (v && !tiers.includes(v)) tiers.push(v);
+    }
+    const echapper = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
     const remplacer = (texte) => {
       let sortie = texte;
+      for (const nom of tiers) {
+        sortie = sortie.replace(
+          new RegExp(echapper(nom), 'gi'),
+          () => pseudo(nom, 'Fournisseur', window.__gens),
+        );
+      }
       for (const regle of r.noms || []) {
         // L'espace qui suivait le nom est rendu : sans lui, « Boutique 1 — 395 € »
         // devient « Boutique 1— 395 € ».
@@ -460,14 +478,6 @@ async function anonymiser(page, regles) {
       else el.textContent = '··';
     }
 
-    // Les tiers nommes : fournisseurs, prestataires.
-    for (const el of document.querySelectorAll(r.tiers || '')) {
-      const brut = (el.textContent || '').trim();
-      if (!brut || el.dataset.anonyme) continue;
-      el.dataset.anonyme = '1';
-      el.textContent = pseudo(brut, 'Fournisseur', window.__gens);
-    }
-
     // ── Le texte, y compris celui d'un graphique en SVG ────────────────────
     const marcheur = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const aTraiter = [];
@@ -482,6 +492,11 @@ async function anonymiser(page, regles) {
         const v = el.getAttribute(attr);
         if (v) el.setAttribute(attr, remplacer(v));
       }
+    }
+
+    for (const el of document.querySelectorAll(r.tiersAttribut || '')) {
+      const v = (el.getAttribute('data-supplier') || '').trim();
+      if (v) el.setAttribute('data-supplier', pseudo(v, 'Fournisseur', window.__gens));
     }
 
     // ── Les pieces jointes : une photo de comptoir montre l'enseigne, les
