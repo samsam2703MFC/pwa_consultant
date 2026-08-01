@@ -88,8 +88,14 @@ class ChecklistSnapshotRepository
         }
         try {
             $st = $pdo->prepare(
+                // `planned > 0` : un jour figé à ZÉRO est écarté et sera relu.
+                // Une version antérieure gravait les jours vides — y compris
+                // ceux vidés par une panne d'endpoint — et le rapport restait
+                // bloqué à 0/0 sans jamais réinterroger. Ce filtre répare ces
+                // lignes-là sans migration : elles redeviennent « manquantes ».
                 'SELECT * FROM mac_checklist_day_snapshot
-                  WHERE id_shop = :s AND snap_date BETWEEN :a AND :b AND is_final = 1
+                  WHERE id_shop = :s AND snap_date BETWEEN :a AND :b
+                    AND is_final = 1 AND planned > 0
                   ORDER BY snap_date'
             );
             $st->execute([':s' => $shopId, ':a' => $from, ':b' => $to]);
