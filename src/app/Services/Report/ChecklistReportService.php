@@ -111,6 +111,46 @@ class ChecklistReportService
     }
 
     /**
+     * Avancement des checklists d'une boutique sur une plage QUELCONQUE.
+     *
+     * Ni semaine ni mois : la plage du rapport de gestion, qui a ses propres
+     * bornes. Même moteur, mêmes snapshots, donc aucun aller-retour
+     * supplémentaire quand les jours sont déjà figés.
+     *
+     * @return array{days: array, totals: array, nc: array}
+     */
+    public function range(int $shopId, string $from, string $to): array
+    {
+        $dates = [];
+        for ($d = new DateTimeImmutable($from); $d->format('Y-m-d') <= $to; $d = $d->modify('+1 day')) {
+            if ((int)$d->format('N') !== 7) {   // dimanche : boutique fermée
+                $dates[] = $d->format('Y-m-d');
+            }
+        }
+        if ($dates === []) {
+            return ['days' => [], 'totals' => $this->totals([]), 'nc' => []];
+        }
+
+        $days = $this->days($shopId, $dates);
+        $this->markLifted($days);
+
+        // Les non-conformités à plat, les plus graves d'abord : c'est ce qui
+        // demande une action, pas la liste des tâches réussies.
+        $nc = [];
+        foreach ($days as $date => $day) {
+            foreach ($day['nc'] ?? [] as $one) {
+                $nc[] = $one + ['date' => $date];
+            }
+        }
+        usort($nc, function ($a, $b) {
+            $rank = fn($x) => !empty($x['lifted']) ? 2 : ($x['severity'] === 'major' ? 0 : 1);
+            return [$rank($a), $a['rating'] ?? 9, $b['date']] <=> [$rank($b), $b['rating'] ?? 9, $a['date']];
+        });
+
+        return ['days' => array_values($days), 'totals' => $this->totals($days), 'nc' => $nc];
+    }
+
+    /**
      * Les jours demandés : ceux déjà figés viennent de la base, les autres de
      * l'API en deux appels groupés.
      *

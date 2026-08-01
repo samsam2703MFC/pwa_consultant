@@ -796,9 +796,71 @@
 
         {# ── Tâches réalisées ── #}
         <div class="rpt-shop">
-            <div class="rpt-shop-name">{{ icons.svg('square-check', 15) }} {{ translations.tasks_done ?? 'Tâches réalisées' }} ({{ report.tasks_done|length }})</div>
+            {% set ts = report.tasks_shop %}
+            <div class="rpt-shop-name">{{ icons.svg('square-check', 15) }}
+                {%- if ts %} {{ translations.shop_tasks ?? 'Tâches de la boutique' }} ({{ ts.totals.done }}/{{ ts.totals.planned }})
+                {%- else %} {{ translations.my_tasks ?? 'Mes tâches consultant' }} ({{ report.tasks_done|length }}){% endif %}
+            </div>
             <div class="rpt-shop-body">
-                {% if report.tasks_done is empty %}
+            {% if ts %}
+                {# Rapport de BOUTIQUE : les checklists de cette boutique, la
+                   seule lecture possible de « tâches réalisées » ici. #}
+                {% if ts.totals.planned == 0 %}
+                    <div class="rpt-empty">{{ translations.no_checklist ?? 'Aucune checklist planifiée sur la période.' }}</div>
+                {% else %}
+                    <div class="rpt-kpis" style="margin-bottom:10px;">
+                        <div class="rpt-kpi">
+                            <div class="rpt-kpi-v">{{ ts.totals.pct_done is null ? '—' : ts.totals.pct_done|number_format(0, ',', ' ') ~ ' %' }}</div>
+                            <div class="rpt-kpi-l">{{ translations.kpi_done ?? 'Réalisation' }}</div>
+                        </div>
+                        <div class="rpt-kpi">
+                            <div class="rpt-kpi-v">{{ ts.totals.pct_conf is null ? '—' : ts.totals.pct_conf|number_format(0, ',', ' ') ~ ' %' }}</div>
+                            <div class="rpt-kpi-l">{{ translations.kpi_conf ?? 'Conformité' }}</div>
+                        </div>
+                        <div class="rpt-kpi">
+                            <div class="rpt-kpi-v">{{ ts.totals.nc }}</div>
+                            <div class="rpt-kpi-l">{{ translations.kpi_nc ?? 'Non-conformités' }}</div>
+                        </div>
+                    </div>
+
+                    {# Une ligne par jour : complet, jamais tronqué, et ça tient
+                       en 31 lignes là où la liste des tâches en ferait 600. #}
+                    <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                        <thead><tr>
+                            <th style="width:88px;">{{ translations.date ?? 'Date' }}</th>
+                            <th class="num">{{ translations.done_total ?? 'Fait / Total' }}</th>
+                            <th class="num">{{ translations.pct_conf ?? '% Conforme' }}</th>
+                            <th class="num">NC</th>
+                        </tr></thead>
+                        <tbody>
+                        {% for d in ts.days %}
+                            {% if d.planned > 0 %}
+                                {% set pc = d.reviewed > 0 ? (d.conform / d.reviewed * 100) : null %}
+                                <tr>
+                                    <td style="white-space:nowrap;color:#6c757d;">{{ d.date }}</td>
+                                    <td class="num">{{ d.done }} / {{ d.planned }}</td>
+                                    <td class="num">{{ pc is null ? '—' : pc|number_format(0, ',', ' ') ~ ' %' }}</td>
+                                    <td class="num" style="color:{{ (d.nc_major + d.nc_minor) > 0 ? '#c0392b' : '#6c757d' }};">
+                                        {{ d.nc_major + d.nc_minor }}</td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+                        </tbody>
+                    </table></div>
+
+                    {% if ts.totals.blocking_missed > 0 %}
+                        <div class="rpt-empty" style="margin-top:8px;color:#8D1D2C;border-style:solid;">
+                            {{ ts.totals.blocking_missed }} {{ translations.blocking_missed_note ??
+                                'tâche(s) obligatoire(s) non réalisée(s) sur la période.' }}
+                        </div>
+                    {% endif %}
+
+                    <div style="margin-top:10px;font-size:.78rem;" class="rpt-noprint">
+                        <a href="{{ ROOT }}/reports/checklist/month?scope={{ report.scope.shop_id }}">
+                            {{ translations.see_ck_report ?? 'Voir le rapport Checklist Tâches' }} ↗</a>
+                    </div>
+                {% endif %}
+            {% elseif report.tasks_done is empty %}
                     {# « Aucune tâche réalisée » est une affirmation. Elle est
                        fausse quand des tâches sont faites mais hors période, ou
                        quand l'endpoint des réalisations n'a pas répondu : dans
@@ -806,7 +868,7 @@
                     {% set d = report.tasks_done_diag ?? {} %}
                     <div class="rpt-empty">
                         {% if (d.done ?? 0) == 0 %}
-                            {{ translations.no_tasks_done ?? 'Aucune tâche réalisée sur la période.' }}
+                            {{ translations.no_tasks_done ?? 'Aucune tâche assignée à votre poste sur la période.' }}
                         {% elseif (d.resolved ?? 0) == 0 %}
                             {{ d.done }} {{ translations.tasks_unresolved ??
                                 'tâche(s) marquée(s) comme faites, mais le détail de leur réalisation n’a pas pu être lu — donc aucune date pour les situer dans la période.' }}

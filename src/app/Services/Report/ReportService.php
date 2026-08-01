@@ -5,6 +5,7 @@ use App\Consultant\app\Services\Shop\ShopService;
 use App\Consultant\app\Services\Note\NoteService;
 use App\Consultant\app\Services\Claim\ClaimService;
 use App\Consultant\app\Services\Target\ShopMetricTargetService;
+use App\Consultant\app\Services\Report\ChecklistReportService;
 use App\Consultant\app\Services\Task\TaskService;
 use App\Consultant\app\Services\Campaign\CampaignService;
 use App\Consultant\app\Services\Param\ParamService;
@@ -58,6 +59,7 @@ class ReportService
         private TaskService $taskService,
         private ConsultantUserRepository $consultantUsers,
         private CampaignService $campaignService,
+        private ChecklistReportService $checklistReport,
         private ParamService $params,
         private PnlSnapshotRepository $pnlSnapshots,
         private KpiThresholdService $kpiColors
@@ -236,6 +238,14 @@ class ReportService
             'shops'         => $shopSections,
             'network'       => $network,
             'demandes'      => $this->demandesForPeriod($fromT, $toT, $shopFilter),
+            // Sur un rapport de BOUTIQUE, « Tâches réalisées » ne peut désigner
+            // que les tâches de cette boutique. La liste des tâches assignées au
+            // POSTE du consultant n'y a pas sa place : elle n'est même pas
+            // filtrée par magasin, et un lecteur voyant « 0 » en concluait que
+            // la boutique n'avait rien fait le mois passé.
+            'tasks_shop'    => $scopeMode === 'shop' && $scopeId
+                ? $this->checklistReport->range((int)$scopeId, $period['from'], $period['to'])
+                : null,
             'tasks_done'    => $this->tasksDoneForPeriod($fromT, $toT),
             'tasks_done_diag' => $this->tasksDoneDiagnostics(),
         ];
