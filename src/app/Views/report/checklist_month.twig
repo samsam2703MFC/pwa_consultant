@@ -92,10 +92,15 @@
                    consultant. Vides, ils doivent dire pourquoi. #}
                 <div class="ck-note">
                     {% set dg = report.diag ?? {} %}
-                    {% if (dg.checklists_found ?? 0) == 0 %}
+                    {% if (dg.days_fetched ?? 0) == 0 %}
+                        {{ translations.all_frozen ?? 'Conformité indisponible : tous les jours de la période ont été
+                        lus dans le cache local, aucun n’a été redemandé à l’API. Ils ont pu être figés à un moment où
+                        la conformité n’était pas disponible.' }}
+                        <a href="?{{ 'scope=' ~ shop_id ~ '&month=' ~ ym }}&fresh=1" class="ck-noprint">{{ translations.recalc ?? 'Recalculer en interrogeant l’API' }} ↻</a>
+                    {% elseif (dg.checklists_found ?? 0) == 0 %}
                         {{ translations.no_checklists_at_all ?? 'Conformité indisponible : sur cette période,
-                        <code>/consultant/shops/{id}/checklists</code> n’a renvoyé aucune checklist — alors que les
-                        tâches, elles, portent bien un nom de checklist. C’est cet endpoint qu’il faut regarder.' }}
+                        /consultant/shops/{id}/checklists n’a renvoyé aucune checklist — alors que les tâches, elles,
+                        portent bien un nom de checklist. C’est cet endpoint qu’il faut regarder.' }}
                     {% elseif (dg.progress_payloads ?? 0) == 0 %}
                         {{ translations.no_progress ?? 'Conformité indisponible : les checklists sont listées mais
                         leur avancement n’a rien renvoyé. Les tâches sont comptées, rien ne peut être jugé conforme.' }}

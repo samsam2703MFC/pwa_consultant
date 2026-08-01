@@ -53,6 +53,21 @@ class ChecklistReportService
      */
     private int $checklistsFound = 0;
 
+    /**
+     * Recalcul forcé : les jours figés sont ignorés et tout est redemandé.
+     *
+     * Indispensable pour deux raisons. Un jour peut avoir été figé alors qu'un
+     * endpoint était muet — sa conformité restera vide à jamais sans ce
+     * levier. Et un avis consultant peut être posé DAYS après la journée
+     * concernée : le jour figé ne le verrait pas.
+     */
+    private bool $fresh = false;
+
+    public function forceRefresh(bool $on = true): void
+    {
+        $this->fresh = $on;
+    }
+
     public function __construct(
         private ChecklistService $checklists,
         private ChecklistSnapshotRepository $snapshots,
@@ -208,7 +223,9 @@ class ChecklistReportService
     private function days(int $shopId, array $dates): array
     {
         sort($dates);
-        $known   = $this->snapshots->range($shopId, $dates[0], $dates[count($dates) - 1]);
+        $known = $this->fresh
+            ? []
+            : $this->snapshots->range($shopId, $dates[0], $dates[count($dates) - 1]);
         $missing = array_values(array_diff($dates, array_keys($known)));
 
         if ($missing !== []) {
