@@ -86,6 +86,18 @@
                     <div class="ck-kpi-sub"><b>{{ t.lifted }}</b> {{ translations.lifted_of ?? 'levées sur' }} {{ t.nc }}</div>
                 </div>
             </div>
+            {% if t.reviewed == 0 %}
+                {# Les trois indicateurs de qualité — note moyenne, conformité,
+                   conformité par checklist — viennent tous de l'avis
+                   consultant. Vides, ils doivent dire pourquoi. #}
+                <div class="ck-note">
+                    {% if (report.diag.progress_payloads ?? 0) == 0 %}
+                        {{ translations.no_progress ?? 'Conformité indisponible : l’avancement des checklists n’a rien renvoyé sur la période. Les tâches sont comptées, mais rien ne peut être jugé conforme ou non.' }}
+                    {% else %}
+                        {{ translations.no_review_yet ?? 'Aucune tâche évaluée sur la période : la conformité et la note moyenne restent vides tant qu’aucun avis n’est posé.' }}
+                    {% endif %}
+                </div>
+            {% endif %}
             {# Sans mois précédent figé, une flèche serait inventée : on le dit. #}
             <div class="ck-note">
                 {% if p %}
@@ -132,6 +144,13 @@
         </div>
 
         {# ── Conformité par checklist ───────────────────────────────────── #}
+        {% if report.checklists is empty and t.planned > 0 %}
+            <div class="ck-sec">
+                <div class="ck-sec-h">{{ translations.conf_by_checklist ?? 'Conformité par checklist' }}</div>
+                <div class="ck-empty">{{ translations.no_checklist_names ??
+                    'Les tâches de la période ne portent pas de nom de checklist : impossible de les regrouper.' }}</div>
+            </div>
+        {% endif %}
         {% if report.checklists is not empty %}
         <div class="ck-sec">
             <div class="ck-sec-h">{{ translations.conf_by_checklist ?? 'Conformité par checklist' }}</div>

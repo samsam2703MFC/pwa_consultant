@@ -35,6 +35,16 @@ class ChecklistReportService
      */
     private int $fetched = 0;
 
+    /**
+     * L'avancement des checklists a-t-il répondu, et combien d'avis en
+     * a-t-on tirés ? Note moyenne, taux de conformité et conformité par
+     * checklist en dépendent TOUS : sans ces deux compteurs, un rapport sans
+     * conformité ne sait pas dire si personne n'a évalué ou si l'endpoint
+     * s'est tu.
+     */
+    private int $progressPayloads = 0;
+    private int $reviewsSeen = 0;
+
     public function __construct(
         private ChecklistService $checklists,
         private ChecklistSnapshotRepository $snapshots,
@@ -69,6 +79,7 @@ class ChecklistReportService
             'checklists' => $this->checklistNames($days),
             'feed'       => $this->feed($days),
             'thresholds' => $this->thresholds(),
+            'diag'       => $this->diagnostics(),
         ];
     }
 
@@ -114,6 +125,7 @@ class ChecklistReportService
             'top_nc'     => $this->topRecurring($days),
             'feed'       => $this->feed($days),
             'thresholds' => $this->thresholds(),
+            'diag'       => $this->diagnostics(),
         ];
     }
 
@@ -160,7 +172,20 @@ class ChecklistReportService
             'nc'     => $nc,
             // Un rapport vide n'est pas une réponse : il faut pouvoir dire si
             // l'API a été interrogée et ce qu'elle a rendu.
-            'diag'   => ['days_asked' => count($dates), 'days_fetched' => $this->fetched],
+            'diag'   => ['days_asked' => count($dates)] + $this->diagnostics(),
+        ];
+    }
+
+    /**
+     * De quoi expliquer un rapport sans conformité : ce qui a été demandé,
+     * relu, et ce que l'avancement des checklists a rendu.
+     */
+    public function diagnostics(): array
+    {
+        return [
+            'days_fetched'      => $this->fetched,
+            'progress_payloads' => $this->progressPayloads,
+            'reviews_seen'      => $this->reviewsSeen,
         ];
     }
 
@@ -237,6 +262,7 @@ class ChecklistReportService
             }
         }
         $progress = $pairs !== [] ? $this->checklists->getProgressForPairs($shopId, $pairs) : [];
+        $this->progressPayloads += count(array_filter($progress));
 
         // Avis par (date, tâche) : la jointure se fait sur task_id, comme sur
         // l'écran du jour.
@@ -246,6 +272,9 @@ class ChecklistReportService
             foreach (($prog['tasks'] ?? []) as $t) {
                 if (is_array($t) && !empty($t['task_id'])) {
                     $reviewBy[$date][(int)$t['task_id']] = $t;
+                    if (($t['review_is_accepted'] ?? null) !== null) {
+                        $this->reviewsSeen++;
+                    }
                 }
             }
         }
