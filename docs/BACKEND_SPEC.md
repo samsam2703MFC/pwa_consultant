@@ -1085,3 +1085,88 @@ For context, so nothing here surprises you.
 /cases/{id}/meeting  ·  /cases/{id}/meetings  ·  /cases/{id}/reply
 /cases/{id}/eligible-consultants
 ```
+
+---
+
+## T12 — Quarterly sales history, per shop
+
+**Existing endpoint we would otherwise abuse:**
+`GET /consultant/shops/sales-kpis?date_from=&date_to=` — one window, all shops
+
+### The problem
+
+Each shop card on the *Boutiques* screen carries four tiles: CA du mois,
+tickets/jour, panier moyen, produits/client. Tapping a tile now opens a small
+modal that places the shop **among the others** and against **the same window
+last year**. Both of those cost exactly one extra call, because every shop
+shares the same window.
+
+The design also asks for a **six-quarter sparkline** in that modal — the shape
+of the trend, not its numbers. That is the one piece we did not build, because
+there is no endpoint for it and the workaround is bad:
+
+- 6 quarters = 18 monthly windows **per shop**;
+- at 5 shops that is 90 windows, at 30 shops 540;
+- `sales-kpis` groups by *window*, not by *shop*, so the best case is 18 calls
+  (one per month, all shops) — on a screen a consultant opens several times a day.
+
+Eighteen calls to draw six points is the wrong trade. Hence this ticket.
+
+### What we need
+
+`GET /consultant/shops/sales-kpis/quarterly?quarters=6`
+Optional `shop_ids=2,4,7`. Optional `end=YYYY-Qn` to end elsewhere than the
+current quarter.
+
+```json
+{
+  "quarters": ["2025-Q1","2025-Q2","2025-Q3","2025-Q4","2026-Q1","2026-Q2"],
+  "shops": [
+    { "shop_id": 4,
+      "series": [
+        { "quarter": "2025-Q1", "tickets": 17800, "ca": 336000.00,
+          "products": 35600, "avg_basket": 18.88, "products_per_ticket": 2.0 },
+        { "quarter": "2025-Q2", "tickets": null, "ca": null,
+          "products": null, "avg_basket": null, "products_per_ticket": null }
+      ] }
+  ]
+}
+```
+
+Same object shape as `sales-kpis` — a quarter must look like a window, or we
+end up with two parsers and the second one rots.
+
+### Two rules this payload must follow
+
+1. **Every requested quarter is present for every requested shop**, even before
+   the shop existed. A shop that opened in 2026 gets four quarters of `null` —
+   `null`, not `0`. Zero means "sold nothing"; absent means "we don't know", and
+   a sparkline that draws a zero for a shop that did not exist yet invents a
+   collapse.
+2. **The current quarter is partial, and says so** — either an
+   `is_partial: true` flag on the last entry, or its window bounds. Drawing a
+   third of a quarter next to five full ones shows a crash that isn't there.
+
+### How to check it
+
+```bash
+# 1. Six quarters, in order, for the whole network.
+curl -s "$API/consultant/shops/sales-kpis/quarterly?quarters=6" \
+  -H "Authorization: Bearer $TOKEN" | jq '.quarters'
+
+# 2. A shop that did not exist gets null, never zero.
+curl -s "$API/consultant/shops/sales-kpis/quarterly?quarters=6&shop_ids=$NEW_SHOP" \
+  -H "Authorization: Bearer $TOKEN" | jq '.shops[0].series[] | {quarter, ca}'
+
+# 3. The quarterly total agrees with the three monthly windows it covers.
+#    (Same shop, same period, via the endpoint we already use.)
+curl -s "$API/consultant/shops/sales-kpis?date_from=2025-01-01&date_to=2025-03-31" \
+  -H "Authorization: Bearer $TOKEN" | jq '.shops[] | select(.shop_id==4) | .ca'
+```
+
+### What it unlocks
+
+The sparkline ships, and the *Boutiques* screen keeps its current cost: two
+calls total, whatever the number of shops. Until then the modal shows the
+network position and last year — and simply has no chart, which is stated in
+the code, not silently missing.

@@ -8,7 +8,7 @@ Three sections, in the order they should be done:
 
 1. **Database** — three tickets need new columns. Everything else is query work.
 2. **Existing endpoints to modify** — fields to add to a payload that already exists.
-3. **New endpoints to create** — six URLs that do not exist yet.
+3. **New endpoints to create** — seven URLs that do not exist yet.
 
 Column and table names below are **suggestions**. Use your own; only the
 *meaning* and the *nullability* matter, because those are what the panel reads.
@@ -105,7 +105,7 @@ done — **T10**.
 
 ## 3. New endpoints to create
 
-Six, in priority order. Each links to its full specification.
+Seven, in priority order. Each links to its full specification.
 
 ### 3.1 · `GET /consultant/network/tasks?date=YYYY-MM-DD`  — **T11**
 
@@ -145,6 +145,14 @@ The Owner countersigns a consultant's review. Needs the columns of §1.1.
 The sector list as **data**, not only as a dropdown in the product form.
 Sectors hard-coded on our side would drift the day one is renamed.
 
+### 3.7 · `GET /consultant/shops/sales-kpis/quarterly?quarters=6`  — **T12**
+
+Six quarters of sales KPIs per shop, in one call. Feeds the sparkline of the
+KPI modal on the *Boutiques* screen.
+
+Without it: 18 monthly windows per shop — 90 calls at 5 shops, 540 at 30. The
+modal ships today **without** the chart; it lights up when this exists.
+
 ---
 
 ## Three rules that apply to every payload above
@@ -176,6 +184,7 @@ They are not style preferences. Each one comes from a bug we have already had.
 | 6 | **T9** | deletes our snapshot table and its freezing logic |
 | 7 | T2, T7 | a document, and six headers |
 | 8 | T4, T5b, T6, T10 | fan-outs and reference data |
+| 9 | T12 | a sparkline; the modal already ships without it |
 
 T5a and T8 are first because they are the only two about figures being
 **wrong**. Everything else makes the panel faster, simpler, or richer.

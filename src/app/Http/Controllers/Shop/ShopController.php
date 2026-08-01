@@ -5,6 +5,7 @@ use App\Consultant\app\Http\Controllers\Controller;
 use App\Consultant\app\Repositories\Google\GoogleRatingRepository;
 use App\Consultant\app\Repositories\Shop\ShopRepository;
 use App\Consultant\app\Repositories\Shop\ShopSalesRepository;
+use App\Consultant\app\Services\Shop\ShopKpiInsightService;
 use App\Consultant\app\Services\Shop\ShopService;
 use App\Consultant\app\Services\Kpi\KpiThresholdService;
 
@@ -16,6 +17,7 @@ class ShopController extends Controller
         private ShopRepository $shopRepository,
         private GoogleRatingRepository $googleRating,
         private KpiThresholdService $kpiThresholds,
+        private ShopKpiInsightService $kpiInsight,
     ) {}
 
     /**
@@ -119,8 +121,17 @@ class ShopController extends Controller
         $shops = $this->shopService->getAllShops();
         $shops = $this->withSalesIndicators($shops);
 
+        // Ce qu'il y a derrière chaque tuile : l'an dernier, et la position
+        // dans le réseau. Une seule fenêtre commune à toutes les boutiques →
+        // un seul appel de plus, quel que soit le nombre de boutiques.
+        $insight = $this->safeFetch([$this->kpiInsight, 'build'], $this->errors, [$shops], []);
+
         $this->view('shop/list', [
             'shops'      => $shops,
+            'kpi_insight' => $insight['shops']  ?? [],
+            'kpi_network' => $insight['network'] ?? [],
+            'kpi_prev_label' => $insight['prev_label'] ?? '',
+            'kpi_period'     => $insight['now_label'] ?? '',
             'active_nav' => 'shops',
             // Bandes de couleur des marges (mac_kpi_threshold) — mise en forme
             // conditionnelle configurable en base, rien en dur dans la vue.
