@@ -4,6 +4,7 @@ namespace App\Consultant\app\Services\Report;
 use App\Consultant\app\Repositories\Checklist\ChecklistSnapshotRepository;
 use App\Consultant\app\Repositories\Param\ParamRepository;
 use App\Consultant\app\Services\Checklist\ChecklistService;
+use App\Consultant\app\Services\Checklist\ReviewRating;
 use App\Consultant\app\Services\Shop\ShopService;
 use DateTimeImmutable;
 
@@ -73,6 +74,7 @@ class ChecklistReportService
         private ChecklistSnapshotRepository $snapshots,
         private ShopService $shopService,
         private ParamRepository $params,
+        private ReviewRating $notes,
     ) {}
 
     /**
@@ -392,8 +394,11 @@ class ChecklistReportService
             }
 
             $day['reviewed']++; $cl['reviewed']++;
-            $raw    = $t['review_rating'] ?? $rev['review_rating'] ?? null;
-            $rating = is_numeric($raw) ? (int)$raw : null;
+            $raw = $t['review_rating'] ?? $rev['review_rating'] ?? null;
+            // Un verdict sans note vaut la note qu'aurait posée le bouton. Sans
+            // cette déduction, une non-conformité sans note était comptée
+            // MINEURE — alors que « non conforme » vaut 2, donc majeure.
+            $rating = $this->notes->of($raw, ReviewRating::verdict($accepted));
             if ($rating !== null) {
                 $day['rating_sum'] += $rating;
                 $day['rating_count']++;

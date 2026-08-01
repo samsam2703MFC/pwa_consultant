@@ -57,12 +57,6 @@ class DashboardController extends Controller
         $this->view('dashboard/dashboard', [
             'date'        => $date,
             'shortfall'   => $shortfall,
-            'shortfall_shops' => max(1, $this->params->getInt('dashboard_shortfall_shops', 3)),
-            // Mêmes seuils de couleur que le rapport Checklist : deux échelles
-            // pour la même grandeur feraient dire à l'accueil et au rapport des
-            // choses différentes de la même boutique.
-            'green_pct'       => $this->params->getInt('checklist_green_pct', 90),
-            'orange_pct'      => $this->params->getInt('checklist_orange_pct', 75),
             'active_nav'  => 'dashboard',
             'kpis'        => $kpis,
             'today_tasks' => $todayTasks,

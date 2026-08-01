@@ -332,14 +332,22 @@
 {% include "components/bottom_nav.twig" with { active_nav: active_nav ?? '' } %}
 
 {# ── Bottom tab bar (primary navigation) ──
-     Le profil vit désormais dans le menu (ligne rouge avec l'avatar) ;
-     le 5e onglet est la page 6L. #}
+     « Checklists » et « Tâches » désignaient le même objet vu de deux côtés —
+     le réseau et le mien. Un seul onglet TERRAIN les réunit, avec deux segments
+     en haut de l'écran, et la place libérée va aux RAPPORTS : c'est l'écran de
+     fin de mois, et il fallait jusqu'ici passer par le menu pour l'atteindre.
+
+     Le surlignage lit PLUSIEURS valeurs d'`active_nav` : les écrans envoient
+     encore 'checklists' ou 'tasks' selon leur origine, et les renommer tous
+     serait l'occasion d'en oublier un — un onglet éteint sur un écran est un
+     bogue silencieux. Le 5e onglet reste la page 6L. #}
+{% set nav = active_nav ?? '' %}
 <nav class="app-tabbar-bar" aria-label="{{ translations.primary_navigation ?? 'Navigation' }}">
-    <a href="{{ ROOT }}/dashboard"  class="app-tab {{ (active_nav ?? '') == 'dashboard'  ? 'is-active' : '' }}">{{ icons.svg('home', 23) }}<span>{{ translations.nav_home ?? 'Accueil' }}</span></a>
-    <a href="{{ ROOT }}/shops"      class="app-tab {{ (active_nav ?? '') == 'shops'      ? 'is-active' : '' }}">{{ icons.svg('store', 23) }}<span>{{ translations.nav_shops ?? 'Boutiques' }}</span></a>
-    <a href="{{ ROOT }}/checklists" class="app-tab {{ (active_nav ?? '') == 'checklists' ? 'is-active' : '' }}">{{ icons.svg('clipboard-check', 23) }}<span>{{ translations.nav_checklists ?? 'Checklists' }}</span></a>
-    <a href="{{ ROOT }}/tasks"      class="app-tab {{ (active_nav ?? '') == 'tasks'      ? 'is-active' : '' }}">{{ icons.svg('square-check', 23) }}<span>{{ translations.nav_tasks ?? 'Tâches' }}</span></a>
-    <a href="{{ ROOT }}/levers"     class="app-tab {{ (active_nav ?? '') == 'sixl'       ? 'is-active' : '' }}">{{ icons.svg('hexm', 23) }}<span>{{ translations.nav_management ?? 'Management' }}</span></a>
+    <a href="{{ ROOT }}/dashboard"       class="app-tab {{ nav == 'dashboard' ? 'is-active' : '' }}">{{ icons.svg('home', 23) }}<span>{{ translations.nav_home ?? 'Accueil' }}</span></a>
+    <a href="{{ ROOT }}/shops"           class="app-tab {{ nav == 'shops'     ? 'is-active' : '' }}">{{ icons.svg('store', 23) }}<span>{{ translations.nav_shops ?? 'Boutiques' }}</span></a>
+    <a href="{{ ROOT }}/checklists/tasks" class="app-tab {{ nav in ['field', 'checklists', 'tasks'] ? 'is-active' : '' }}">{{ icons.svg('clipboard-check', 23) }}<span>{{ translations.nav_field ?? 'Terrain' }}</span></a>
+    <a href="{{ ROOT }}/reports"         class="app-tab {{ nav == 'reports'   ? 'is-active' : '' }}">{{ icons.svg('file-text', 23) }}<span>{{ translations.nav_reports ?? 'Rapports' }}</span></a>
+    <a href="{{ ROOT }}/levers"          class="app-tab {{ nav == 'sixl'      ? 'is-active' : '' }}">{{ icons.svg('hexm', 23) }}<span>{{ translations.nav_management ?? 'Management' }}</span></a>
 </nav>
 
 {# `window.__consultantRoot` n'est plus défini ici : il l'est dans le <head>,

@@ -32,6 +32,12 @@
 {% block content %}
 <div class="page-content-loaded cl">
 
+    {# Le classement n'est plus un onglet : il vit sous Terrain, et le chemin
+       du retour doit être visible depuis ici. #}
+    <a href="{{ ROOT }}/checklists/tasks?date={{ date }}" class="app-back-btn">
+        {{ icons.svg('chevron-left', 16) }}<span>{{ translations.nav_field ?? 'Terrain' }}</span>
+    </a>
+
     {# ── Navigation par date ── #}
     {% set prev_date = date | date_modify('-1 day') | date('Y-m-d') %}
     {% set next_date = date | date_modify('+1 day') | date('Y-m-d') %}

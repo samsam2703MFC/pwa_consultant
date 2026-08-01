@@ -32,17 +32,11 @@
 <div class="page-content-loaded tk">
 
     {# Les tâches du consultant d'un côté, celles des franchisés à contrôler de
-       l'autre : c'est le même métier, deux listes — donc deux tuiles de même
-       facture, que la grille tient à la même hauteur. #}
-    <div class="tk-tiles">
-    <a href="{{ ROOT }}/checklists/tasks" class="cl-alltasks">
-        <span class="ico">{{ icons.svg('list-checks', 20) }}</span>
-        <span class="txt">
-            <span class="eyebrow">{{ translations.all_tasks_eyebrow ?? 'Contrôle franchisés' }}</span>
-            <span class="big">{{ translations.all_tasks_cta ?? 'Toutes les tâches du réseau' }}</span>
-        </span>
-        <span class="car">›</span>
-    </a>
+       l'autre : c'est le même métier, deux listes. La tuile « Toutes les tâches
+       du réseau » a été remplacée par le segment — deux chemins vers le même
+       écran depuis la même page se contredisent le jour où l'un des deux
+       change. #}
+    {% include "components/_field_segments.twig" with { seg: 'mine' } %}
 
     {# ── Résumé poste ── #}
     <div class="tk-summary">
@@ -58,7 +52,6 @@
             {% if mandatory_count > 0 %}<span class="tk-chip">{{ mandatory_count }} obligatoires</span>{% endif %}
             {% if position.level_name %}<span class="tk-chip">{{ position.level_name }}</span>{% endif %}
         </div>
-    </div>
     </div>
 
     {% if total == 0 %}
