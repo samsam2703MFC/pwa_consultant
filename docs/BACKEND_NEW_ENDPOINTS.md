@@ -1,5 +1,9 @@
 # Endpoints to create
 
+> Superseded by `BACKEND_BUILD.md`, which covers the same endpoints **plus the
+> database columns** and the fields to add to existing payloads. Kept because
+> its four specifications are detailed; start from the build sheet.
+
 Four new endpoints. Nothing here changes an existing route or an existing
 payload — every one is additive, so no client breaks.
 

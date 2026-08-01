@@ -3,6 +3,10 @@
 Each ticket says **what to change**, shows the **JSON before and after**, and
 gives an **acceptance test** you can run with curl.
 
+> **In a hurry?** `BACKEND_BUILD.md` is the two-page version: the columns to
+> add, the endpoints to create, and a suggested order. This file is the
+> reference behind it.
+
 Nothing here breaks existing clients: every change is an *added* field or a
 *new* endpoint.
 
@@ -19,6 +23,7 @@ Nothing here breaks existing clients: every change is an *added* field or a
 | T8 | **Three endpoints, three different revenues** | 3 existing endpoints | S | **2** |
 | T9 | Checklist progress over a date range | new endpoint | M | 3 |
 | T10 | Product `is_pdm` + a mandatory sector | product reference data | M | 4 |
+| T11 | **Every task of the network, in one call** | new endpoint | L | **3** |
 
 **Start with T5a and T8.** They are the only two tickets on this list about
 figures being *wrong*. Everything else makes the panel faster or richer; T5a and
@@ -60,6 +65,7 @@ column is the code we delete the day the ticket lands.
 | T8 | Picks a revenue source per screen, by hand | the per-screen preference |
 | T9 | Keeps `mac_checklist_day_snapshot` and freezes closed days itself | the table **and** its freezing logic |
 | T10 | Nothing — there is no sector and no PDM flag anywhere today | nothing; this one only adds |
+| T11 | Issues 1 + N + N + M calls (31 for 5 shops, 181 for 30) and joins them on `task_id` | the fan-out **and** the service that stitches it back together |
 
 Two of these are worth more than the others because they **remove** code rather
 than add a screen: **T1** deletes a table that only knows about reviews posted
@@ -85,6 +91,7 @@ in its own section below.
 | T8 | see the three curls in the T8 section — they must agree | one revenue, three times |
 | T9 | `curl -s -o /dev/null -w '%{http_code}' "$API/consultant/shops/4/checklists/progress?from=2026-07-01&to=2026-07-31" -H "Authorization: Bearer $TOKEN"` | `200` |
 | T10 | `curl -s "$API/shops/4/statistics/sales/product-category-groups?grouping=category&from=2026-07-01&to=2026-07-31" -H "Authorization: Bearer $TOKEN" \| jq '[.. \| objects \| select(has("product_id")) \| has("is_pdm")] \| all'` | `true` |
+| T11 | `curl -s -o /dev/null -w '%{http_code}' "$API/consultant/network/tasks?date=2026-07-30" -H "Authorization: Bearer $TOKEN"` | `200` |
 
 **Nothing on this list has been confirmed shipped at the time of writing.** If
 one of them has landed since, the line above will say so faster than a meeting.
@@ -867,6 +874,163 @@ Must be `422`, not `200`.
 
 ---
 
+## T11 — Every task in the network, for one day
+
+**Existing endpoints, all three of which we call today:**
+`GET /consultant/network/tasks/ranking?date=YYYY-MM-DD` — the shops and their completion rate
+`GET /consultant/shops/{shopId}/tasks?date=YYYY-MM-DD` — the tasks of one shop
+`GET /consultant/shops/{shopId}/checklists?date=YYYY-MM-DD` — the checklists of one shop
+`GET /consultant/shops/{shopId}/checklists/{checklistId}/progress?date=YYYY-MM-DD` — the reviews
+
+### The problem
+
+The panel has a screen that lists **every task of the network for a day**,
+grouped shop › checklist › task, so a consultant can review them one after the
+other instead of walking back and forth between shops. Building that screen
+costs, today:
+
+```
+ 1 call   the ranking, to know which shops exist
+ N calls  /tasks          — one per shop
+ N calls  /checklists     — one per shop
+ M calls  /progress       — one per (shop, checklist) pair; M ≈ 4 × N
+```
+
+For 5 shops with 4 checklists each, that is **31 requests**. For 30 shops,
+**181**. They go out in parallel, capped at 24 at a time, so it lands as three
+or four waves — but it is still the single most expensive screen in the panel,
+and it grows linearly with the network.
+
+Only the third family carries the review — `review_rating`, `review_is_accepted`
+— which is the whole point of the screen. `/tasks` does not have it.
+
+### What to create
+
+```
+GET /consultant/network/tasks?date=2026-07-30
+```
+
+Optional `shop_ids=2,4,7` to narrow it. The payload is the three existing ones,
+already joined:
+
+```json
+{
+  "date": "2026-07-30",
+  "shops": [
+    {
+      "shop_id": 4,
+      "shop_name": "Atelier by – Halle",
+      "shop_city": "Halle",
+      "completion_rate": 62,
+      "checklists": [
+        {
+          "id": 43,
+          "name": "CO-01 — Ouverture",
+          "tasks": [
+            {
+              "task_id": 1216,
+              "task_name": "Vérifier si le magasin est propre.",
+              "status": "DONE",
+              "is_mandatory": 1,
+              "requires_photo": 1,
+              "completed_by": "Nathan C.",
+              "completed_at": "2026-07-30 04:40:00",
+              "note": null,
+              "completion_id": 169,
+              "attachment_id": 393,
+              "review_id": 55,
+              "review_rating": 5,
+              "review_is_accepted": 1,
+              "review_comment": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Every field above already exists in one of the three endpoints we call. Nothing
+new has to be computed — this ticket is a **join**, not a feature.
+
+### Three rules
+
+1. **Every shop of the ranking is present**, even one with no task that day.
+   A shop that disappears from a list reads as a shop that does not exist.
+2. **Every task is present**, done or not. The panel decides what to show; a
+   payload that pre-filters takes that decision away from it.
+3. **`review_*` is present on every done task**, `null` when no review exists.
+   An absent key and "not reviewed yet" must not be the same thing.
+
+### If T3 ships first
+
+T3 adds the completion and review fields to `GET /shops/{id}/tasks`. If it lands
+before this one, T11 becomes almost free: the shop loop already returns
+everything, and this endpoint is a `foreach` over the shops. Doing T3 first is
+the cheaper order.
+
+### Why
+
+This is the screen a consultant opens every morning. At 30 shops it issues 181
+requests to render one page, and our HTTP client gives up after 10 s per call —
+the gateway cuts the page before the network does. One call would make it a
+screen we can put on a phone in a bakery, on a mobile connection.
+
+It is also the last place where the panel still assembles by hand what the API
+could hand over assembled: three families of calls, a join on `task_id`, and a
+service whose only job is to stitch them together.
+
+### Acceptance
+
+```bash
+# 1. One call returns the whole network — shops, checklists, tasks.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/network/tasks?date=2026-07-30" \
+  | jq '{shops: (.shops | length),
+         checklists: [.shops[].checklists | length] | add,
+         tasks: [.shops[].checklists[].tasks | length] | add}'
+```
+
+The three numbers must match what the per-shop endpoints return for the same
+day.
+
+```bash
+# 2. No shop of the ranking is missing — including a shop with zero task.
+diff <(curl -s -H "Authorization: Bearer $TOKEN" \
+        "$API/consultant/network/tasks/ranking?date=2026-07-30" \
+        | jq -S '[.data.shops[].shop_id] | sort') \
+     <(curl -s -H "Authorization: Bearer $TOKEN" \
+        "$API/consultant/network/tasks?date=2026-07-30" \
+        | jq -S '[.shops[].shop_id] | sort')
+```
+
+Must print nothing.
+
+```bash
+# 3. THE ONE THAT MATTERS — the review travels with the task.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/network/tasks?date=2026-07-30" \
+  | jq '[.shops[].checklists[].tasks[]
+         | select(.status == "DONE")
+         | select(has("review_rating") | not)] | length'
+```
+
+Must be `0` — the key is always there, `null` when there is no review.
+
+```bash
+# 4. Same figures as the endpoint we use today, for one shop.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/network/tasks?date=2026-07-30&shop_ids=4" \
+  | jq '[.shops[0].checklists[].tasks[]] | length'
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/shops/4/tasks?date=2026-07-30" | jq '.data.tasks | length'
+```
+
+The two numbers must be equal.
+
+---
+
 ## What each ticket changes for the panel
 
 | Ticket | What we can delete | What we gain |
@@ -882,6 +1046,7 @@ Must be `422`, not `200`.
 | T8 | a hard-coded source preference per screen | one revenue figure, the same on every screen |
 | T9 | a snapshot table and its freezing logic | a checklist report that just reads its window |
 | T10 | nothing — we have no sector today | revenue read by sector, and PDM products we can isolate |
+| T11 | 31 to 181 requests, and the service that joins them | the network review screen, in one call |
 
 ---
 
