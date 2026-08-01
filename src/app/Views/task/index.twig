@@ -32,7 +32,9 @@
 <div class="page-content-loaded tk">
 
     {# Les tâches du consultant d'un côté, celles des franchisés à contrôler de
-       l'autre : c'est le même métier, deux listes. #}
+       l'autre : c'est le même métier, deux listes — donc deux tuiles de même
+       facture, que la grille tient à la même hauteur. #}
+    <div class="tk-tiles">
     <a href="{{ ROOT }}/checklists/tasks" class="cl-alltasks">
         <span class="ico">{{ icons.svg('list-checks', 20) }}</span>
         <span class="txt">
@@ -44,13 +46,19 @@
 
     {# ── Résumé poste ── #}
     <div class="tk-summary">
-        <div class="tk-summary-eyebrow">{{ position.position_name ?? 'Poste consultant' }}</div>
-        <div class="tk-summary-big">{{ done_count }} sur {{ total }} tâches faites</div>
+        <div class="tk-summary-hd">
+            <span class="ico">{{ icons.svg('square-check', 20) }}</span>
+            <div>
+                <div class="tk-summary-eyebrow">{{ position.position_name ?? 'Poste consultant' }}</div>
+                <div class="tk-summary-big">{{ done_count }} sur {{ total }} tâches faites</div>
+            </div>
+        </div>
         <div class="tk-summary-chips">
             <span class="tk-chip">{{ icons.svg('list', 13) }}{{ total }} tâches</span>
             {% if mandatory_count > 0 %}<span class="tk-chip">{{ mandatory_count }} obligatoires</span>{% endif %}
             {% if position.level_name %}<span class="tk-chip">{{ position.level_name }}</span>{% endif %}
         </div>
+    </div>
     </div>
 
     {% if total == 0 %}

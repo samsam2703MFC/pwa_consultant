@@ -563,11 +563,28 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
 .app-topbar-actions .btn-sm { min-height:40px; min-width:40px; }
 .cl-datenav-today { min-height:40px; display:inline-flex; align-items:center; }
 
+/* Les deux tuiles de tête de l'écran Tâches — « mes tâches » et « contrôle
+   franchisés ». Empilées sur un téléphone, côte à côte dès qu'il y a la place ;
+   la grille leur donne alors la MÊME hauteur, ce qu'un simple `margin` entre
+   deux cartes de contenus différents ne fait jamais. */
+.tk-tiles { display:grid; gap:10px; margin-bottom:12px; }
+.tk-tiles > * { margin-bottom:0 !important; }   /* `height:100%` dimensionnait
+   la rangée sur la PLUS PETITE tuile, que la plus grande débordait ensuite ;
+   l'étirement par défaut de la grille fait le travail correctement. */
+@media (min-width:560px) { .tk-tiles { grid-template-columns:1fr 1fr; } }
+
+/* En-tête du résumé de poste : même icône, même place que sur la tuile
+   voisine — deux tuiles jumelles dont une seule porterait une icône se
+   liraient comme un oubli. */
+.tk-summary-hd { display:flex; align-items:center; gap:11px; }
+.tk-summary-hd .ico { flex-shrink:0; display:flex; color:var(--c-primary); }
+
 /* Accès à la file complète des tâches du réseau (checklists + tâches).
    Même format de carte que .tk-summary, dont il est toujours voisin : deux
    blocs côte à côte qui ne partagent ni rayon ni ombre se lisent comme deux
    morceaux d'interfaces différentes. Cible au pouce, comme le reste. */
 .cl-alltasks { display:flex; align-items:center; gap:11px; min-height:56px; margin:0 0 12px;
+  box-sizing:border-box;
   padding:13px 16px; border-radius:18px; background:#fff; border:1px solid var(--c-line);
   box-shadow:0 10px 24px -18px rgba(70,40,25,.25); color:var(--c-ink); }
 .cl-alltasks .ico { flex-shrink:0; display:flex; color:var(--c-primary); }
