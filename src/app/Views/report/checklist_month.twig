@@ -213,6 +213,33 @@
         </div>
         {% endif %}
 
+        {# ── Réponses brutes (?debug=1) ─────────────────────────────────────
+           Trois tours de suppositions sur « quel endpoint se tait » sans jamais
+           lire ce qu'il renvoie. Ce bloc met fin à la devinette : c'est la
+           réponse de l'API, telle quelle. #}
+        {% if report.samples is defined %}
+        <div class="ck-sec">
+            <div class="ck-sec-h">Réponses brutes de l'API</div>
+            <div class="ck-note" style="margin-top:0;">
+                {{ report.diag.days_fetched ?? 0 }} jour(s) relu(s) ·
+                {{ report.diag.checklists_found ?? 0 }} checklist(s) listée(s) ·
+                {{ report.diag.progress_payloads ?? 0 }} avancement(s) reçu(s) ·
+                {{ report.diag.reviews_seen ?? 0 }} avis lu(s)
+            </div>
+            {% for key, s in report.samples %}
+                <div style="margin-top:10px;">
+                    <div style="font-size:.72rem;font-weight:800;color:#8D1D2C;">{{ key }}</div>
+                    <div style="font-size:.66rem;color:#7a7168;word-break:break-all;">{{ s.endpoint }}</div>
+                    <pre style="white-space:pre-wrap;background:#fff;padding:10px;border-radius:8px;
+                                font-size:11px;max-height:340px;overflow:auto;border:1px solid rgba(0,0,0,.09);">{{
+                        s.response|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_UNICODE') b-or constant('JSON_UNESCAPED_SLASHES')) }}</pre>
+                </div>
+            {% else %}
+                <div class="ck-empty">Aucun appel n'a eu lieu : tout venait du cache.</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         {# ── Constats marquants ─────────────────────────────────────────── #}
         <div class="ck-sec">
             <div class="ck-sec-h">{{ translations.month_findings ?? 'Constats marquants du mois' }}</div>
