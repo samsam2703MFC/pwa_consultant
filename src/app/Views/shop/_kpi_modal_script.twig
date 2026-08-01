@@ -30,11 +30,7 @@
         anDer:    {{ (translations.kpi_last_year ?? 'an dernier')|json_encode|raw }},
         autres:   {{ (translations.kpi_other_shops ?? 'les autres boutiques')|json_encode|raw }},
         horsRegle: {{ (translations.kpi_off_scale ?? '(hors règle)')|json_encode|raw }},
-        rang:     {{ (translations.kpi_rank ?? '%s sur %s')|json_encode|raw }},
-        vsRes:    {{ (translations.kpi_vs_network ?? 'vs moyenne réseau')|json_encode|raw }},
-        sansRef:  {{ (translations.kpi_no_last_year ?? 'Pas de référence l’an dernier pour cette boutique.')|json_encode|raw }},
         sansRes:  {{ (translations.kpi_alone ?? 'Une seule boutique a une valeur : pas de position réseau à montrer.')|json_encode|raw }},
-        courbeCa: {{ (translations.kpi_ca_curve ?? 'La courbe du chiffre d’affaires vit derrière le bouton graphique de la carte.')|json_encode|raw }}
     };
 
     var el = function (id) { return document.getElementById(id); };
@@ -236,40 +232,12 @@
 
         var aRegle = dessinerRegle(cle, moi, net);
 
-        // L'an dernier. Sans référence, on écrit « — » : une boutique ouverte
-        // cette année n'a pas fait « +100 % ».
-        el('kmPrev').textContent = fmt(moi.prev, net.decimals, net.unit);
-        var d = el('kmDelta');
-        if (moi.delta_pct === null || moi.delta_pct === undefined) {
-            d.textContent = '';
-            d.className = 'km-d na';
-        } else {
-            var haut = moi.delta_pct >= 0;
-            d.textContent = (haut ? '▲ +' : '▼ ') + fmt(moi.delta_pct, 1, '') + ' %';
-            d.className = 'km-d ' + (haut ? 'up' : 'down');
-        }
-        el('kmPrevSub').textContent = PREV_L;
-
-        // Rang et écart au réseau.
-        var r = el('kmRank');
-        if (moi.rank && moi.total > 1 && net.avg) {
-            var ecart = net.avg > 0 ? ((moi.now - net.avg) / net.avg) * 100 : null;
-            var rang = moi.rank === 1 ? '1ᵉʳ' : (moi.rank + 'e');
-            r.textContent = L.rang.replace('%s', rang).replace('%s', moi.total)
-                + (ecart === null ? '' : ' · ' + (ecart >= 0 ? '+' : '') + fmt(ecart, 0, '') + ' % ' + L.vsRes);
-            el('kmRankWrap').hidden = false;
-        } else {
-            el('kmRankWrap').hidden = true;
-        }
-
-        // La note du bas ne sert qu'à expliquer une absence.
+        // La note ne sert plus qu'à expliquer une ABSENCE : sans deuxième
+        // boutique, il n'y a pas de position à montrer, et un espace vide se
+        // lirait comme un bug d'affichage.
         var n = el('kmNote');
-        var msg = '';
-        if (moi.prev === null) { msg = L.sansRef; }
-        else if (!aRegle)      { msg = L.sansRes; }
-        else if (cle === 'ca_month') { msg = L.courbeCa; }
-        n.textContent = msg;
-        n.hidden = msg === '';
+        n.textContent = aRegle ? '' : L.sansRes;
+        n.hidden = aRegle;
 
         el('kmVeil').hidden = false;
         boite.hidden = false;
