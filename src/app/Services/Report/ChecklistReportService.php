@@ -45,6 +45,14 @@ class ChecklistReportService
     private int $progressPayloads = 0;
     private int $reviewsSeen = 0;
 
+    /**
+     * Combien de checklists la liste du jour a rendues. Sans ce compteur, deux
+     * pannes distinctes se ressemblent : « /checklists ne rend aucune
+     * checklist » et « il en rend, mais leur avancement est vide ». Elles
+     * n'appellent pas la même correction côté backend.
+     */
+    private int $checklistsFound = 0;
+
     public function __construct(
         private ChecklistService $checklists,
         private ChecklistSnapshotRepository $snapshots,
@@ -184,6 +192,7 @@ class ChecklistReportService
     {
         return [
             'days_fetched'      => $this->fetched,
+            'checklists_found'  => $this->checklistsFound,
             'progress_payloads' => $this->progressPayloads,
             'reviews_seen'      => $this->reviewsSeen,
         ];
@@ -261,6 +270,7 @@ class ChecklistReportService
                 $pairs[] = ['date' => $date, 'checklist_id' => $cl['id']];
             }
         }
+        $this->checklistsFound += count($pairs);
         $progress = $pairs !== [] ? $this->checklists->getProgressForPairs($shopId, $pairs) : [];
         $this->progressPayloads += count(array_filter($progress));
 

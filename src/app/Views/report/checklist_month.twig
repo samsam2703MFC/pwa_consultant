@@ -91,10 +91,17 @@
                    conformité par checklist — viennent tous de l'avis
                    consultant. Vides, ils doivent dire pourquoi. #}
                 <div class="ck-note">
-                    {% if (report.diag.progress_payloads ?? 0) == 0 %}
-                        {{ translations.no_progress ?? 'Conformité indisponible : l’avancement des checklists n’a rien renvoyé sur la période. Les tâches sont comptées, mais rien ne peut être jugé conforme ou non.' }}
+                    {% set dg = report.diag ?? {} %}
+                    {% if (dg.checklists_found ?? 0) == 0 %}
+                        {{ translations.no_checklists_at_all ?? 'Conformité indisponible : sur cette période,
+                        <code>/consultant/shops/{id}/checklists</code> n’a renvoyé aucune checklist — alors que les
+                        tâches, elles, portent bien un nom de checklist. C’est cet endpoint qu’il faut regarder.' }}
+                    {% elseif (dg.progress_payloads ?? 0) == 0 %}
+                        {{ translations.no_progress ?? 'Conformité indisponible : les checklists sont listées mais
+                        leur avancement n’a rien renvoyé. Les tâches sont comptées, rien ne peut être jugé conforme.' }}
                     {% else %}
-                        {{ translations.no_review_yet ?? 'Aucune tâche évaluée sur la période : la conformité et la note moyenne restent vides tant qu’aucun avis n’est posé.' }}
+                        {{ translations.no_review_yet ?? 'Aucune tâche évaluée sur la période : la conformité et la
+                        note moyenne restent vides tant qu’aucun avis n’est posé.' }}
                     {% endif %}
                 </div>
             {% endif %}
