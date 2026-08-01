@@ -1,0 +1,268 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% import "components/_icons.twig" as icons %}
+{% set active_nav = 'checklists' %}
+{% set today_date = today ?? ('now' | date('Y-m-d')) %}
+{% set t = totals ?? {} %}
+
+{% block title %}{{ translations.all_tasks_title ?? 'Toutes les tâches' }} — Panel consultant{% endblock %}
+{% block page_title %}{{ translations.all_tasks_title ?? 'Toutes les tâches' }}{% endblock %}
+{% block page_subtitle %}{{ date|date('d.m.Y') }}{% endblock %}
+
+{% block topbar_actions %}
+<div class="d-flex align-items-center gap-1">
+    {% set prev_date = date | date_modify('-1 day') | date('Y-m-d') %}
+    <a href="{{ ROOT }}/checklists/tasks?date={{ prev_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;">{{ icons.svg('chevron-left') }}</a>
+    <button type="button" class="btn btn-sm btn-light rounded-pill px-2" style="font-size:.75rem;font-weight:700;min-width:80px;" onclick="document.getElementById('atDate').showPicker()">{{ date|date('d.m.Y') }}</button>
+    <input type="date" id="atDate" value="{{ date }}" max="{{ today_date }}" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="window.location.href='{{ ROOT }}/checklists/tasks?date='+this.value">
+    {% set next_date = date | date_modify('+1 day') | date('Y-m-d') %}
+    {% if next_date <= today_date %}<a href="{{ ROOT }}/checklists/tasks?date={{ next_date }}" class="btn btn-sm btn-light rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;">{{ icons.svg('chevron-right') }}</a>{% endif %}
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    /* Outils collants : la recherche et les filtres restent atteignables
+       quel que soit le nombre de tâches déjà parcourues. */
+    .nq-tools { position:sticky; top:0; z-index:6; background:var(--c-bg); padding:8px 0; }
+    .nq-search { width:100%; min-height:44px; border-radius:12px; border:1px solid rgba(0,0,0,.08);
+                 background:#fff; padding:0 13px; font-size:.82rem; color:#241f1c; }
+    .nq-search::placeholder { color:#a2988c; }
+    .nq-filters { display:flex; gap:6px; overflow-x:auto; margin-top:8px; -webkit-overflow-scrolling:touch;
+                  scrollbar-width:none; }
+    .nq-filters::-webkit-scrollbar { display:none; }
+    .nq-f { flex-shrink:0; min-height:36px; display:inline-flex; align-items:center; padding:0 13px;
+            border-radius:999px; font-size:.72rem; font-weight:800; background:#fff; color:#6c757d;
+            border:1px solid rgba(0,0,0,.07); cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .nq-f.on { background:#8D1D2C; color:#fff; border-color:#8D1D2C; }
+    .nq-count { font-size:.66rem; color:#8a827a; margin:6px 2px 2px; }
+
+    /* Bandeau boutique : collant sous les outils, il dit toujours où l'on est. */
+    .nq-shop { position:sticky; top:96px; z-index:5; display:flex; align-items:center; gap:8px;
+               background:#8D1D2C; color:#fff; border-radius:10px 10px 0 0; padding:8px 12px;
+               font-size:.76rem; font-weight:800; margin-top:12px; }
+    .nq-shop .v { font-weight:600; opacity:.72; font-size:.66rem; min-width:0; overflow:hidden;
+                  text-overflow:ellipsis; white-space:nowrap; }
+    .nq-shop .r { margin-left:auto; font-weight:900; flex-shrink:0; }
+    .nq-shop a { color:#fff; text-decoration:none; }
+
+    .nq-cl { display:flex; align-items:center; gap:7px; background:#fbf9f6;
+             border-left:1px solid #efe9e1; border-right:1px solid #efe9e1; padding:7px 12px;
+             font-size:.66rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+             color:#8a827a; }
+    .nq-cl .n { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .nq-cl .c { margin-left:auto; color:#57504a; flex-shrink:0; }
+
+    .nq-row { display:flex; align-items:center; gap:10px; background:#fff;
+              border-left:1px solid #efe9e1; border-right:1px solid #efe9e1;
+              border-bottom:1px solid #f6f2ec; padding:0 12px; min-height:48px;
+              width:100%; text-align:left; border-top:0; }
+    .nq-row.task-openable { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .nq-row.task-openable:active { background:#fbfcfe; }
+    .nq-row.last { border-radius:0 0 10px 10px; }
+    /* `display:flex` posé par une classe l'emporte sur la règle `[hidden]` du
+       navigateur : sans ceci, filtrer comptait juste — les lignes masquées
+       restaient à l'écran. */
+    .nq-row[hidden], .nq-cl[hidden], .nq-shop[hidden] { display:none !important; }
+    .nq-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+    .nq-b { flex:1; min-width:0; padding:7px 0; }
+    .nq-n { font-size:.8rem; font-weight:700; color:#241f1c; line-height:1.25; }
+    .nq-m { font-size:.63rem; color:#a2988c; margin-top:1px; }
+    .nq-m b { color:#991b1b; font-weight:800; }
+    .nq-right { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
+    .nq-act { min-height:32px; display:inline-flex; align-items:center; padding:0 11px;
+              border-radius:999px; font-size:.68rem; font-weight:800; white-space:nowrap; }
+    .nq-act.todo { background:#8D1D2C; color:#fff; }
+    .nq-act.ok   { background:rgba(45,122,62,.12); color:#2D7A3E; }
+    .nq-act.ko   { background:rgba(192,24,43,.1); color:#c0182b; }
+    .nq-act.na   { background:#f2eee8; color:#a2988c; }
+    /* La note du consultant, sous le verdict : c'est elle qui décide de la
+       gravité d'une non-conformité dans les rapports. */
+    .nq-rate { font-size:.62rem; font-weight:800; color:#b8860b; }
+    .nq-empty { background:#fff; border-radius:14px; padding:26px 18px; text-align:center;
+                color:#a2988c; font-size:.82rem; margin-top:12px; }
+    .nq-warn { background:#fff6e6; border:1px solid #f0d9a8; border-radius:12px; padding:9px 12px;
+               font-size:.7rem; color:#8a5806; margin-top:10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-content-loaded">
+
+    <a href="{{ ROOT }}/checklists" class="app-back-btn">
+        {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_checklists ?? 'Checklists' }}</span>
+    </a>
+
+    <div class="nq-tools">
+        <input type="search" class="nq-search" id="nqSearch" autocomplete="off"
+               placeholder="{{ translations.search_task ?? 'Rechercher une tâche, une boutique…' }}">
+        <div class="nq-filters" id="nqFilters">
+            <span class="nq-f on" data-f="todo">{{ translations.f_to_review ?? 'À évaluer' }} {{ t.to_review ?? 0 }}</span>
+            <span class="nq-f" data-f="all">{{ translations.f_all ?? 'Toutes' }} {{ t.total ?? 0 }}</span>
+            <span class="nq-f" data-f="ko">{{ translations.f_nc ?? 'Non conformes' }} {{ t.nc ?? 0 }}</span>
+            <span class="nq-f" data-f="undone">{{ translations.f_undone ?? 'Non faites' }} {{ (t.total ?? 0) - (t.done ?? 0) }}</span>
+            <span class="nq-f" data-f="mandatory">{{ translations.f_mandatory ?? 'Obligatoires' }}</span>
+        </div>
+    </div>
+
+    {# Le total et la note moyenne du jour ne bougent pas quand on filtre :
+       ce sont les chiffres du jour, pas ceux de la vue. Le nombre de lignes
+       affichées vient s'ajouter devant. #}
+    <div class="nq-count">
+        <span id="nqShown" data-tpl="{{ translations.n_shown ?? '%d affichée(s)' }}"></span>
+        {{ t.total ?? 0 }} {{ translations.tasks_l ?? 'tâches' }} ·
+        {{ t.shops ?? 0 }} {{ translations.shops_l ?? 'boutiques' }} ·
+        {{ translations.sorted_by ?? 'triées par boutique puis checklist' }}
+        {%- if t.avg_rating is defined and t.avg_rating is not null %} ·
+            {{ translations.avg_rating_l ?? 'note moyenne' }} <b>{{ t.avg_rating|number_format(1, ',', ' ') }}/5</b>
+            ({{ t.rated }} {{ translations.rated_l ?? 'évaluées' }})
+        {%- endif %}
+    </div>
+
+    {% if (diag.truncated ?? 0) > 0 %}
+        <div class="nq-warn">{{ translations.truncated_shops ?? 'Liste tronquée :' }}
+            <b>{{ diag.truncated }}</b> {{ translations.truncated_shops_2 ??
+            'boutique(s) ne sont pas lues pour tenir le temps de chargement. Le plafond est réglable en configuration.' }}</div>
+    {% endif %}
+
+    {% for s in shops %}
+        <div class="nq-shop">
+            <a href="{{ ROOT }}/checklists/shops/{{ s.shop_id }}/tasks?date={{ date }}">{{ s.shop_name }}</a>
+            <span class="v">{{ s.shop_city }}</span>
+            <span class="r">{{ s.completion is not null ? (s.completion|round) ~ ' %' : '—' }}</span>
+        </div>
+        {% for g in s.checklists %}
+            <div class="nq-cl" data-shop="{{ s.shop_id }}">
+                <span class="n">{{ g.name != '' ? g.name : (translations.no_checklist ?? 'Sans checklist') }}</span>
+                <span class="c">{{ g.done }}/{{ g.total }}</span>
+            </div>
+            {% for task in g.tasks %}
+                {% set dot = task.is_done ? '#2D7A3E' : (task.status == 'SKIPPED' ? '#C17A2A' : '#d8cfc4') %}
+                {# Une tâche faite s'ouvre pour être évaluée ; une tâche non
+                   faite n'a rien à évaluer et n'est donc pas actionnable.
+                   Même convention que _task_item.twig : un div qui se comporte
+                   en bouton, que la modale reconnaît à `.task-openable`. #}
+                {% set open = task.is_done %}
+                <div{% if open %} tabindex="0" role="button"{% endif %}
+                    class="nq-row{{ task.review_state == 'todo' ? ' is-todo' : '' }}{{ open ? ' task-openable' : '' }}"
+                    data-shop="{{ s.shop_id }}"
+                    data-name="{{ (task.name ~ ' ' ~ s.shop_name ~ ' ' ~ g.name)|lower }}"
+                    data-state="{{ task.review_state }}"
+                    data-done="{{ open ? {
+                        att: task.attachment_id, file: task.attachment_filename, name: task.name,
+                        by: task.completed_by, at: task.completed_at, note: task.note,
+                        task_id: task.task_id, checklist_id: task.checklist_id,
+                        completion_id: task.completion_id, rating: task.review_rating,
+                        comment: task.review_comment, accepted: task.review_accepted
+                    }|json_encode : '' }}"
+                    data-mandatory="{{ task.is_mandatory ? 1 : 0 }}">
+                    <span class="nq-dot" style="background:{{ dot }}"></span>
+                    <span class="nq-b">
+                        <span class="nq-n d-block">{{ task.name }}</span>
+                        <span class="nq-m d-block">
+                            {%- if task.is_mandatory %}<b>● {{ translations.mandatory_one ?? 'Obligatoire' }}</b> · {% endif -%}
+                            {%- if task.requires_photo %}{{ translations.photo_one ?? 'Photo' }} · {% endif -%}
+                            {%- if task.completed_by %}{{ task.completed_by }}{% if task.completed_at|length >= 16 %} · {{ task.completed_at|slice(11, 5) }}{% endif %}
+                            {%- else %}{{ translations.not_done ?? 'Non faite' }}{% endif -%}
+                        </span>
+                    </span>
+                    <span class="nq-right">
+                        {% if not task.is_done %}
+                            <span class="nq-act na">{{ task.status == 'SKIPPED' ? (translations.skipped_one ?? 'Ignorée') : (translations.not_done ?? 'Non faite') }}</span>
+                        {% elseif task.review_state == 'ok' %}
+                            <span class="js-rev-chip nq-act ok">{{ translations.modal_ok ?? 'Conforme' }}</span>
+                        {% elseif task.review_state == 'ko' %}
+                            <span class="js-rev-chip nq-act ko">{{ translations.modal_ko ?? 'Non conforme' }}</span>
+                        {% else %}
+                            <span class="js-rev-chip nq-act todo">{{ translations.evaluate ?? 'Évaluer' }}</span>
+                        {% endif %}
+                        <span class="nq-rate js-rev-rating">{{ task.review_rating is not null ? task.review_rating ~ '/5' : '' }}</span>
+                    </span>
+                </div>
+            {% endfor %}
+        {% endfor %}
+    {% else %}
+        <div class="nq-empty">{{ translations.none_for_day ?? 'Aucune tâche pour ce jour.' }}</div>
+    {% endfor %}
+
+    <div class="nq-empty" id="nqNoMatch" hidden>{{ translations.no_match ?? 'Aucune tâche ne correspond à ce filtre.' }}</div>
+</div>
+
+{% include "checklist/_review_modal.twig" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Filtres et recherche : tout est déjà dans la page. Un aller-retour serveur
+   par filtre ferait attendre pour cacher des lignes déjà présentes. */
+(function () {
+    var rows   = [].slice.call(document.querySelectorAll('.nq-row'));
+    var shown  = document.getElementById('nqShown');
+    var none   = document.getElementById('nqNoMatch');
+    var search = document.getElementById('nqSearch');
+    var tpl    = shown ? (shown.getAttribute('data-tpl') || '%d') : '%d';
+    var filtre = 'todo';
+
+    function garde(r) {
+        var st = r.getAttribute('data-state');
+        if (filtre === 'todo'      && st !== 'todo') { return false; }
+        if (filtre === 'ko'        && st !== 'ko')   { return false; }
+        if (filtre === 'undone'    && st !== 'na')   { return false; }
+        if (filtre === 'mandatory' && r.getAttribute('data-mandatory') !== '1') { return false; }
+        var q = (search.value || '').trim().toLowerCase();
+        return q === '' || (r.getAttribute('data-name') || '').indexOf(q) !== -1;
+    }
+
+    function appliquer() {
+        var vus = 0;
+        rows.forEach(function (r) {
+            var ok = garde(r);
+            r.hidden = !ok;
+            if (ok) { vus++; }
+        });
+        // Un bandeau de boutique ou de checklist sans aucune ligne visible
+        // n'annonce plus rien : il devient un titre creux.
+        [].slice.call(document.querySelectorAll('.nq-cl')).forEach(function (cl) {
+            var n = 0, e = cl.nextElementSibling;
+            while (e && e.classList.contains('nq-row')) { if (!e.hidden) { n++; } e = e.nextElementSibling; }
+            cl.hidden = n === 0;
+        });
+        [].slice.call(document.querySelectorAll('.nq-shop')).forEach(function (sh) {
+            var n = 0, e = sh.nextElementSibling;
+            while (e && !e.classList.contains('nq-shop')) {
+                if (e.classList.contains('nq-row') && !e.hidden) { n++; }
+                e = e.nextElementSibling;
+            }
+            sh.hidden = n === 0;
+        });
+        // Arrondi du bas : la dernière ligne visible du groupe le porte.
+        rows.forEach(function (r) { r.classList.remove('last'); });
+        [].slice.call(document.querySelectorAll('.nq-shop')).forEach(function (sh) {
+            var dernier = null, e = sh.nextElementSibling;
+            while (e && !e.classList.contains('nq-shop')) {
+                if (e.classList.contains('nq-row') && !e.hidden) { dernier = e; }
+                e = e.nextElementSibling;
+            }
+            if (dernier) { dernier.classList.add('last'); }
+        });
+
+        if (none) { none.hidden = vus > 0; }
+        if (shown) {
+            shown.innerHTML = (filtre === 'all' && !search.value)
+                ? '' : tpl.replace('%d', '<b>' + vus + '</b>') + ' · ';
+        }
+    }
+
+    document.getElementById('nqFilters').addEventListener('click', function (e) {
+        var b = e.target.closest('.nq-f');
+        if (!b) { return; }
+        [].slice.call(this.querySelectorAll('.nq-f')).forEach(function (x) { x.classList.toggle('on', x === b); });
+        filtre = b.getAttribute('data-f');
+        appliquer();
+    });
+    search.addEventListener('input', appliquer);
+    appliquer();
+})();
+</script>
+{% include "checklist/_review_modal_script.twig" %}
+{% endblock %}

@@ -78,6 +78,14 @@
 
     {# ── Classement boutiques ── #}
     {% if shops | length > 0 %}
+        {# Accès direct à la file complète : le classement dit OÙ regarder,
+           la liste réseau permet de CONTRÔLER sans revenir en arrière entre
+           chaque tâche. #}
+        <a href="{{ ROOT }}/checklists/tasks?date={{ date }}" class="cl-alltasks">
+            {{ icons.svg('list-checks', 16) }}
+            <span>{{ translations.all_tasks_cta ?? 'Toutes les tâches du réseau' }}</span>
+            <b>›</b>
+        </a>
         <div class="cl-eyebrow">{{ translations.shop_ranking ?? 'Classement boutiques' }}</div>
         <div class="cl-ranklist">
             {% for s in shops %}

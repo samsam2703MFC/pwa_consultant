@@ -199,6 +199,44 @@ class TaskReviewRepository
     }
 
     /**
+     * Le journal de PLUSIEURS boutiques pour une date, en UNE requête.
+     *
+     * L'écran réseau couvre tout le parc : une requête par boutique en ferait
+     * autant qu'il y a de boutiques, pour des lignes que la base sait rendre
+     * d'un coup.
+     *
+     * @param int[] $shopIds
+     * @return array<string, array> map "shopId|taskId" => ligne du journal
+     */
+    public function forShopsDate(array $shopIds, string $date): array
+    {
+        $ids = array_values(array_filter(array_map('intval', $shopIds), fn($i) => $i > 0));
+        if ($ids === []) {
+            return [];
+        }
+        $this->ensureSchema();
+        $pdo = $this->pdo();
+        if ($pdo === null) {
+            return [];
+        }
+        try {
+            $in = implode(',', array_fill(0, count($ids), '?'));
+            $st = $pdo->prepare(
+                'SELECT * FROM mac_task_review WHERE review_date = ? AND id_shop IN (' . $in . ')'
+            );
+            $st->execute(array_merge([$date], $ids));
+            $out = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $out[(int)$row['id_shop'] . '|' . (int)$row['id_task']] = $row;
+            }
+            return $out;
+        } catch (Throwable $e) {
+            error_log('[task_review] forShopsDate: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Activité d'évaluation par consultant sur une période — pour le suivi des
      * consultants (combien d'avis, quelle note moyenne, combien de refus).
      *

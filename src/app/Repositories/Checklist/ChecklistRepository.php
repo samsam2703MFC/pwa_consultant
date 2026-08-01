@@ -205,6 +205,100 @@ class ChecklistRepository
         return $out;
     }
 
+    /**
+     * Les tâches de PLUSIEURS boutiques pour UNE date, en un aller-retour.
+     *
+     * Le pendant multi-boutiques de getShopTasksForDates() : l'écran réseau a
+     * besoin de tout le parc pour une journée, là où les rapports ont besoin
+     * d'une boutique sur plusieurs jours. En séquence, vingt boutiques font
+     * vingt attentes réseau — et la passerelle coupe avant la fin.
+     *
+     * @param int[] $shopIds
+     * @return array<int, array> map id de boutique => liste de tâches
+     */
+    public function getTasksForShops(array $shopIds, string $date): array
+    {
+        $byShop = [];
+        foreach (array_unique(array_map('intval', $shopIds)) as $id) {
+            if ($id > 0) {
+                $byShop[$id] = '/consultant/shops/' . $id . '/tasks?' . http_build_query(['date' => $date]);
+            }
+        }
+        if ($byShop === []) {
+            return [];
+        }
+        $responses = $this->apiClient->getMany(array_values($byShop));
+        $out = [];
+        foreach ($byShop as $id => $ep) {
+            $r = $responses[$ep] ?? null;
+            self::sample('tasks', $ep, $r);
+            $data = (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) ? $r['data'] : [];
+            $out[$id] = is_array($data['tasks'] ?? null) ? $data['tasks'] : [];
+        }
+        return $out;
+    }
+
+    /**
+     * Les checklists de PLUSIEURS boutiques pour UNE date, en un aller-retour.
+     *
+     * @param int[] $shopIds
+     * @return array<int, array> map id de boutique => réponse ([] si indisponible)
+     */
+    public function getChecklistsForShops(array $shopIds, string $date): array
+    {
+        $byShop = [];
+        foreach (array_unique(array_map('intval', $shopIds)) as $id) {
+            if ($id > 0) {
+                $byShop[$id] = "/consultant/shops/{$id}/checklists?date={$date}";
+            }
+        }
+        if ($byShop === []) {
+            return [];
+        }
+        $responses = $this->apiClient->getMany(array_values($byShop));
+        $out = [];
+        foreach ($byShop as $id => $ep) {
+            $r = $responses[$ep] ?? null;
+            self::sample('checklists', $ep, $r);
+            $out[$id] = (is_array($r) && !empty($r['success']) && isset($r['data'])) ? $r['data'] : [];
+        }
+        return $out;
+    }
+
+    /**
+     * L'avancement de N couples (boutique, checklist) pour UNE date.
+     *
+     * C'est là que vivent la note et l'avis du consultant : /tasks ne les
+     * porte pas. Sans cet appel, l'écran réseau montrerait des tâches faites
+     * sans jamais dire lesquelles ont été jugées conformes.
+     *
+     * @param array<int, array{shop_id: int, checklist_id: int}> $pairs
+     * @return array<string, array> map "shopId|checklistId" => avancement
+     */
+    public function getProgressForShopChecklists(array $pairs, string $date): array
+    {
+        $byKey = [];
+        foreach ($pairs as $p) {
+            $sid = (int)($p['shop_id'] ?? 0);
+            $cid = (int)($p['checklist_id'] ?? 0);
+            if ($sid > 0 && $cid > 0) {
+                $byKey["{$sid}|{$cid}"] = "/consultant/shops/{$sid}/checklists/{$cid}/progress?date={$date}";
+            }
+        }
+        if ($byKey === []) {
+            return [];
+        }
+        $responses = $this->apiClient->getMany(array_values($byKey));
+        $out = [];
+        foreach ($byKey as $key => $ep) {
+            $r = $responses[$ep] ?? null;
+            self::sample('progress', $ep, $r);
+            $out[$key] = (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null))
+                ? $r['data'] : [];
+        }
+        return $out;
+    }
+
     public function submitTaskReview(int $shopId, array $data): array
     {
         return $this->apiClient->post("/consultant/shops/{$shopId}/task-reviews", $data);

@@ -72,6 +72,39 @@ class ChecklistService
         return $this->checklistRepository->getProgressForPairs($shopId, $pairs);
     }
 
+    /**
+     * Tâches de plusieurs boutiques pour une date, en une attente réseau.
+     *
+     * @param int[] $shopIds
+     * @return array<int, array> map id de boutique => liste de tâches
+     */
+    public function getTasksForShops(array $shopIds, string $date): array
+    {
+        return $this->checklistRepository->getTasksForShops($shopIds, $date);
+    }
+
+    /**
+     * Checklists de plusieurs boutiques pour une date, en une attente réseau.
+     *
+     * @param int[] $shopIds
+     * @return array<int, array> map id de boutique => réponse
+     */
+    public function getChecklistsForShops(array $shopIds, string $date): array
+    {
+        return $this->checklistRepository->getChecklistsForShops($shopIds, $date);
+    }
+
+    /**
+     * Avancement de N couples (boutique, checklist) pour une date.
+     *
+     * @param array<int, array{shop_id: int, checklist_id: int}> $pairs
+     * @return array<string, array> map "shopId|checklistId" => avancement
+     */
+    public function getProgressForShopChecklists(array $pairs, string $date): array
+    {
+        return $this->checklistRepository->getProgressForShopChecklists($pairs, $date);
+    }
+
     public function isDateValid(string $date): bool
     {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return false;
