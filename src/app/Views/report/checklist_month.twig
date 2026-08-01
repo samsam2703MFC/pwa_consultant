@@ -1,0 +1,201 @@
+{% extends "layouts/mobile_base.twig" %}
+{% import "components/_icons.twig" as icons %}
+{% import "report/_checklist_macros.twig" as m %}
+{% set active_nav = 'reports' %}
+
+{% block title %}{{ translations.ck_month_title ?? 'Rapport checklists — mois' }} — Consultant Panel{% endblock %}
+{% block page_title %}{{ translations.ck_month_title ?? 'Checklist Tâches' }}{% endblock %}
+{% block page_subtitle %}{{ report.shop.name ?? '' }}{% endblock %}
+
+{% block head %}{% include "report/_checklist_style.twig" %}{% endblock %}
+
+{% block content %}
+<div class="page-content-loaded">
+
+    <a href="{{ ROOT }}/reports" class="app-back-btn ck-noprint">
+        {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_reports ?? 'Rapports' }}</span>
+    </a>
+
+    <div class="ck-nav ck-noprint">
+        <a href="{{ ROOT }}/reports/checklist/month?scope={{ shop_id }}&month={{ prev_month }}">‹ {{ translations.prev ?? 'Préc.' }}</a>
+        <span class="cur">{{ report.from|date('m/Y') }}</span>
+        {% if next_month %}
+            <a href="{{ ROOT }}/reports/checklist/month?scope={{ shop_id }}&month={{ next_month|slice(0, 7) }}">{{ translations.next ?? 'Suiv.' }} ›</a>
+        {% endif %}
+        <button type="button" onclick="window.print()" class="btn btn-primary rounded-pill px-3 fw-700"
+                style="font-size:.78rem;min-height:44px;">
+            <span class="me-1">{{ icons.svg('download', 15) }}</span>{{ translations.print_pdf ?? 'PDF' }}
+        </button>
+    </div>
+
+{% if report.totals is not defined %}
+    <div class="ck-empty">{{ translations.no_data ?? 'Rapport indisponible.' }}</div>
+{% else %}
+    {% set t  = report.totals %}
+    {% set p  = report.previous %}
+    {% set th = report.thresholds %}
+
+    <div class="ck">
+        <div class="ck-head">
+            <span class="ck-kicker">{{ translations.ck_kicker_month ?? 'Checklist Tâches · Mensuel' }}</span>
+            <h1 class="ck-title">{{ report.shop.name }}</h1>
+            <div class="ck-meta">
+                {% if current_user %}<span>{{ translations.consultant ?? 'Consultant' }} <b>{{ current_user.name ?? current_user.display_name ?? '—' }}</b></span>{% endif %}
+                {% if report.shop.franchisee %}<span>{{ translations.franchisee ?? 'Franchisé' }} <b>{{ report.shop.franchisee }}</b></span>{% endif %}
+                <span>{{ translations.month ?? 'Mois' }} <b>{{ report.from|date('m/Y') }}</b> ·
+                      <b>{{ report.from|date('d/m') }} → {{ report.to|date('d/m') }}</b></span>
+            </div>
+            {% set names = [] %}
+            {% for cl in report.checklists %}{% set names = names|merge([cl.name]) %}{% endfor %}
+            {% if names is not empty %}
+                <div class="ck-chips">
+                    {% for n in names %}<span class="ck-chip">{{ n }}</span>{% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        {# ── Synthèse du mois ───────────────────────────────────────────── #}
+        <div class="ck-sec">
+            <div class="ck-sec-h">{{ translations.month_summary ?? 'Synthèse du mois' }}</div>
+            <div class="ck-kpis k4">
+                <div class="ck-kpi {{ m.kcls(t.pct_done, th) }}">
+                    <div class="ck-kpi-v">{{ t.pct_done is null ? '—' : t.pct_done|number_format(0, ',', ' ') ~ ' %' }}
+                        {{ m.trend(t.pct_done, p ? p.pct_done : null, false, 'pts') }}</div>
+                    <div class="ck-kpi-l">{{ translations.kpi_done_s ?? 'Réalisation' }}</div>
+                    <div class="ck-kpi-sub"><b>{{ t.done }}</b> / {{ t.planned }}
+                        {%- if t.blocking_missed > 0 %} · <b style="color:#c0392b">{{ t.blocking_missed }}</b>
+                            {{ translations.blocking_missed ?? 'bloquantes non faites' }}{% endif %}</div>
+                </div>
+                <div class="ck-kpi {{ m.kcls(t.pct_conf, th) }}">
+                    <div class="ck-kpi-v">{{ t.pct_conf is null ? '—' : t.pct_conf|number_format(0, ',', ' ') ~ ' %' }}
+                        {{ m.trend(t.pct_conf, p ? p.pct_conf : null, false, 'pts') }}</div>
+                    <div class="ck-kpi-l">{{ translations.kpi_conf_s ?? 'Conformité' }}</div>
+                    <div class="ck-kpi-sub"><b>{{ t.conform }}</b> / {{ t.reviewed }} {{ translations.reviewed ?? 'évaluées' }}</div>
+                </div>
+                <div class="ck-kpi {{ t.nc > 0 ? 'k-ko' : 'k-ok' }}">
+                    <div class="ck-kpi-v">{{ t.nc }}
+                        {{ m.trend(t.nc, p ? p.nc : null, true, '') }}</div>
+                    <div class="ck-kpi-l">{{ translations.kpi_nc ?? 'Non-conformités' }}</div>
+                    <div class="ck-kpi-sub"><b>{{ t.nc_major }}</b> {{ translations.major ?? 'majeures' }} ·
+                        <b>{{ t.nc_minor }}</b> {{ translations.minor ?? 'mineures' }}</div>
+                </div>
+                <div class="ck-kpi {{ m.kcls(t.pct_lift, th) }}">
+                    <div class="ck-kpi-v">{{ t.pct_lift is null ? '—' : t.pct_lift|number_format(0, ',', ' ') ~ ' %' }}
+                        {{ m.trend(t.pct_lift, p ? p.pct_lift : null, false, 'pts') }}</div>
+                    <div class="ck-kpi-l">{{ translations.kpi_lift ?? 'NC levées' }}</div>
+                    <div class="ck-kpi-sub"><b>{{ t.lifted }}</b> {{ translations.lifted_of ?? 'levées sur' }} {{ t.nc }}</div>
+                </div>
+            </div>
+            {# Sans mois précédent figé, une flèche serait inventée : on le dit. #}
+            <div class="ck-note">
+                {% if p %}
+                    {{ translations.trend_note ?? 'Tendance comparée au mois précédent. Pour les non-conformités, ▲ est défavorable.' }}
+                {% else %}
+                    {{ translations.no_prev ?? 'Aucune tendance : le mois précédent n’a pas encore été consolidé.' }}
+                {% endif %}
+            </div>
+        </div>
+
+        {# ── Semaine par semaine ────────────────────────────────────────── #}
+        <div class="ck-sec">
+            <div class="ck-sec-h">{{ translations.by_week ?? 'Semaine par semaine' }}</div>
+            <div class="ck-tw"><table class="ck-tbl">
+                <thead><tr>
+                    <th>{{ translations.week ?? 'Semaine' }}</th>
+                    <th class="num">{{ translations.done_total ?? 'Fait / Total' }}</th>
+                    <th class="num">{{ translations.pct_done ?? '% Fait' }}</th>
+                    <th class="num">{{ translations.pct_conf ?? '% Conforme' }}</th>
+                    <th class="num">NC</th>
+                    <th class="num">{{ translations.avg_rating ?? 'Note moy.' }}</th>
+                </tr></thead>
+                <tbody>
+                {% for w in report.weeks %}
+                    <tr>
+                        <td><b>{{ w.label }}</b> {{ w.from|date('d/m') }} → {{ w.to|date('d/m') }}</td>
+                        <td class="num">{{ w.totals.done }} / {{ w.totals.planned }}</td>
+                        <td class="num">{{ m.pill(w.totals.pct_done, th) }}</td>
+                        <td class="num">{{ m.pill(w.totals.pct_conf, th) }}</td>
+                        <td class="num">{{ w.totals.nc }}</td>
+                        <td class="num">{{ w.totals.avg_rating is null ? '—' : w.totals.avg_rating|number_format(1, ',', ' ') ~ ' / 5' }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+                <tfoot><tr class="tot">
+                    <td>{{ report.from|date('m/Y') }}</td>
+                    <td class="num">{{ t.done }} / {{ t.planned }}</td>
+                    <td class="num">{{ t.pct_done is null ? '—' : t.pct_done|number_format(0, ',', ' ') ~ ' %' }}</td>
+                    <td class="num">{{ t.pct_conf is null ? '—' : t.pct_conf|number_format(0, ',', ' ') ~ ' %' }}</td>
+                    <td class="num">{{ t.nc }}</td>
+                    <td class="num">{{ t.avg_rating is null ? '—' : t.avg_rating|number_format(1, ',', ' ') ~ ' / 5' }}</td>
+                </tr></tfoot>
+            </table></div>
+        </div>
+
+        {# ── Conformité par checklist ───────────────────────────────────── #}
+        {% if report.checklists is not empty %}
+        <div class="ck-sec">
+            <div class="ck-sec-h">{{ translations.conf_by_checklist ?? 'Conformité par checklist' }}</div>
+            <div class="ck-bars">
+                {% for cl in report.checklists %}
+                    {% set c = cl.pct_conf %}
+                    <div class="ck-bar-row">
+                        <span class="ck-bar-n" title="{{ cl.name }}">{{ cl.name }}</span>
+                        <span class="ck-bar"><i style="width:{{ c is null ? 0 : c }}%;background:{{
+                            c is null ? '#d8cfc4' : (c >= th.green_pct ? '#1f9d55' : (c >= th.orange_pct ? '#e08e0b' : '#c0392b')) }}"></i></span>
+                        <span class="ck-bar-v" style="color:{{
+                            c is null ? '#8a827a' : (c >= th.green_pct ? '#1f9d55' : (c >= th.orange_pct ? '#e08e0b' : '#c0392b')) }}">
+                            {{- c is null ? '—' : c|number_format(0, ',', ' ') ~ ' %' -}}
+                        </span>
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="ck-note">{{ translations.conf_by_checklist_note ??
+                'La moins conforme en premier. Une checklist sans tâche évaluée affiche « — » plutôt que 0 %.' }}</div>
+        </div>
+        {% endif %}
+
+        {# ── Top non-conformités récurrentes ────────────────────────────── #}
+        {% if report.top_nc is not empty %}
+        <div class="ck-sec">
+            <div class="ck-sec-h">{{ translations.top_nc ?? 'Top non-conformités récurrentes' }}</div>
+            <div class="ck-tw"><table class="ck-tbl">
+                <thead><tr>
+                    <th>{{ translations.nc ?? 'Non-conformité' }}</th>
+                    <th>{{ translations.checklist ?? 'Checklist' }}</th>
+                    <th class="num">{{ translations.occurrences ?? 'Occurrences' }}</th>
+                    <th class="num">{{ translations.lifted_c ?? 'Levées' }}</th>
+                </tr></thead>
+                <tbody>
+                {% for nc in report.top_nc %}
+                    <tr>
+                        <td>{{ nc.title }}</td>
+                        <td>{{ nc.checklist }}</td>
+                        <td class="num"><b>{{ nc.count }}</b>{% if nc.major > 0 %}
+                            <span class="ck-sev ck-sev-maj">{{ nc.major }} {{ translations.major_short ?? 'maj.' }}</span>{% endif %}</td>
+                        <td class="num">
+                            <span class="ck-pill {{ nc.lifted == nc.count ? 'ck-p-ok' : (nc.lifted > 0 ? 'ck-p-mid' : 'ck-p-ko') }}">{{ nc.lifted }}</span>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table></div>
+        </div>
+        {% endif %}
+
+        {# ── Constats marquants ─────────────────────────────────────────── #}
+        <div class="ck-sec">
+            <div class="ck-sec-h">{{ translations.month_findings ?? 'Constats marquants du mois' }}</div>
+            {% include "report/_checklist_feed.twig" with { feed: report.feed } %}
+        </div>
+
+        <div class="ck-note">{{ translations.severity_rule ?? 'Gravité d’après la note du consultant :' }}
+            <b>1 – {{ th.nc_major_max_rating }} = {{ translations.major_one ?? 'majeure' }}</b>,
+            <b>{{ th.nc_major_max_rating + 1 }} – 5 = {{ translations.minor_one ?? 'mineure' }}</b>.
+            {{ translations.threshold_configurable ?? 'Seuil réglable en configuration.' }}</div>
+    </div>
+{% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}{% include "report/_checklist_script.twig" %}{% endblock %}

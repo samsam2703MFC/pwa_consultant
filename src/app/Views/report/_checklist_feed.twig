@@ -1,0 +1,57 @@
+{# Constats terrain — une vignette par non-conformité commentée ou photographiée.
+
+   La photo n'est PAS chargée d'emblée : chaque pièce jointe demande une URL
+   signée, soit un appel par constat. Douze constats feraient douze appels pour
+   des images que personne n'ouvrira peut-être. La miniature est donc un bouton
+   qui va chercher la photo au clic — même parti pris que l'écran des tâches. #}
+{% import "components/_icons.twig" as icons %}
+
+<div class="ck-feed">
+{% for c in feed %}
+    {% set sev = c.lifted ? 'lift' : (c.severity == 'major' ? 'maj' : 'min') %}
+    <div class="ck-fd f-{{ sev }}">
+        {% if c.photo %}
+            <button type="button" class="ck-fd-img ck-photo" data-att="{{ c.photo }}"
+                    title="{{ translations.see_photo ?? 'Voir la photo' }}"
+                    aria-label="{{ translations.see_photo ?? 'Voir la photo' }}">
+                {{ icons.svg('image', 20) }}
+            </button>
+        {% else %}
+            <span class="ck-fd-img" aria-hidden="true"></span>
+        {% endif %}
+
+        <div class="ck-fd-b">
+            <div class="ck-fd-t">{{ c.title }}</div>
+            <div class="ck-fd-m">
+                <span>{{ c.checklist }}</span>
+                <span>· {{ c.date|date('d/m') }}</span>
+                {% if c.lifted %}
+                    <span class="ck-sev ck-sev-lift">{{ translations.nc_lifted ?? 'levée' }}</span>
+                {% elseif c.severity == 'major' %}
+                    <span class="ck-sev ck-sev-maj">{{ translations.nc_major ?? 'majeure' }}</span>
+                {% else %}
+                    <span class="ck-sev ck-sev-min">{{ translations.nc_minor ?? 'mineure' }}</span>
+                {% endif %}
+            </div>
+            {% if c.comment %}<div class="ck-fd-c">« {{ c.comment }} »</div>{% endif %}
+        </div>
+
+        {# La note porte la gravité : sans elle, « majeure » est un verdict sans
+           motif. Absente, on l'écrit — plutôt que d'afficher zéro étoile. #}
+        <div class="ck-stars">
+            {% if c.rating is not null %}
+                <b>{{ '★★★★★'|slice(0, c.rating) }}</b>{{ '☆☆☆☆☆'|slice(0, 5 - c.rating) }}
+            {% else %}
+                <span style="font-size:.62rem;">{{ translations.no_rating ?? 'non notée' }}</span>
+            {% endif %}
+        </div>
+    </div>
+{% else %}
+    <div class="ck-empty">{{ translations.no_findings ?? 'Aucun constat commenté ou photographié sur la période.' }}</div>
+{% endfor %}
+</div>
+
+{% if feed is not empty %}
+    <div class="ck-note">{{ translations.feed_legend ??
+        'Bordure gauche : rouge = non-conformité majeure · orange = mineure · vert = levée.' }}</div>
+{% endif %}

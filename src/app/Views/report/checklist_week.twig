@@ -1,0 +1,184 @@
+{% extends "layouts/mobile_base.twig" %}
+{% import "components/_icons.twig" as icons %}
+{% import "report/_checklist_macros.twig" as m %}
+{% set active_nav = 'reports' %}
+
+{% block title %}{{ translations.ck_week_title ?? 'Rapport checklists — semaine' }} — Consultant Panel{% endblock %}
+{% block page_title %}{{ translations.ck_week_title ?? 'Checklist Tâches' }}{% endblock %}
+{% block page_subtitle %}{{ report.shop.name ?? '' }}{% endblock %}
+
+{% block head %}{% include "report/_checklist_style.twig" %}{% endblock %}
+
+{% block content %}
+<div class="page-content-loaded">
+
+    <a href="{{ ROOT }}/reports" class="app-back-btn ck-noprint">
+        {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_reports ?? 'Rapports' }}</span>
+    </a>
+
+    <div class="ck-nav ck-noprint">
+        <a href="{{ ROOT }}/reports/checklist/week?scope={{ shop_id }}&week={{ prev_week }}">‹ {{ translations.prev ?? 'Préc.' }}</a>
+        <span class="cur">{{ report.from|date('d/m') }} → {{ report.to|date('d/m/Y') }}</span>
+        {% if next_week %}
+            <a href="{{ ROOT }}/reports/checklist/week?scope={{ shop_id }}&week={{ next_week }}">{{ translations.next ?? 'Suiv.' }} ›</a>
+        {% endif %}
+        <button type="button" onclick="window.print()" class="btn btn-primary rounded-pill px-3 fw-700"
+                style="font-size:.78rem;min-height:44px;">
+            <span class="me-1">{{ icons.svg('download', 15) }}</span>{{ translations.print_pdf ?? 'PDF' }}
+        </button>
+    </div>
+
+{% if report.totals is not defined %}
+    <div class="ck-empty">{{ translations.no_data ?? 'Rapport indisponible.' }}</div>
+{% else %}
+    {# Noms de jours en français : le filtre date() de PHP rend « Mon », pas
+   « Lun ». Même tableau que la grille de l'agenda. #}
+    {% set jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
+    {% set t = report.totals %}
+    {% set th = report.thresholds %}
+
+    <div class="ck">
+        <div class="ck-head">
+            <span class="ck-kicker">{{ translations.ck_kicker_week ?? 'Checklist Tâches · Hebdomadaire' }}</span>
+            <h1 class="ck-title">{{ report.shop.name }}</h1>
+            <div class="ck-meta">
+                {% if current_user %}<span>{{ translations.consultant ?? 'Consultant' }} <b>{{ current_user.name ?? current_user.display_name ?? '—' }}</b></span>{% endif %}
+                {% if report.shop.franchisee %}<span>{{ translations.franchisee ?? 'Franchisé' }} <b>{{ report.shop.franchisee }}</b></span>{% endif %}
+                <span>{{ translations.week ?? 'Semaine' }} <b>S{{ report.week_no }}</b> · <b>{{ report.from|date('d/m') }} → {{ report.to|date('d/m/Y') }}</b></span>
+            </div>
+            {% if report.checklists is not empty %}
+                <div class="ck-chips">
+                    {% for name in report.checklists %}<span class="ck-chip">{{ name }}</span>{% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        {# ── Synthèse ───────────────────────────────────────────────────── #}
+        <div class="ck-sec">
+            <div class="ck-sec-h">{{ translations.week_summary ?? 'Synthèse de la semaine' }}</div>
+            <div class="ck-kpis">
+                <div class="ck-kpi {{ m.kcls(t.pct_done, th) }}">
+                    <div class="ck-kpi-v">{{ t.pct_done is null ? '—' : t.pct_done|number_format(0, ',', ' ') ~ ' %' }}</div>
+                    <div class="ck-kpi-l">{{ translations.kpi_done ?? 'Taux de réalisation' }}</div>
+                    <div class="ck-kpi-sub"><b>{{ t.done }}</b> / {{ t.planned }}
+                        {%- if t.blocking_missed > 0 %} · <b style="color:#c0392b">{{ t.blocking_missed }}</b>
+                            {{ translations.blocking_missed ?? 'bloquantes non faites' }}{% endif %}</div>
+                </div>
+                <div class="ck-kpi {{ m.kcls(t.pct_conf, th) }}">
+                    <div class="ck-kpi-v">{{ t.pct_conf is null ? '—' : t.pct_conf|number_format(0, ',', ' ') ~ ' %' }}</div>
+                    <div class="ck-kpi-l">{{ translations.kpi_conf ?? 'Taux de conformité' }}</div>
+                    <div class="ck-kpi-sub"><b>{{ t.conform }}</b> {{ translations.conform_of ?? 'conformes /' }} {{ t.reviewed }} {{ translations.reviewed ?? 'évaluées' }}</div>
+                </div>
+                <div class="ck-kpi {{ t.nc > 0 ? 'k-ko' : 'k-ok' }}">
+                    <div class="ck-kpi-v">{{ t.nc }}</div>
+                    <div class="ck-kpi-l">{{ translations.kpi_nc ?? 'Non-conformités' }}</div>
+                    <div class="ck-kpi-sub"><b>{{ t.nc_major }}</b> {{ translations.major ?? 'majeures' }} ·
+                        <b>{{ t.nc_minor }}</b> {{ translations.minor ?? 'mineures' }} ·
+                        <b>{{ t.lifted }}</b> {{ translations.lifted ?? 'levées' }}</div>
+                </div>
+            </div>
+            {% if t.reviewed < t.done %}
+                {# Une tâche faite mais jamais relue n'est ni conforme ni non
+                   conforme : la compter comme conforme flatterait le taux. #}
+                <div class="ck-note">{{ translations.unreviewed_note ?? 'Le taux de conformité porte sur les tâches évaluées.' }}
+                    {{ t.done - t.reviewed }} {{ translations.unreviewed ?? 'tâche(s) réalisée(s) n’ont pas encore d’avis consultant.' }}</div>
+            {% endif %}
+        </div>
+
+        {# ── Vue par jour ───────────────────────────────────────────────── #}
+        <div class="ck-sec">
+            <div class="ck-sec-h">{{ translations.by_day ?? 'Vue par jour' }}</div>
+            <div class="ck-days">
+                {% for d in report.days %}
+                    {% set pd = d.planned > 0 ? (d.done / d.planned * 100) : null %}
+                    {% set pc = d.reviewed > 0 ? (d.conform / d.reviewed * 100) : null %}
+                    {% set nc = d.nc_major + d.nc_minor %}
+                    <div class="ck-day {{ pd is null ? '' : (pd >= th.green_pct ? 'd-ok' : (pd >= th.orange_pct ? 'd-mid' : 'd-ko')) }}">
+                        <div class="ck-day-n">{{ jours[d.date|date('N') - 1] }}</div>
+                        <div class="ck-day-d">{{ d.date|date('d/m') }}</div>
+                        <div class="ck-day-p">{{ pd is null ? '—' : pd|number_format(0, ',', ' ') ~ ' %' }}</div>
+                        <div class="ck-day-c">{{ d.done }}/{{ d.planned }}{% if pc is not null %} · {{ pc|number_format(0, ',', ' ') }} % conf.{% endif %}</div>
+                        <div class="ck-day-nc {{ nc == 0 ? 'zero' : '' }}">{{ nc }} NC</div>
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="ck-legend">
+                <span><i style="background:#1f9d55"></i>≥ {{ th.green_pct|number_format(0, ',', ' ') }} % {{ translations.done_short ?? 'fait' }}</span>
+                <span><i style="background:#e08e0b"></i>{{ th.orange_pct|number_format(0, ',', ' ') }} – {{ (th.green_pct - 1)|number_format(0, ',', ' ') }} %</span>
+                <span><i style="background:#c0392b"></i>&lt; {{ th.orange_pct|number_format(0, ',', ' ') }} %</span>
+            </div>
+        </div>
+
+        {# ── Détail par jour ────────────────────────────────────────────── #}
+        <div class="ck-sec">
+            <div class="ck-sec-h">{{ translations.day_detail ?? 'Détail par jour' }}</div>
+            <div class="ck-tw"><table class="ck-tbl">
+                <thead><tr>
+                    <th>{{ translations.day ?? 'Jour' }}</th>
+                    <th class="num">{{ translations.done_total ?? 'Fait / Total' }}</th>
+                    <th class="num">{{ translations.pct_done ?? '% Fait' }}</th>
+                    <th class="num">{{ translations.pct_conf ?? '% Conforme' }}</th>
+                    <th>{{ translations.ncs ?? 'Non-conformités' }}</th>
+                </tr></thead>
+                <tbody>
+                {% for d in report.days %}
+                    {% set pd = d.planned > 0 ? (d.done / d.planned * 100) : null %}
+                    {% set pc = d.reviewed > 0 ? (d.conform / d.reviewed * 100) : null %}
+                    <tr>
+                        <td><b>{{ jours[d.date|date('N') - 1] }}</b> {{ d.date|date('d/m') }}</td>
+                        <td class="num">{{ d.done }} / {{ d.planned }}</td>
+                        <td class="num">{{ m.pill(pd, th) }}</td>
+                        <td class="num">{{ m.pill(pc, th) }}</td>
+                        <td>
+                        {% if d.nc is empty %}
+                            <span style="color:#8a827a;font-size:.72rem;">{{ translations.none ?? '—' }}</span>
+                        {% else %}
+                            <details>
+                                <summary class="ck-nc-toggle"><span class="car">›</span>{{ d.nc|length }}
+                                    {{- ' ' }}{{ d.nc|length > 1 ? (translations.ncs_lc ?? 'non-conformités') : (translations.nc_lc ?? 'non-conformité') }}</summary>
+                                <ul class="ck-nc-list">
+                                {% for nc in d.nc %}
+                                    <li class="ck-nc-item">
+                                        <span class="ck-sev {{ nc.lifted ? 'ck-sev-lift' : (nc.severity == 'major' ? 'ck-sev-maj' : 'ck-sev-min') }}">
+                                            {{ nc.lifted ? (translations.nc_lifted ?? 'levée')
+                                              : (nc.severity == 'major' ? (translations.nc_major ?? 'majeure') : (translations.nc_minor ?? 'mineure')) }}
+                                        </span>
+                                        <div class="ck-nc-txt">{{ nc.title }}
+                                            <div style="color:#8a827a;font-size:.64rem;margin-top:1px;">{{ nc.checklist }}</div>
+                                        </div>
+                                        <span class="ck-nc-rate">{{ nc.rating is null ? '—' : '★ ' ~ nc.rating ~ '/5' }}</span>
+                                    </li>
+                                {% endfor %}
+                                </ul>
+                            </details>
+                        {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+                <tfoot><tr class="tot">
+                    <td>{{ translations.week ?? 'Semaine' }}</td>
+                    <td class="num">{{ t.done }} / {{ t.planned }}</td>
+                    <td class="num">{{ t.pct_done is null ? '—' : t.pct_done|number_format(0, ',', ' ') ~ ' %' }}</td>
+                    <td class="num">{{ t.pct_conf is null ? '—' : t.pct_conf|number_format(0, ',', ' ') ~ ' %' }}</td>
+                    <td>{{ t.nc }} {{ t.nc > 1 ? (translations.ncs_lc ?? 'non-conformités') : (translations.nc_lc ?? 'non-conformité') }}</td>
+                </tr></tfoot>
+            </table></div>
+            <div class="ck-note">{{ translations.severity_rule ?? 'Gravité d’après la note du consultant :' }}
+                <b>1 – {{ th.nc_major_max_rating }} = {{ translations.major_one ?? 'majeure' }}</b>,
+                <b>{{ th.nc_major_max_rating + 1 }} – 5 = {{ translations.minor_one ?? 'mineure' }}</b>.
+                {{ translations.threshold_configurable ?? 'Seuil réglable en configuration.' }}</div>
+        </div>
+
+        {# ── Constats terrain ───────────────────────────────────────────── #}
+        <div class="ck-sec">
+            <div class="ck-sec-h">{{ translations.field_findings ?? 'Constats terrain' }}</div>
+            {% include "report/_checklist_feed.twig" with { feed: report.feed } %}
+        </div>
+    </div>
+{% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}{% include "report/_checklist_script.twig" %}{% endblock %}

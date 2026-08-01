@@ -51,6 +51,14 @@ class ParamRepository
         // Vide = tout utilisateur ayant accès à l'écran peut valider un contrôle.
         // Renseigner un code de permission restreint la case à ce rôle (Owner).
         'owner_validation_permission'     => ['',   'Checklists : permission requise pour valider un contrôle consultant (vide = tous)'],
+        // Gravité d'une non-conformité : elle vient de la NOTE du consultant
+        // (1–5). En deçà de ce seuil (inclus), la NC est majeure. C'est une
+        // décision de méthode, pas une constante du code.
+        'checklist_nc_major_max_rating'   => ['2',  'Checklists : note (1–5) en deçà de laquelle une non-conformité est majeure'],
+        // Code couleur du rapport Checklist : au-dessus du premier seuil c'est
+        // vert, au-dessus du second orange, en dessous rouge.
+        'checklist_green_pct'             => ['90', 'Rapport checklists : seuil vert (% de tâches faites)'],
+        'checklist_orange_pct'            => ['75', 'Rapport checklists : seuil orange (% de tâches faites)'],
         // Trois endpoints renvoient le CA d'une boutique (monthly-sales,
         // sales-kpis, pnl/monthly). En deçà de cet écart, on les considère
         // d'accord : un centime d'arrondi n'est pas une divergence.

@@ -1,0 +1,76 @@
+{# Comportements communs aux deux rapports Checklist Tâches. #}
+<script>
+(function () {
+    'use strict';
+    var ROOT = {{ ROOT|json_encode|raw }};
+
+    /* ── Photo d'un constat ──────────────────────────────────────────────
+       L'URL d'une pièce jointe est signée et expire : elle ne peut pas être
+       posée dans le HTML au rendu. On la demande au clic, pour CE constat —
+       les charger toutes d'avance ferait autant d'appels que de vignettes,
+       pour des images que personne n'ouvrira peut-être. */
+    var overlay = null;
+
+    function closeOverlay() {
+        if (overlay) { overlay.remove(); overlay = null; }
+        document.removeEventListener('keydown', onKey);
+    }
+    function onKey(e) { if (e.key === 'Escape') { closeOverlay(); } }
+
+    function showOverlay(content) {
+        closeOverlay();
+        overlay = document.createElement('div');
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.72);' +
+            'display:flex;align-items:center;justify-content:center;padding:16px;';
+        overlay.innerHTML = '<div style="max-width:92vw;max-height:88vh;overflow:auto;' +
+            'background:#fff;border-radius:14px;padding:10px;">' + content + '</div>';
+        overlay.addEventListener('click', closeOverlay);
+        document.body.appendChild(overlay);
+        document.addEventListener('keydown', onKey);
+    }
+
+    document.querySelectorAll('.ck-photo').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var att = btn.getAttribute('data-att');
+            if (!att) { return; }
+            showOverlay('<div style="padding:22px;font-size:.84rem;color:#6c757d;">' +
+                {{ (translations.modal_loading ?? 'Chargement de la photo…')|json_encode|raw }} + '</div>');
+            fetch(ROOT + '/helpdesk/attachments/' + encodeURIComponent(att) + '/url', {
+                credentials: 'same-origin'
+            })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function (d) {
+                var url = d && (d.url || d.data && d.data.url);
+                if (!url) { return Promise.reject('sans url'); }
+                showOverlay('<img src="' + url + '" alt="" ' +
+                    'style="max-width:88vw;max-height:82vh;display:block;border-radius:9px;">');
+            })
+            .catch(function () {
+                /* Dire que la photo est indisponible vaut mieux qu'un cadre
+                   vide : le consultant sait qu'il n'a pas mal cliqué. */
+                showOverlay('<div style="padding:22px;font-size:.84rem;color:#8D1D2C;">' +
+                    {{ (translations.photo_failed ?? 'Photo indisponible.')|json_encode|raw }} + '</div>');
+            });
+        });
+    });
+
+    /* ── Impression ──────────────────────────────────────────────────────
+       Le détail des non-conformités est replié à l'écran. Imprimé replié, le
+       PDF envoyé au franchisé n'aurait que des compteurs. On ouvre tout avant
+       l'impression, puis on rend l'état d'origine. */
+    var reopened = [];
+    window.addEventListener('beforeprint', function () {
+        reopened = [];
+        document.querySelectorAll('details:not([open])').forEach(function (d) {
+            d.open = true;
+            reopened.push(d);
+        });
+    });
+    window.addEventListener('afterprint', function () {
+        reopened.forEach(function (d) { d.open = false; });
+        reopened = [];
+    });
+})();
+</script>
