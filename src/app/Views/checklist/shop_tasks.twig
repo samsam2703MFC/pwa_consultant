@@ -102,6 +102,10 @@
 <div id="shop-checklists-content" style="display:none;" class="page-content-loaded">
     <a href="{{ ROOT }}/checklists?date={{ date }}" class="app-back-btn">{{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_to_ranking ?? 'Retour au classement' }}</span></a>
 
+    {# Ce qui n'est pas encore parti chez l'API. Muette tant qu'il n'y a rien
+       à signaler — file vide et réseau présent. #}
+    {% include "checklist/_review_queue.twig" %}
+
 
     {% set cr = summary.completion_rate ?? null %}
     {% set rate_class = cr is not null ? (cr >= 80 ? 'ex' : (cr >= 50 ? 'ok' : 'no')) : 'no' %}

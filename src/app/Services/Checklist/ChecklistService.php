@@ -12,6 +12,17 @@ class ChecklistService
         return $this->checklistRepository->getNetworkTasksRanking($date);
     }
 
+    /**
+     * Classement réseau sur PLUSIEURS journées, en une attente réseau.
+     *
+     * @param string[] $dates 'Y-m-d'
+     * @return array<string, array> map date => payload ranking
+     */
+    public function getNetworkRankingForDates(array $dates): array
+    {
+        return $this->checklistRepository->getNetworkRankingForDates($dates);
+    }
+
     public function getShopTaskDetails(int $shopId, string $date): array
     {
         return $this->checklistRepository->getShopTaskDetails($shopId, $date);

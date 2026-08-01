@@ -9,6 +9,45 @@
 
 {% block head %}
 <style>
+    /* « Ce qui manque » — le bloc de tête. Rouge et plein largeur : c'est le
+       seul endroit de l'accueil qui porte un constat, pas une statistique. */
+    .sf-hero { display:block; border-radius:18px; padding:13px 15px 14px; margin-bottom:11px;
+               background:linear-gradient(135deg,#8D1D2C,#6d1522); color:#fff;
+               box-shadow:0 10px 26px -16px rgba(70,40,25,.5); }
+    .sf-hero:active { transform:scale(.995); }
+    .sf-hero-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .sf-eyebrow { font-size:.62rem; font-weight:800; letter-spacing:.085em; text-transform:uppercase;
+                  color:rgba(255,255,255,.78); }
+    .sf-chip { font-size:.66rem; font-weight:800; border-radius:999px; padding:3px 9px;
+               background:rgba(255,255,255,.18); color:#fff; }
+    .sf-big { font-size:1.85rem; font-weight:800; letter-spacing:-.03em; line-height:1.05; margin-top:6px; }
+    .sf-big-s { font-size:.95rem; font-weight:700; opacity:.72; letter-spacing:0; }
+    .sf-sub { font-size:.72rem; line-height:1.45; opacity:.85; margin-top:4px; }
+
+    .sf-card { padding:4px 14px 10px; }
+    .sf-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 0 2px; }
+    .sf-head-t { font-size:.95rem; font-weight:800; letter-spacing:-.015em; color:#241f1c; }
+    .sf-row { padding:9px 0; border-top:1px solid #f1ede6; }
+    .sf-row:first-of-type { border-top:0; }
+    .sf-row-top { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+    .sf-name { font-size:.86rem; font-weight:800; color:#241f1c; overflow:hidden;
+               text-overflow:ellipsis; white-space:nowrap; }
+    .sf-pct { flex:0 0 auto; font-size:.66rem; font-weight:800; border-radius:999px; padding:3px 9px; }
+    .sf-pct.bad { background:#f4dfe2; color:#8D1D2C; }
+    .sf-pct.mid { background:#fbeedd; color:#C17A2A; }
+    .sf-pct.ok  { background:#e5f1e7; color:#2D7A3E; }
+    .sf-ratio { margin-left:auto; flex:0 0 auto; font-size:.7rem; font-weight:800; color:#7a7168;
+                font-variant-numeric:tabular-nums; }
+    .sf-bar { height:7px; border-radius:999px; background:#edeff3; overflow:hidden; }
+    .sf-bar i { display:block; height:100%; border-radius:999px; }
+    .sf-why { font-size:.68rem; color:#7a7168; margin-top:5px; line-height:1.4; }
+
+    /* La file de contrôle : présente, discrète, et jamais le titre de l'écran. */
+    .sf-quiet { display:flex; align-items:center; justify-content:space-between; gap:10px;
+                padding:12px 14px; color:#7a7168; }
+    .sf-quiet-t { font-size:.9rem; font-weight:800; color:#8a827a; }
+    .sf-quiet-s { font-size:.68rem; color:#a2988c; margin-top:2px; line-height:1.4; }
+
     /* État des magasins au moment T */
     .dash-live-badge { display:inline-flex; align-items:center; gap:5px; font-size:.64rem; font-weight:800; color:#2D7A3E; text-transform:uppercase; letter-spacing:.05em; }
     .dash-live-dot { width:7px; height:7px; border-radius:50%; background:#2D7A3E; animation:livePulse 1.6s ease-in-out infinite; }
@@ -53,6 +92,11 @@
 
 {% block content %}
 <div class="page-content-loaded dash">
+
+    {# ── Ce qui manque — en tête, avant les indicateurs. L'accueil ouvrait sur
+         quatre chiffres et une file de validation à zéro ; il ouvre désormais
+         sur les tâches prévues qui n'ont pas été faites. ── #}
+    {% include "dashboard/_shortfall.twig" %}
 
     {# ── KPI grid ── #}
     <div class="dash-kpis">

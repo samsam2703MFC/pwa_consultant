@@ -1,0 +1,167 @@
+{# La file d'attente des avis, à l'écran.
+
+   Ne s'affiche que quand elle a quelque chose à dire : une évaluation en
+   attente, un refus à lire, ou l'absence de réseau. Le reste du temps, elle
+   n'occupe pas un pixel — un bandeau permanent finirait par ne plus être lu.
+
+   Se pilote entièrement depuis window.tfbReview (_review_submit.twig) : cette
+   vue n'envoie rien elle-même. #}
+<style>
+    .rq { border-radius:18px; padding:12px 14px; margin:0 0 12px;
+          box-shadow:0 8px 22px -14px rgba(70,40,25,.35); color:#fff; }
+    /* La classe pose display:block ; sans !important, [hidden] perdrait. */
+    .rq[hidden] { display:none !important; }
+    .rq.attente { background:linear-gradient(135deg,#C17A2A,#a5641d); }
+    .rq.coupe   { background:linear-gradient(135deg,#2b2723,#1c1916); }
+    .rq.refus   { background:linear-gradient(135deg,#8D1D2C,#6d1522); }
+
+    .rq-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+    .rq-lbl { font-size:.62rem; font-weight:800; letter-spacing:.085em; text-transform:uppercase;
+              color:rgba(255,255,255,.78); }
+    .rq-n { font-size:1.35rem; font-weight:800; line-height:1.15; margin-top:3px; }
+    .rq-sub { font-size:.72rem; line-height:1.45; opacity:.85; margin-top:4px; }
+
+    .rq-list { list-style:none; margin:10px 0 0; padding:0;
+               border-top:1px solid rgba(255,255,255,.18); }
+    .rq-it { display:flex; align-items:center; gap:9px; padding:8px 0;
+             border-bottom:1px solid rgba(255,255,255,.13); }
+    .rq-it:last-child { border-bottom:0; }
+    .rq-it-t { font-size:.78rem; font-weight:700; overflow:hidden; text-overflow:ellipsis;
+               white-space:nowrap; }
+    .rq-it-s { font-size:.66rem; opacity:.8; margin-top:1px; }
+    .rq-grow { flex:1; min-width:0; }
+    .rq-tag { flex:0 0 auto; font-size:.63rem; font-weight:800; border-radius:999px;
+              padding:3px 9px; background:rgba(255,255,255,.2); }
+    .rq-tag.ko { background:#fff; color:#8D1D2C; }
+    .rq-x { flex:0 0 auto; border:0; background:none; color:rgba(255,255,255,.8);
+            font-size:.9rem; font-weight:800; min-width:32px; min-height:32px; cursor:pointer; }
+
+    .rq-acts { display:flex; gap:8px; margin-top:11px; }
+    .rq-btn { flex:1; min-height:40px; border:0; border-radius:999px; cursor:pointer;
+              font-size:.76rem; font-weight:800; background:rgba(255,255,255,.92); color:#241f1c; }
+    .rq-btn[disabled] { opacity:.55; }
+</style>
+
+<div class="rq coupe" id="rqBox" hidden role="status" aria-live="polite">
+    <div class="rq-top">
+        <div class="rq-grow">
+            <div class="rq-lbl" id="rqLbl"></div>
+            <div class="rq-n" id="rqN"></div>
+        </div>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.85)"
+             stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/>
+        </svg>
+    </div>
+    <div class="rq-sub" id="rqSub"></div>
+    <ul class="rq-list" id="rqList"></ul>
+    <div class="rq-acts" id="rqActs" hidden>
+        <button type="button" class="rq-btn" id="rqRetry"></button>
+    </div>
+</div>
+
+<script>
+/* Cette vue est incluse dans le CORPS, alors que le moteur d'envoi est en fin
+   de page : on attend donc que le document soit prêt — à ce moment-là tous les
+   scripts en ligne ont été exécutés, window.tfbReview existe. */
+(function (pret) {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', pret);
+    } else { pret(); }
+})(function () {
+    if (!window.tfbReview) { return; }
+
+    var L = {
+        waiting:  {{ (translations.queue_waiting ?? "En attente d'envoi")|json_encode|raw }},
+        one:      {{ (translations.queue_one ?? 'évaluation')|json_encode|raw }},
+        many:     {{ (translations.queue_many ?? 'évaluations')|json_encode|raw }},
+        kept:     {{ (translations.queue_kept ?? "Enregistrées sur l'appareil. Elles partiront seules au retour du réseau — vous pouvez continuer.")|json_encode|raw }},
+        offline:  {{ (translations.queue_offline ?? 'Hors ligne')|json_encode|raw }},
+        offSub:   {{ (translations.queue_offline_sub ?? "Vos évaluations seront gardées sur l'appareil et envoyées dès que le réseau revient.")|json_encode|raw }},
+        sending:  {{ (translations.queue_sending ?? 'Envoi en cours…')|json_encode|raw }},
+        retry:    {{ (translations.queue_retry ?? 'Réessayer maintenant')|json_encode|raw }},
+        queued:   {{ (translations.queue_tag ?? 'en file')|json_encode|raw }},
+        refused:  {{ (translations.queue_refused ?? 'refusée')|json_encode|raw }},
+        refTitle: {{ (translations.queue_refused_title ?? 'Refusée par le serveur')|json_encode|raw }},
+        refSub:   {{ (translations.queue_refused_sub ?? "Cet avis n'a pas été accepté. Il ne sera pas rejoué : lisez le motif, puis réévaluez la tâche.")|json_encode|raw }},
+        ok:       {{ (translations.modal_ok ?? 'Conforme')|json_encode|raw }},
+        ko:       {{ (translations.modal_ko ?? 'Non conforme')|json_encode|raw }},
+        drop:     {{ (translations.queue_drop ?? 'Retirer de la file')|json_encode|raw }}
+    };
+
+    var boite = document.getElementById('rqBox');
+    var el = function (id) { return document.getElementById(id); };
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function ligne(e) {
+        var p = e.p || {};
+        var verdict = (p.accepted === false) ? L.ko : L.ok;
+        var sous = verdict + (p.rating ? ' · ' + p.rating + '/5' : '')
+                 + (p.shop_label ? ' · ' + p.shop_label : '');
+        return '<li class="rq-it">'
+            + '<div class="rq-grow">'
+            +   '<div class="rq-it-t">' + esc(p.label || (L.one + ' #' + (p.task_id || '?'))) + '</div>'
+            +   '<div class="rq-it-s">' + esc(e.erreur ? e.erreur : sous) + '</div>'
+            + '</div>'
+            + '<span class="rq-tag' + (e.erreur ? ' ko' : '') + '">'
+            +   esc(e.erreur ? L.refused : L.queued) + '</span>'
+            + (e.erreur
+                ? '<button type="button" class="rq-x" data-drop="' + esc(e.id) + '" aria-label="'
+                  + esc(L.drop) + '">✕</button>'
+                : '')
+            + '</li>';
+    }
+
+    function rendre() {
+        var toutes  = window.tfbReview.pending();
+        var refuses = window.tfbReview.rejected();
+        var enFile  = toutes.length - refuses.length;
+        var horsLigne = (navigator.onLine === false);
+
+        // Rien à dire : la file est vide, aucun refus, et le réseau est là.
+        if (!toutes.length && !horsLigne) { boite.hidden = true; return; }
+        boite.hidden = false;
+
+        // Le refus prime : c'est le seul état qui demande une action humaine.
+        var mode = refuses.length ? 'refus' : (enFile ? 'attente' : 'coupe');
+        boite.className = 'rq ' + mode;
+
+        if (mode === 'refus') {
+            el('rqLbl').textContent = L.refTitle;
+            el('rqN').textContent   = refuses.length + ' ' + (refuses.length > 1 ? L.many : L.one);
+            el('rqSub').textContent = L.refSub;
+        } else if (mode === 'attente') {
+            el('rqLbl').textContent = window.tfbReview.sending() ? L.sending : L.waiting;
+            el('rqN').textContent   = enFile + ' ' + (enFile > 1 ? L.many : L.one);
+            el('rqSub').textContent = L.kept;
+        } else {
+            el('rqLbl').textContent = L.offline;
+            el('rqN').textContent   = '';
+            el('rqSub').textContent = L.offSub;
+        }
+
+        el('rqList').innerHTML = toutes.map(ligne).join('');
+
+        // Réessayer n'a de sens que s'il reste quelque chose d'envoyable.
+        var actes = el('rqActs');
+        actes.hidden = !enFile;
+        var b = el('rqRetry');
+        b.textContent = window.tfbReview.sending() ? L.sending : L.retry;
+        b.disabled = window.tfbReview.sending() || horsLigne;
+    }
+
+    el('rqRetry').addEventListener('click', function () { window.tfbReview.flush(); });
+    el('rqList').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-drop]');
+        if (b) { window.tfbReview.discard(b.getAttribute('data-drop')); }
+    });
+
+    window.tfbReview.onChange(rendre);
+    window.addEventListener('online', rendre);
+    window.addEventListener('offline', rendre);
+    rendre();
+});
+</script>

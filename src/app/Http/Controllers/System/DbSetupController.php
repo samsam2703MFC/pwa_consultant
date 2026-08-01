@@ -3,6 +3,7 @@ namespace App\Consultant\app\Http\Controllers\System;
 
 use App\Consultant\app\Http\Controllers\Controller;
 use App\Consultant\app\Repositories\Agenda\AgendaRepository;
+use App\Consultant\app\Repositories\Checklist\NetworkDayRepository;
 use App\Consultant\app\Repositories\Kpi\KpiThresholdRepository;
 use App\Consultant\app\Repositories\Param\ParamRepository;
 use App\Consultant\app\Repositories\Valuation\PnlSnapshotRepository;
@@ -25,6 +26,7 @@ class DbSetupController extends Controller
         private PnlSnapshotRepository $snapshots,
         private KpiThresholdRepository $kpiThresholds,
         private AgendaRepository $agenda,
+        private NetworkDayRepository $networkDays,
     ) {}
 
     public function setup(): JsonResponse
@@ -44,6 +46,7 @@ class DbSetupController extends Controller
         $this->snapshots->ensureSchema();       // mac_shop_monthly_pnl (+ labour/overhead)
         $this->kpiThresholds->ensureSchema();   // mac_kpi_threshold
         $this->agenda->ensureSchema();          // mac_consultant_visit + mac_consultant_lever_action
+        $this->networkDays->ensureSchema();     // mac_network_day
 
         $tables = [
             'mac_consultant_param',
@@ -51,6 +54,13 @@ class DbSetupController extends Controller
             'mac_kpi_threshold',
             'mac_consultant_visit',
             'mac_consultant_lever_action',
+            'mac_network_day',
+            // Créées à leur premier usage (un avis posé, un rapport mensuel
+            // ouvert, un lien partagé) : listées ici pour qu'un déploiement
+            // puisse VÉRIFIER qu'elles existent, sans attendre l'incident.
+            'mac_task_review',
+            'mac_checklist_day_snapshot',
+            'mac_report_share',
         ];
         $out = [];
         foreach ($tables as $t) {

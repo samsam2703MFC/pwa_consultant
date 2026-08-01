@@ -189,6 +189,10 @@
         {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_tasks ?? 'Tâches' }}</span>
     </a>
 
+    {# Ce qui n'est pas encore parti chez l'API. Muette tant qu'il n'y a rien
+       à signaler — file vide et réseau présent. #}
+    {% include "checklist/_review_queue.twig" %}
+
     {# La liste sert à CHOISIR. Quand la décision est prise — « je fais ma
        tournée » — choisir devient du travail perdu : ce bouton lance la file,
        une tâche à la fois.

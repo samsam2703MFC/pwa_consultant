@@ -2,12 +2,18 @@
 namespace App\Consultant\app\Http\Controllers\Dashboard;
 
 use App\Consultant\app\Http\Controllers\Controller;
+use App\Consultant\app\Services\Checklist\NetworkShortfallService;
 use App\Consultant\app\Services\Dashboard\DashboardService;
+use App\Consultant\app\Services\Param\ParamService;
 use App\Consultant\core\Support\Route;
 
 class DashboardController extends Controller
 {
-    public function __construct(private DashboardService $dashboardService) {}
+    public function __construct(
+        private DashboardService $dashboardService,
+        private NetworkShortfallService $shortfall,
+        private ParamService $params
+    ) {}
 
     #[Route('GET', '/dashboard')]
     public function index(): void
@@ -41,8 +47,22 @@ class DashboardController extends Controller
             []
         );
 
+        // Ce qui n'a PAS été fait depuis le début du mois. Placé en tête de
+        // l'accueil : c'est le travail du consultant, alors que la file de
+        // validation affiche « 0 » les jours où rien n'a été fait.
+        $shortfall = $this->params->getInt('dashboard_shortfall_enabled', 1) === 1
+            ? $this->safeFetch([$this->shortfall, 'monthToDate'], $this->errors, [$date], [])
+            : [];
+
         $this->view('dashboard/dashboard', [
             'date'        => $date,
+            'shortfall'   => $shortfall,
+            'shortfall_shops' => max(1, $this->params->getInt('dashboard_shortfall_shops', 3)),
+            // Mêmes seuils de couleur que le rapport Checklist : deux échelles
+            // pour la même grandeur feraient dire à l'accueil et au rapport des
+            // choses différentes de la même boutique.
+            'green_pct'       => $this->params->getInt('checklist_green_pct', 90),
+            'orange_pct'      => $this->params->getInt('checklist_orange_pct', 75),
             'active_nav'  => 'dashboard',
             'kpis'        => $kpis,
             'today_tasks' => $todayTasks,
