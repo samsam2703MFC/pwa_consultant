@@ -1,0 +1,55 @@
+{# Habillage de la modale d'évaluation — voir _review_modal.twig.
+
+   Vit dans son propre partiel parce que la modale sert DEUX écrans : celui
+   d'une boutique et la liste réseau. Laissée dans le gabarit d'origine, elle
+   s'affichait sur le second en HTML brut — boutons système, photo à nu, plus
+   aucune superposition. #}
+<style>
+    .dn-modal { position:fixed; inset:0; z-index:1080; display:flex; align-items:center;
+                justify-content:center; padding:14px; }
+    .dn-modal[hidden] { display:none; }
+    .dn-modal .bg { position:absolute; inset:0; background:rgba(24,18,14,.55); }
+    .dn-modal .card { position:relative; background:#fff; border-radius:16px; width:100%;
+                      max-width:400px; max-height:88vh; overflow:auto; padding:14px 16px 16px;
+                      box-shadow:0 18px 50px -12px rgba(0,0,0,.4); }
+    .dn-modal .hd { display:flex; align-items:flex-start; gap:8px; margin-bottom:10px; }
+    .dn-modal .ti { flex:1; font-size:.92rem; font-weight:800; color:#8D1D2C; line-height:1.3; }
+    .dn-modal .x { flex-shrink:0; width:30px; height:30px; border:0; border-radius:50%;
+                   background:#f1ece4; color:#5f574f; font-size:1rem; line-height:1; cursor:pointer; }
+    .dn-modal .who { font-size:.72rem; color:#6c757d; margin-bottom:8px; }
+    .dn-modal .ph { border-radius:12px; overflow:hidden; border:1px solid rgba(0,0,0,.08);
+                    background:#f6f3ee; min-height:120px; display:flex; align-items:center;
+                    justify-content:center; }
+    .dn-modal .ph img { width:100%; height:auto; display:block; }
+    .dn-modal .ph .msg { font-size:.74rem; color:#9a9086; padding:26px 12px; text-align:center; }
+    .dn-modal .sect { font-size:.64rem; font-weight:800; text-transform:uppercase;
+                      letter-spacing:.05em; color:#8D1D2C; margin:12px 0 4px; }
+    .dn-modal .txt { font-size:.8rem; color:#241f1c; line-height:1.5; background:#faf7f2;
+                     border-radius:8px; padding:8px 10px; }
+    .dn-modal .lnk { display:block; text-align:center; margin-top:10px; font-size:.76rem;
+                     font-weight:800; color:#435ebe; }
+    .dn-modal .lnk[hidden] { display:none; }
+    .dn-modal .txt.empty { color:#9a9086; font-style:italic; }
+
+    /* Évaluation : étoiles, conformité, commentaire */
+    .dn-stars { display:flex; align-items:center; gap:2px; }
+    .dn-stars .st { border:0; background:none; padding:0 2px; font-size:1.5rem; line-height:1;
+                    color:#ddd6cb; cursor:pointer; }
+    .dn-stars .st.on { color:#C9A227; }
+    .dn-clear { margin-left:8px; font-size:.66rem; color:#9a9086; cursor:pointer;
+                text-decoration:underline; }
+    .dn-acc { display:flex; gap:6px; margin-top:8px; }
+    .dn-acc .ac { flex:1; border:1.5px solid #e7ded2; background:#fff; border-radius:999px;
+                  padding:6px 10px; font-size:.72rem; font-weight:800; color:#7a7168; cursor:pointer; }
+    .dn-acc .ac.ok.on { background:#2D7A3E; border-color:#2D7A3E; color:#fff; }
+    .dn-acc .ac.no.on { background:#8D1D2C; border-color:#8D1D2C; color:#fff; }
+    .dn-cm { width:100%; margin-top:8px; border:1.5px solid #e7ded2; border-radius:10px;
+             padding:8px 10px; font-size:.78rem; font-family:inherit; resize:vertical; }
+    .dn-save { width:100%; margin-top:8px; border:0; border-radius:999px; background:#8D1D2C;
+               color:#fff; font-size:.8rem; font-weight:800; padding:10px; cursor:pointer; }
+    .dn-save[disabled] { opacity:.55; cursor:default; }
+    .dn-msg { margin-top:8px; font-size:.72rem; border-radius:8px; padding:7px 9px; }
+    .dn-msg[hidden] { display:none; }
+    .dn-msg.ok { background:rgba(45,122,62,.1); color:#2D7A3E; }
+    .dn-msg.ko { background:rgba(192,24,43,.1); color:#c0182b; }
+</style>
