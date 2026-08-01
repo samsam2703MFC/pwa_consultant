@@ -29,15 +29,22 @@
     .nq-search { width:100%; min-height:44px; border-radius:12px; border:1px solid rgba(0,0,0,.08);
                  background:#fff; padding:0 13px; font-size:.82rem; color:#241f1c; }
     .nq-search::placeholder { color:#a2988c; }
-    .nq-filters { display:flex; gap:6px; overflow-x:auto; margin-top:8px; -webkit-overflow-scrolling:touch;
-                  scrollbar-width:none; }
-    .nq-filters::-webkit-scrollbar { display:none; }
-    .nq-f { flex-shrink:0; min-height:36px; display:inline-flex; align-items:center; gap:5px; padding:0 13px;
+    /* La barre PASSE À LA LIGNE plutôt que de défiler : un filtre à moitié
+       coupé au bord de l'écran ne se voit pas, et on ne cherche pas ce qu'on
+       ne soupçonne pas. Deux boutons cycliques et deux bascules tiennent sur
+       deux lignes courtes. */
+    .nq-filters { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .nq-f { flex-shrink:0; min-height:36px; display:inline-flex; align-items:center; gap:5px; padding:0 11px;
             border-radius:999px; font-size:.72rem; font-weight:800; background:#fff; color:#6c757d;
             border:1px solid rgba(0,0,0,.07); cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .nq-f.on { background:#8D1D2C; color:#fff; border-color:#8D1D2C; }
     .nq-f .n { font-weight:900; }
     .nq-f .n:empty { display:none; }
+    /* Un bouton cyclique n'a pas l'air d'un bouton : la petite flèche dit que
+       l'appui fait tourner l'état plutôt que de le cocher. */
+    .nq-cyc { border:0; font-family:inherit; }
+    .nq-cyc::after { content:"⟳"; font-size:.78rem; opacity:.5; margin-left:1px; }
+    .nq-cyc:not(.on) { border:1px solid rgba(0,0,0,.07); }
     /* Le périmètre se distingue de l'état : ce ne sont pas des choix qui
        s'excluent, ce sont deux robinets qu'on ouvre ou qu'on ferme. */
     .nq-f.nq-scope { border-style:dashed; }
@@ -67,7 +74,10 @@
 
     /* Bandeau boutique : collant sous les outils, il dit toujours où l'on est,
        et se déplie. 44 px de haut — il se tape au pouce. */
-    .nq-shop { position:sticky; top:96px; z-index:5; display:flex; align-items:center; gap:8px;
+    /* Le bandeau se cale SOUS les outils, dont la hauteur varie avec le nombre
+       de lignes de filtres. Le 96 px que j'avais deviné faisait chevaucher les
+       deux dès que la barre passait à la ligne. */
+    .nq-shop { position:sticky; top:var(--nq-tools-h, 96px); z-index:5; display:flex; align-items:center; gap:8px;
                background:#8D1D2C; color:#fff; border-radius:10px 10px 0 0; padding:0 12px;
                min-height:44px; font-size:.76rem; font-weight:800; margin-top:12px;
                cursor:pointer; list-style:none; -webkit-tap-highlight-color:transparent; }
@@ -190,21 +200,27 @@
     <div class="nq-tools">
         <input type="search" class="nq-search" id="nqSearch" autocomplete="off"
                placeholder="{{ translations.search_task ?? 'Rechercher une tâche, une boutique…' }}">
-        {# Deux familles de filtres qui se combinent : l'ÉTAT (un seul à la
-           fois) et le PÉRIMÈTRE (deux bascules indépendantes). Le périmètre
-           arrive pré-activé — obligatoire et avec photo, faute de quoi il n'y
-           a rien à vérifier — mais il se relâche d'un doigt. Les nombres sont
-           comptés à l'écran : un compteur qui ne correspond pas à ce qu'on
-           obtient en cliquant est pire que pas de compteur. #}
+        {# Deux boutons CYCLIQUES plutôt que cinq pastilles : la barre débordait
+           de l'écran et il fallait la faire défiler pour atteindre le dernier
+           filtre. Chaque bouton porte une DIMENSION et affiche l'état courant
+           avec son compte ; l'appui passe à l'état suivant.
+
+             Avis        : à évaluer → conformes → non conformes → tous
+             Réalisation : toutes → faites → non faites
+
+           Les deux se combinent, et se combinent avec le périmètre. Les
+           nombres sont comptés à l'écran : un compteur qui ne correspond pas à
+           ce qu'on obtient en appuyant est pire que pas de compteur. #}
         <div class="nq-filters" id="nqFilters">
-            <span class="nq-f on" data-f="todo">{{ translations.f_to_review ?? 'À évaluer' }} <b class="n"></b></span>
-            <span class="nq-f" data-f="all">{{ translations.f_all ?? 'Toutes' }} <b class="n"></b></span>
-            <span class="nq-f" data-f="ko">{{ translations.f_nc ?? 'Non conformes' }} <b class="n"></b></span>
-            <span class="nq-f" data-f="undone">{{ translations.f_undone ?? 'Non faites' }} <b class="n"></b></span>
-            <span class="nq-f" data-f="done">{{ translations.f_done ?? 'Faites' }} <b class="n"></b></span>
+            <button type="button" class="nq-f nq-cyc on" data-c="ctrl">
+                <span class="lb"></span><b class="n"></b>
+            </button>
+            <button type="button" class="nq-f nq-cyc" data-c="real">
+                <span class="lb"></span><b class="n"></b>
+            </button>
             <span class="nq-sep" aria-hidden="true"></span>
             <span class="nq-f nq-scope{{ scope_mandatory ? ' on' : '' }}" data-s="mandatory">{{ translations.f_mandatory_one ?? 'Obligatoire' }}</span>
-            <span class="nq-f nq-scope{{ scope_photo ? ' on' : '' }}" data-s="photo">{{ translations.f_photo_one ?? 'Avec photo' }}</span>
+            <span class="nq-f nq-scope{{ scope_photo ? ' on' : '' }}" data-s="photo">{{ translations.f_photo_one ?? 'Photo' }}</span>
         </div>
     </div>
 
@@ -323,7 +339,24 @@
     var barre  = document.getElementById('nqFilters');
     var tpl    = shown ? (shown.getAttribute('data-tpl') || '%d') : '%d';
 
-    var etat = 'todo';
+    /* Deux dimensions cycliques. L'état neutre porte le nom de la dimension —
+       « Avis : tous » — sinon deux boutons relâchés côte à côte ne disent plus
+       lequel commande quoi. */
+    var DIM = {
+        ctrl: { i: 0, etats: [
+            { v: 'todo', l: {{ (translations.f_to_review ?? 'À évaluer')|json_encode|raw }} },
+            { v: 'ok',   l: {{ (translations.f_ok ?? 'Conformes')|json_encode|raw }} },
+            { v: 'ko',   l: {{ (translations.f_nc ?? 'Non conformes')|json_encode|raw }} },
+            { v: 'any',  l: {{ (translations.f_ctrl_any ?? 'Avis')|json_encode|raw }} }
+        ] },
+        real: { i: 0, etats: [
+            { v: 'any',    l: {{ (translations.f_real_any ?? 'État')|json_encode|raw }} },
+            { v: 'done',   l: {{ (translations.f_done ?? 'Faites')|json_encode|raw }} },
+            { v: 'undone', l: {{ (translations.f_undone ?? 'Non faites')|json_encode|raw }} }
+        ] }
+    };
+    var val = function (d) { return DIM[d].etats[DIM[d].i].v; };
+
     // Périmètre pré-activé, d'après la configuration : obligatoire et avec
     // photo. Sans photo il n'y a rien à vérifier ; hors obligatoire, rien à
     // exiger. Le consultant peut relâcher l'un ou l'autre d'un doigt.
@@ -334,10 +367,11 @@
 
     /** Une vue restreinte : le dépliage automatique n'a de sens que là. */
     function actif() {
-        return etat !== 'all' || perim.mandatory || perim.photo || (search.value || '').trim() !== '';
+        return val('ctrl') !== 'any' || val('real') !== 'any'
+            || perim.mandatory || perim.photo || (search.value || '').trim() !== '';
     }
 
-    /** Le périmètre et la recherche — ce qui s'applique à TOUS les états. */
+    /** Le périmètre et la recherche — ce qui s'applique à TOUT. */
     function dansPerimetre(r) {
         if (perim.mandatory && r.getAttribute('data-mandatory') !== '1') { return false; }
         if (perim.photo     && r.getAttribute('data-photo') !== '1')     { return false; }
@@ -345,30 +379,44 @@
         return q === '' || (r.getAttribute('data-name') || '').indexOf(q) !== -1;
     }
 
-    function dansEtat(r, e) {
+    /** L'avis : à évaluer, conforme, non conforme — ou peu importe. */
+    function dansCtrl(r, v) {
+        if (v === 'any') { return true; }
+        return r.getAttribute('data-state') === v;
+    }
+
+    /** La réalisation : faite (quel que soit l'avis) ou non faite. */
+    function dansReal(r, v) {
         var st = r.getAttribute('data-state');
-        if (e === 'todo')   { return st === 'todo'; }
-        if (e === 'ko')     { return st === 'ko'; }
-        if (e === 'undone') { return st === 'na'; }
-        // « Faites » = tout ce qui est fait, évalué ou non : c'est le regard
-        // du franchisé, pas la file du consultant.
-        if (e === 'done')   { return st !== 'na'; }
+        if (v === 'done')   { return st !== 'na'; }
+        if (v === 'undone') { return st === 'na'; }
         return true;
     }
 
-    function garde(r) { return dansPerimetre(r) && dansEtat(r, etat); }
+    function garde(r) {
+        return dansPerimetre(r) && dansCtrl(r, val('ctrl')) && dansReal(r, val('real'));
+    }
 
-    /** Le nombre porté par chaque pastille d'état, à périmètre courant. */
-    function compter() {
-        var dans = rows.filter(dansPerimetre);
-        [].slice.call(barre.querySelectorAll('.nq-f[data-f]')).forEach(function (b) {
-            var n = b.querySelector('.n');
-            if (n) { n.textContent = dans.filter(function (r) { return dansEtat(r, b.getAttribute('data-f')); }).length; }
+    /** Chaque bouton affiche l'état courant ET ce qu'il donnerait. */
+    function peindre() {
+        [].slice.call(barre.querySelectorAll('.nq-cyc')).forEach(function (b) {
+            var d = b.getAttribute('data-c');
+            var e = DIM[d].etats[DIM[d].i];
+            b.querySelector('.lb').textContent = e.l;
+            b.classList.toggle('on', e.v !== 'any');
+            // Le compte de CETTE dimension, les autres filtres appliqués.
+            var n = rows.filter(function (r) {
+                if (!dansPerimetre(r)) { return false; }
+                return d === 'ctrl'
+                    ? dansCtrl(r, e.v) && dansReal(r, val('real'))
+                    : dansReal(r, e.v) && dansCtrl(r, val('ctrl'));
+            }).length;
+            b.querySelector('.n').textContent = e.v === 'any' ? '' : n;
         });
     }
 
     function appliquer() {
-        compter();
+        peindre();
         var vus = 0;
         rows.forEach(function (r) {
             var ok = garde(r);
@@ -406,8 +454,7 @@
 
         if (none) { none.hidden = vus > 0; }
         if (shown) {
-            shown.innerHTML = (etat === 'all' && !perim.mandatory && !perim.photo && !search.value)
-                ? '' : tpl.replace('%d', '<b>' + vus + '</b>') + ' · ';
+            shown.innerHTML = actif() ? tpl.replace('%d', '<b>' + vus + '</b>') + ' · ' : '';
         }
     }
 
@@ -420,8 +467,26 @@
         b.textContent = b.hasAttribute('data-l') ? n + ' ' + b.getAttribute('data-l') : n;
     }
 
+    /* Hauteur réelle des outils collants : le bandeau de boutique s'y cale.
+       Recalculée au redimensionnement — la barre passe d'une à deux lignes
+       selon la largeur. */
+    var outils = document.querySelector('.nq-tools');
+    function majOffset() {
+        document.documentElement.style.setProperty('--nq-tools-h', outils.offsetHeight + 'px');
+    }
+    // Un `resize` de fenêtre ne suffit pas : la barre change de hauteur quand
+    // les polices arrivent ou qu'un libellé s'allonge, sans que la fenêtre
+    // bouge. On observe l'élément lui-même — mesuré une fois au chargement, il
+    // restait à 106 px alors qu'il en faisait 150.
+    if (window.ResizeObserver) {
+        new ResizeObserver(majOffset).observe(outils);
+    } else {
+        window.addEventListener('resize', majOffset);
+    }
+    majOffset();
+
     // Compteur d'origine mémorisé : filtrer le remplace par le nombre montré,
-    // et revenir à « Toutes » sans périmètre doit rendre le vrai fait/total.
+    // et revenir à la vue complète doit rendre le vrai fait/total.
     [].slice.call(document.querySelectorAll('.nq-cl .c')).forEach(function (c) {
         c.setAttribute('data-base', c.textContent.trim());
     });
@@ -429,16 +494,13 @@
     barre.addEventListener('click', function (e) {
         var b = e.target.closest('.nq-f');
         if (!b) { return; }
-        var p = b.getAttribute('data-s');
-        if (p) {
-            // Périmètre : une bascule, pas un choix exclusif.
-            perim[p] = !perim[p];
-            b.classList.toggle('on', perim[p]);
+        var d = b.getAttribute('data-c');
+        if (d) {
+            DIM[d].i = (DIM[d].i + 1) % DIM[d].etats.length;   // l'état suivant
         } else {
-            etat = b.getAttribute('data-f');
-            [].slice.call(this.querySelectorAll('.nq-f[data-f]')).forEach(function (x) {
-                x.classList.toggle('on', x === b);
-            });
+            var p = b.getAttribute('data-s');
+            perim[p] = !perim[p];                               // une bascule
+            b.classList.toggle('on', perim[p]);
         }
         appliquer();
     });
