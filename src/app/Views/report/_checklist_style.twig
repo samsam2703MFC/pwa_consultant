@@ -118,6 +118,23 @@
     .ck-empty { font-size:.78rem; color:#8a827a; padding:14px; text-align:center;
                 border:1px dashed rgba(0,0,0,.12); border-radius:12px; }
 
+    /* Ossature d'impression. Le bandeau de rappel doit revenir en haut de
+       CHAQUE feuille : un `thead` est le seul mécanisme que le navigateur
+       recopie en réservant la place — un élément `position:fixed` se recopie
+       aussi mais chevauche le texte. À l'écran, le tableau est déplié en
+       blocs et le bandeau masqué : rien ne change. */
+    .ck-sheet, .ck-sheet > tbody, .ck-sheet > tbody > tr,
+    .ck-sheet > tbody > tr > td { display:block; }
+    .ck-sheet > thead { display:none; }
+    .ck-runhead { display:none; }
+    /* Le navigateur donne 1 px de remplissage à toute cellule : sans cette
+       règle, l'ossature décale le rapport d'un pixel et lui retire deux
+       pixels de large. Le sélecteur descend en ligne directe — `.ck-sheet td`
+       toucherait aussi les cellules des tableaux du rapport, qui perdraient
+       leur propre remplissage. */
+    .ck-sheet { border-spacing:0; width:100%; }
+    .ck-sheet > thead > tr > td, .ck-sheet > tbody > tr > td { padding:0; }
+
     /* Navigation de période : cibles au pouce, comme le reste de l'app. */
     .ck-nav { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
     .ck-nav a, .ck-nav span.cur { min-height:44px; display:inline-flex; align-items:center;
@@ -130,25 +147,77 @@
         .ck-days { grid-template-columns:repeat(3,1fr); }
     }
 
-    /* Impression / « Enregistrer en PDF » : on ne garde que le rapport.
-       Les classes sont celles du gabarit mobile_base — les mêmes que le
-       rapport de gestion, dont l'impression est éprouvée. Les avoir devinées
-       laissait la barre de navigation et la barre d'onglets sur le papier. */
+    /* ── Impression / « Enregistrer en PDF » ──────────────────────────────
+       Le rapport finit en PDF chez le franchisé : une feuille A4 est un
+       format fixe, pas une fenêtre qu'on fait défiler. Masquer la navigation
+       ne suffit donc pas — il faut aussi une échelle typographique en points,
+       des coupures de page choisies, et un rappel de l'identité du rapport
+       sur chaque feuille.
+       Les classes masquées sont celles du gabarit mobile_base — les mêmes que
+       le rapport de gestion. Les avoir devinées laissait la barre de
+       navigation et la barre d'onglets sur le papier. */
     @media print {
+        /* Format déclaré : sans `size`, la feuille est celle de l'imprimante
+           et les marges celles du navigateur — trois rendus pour trois
+           postes. 184 mm de colonne utile. */
+        @page { size:A4 portrait; margin:12mm 13mm; }
+
         .app-topbar, .app-tabbar-bar, .app-nav-sheet, .app-nav-backdrop,
         .app-back-btn, #nav-progress, #pwa-banner, #pwa-ios-tip,
         .ck-noprint { display:none !important; }
-        body { background:#fff !important; }
+        body { background:#fff !important; orphans:3; widows:3; }
         main.app-content, .app-content { padding:0 !important; }
-        .ck { max-width:none; }
         a[href] { color:inherit; text-decoration:none; }
 
-        /* Un conteneur à défilement coupe ce qui dépasse au lieu de le
-           reporter : sur papier il n'y a rien à faire défiler. */
-        .ck-tw { overflow:visible !important; }
-        .ck-tbl { width:100% !important; }
+        /* Tout le rapport est dimensionné en rem : redéfinir la racine le met
+           à l'échelle du papier d'un seul geste. L'écran part de 16 px, soit
+           12 pt, pour une colonne de 820 px ; la colonne A4 en fait 184 mm,
+           soit 696 px — 15 % de moins. Même nombre de signes par ligne. */
+        html { font-size:10.5pt; }
+        .ck { max-width:none; margin:0; }
 
-        .ck-fd, .ck-day, .ck-kpi, .ck-tw, .ck-bars, .ck-sec { break-inside:avoid; }
+        /* Bandeau répété en tête de feuille : à partir de la page 2,
+           l'en-tête du rapport n'est plus là pour dire de quelle boutique et
+           de quelle période il s'agit. */
+        .ck-sheet { display:table !important; width:100%; }
+        .ck-sheet > thead { display:table-header-group !important; }
+        .ck-sheet > tbody { display:table-row-group; }
+        .ck-sheet > thead > tr, .ck-sheet > tbody > tr { display:table-row; }
+        .ck-sheet > thead > tr > td, .ck-sheet > tbody > tr > td {
+            display:table-cell; padding:0; }
+        .ck-runhead { display:flex !important; align-items:baseline; gap:9px;
+            font-size:.6rem; color:#8a827a; padding-bottom:1.8mm; margin-bottom:4mm;
+            border-bottom:.5pt solid rgba(0,0,0,.22); }
+        .ck-runhead b { color:#8D1D2C; font-weight:800; text-transform:uppercase;
+            letter-spacing:.04em; }
+        .ck-runhead .sp { margin-left:auto; white-space:nowrap; }
+
+        /* Un conteneur à défilement coupe ce qui dépasse au lieu de le
+           reporter : sur papier il n'y a rien à faire défiler. Son cadre
+           arrondi disparaît aussi — coupé en deux par un saut de page, il
+           dessinait deux moitiés de boîte. Le tableau porte son propre filet. */
+        .ck-tw { overflow:visible !important; border:0; border-radius:0; }
+        .ck-tbl { width:100% !important; border:.5pt solid rgba(0,0,0,.18); }
+        .ck-tbl th, .ck-tbl td { padding:1.5mm 2mm; }
+
+        /* Ce qui n'a aucun sens coupé en deux reste insécable ; les SECTIONS,
+           elles, coulent. Une section insécable saute à la feuille suivante
+           dès qu'elle ne tient plus et laisse une demi-page blanche — c'est
+           ce qui produisait une troisième feuille presque vide. */
+        .ck-sec { break-inside:auto; margin-top:6mm; }
+        .ck-sec-h, .ck-head { break-after:avoid; }
+
+        /* L'écran laisse respirer parce qu'on fait défiler ; la feuille, elle,
+           se paie à l'unité. Un interligne de constat plus serré, c'est une
+           demi-feuille de moins sur un mois chargé. */
+        .ck-feed { gap:5px; }
+        .ck-fd { padding:6px 9px 6px 8px; }
+        .ck-fd-img { width:44px; height:44px; }
+        .ck-bar-row { padding:6px 11px; }
+        .ck-kpi { padding:8px 10px; }
+        .ck-kpis, .ck-days, .ck-kpi, .ck-day, .ck-fd, .ck-bar-row,
+        .ck-nc-item, .ck-tbl tr { break-inside:avoid; }
+        .ck-tw, .ck-bars, .ck-feed { break-inside:auto; }
         thead { display:table-header-group; }   /* en-tête répété par page */
 
         /* Le détail des NC est replié à l'écran ; imprimé replié, le PDF
@@ -157,13 +226,13 @@
         details > .ck-nc-list { display:block !important; }
         .ck-nc-toggle { min-height:0; }
 
+        /* Le commentaire du consultant est tronqué à deux lignes à l'écran
+           pour que les cartes restent alignées. Sur papier, la phrase coupée
+           est perdue pour de bon : on la donne en entier. */
+        .ck-fd-c { display:block; -webkit-line-clamp:none; overflow:visible; }
+
         /* Les pastilles et les barres gardent leurs couleurs sur papier :
            sans cela, vert et rouge deviennent deux gris identiques. */
-        .ck-pill, .ck-sev, .ck-bar, .ck-bar i, .ck-day, .ck-kpi::before, .ck-chip,
-        .ck-tbl th, .ck-fd {
-            -webkit-print-color-adjust:exact; print-color-adjust:exact;
-        }
-
-        @page { margin:14mm 12mm; }
+        .ck, .ck * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     }
 </style>
