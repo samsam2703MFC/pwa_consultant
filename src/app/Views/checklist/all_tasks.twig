@@ -1,7 +1,7 @@
 {% extends "layouts/mobile_base.twig" %}
 
 {% import "components/_icons.twig" as icons %}
-{% set active_nav = 'checklists' %}
+{% set active_nav = 'tasks' %}
 {% set today_date = today ?? ('now' | date('Y-m-d')) %}
 {% set t = totals ?? {} %}
 
@@ -57,6 +57,13 @@
                          text-transform:uppercase; opacity:.75; margin-bottom:2px; }
     .nq-start .big { display:block; font-family:'Vank','Gotham',serif; font-size:17px; }
     .nq-start .car { flex-shrink:0; font-size:1.2rem; opacity:.7; }
+    /* Rien à contrôler : la même carte, en sourdine. Elle dit l'état du jour
+       au lieu de disparaître. */
+    .nq-start.vide { background:#fff; color:var(--c-ink); border:1px solid var(--c-line);
+                     box-shadow:0 10px 24px -20px rgba(70,40,25,.3); }
+    .nq-start.vide .ico { color:#2D7A3E; }
+    .nq-start.vide .eyebrow { color:var(--c-primary); opacity:1; }
+    .nq-start.vide .car { color:#c9c0b4; }
 
     /* Bandeau boutique : collant sous les outils, il dit toujours où l'on est,
        et se déplie. 44 px de haut — il se tape au pouce. */
@@ -149,24 +156,33 @@
 {% block content %}
 <div class="page-content-loaded">
 
-    <a href="{{ ROOT }}/checklists" class="app-back-btn">
+    <a href="{{ ROOT }}/tasks" class="app-back-btn">
         {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_tasks ?? 'Tâches' }}</span>
     </a>
 
     {# La liste sert à CHOISIR. Quand la décision est prise — « je fais ma
        tournée » — choisir devient du travail perdu : ce bouton lance la file,
-       une tâche à la fois. Il disparaît quand il n'y a rien à contrôler, au
-       lieu de mener à un écran vide. #}
-    {% if (totals.to_review ?? 0) > 0 %}
-        <a href="{{ ROOT }}/checklists/review?date={{ date }}" class="nq-start">
-            <span class="ico">{{ icons.svg('square-check', 20) }}</span>
-            <span class="txt">
+       une tâche à la fois.
+
+       Il reste TOUJOURS visible. Le masquer quand la file est vide rendait la
+       fonction introuvable les jours où tout était déjà contrôlé — c'est-à-dire
+       précisément les jours où on cherche à comprendre pourquoi il n'y a rien
+       à faire. Il change d'apparence, pas d'existence. #}
+    {% set a_faire = totals.to_review ?? 0 %}
+    <a href="{{ ROOT }}/checklists/review?date={{ date }}"
+       class="nq-start{{ a_faire > 0 ? '' : ' vide' }}">
+        <span class="ico">{{ icons.svg(a_faire > 0 ? 'square-check' : 'check-check', 20) }}</span>
+        <span class="txt">
+            {% if a_faire > 0 %}
                 <span class="eyebrow">{{ translations.start_eyebrow ?? 'Une tâche à la fois' }}</span>
-                <span class="big">{{ translations.start_cta ?? 'Contrôler' }} ({{ totals.to_review }})</span>
-            </span>
-            <span class="car">›</span>
-        </a>
-    {% endif %}
+                <span class="big">{{ translations.start_cta ?? 'Contrôler' }} ({{ a_faire }})</span>
+            {% else %}
+                <span class="eyebrow">{{ translations.start_eyebrow_done ?? 'Contrôle en série' }}</span>
+                <span class="big">{{ translations.start_cta_done ?? 'Tout est contrôlé' }}</span>
+            {% endif %}
+        </span>
+        <span class="car">›</span>
+    </a>
 
     <div class="nq-tools">
         <input type="search" class="nq-search" id="nqSearch" autocomplete="off"

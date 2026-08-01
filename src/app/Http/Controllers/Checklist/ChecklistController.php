@@ -147,7 +147,9 @@ class ChecklistController extends Controller
             // consultant vérifie par défaut — obligatoire et avec photo.
             'scope_mandatory' => $this->params->getInt('checklist_review_needs_mandatory', 1) === 1,
             'scope_photo'     => $this->params->getInt('checklist_review_needs_photo', 1) === 1,
-            'active_nav' => 'checklists',
+            // L'écran s'appelle « Toutes les tâches » et son retour mène aux
+            // tâches : il appartient à cette section, pas aux checklists.
+            'active_nav' => 'tasks',
         ]);
     }
 
@@ -180,7 +182,7 @@ class ChecklistController extends Controller
             'today'      => date('Y-m-d'),
             'rating_ok'  => $this->params->getInt('checklist_review_rating_ok', 4),
             'rating_ko'  => $this->params->getInt('checklist_review_rating_ko', 2),
-            'active_nav' => 'checklists',
+            'active_nav' => 'tasks',
         ]);
     }
 
