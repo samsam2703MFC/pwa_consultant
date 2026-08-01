@@ -57,13 +57,13 @@
                          text-transform:uppercase; opacity:.75; margin-bottom:2px; }
     .nq-start .big { display:block; font-family:'Vank','Gotham',serif; font-size:17px; }
     .nq-start .car { flex-shrink:0; font-size:1.2rem; opacity:.7; }
-    /* Rien à contrôler : la même carte, en sourdine. Elle dit l'état du jour
-       au lieu de disparaître. */
-    .nq-start.vide { background:#fff; color:var(--c-ink); border:1px solid var(--c-line);
-                     box-shadow:0 10px 24px -20px rgba(70,40,25,.3); }
-    .nq-start.vide .ico { color:#2D7A3E; }
-    .nq-start.vide .eyebrow { color:var(--c-primary); opacity:1; }
-    .nq-start.vide .car { color:#c9c0b4; }
+    /* Rien à contrôler : la même carte, en gris. Elle dit l'état du jour au
+       lieu de disparaître — et reste cliquable, la pile sait s'annoncer vide. */
+    .nq-start.vide { background:#e9e4dc; color:#6f665c; border:1px solid rgba(0,0,0,.06);
+                     box-shadow:none; }
+    .nq-start.vide .ico { color:#9a9086; }
+    .nq-start.vide .eyebrow { color:#8a827a; opacity:1; }
+    .nq-start.vide .car { color:#b3aaa0; }
 
     /* Bandeau boutique : collant sous les outils, il dit toujours où l'on est,
        et se déplie. 44 px de haut — il se tape au pouce. */
@@ -177,8 +177,11 @@
                 <span class="eyebrow">{{ translations.start_eyebrow ?? 'Une tâche à la fois' }}</span>
                 <span class="big">{{ translations.start_cta ?? 'Contrôler' }} ({{ a_faire }})</span>
             {% else %}
+                {# Le compteur est écrit même à zéro : « 0 tâche à vérifier »
+                   est une réponse, « Tout est contrôlé » est une conclusion —
+                   et on veut voir le chiffre sur lequel elle repose. #}
                 <span class="eyebrow">{{ translations.start_eyebrow_done ?? 'Contrôle en série' }}</span>
-                <span class="big">{{ translations.start_cta_done ?? 'Tout est contrôlé' }}</span>
+                <span class="big">0 {{ translations.start_none ?? 'tâche à vérifier' }}</span>
             {% endif %}
         </span>
         <span class="car">›</span>
