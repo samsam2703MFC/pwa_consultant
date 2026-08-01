@@ -54,6 +54,40 @@ const FORMATS = {
  * Les clés sont celles des fiches (`landing_fonctions.cle`) — les changer
  * détacherait la capture de sa fonction.
  */
+/**
+ * Ce qui doit disparaître d'une capture avant qu'elle parte sur un site
+ * public. Partagé par les deux modules : c'est le même réseau derrière.
+ *
+ * Le principe : rien de ce qui permet de reconnaître une enseigne, un point
+ * de vente ou une personne. Les chiffres, eux, restent tels quels — les
+ * maquiller ferait de la capture un mensonge, et c'est pour ça que les écrans
+ * qui en étalent sont écartés plutôt que retouchés.
+ */
+const ANONYMAT = {
+  marque: 'RESEAU DEMO',
+  // Le nom d'un point de vente, tel qu'il apparaît dans les vues.
+  noms: [{ motif: "Atelier by[A-Za-z\u00c0-\u00ff' \\-]{0,40}", prefixe: 'Boutique' }],
+  villes: ['Halle', 'Corbais', 'Gembloux', 'Nysa', 'Sombreffe'],
+  // Ce qui reste d'enseigne une fois les noms complets remplacés.
+  enseignes: ['Atelier', 'Berlo', 'Harmonie', 'L\u2019Atelier', "L'Atelier"],
+  // Les porteurs de nom de personne, reperes dans les gabarits Twig.
+  personnes:
+    '.nt-note-author, .nt-reply-author, .nt-thread-author, .task-by, .who,' +
+    ' .pf-name, .tm-name, .nt-me-sig-name, .app-nav-profile-name, .lt-name',
+  // Les vignettes d'identite : deux lettres suffisent a reconnaitre quelqu'un
+  // dans une petite equipe.
+  avatars:
+    '.nt-avatar, .nt-thread-avatar, .nt-me-sig-avatar, .pf-avatar, .app-nav-profile-avatar',
+  // Les pieces jointes : une photo de comptoir montre l'enseigne, les
+  // produits, parfois le personnel. Floutees plutot que retirees, pour que la
+  // capture continue de montrer que la fonction existe.
+  photos:
+    '[class*="photo"] img, [class*="attach"] img, .rpt-thumb, .nt-reply-thumb,' +
+    ' .claim-photo, .photo-box img, .photo-preview img',
+  courriels: true,
+  telephones: true,
+};
+
 const PLANS = {
   consultant: {
     format: 'tablette',
@@ -75,11 +109,7 @@ const PLANS = {
       tasks: '/tasks',
       claims: '/claims',
     },
-    anonymat: {
-      marque: 'RESEAU DEMO',
-      noms: [{ motif: "Atelier by[A-Za-z\u00c0-\u00ff' \\-]{0,40}", prefixe: 'Boutique' }],
-      villes: ['Halle', 'Corbais', 'Gembloux', 'Nysa', 'Sombreffe'],
-    },
+    anonymat: ANONYMAT,
   },
   cuisine: {
     format: 'tablette',
@@ -92,11 +122,7 @@ const PLANS = {
       'nouvelle-commande': '/orders/new',
       reclamations: '/complaints',
     },
-    anonymat: {
-      marque: 'RESEAU DEMO',
-      noms: [{ motif: "Atelier by[A-Za-z\u00c0-\u00ff' \\-]{0,40}", prefixe: 'Boutique' }],
-      villes: ['Halle', 'Corbais', 'Gembloux', 'Nysa', 'Sombreffe'],
-    },
+    anonymat: ANONYMAT,
   },
 };
 
@@ -356,32 +382,70 @@ if (identifiant && plan.connexion) {
  */
 async function anonymiser(page, regles) {
   await page.evaluate((r) => {
-    // La table des pseudonymes vit sur `window` : elle doit survivre aux
-    // douze appels successifs.
+    // Les tables de pseudonymes vivent sur `window` : elles doivent survivre
+    // aux douze appels successifs, sinon une meme boutique changerait de nom
+    // d'un ecran a l'autre.
     window.__pseudos = window.__pseudos || new Map();
-    const pseudo = (trouve) => {
-      const cle = trouve.trim();
-      if (!window.__pseudos.has(cle)) {
-        window.__pseudos.set(cle, `${r.prefixeCourant} ${window.__pseudos.size + 1}`);
-      }
-      return window.__pseudos.get(cle);
+    window.__gens = window.__gens || new Map();
+
+    const pseudo = (trouve, prefixe, table) => {
+      const cle = trouve.trim().toLowerCase();
+      if (!cle) return trouve;
+      if (!table.has(cle)) table.set(cle, `${prefixe} ${table.size + 1}`);
+      return table.get(cle);
     };
 
     const remplacer = (texte) => {
       let sortie = texte;
       for (const regle of r.noms || []) {
-        r.prefixeCourant = regle.prefixe;
         // L'espace qui suivait le nom est rendu : sans lui, « Boutique 1 — 395 € »
         // devient « Boutique 1— 395 € ».
-        sortie = sortie.replace(new RegExp(regle.motif, 'gi'), (m) => pseudo(m) + m.match(/\s*$/)[0]);
+        sortie = sortie.replace(
+          new RegExp(regle.motif, 'gi'),
+          (m) => pseudo(m, regle.prefixe, window.__pseudos) + m.match(/\s*$/)[0],
+        );
       }
       for (const ville of r.villes || []) {
         sortie = sortie.replace(new RegExp(`\\b${ville}\\b`, 'gi'), 'Ville');
       }
+      // Ce qui reste d'enseigne apres le remplacement des noms complets.
+      for (const enseigne of r.enseignes || []) {
+        sortie = sortie.replace(new RegExp(`\\b${enseigne}\\b`, 'gi'), 'Enseigne');
+      }
+      if (r.courriels) {
+        sortie = sortie.replace(/[\w.+-]+@[\w-]+\.[\w.]{2,}/g, 'contact@exemple.eu');
+      }
+      if (r.telephones) {
+        // Neuf a quinze chiffres, sans barre oblique : une date n'est pas un
+        // numero, et « 21/170 » non plus.
+        sortie = sortie.replace(/(?:\+|00)?[\d][\d \-.()]{7,}[\d]/g, (m) => {
+          const chiffres = m.replace(/\D/g, '').length;
+          if (m.includes('/') || chiffres < 9 || chiffres > 15) return m;
+          return '+00 000 00 00 00';
+        });
+      }
       return sortie;
     };
 
-    // Les nœuds de texte, y compris ceux d'un graphique en SVG.
+    // ── Les personnes, par selecteur : un nom propre ne se devine pas au
+    //    motif, mais le gabarit sait ou il l'affiche. ────────────────────────
+    for (const el of document.querySelectorAll(r.personnes || '')) {
+      const brut = (el.textContent || '').trim();
+      if (!brut || el.dataset.anonyme) continue;
+      el.dataset.anonyme = '1';
+      el.textContent = pseudo(brut, 'Consultant', window.__gens);
+    }
+
+    // Les vignettes d'identite : deux lettres suffisent a reconnaitre
+    // quelqu'un dans une petite equipe.
+    for (const el of document.querySelectorAll(r.avatars || '')) {
+      if (el.dataset.anonyme) continue;
+      el.dataset.anonyme = '1';
+      if (el.tagName === 'IMG') el.style.filter = 'blur(10px)';
+      else el.textContent = '··';
+    }
+
+    // ── Le texte, y compris celui d'un graphique en SVG ────────────────────
     const marcheur = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const aTraiter = [];
     while (marcheur.nextNode()) aTraiter.push(marcheur.currentNode);
@@ -397,8 +461,15 @@ async function anonymiser(page, regles) {
       }
     }
 
+    // ── Les pieces jointes : une photo de comptoir montre l'enseigne, les
+    //    produits, parfois le personnel. Floutee plutot que retiree, pour que
+    //    la capture continue de montrer que la fonction existe. ─────────────
+    for (const el of document.querySelectorAll(r.photos || '')) {
+      el.style.filter = 'blur(14px)';
+    }
+
     // Le logo du client : une image ne se remplace pas par du texte, on la
-    // masque et on écrit le nom neutre à sa place.
+    // masque et on ecrit le nom neutre a sa place.
     const logos = document.querySelectorAll(
       'img[src*="logo" i], img[alt*="logo" i], img[src*="atelier" i], .logo, .brand, [class*="logo" i]',
     );
