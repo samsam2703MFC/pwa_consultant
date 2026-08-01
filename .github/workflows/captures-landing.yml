@@ -1,0 +1,89 @@
+# Fabrique les captures d'écran de la fiche landing, et les publie.
+#
+# Le panel est un poste tablette : les douze écrans sont pris en 1194 × 834,
+# densité 2, sur une instance en service. Les images atterrissent dans
+# docs/landing/, et le push déclenche `notify-landing`, qui demande à la
+# landing de resynchroniser. Rien à faire à la main.
+#
+# Ce fichier vit sur `master` — GitHub ne propose « Run workflow » que pour
+# les workflows de la branche par défaut — mais il travaille sur `main`,
+# la branche que la landing lit. Le code de l'application n'est pas touché.
+#
+# Secrets attendus (Settings → Secrets and variables → Actions) :
+#   CAPTURE_BASE   l'adresse du panel, ex. https://185.180.206.46/pwa_consultant
+#   CAPTURE_USER   le téléphone d'un compte consultant
+#   CAPTURE_PASS   son mot de passe
+#
+# Sans CAPTURE_BASE, le workflow ne fait rien et reste vert : un dépôt pas
+# encore configuré ne doit pas afficher un échec permanent.
+#
+# Prenez un compte qui voit plusieurs boutiques — les écrans seront remplis
+# plutôt que vides, et c'est ce qui fait la différence sur la fiche.
+name: captures-landing
+
+on:
+  workflow_dispatch:
+    inputs:
+      attente:
+        description: 'Millisecondes de repos avant chaque déclic (monter si les graphiques sortent vides)'
+        required: false
+        default: '2500'
+  # Une fois par mois : l'application bouge, les captures doivent suivre.
+  schedule:
+    - cron: '17 4 1 * *'
+
+concurrency:
+  group: captures-landing
+  cancel-in-progress: true
+
+jobs:
+  capturer:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      CAPTURE_BASE: ${{ secrets.CAPTURE_BASE }}
+    steps:
+      - name: Dépôt non configuré
+        if: env.CAPTURE_BASE == ''
+        run: echo "::notice::CAPTURE_BASE n'est pas défini — aucune capture n'est prise."
+
+      - uses: actions/checkout@v4
+        if: env.CAPTURE_BASE != ''
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        if: env.CAPTURE_BASE != ''
+        with:
+          node-version: '20'
+
+      - name: Installer Playwright et son navigateur
+        if: env.CAPTURE_BASE != ''
+        run: |
+          npm i --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+
+      - name: Prendre les douze écrans
+        if: env.CAPTURE_BASE != ''
+        env:
+          CAPTURE_USER: ${{ secrets.CAPTURE_USER }}
+          CAPTURE_PASS: ${{ secrets.CAPTURE_PASS }}
+        run: node tools/capturer-ecrans.mjs --module=consultant --attente=${{ inputs.attente || '2500' }}
+
+      - name: Publier ce qui a changé
+        if: env.CAPTURE_BASE != ''
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add docs/landing
+          # Une capture identique au pixel près ne mérite pas un commit : sans
+          # ce test, le dépôt gagnerait douze images par mois pour rien.
+          if git diff --cached --quiet; then
+            echo "::notice::Aucune capture n'a changé."
+            exit 0
+          fi
+          git commit -m "Captures de la fiche landing, prises le $(date -u '+%d/%m/%Y')"
+          git push origin HEAD:main
+          echo "::notice::Captures publiées — notify-landing prend la suite."
