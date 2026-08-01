@@ -3,7 +3,8 @@
 {% import "report/_checklist_macros.twig" as m %}
 {% set active_nav = 'reports' %}
 
-{% block title %}{{ translations.ck_month_title ?? 'Rapport checklists — mois' }} — Consultant Panel{% endblock %}
+{# Voir checklist_week.twig : le <title> devient le nom du fichier PDF. #}
+{% block title %}{{ translations.ck_month_file ?? 'Checklist mensuel' }} - {{ report.shop.name ?? '' }} - {{ report.from|date('m-Y') }}{% endblock %}
 {% block page_title %}{{ translations.ck_month_title ?? 'Checklist Tâches' }}{% endblock %}
 {% block page_subtitle %}{{ report.shop.name ?? '' }}{% endblock %}
 
