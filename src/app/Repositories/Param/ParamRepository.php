@@ -65,6 +65,10 @@ class ParamRepository
         'checklist_review_rating_ko'      => ['2',  'Checklists : note posée d\'office par le bouton « Non conforme » (0 = aucune)'],
         // Code couleur du rapport Checklist : au-dessus du premier seuil c'est
         // vert, au-dessus du second orange, en dessous rouge.
+        // L'écran « toutes les tâches » interroge trois endpoints par boutique.
+        // Un parc qui grandit ne doit pas le transformer en attente : au-delà
+        // de ce nombre, la liste est tronquée et le dit à l'écran.
+        'checklist_all_tasks_max_shops'   => ['30', 'Toutes les tâches : nombre de boutiques lues au maximum'],
         'checklist_green_pct'             => ['90', 'Rapport checklists : seuil vert (% de tâches faites)'],
         'checklist_orange_pct'            => ['75', 'Rapport checklists : seuil orange (% de tâches faites)'],
         // Trois endpoints renvoient le CA d'une boutique (monthly-sales,

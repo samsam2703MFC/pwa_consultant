@@ -562,3 +562,11 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
 .app-topbar .btn-sm,
 .app-topbar-actions .btn-sm { min-height:40px; min-width:40px; }
 .cl-datenav-today { min-height:40px; display:inline-flex; align-items:center; }
+
+/* Accès à la file complète des tâches du réseau (checklists + tâches). Cible
+   au pouce comme le reste de l'app. */
+.cl-alltasks { display:flex; align-items:center; gap:9px; min-height:48px; margin:0 0 12px;
+  padding:0 14px; border-radius:14px; background:#fff; color:#8D1D2C;
+  font-size:.82rem; font-weight:800; box-shadow:0 1px 5px rgba(0,0,0,.05); }
+.cl-alltasks span { flex:1; min-width:0; }
+.cl-alltasks b { color:#c9c0b4; font-size:1.1rem; font-weight:400; }

@@ -40,6 +40,7 @@ INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('checklist_nc_major_max_rating',   '2',   'Checklists : note (1–5) en deçà de laquelle une non-conformité est majeure'),
     ('checklist_review_rating_ok',      '4',   'Checklists : note posée d''office par le bouton « Conforme » (0 = aucune)'),
     ('checklist_review_rating_ko',      '2',   'Checklists : note posée d''office par le bouton « Non conforme » (0 = aucune)'),
+    ('checklist_all_tasks_max_shops',   '30',  'Toutes les tâches : nombre de boutiques lues au maximum'),
     ('checklist_green_pct',             '90',  'Rapport checklists : seuil vert (% de tâches faites)'),
     ('checklist_orange_pct',            '75',  'Rapport checklists : seuil orange (% de tâches faites)'),
     ('diag_ca_tolerance_pct',           '0.5', 'Diagnostic CA : écart (%) en deçà duquel deux sources sont réputées d''accord'),

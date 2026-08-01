@@ -11,7 +11,8 @@ class ChecklistController extends Controller
     public function __construct(
         private ChecklistService $checklistService,
         private TaskReviewRepository $taskReviews,
-        private \App\Consultant\app\Services\Param\ParamService $params
+        private \App\Consultant\app\Services\Param\ParamService $params,
+        private \App\Consultant\app\Services\Checklist\NetworkTaskListService $networkTasks
     ) {}
 
     /**
@@ -101,6 +102,48 @@ class ChecklistController extends Controller
             'date'          => $date,
             'today'         => date('Y-m-d'),
             'active_nav'    => 'checklists',
+        ]);
+    }
+
+    /**
+     * GET /checklists/tasks — toutes les tâches du réseau pour une journée,
+     * en Boutique › Checklist › Tâche.
+     *
+     * L'écran par boutique oblige à revenir en arrière entre chaque contrôle.
+     * Ici la file entière est là, filtrable, et la modale d'évaluation est la
+     * même : on évalue à la suite sans quitter la page.
+     */
+    public function networkTasks(): void
+    {
+        $date = $this->resolveDate();
+        $ranking = $this->safeFetch(
+            [$this->checklistService, 'getNetworkTasksRanking'],
+            $this->errors,
+            [$date],
+            ['network' => [], 'shops' => []]
+        );
+
+        $list = $this->safeFetch(
+            [$this->networkTasks, 'forDate'],
+            $this->errors,
+            [$ranking['shops'] ?? [], $date],
+            ['shops' => [], 'totals' => []]
+        );
+
+        $this->view('checklist/all_tasks', [
+            'shops'      => $list['shops'] ?? [],
+            'totals'     => $list['totals'] ?? [],
+            'diag'       => $this->networkTasks->diagnostics(),
+            'network'    => $ranking['network'] ?? [],
+            'date'       => $date,
+            'today'      => date('Y-m-d'),
+            // La modale d'évaluation est partagée avec l'écran d'une boutique.
+            // Ici la boutique varie d'une ligne à l'autre : `id_shop` reste à 0
+            // et chaque ligne porte la sienne.
+            'id_shop'    => 0,
+            'rating_ok'  => $this->params->getInt('checklist_review_rating_ok', 4),
+            'rating_ko'  => $this->params->getInt('checklist_review_rating_ko', 2),
+            'active_nav' => 'checklists',
         ]);
     }
 

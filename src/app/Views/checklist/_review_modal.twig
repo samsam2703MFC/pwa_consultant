@@ -1,0 +1,36 @@
+{# Modale « réalisation d'une tâche » : photo, note de la personne, et
+   l'évaluation du consultant (note sur 5, conformité, commentaire).
+
+   Partagée par l'écran d'une boutique et par la liste réseau. La boutique
+   n'est donc PAS une constante de page : chaque carte porte la sienne dans
+   `data-shop`, et le script la relit à l'ouverture. #}
+<div class="dn-modal" id="dnModal" hidden>
+    <div class="bg" id="dnBg"></div>
+    <div class="card">
+        <div class="hd">
+            <div class="ti" id="dnTitle"></div>
+            <button type="button" class="x" id="dnClose" aria-label="{{ translations.close ?? 'Fermer' }}">✕</button>
+        </div>
+        <div class="who" id="dnWho"></div>
+        <div class="ph" id="dnPhoto"></div>
+        <a class="lnk" id="dnOpen" target="_blank" rel="noopener" hidden></a>
+        <div id="dnExtra"></div>
+
+        {# Évaluation par le consultant : note sur 5, conformité, commentaire. #}
+        <div class="sect">{{ translations.modal_rate ?? 'Votre évaluation' }}</div>
+        <div class="dn-stars" id="dnStars" role="radiogroup" aria-label="{{ translations.modal_rate ?? 'Votre évaluation' }}">
+            {% for n in 1..5 %}
+                <button type="button" class="st" data-n="{{ n }}" role="radio" aria-checked="false" aria-label="{{ n }}/5">★</button>
+            {% endfor %}
+            <span class="dn-clear" id="dnClear">{{ translations.modal_clear ?? 'effacer' }}</span>
+        </div>
+        <div class="dn-acc">
+            <button type="button" class="ac ok" data-acc="1">{{ translations.modal_ok ?? 'Conforme' }}</button>
+            <button type="button" class="ac no" data-acc="0">{{ translations.modal_ko ?? 'Non conforme' }}</button>
+        </div>
+        <textarea class="dn-cm" id="dnComment" rows="2"
+                  placeholder="{{ translations.modal_comment ?? 'Commentaire (facultatif)' }}"></textarea>
+        <button type="button" class="dn-save" id="dnSave">{{ translations.modal_save ?? 'Enregistrer l\'évaluation' }}</button>
+        <div class="dn-msg" id="dnMsg" hidden></div>
+    </div>
+</div>

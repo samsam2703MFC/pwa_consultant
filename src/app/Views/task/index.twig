@@ -31,6 +31,14 @@
 {% block content %}
 <div class="page-content-loaded tk">
 
+    {# Les tâches du consultant d'un côté, celles des franchisés à contrôler de
+       l'autre : c'est le même métier, deux listes. #}
+    <a href="{{ ROOT }}/checklists/tasks" class="cl-alltasks">
+        {{ icons.svg('list-checks', 16) }}
+        <span>{{ translations.all_tasks_cta ?? 'Toutes les tâches du réseau' }}</span>
+        <b>›</b>
+    </a>
+
     {# ── Résumé poste ── #}
     <div class="tk-summary">
         <div class="tk-summary-eyebrow">{{ position.position_name ?? 'Poste consultant' }}</div>

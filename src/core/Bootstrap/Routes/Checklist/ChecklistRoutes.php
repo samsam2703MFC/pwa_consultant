@@ -10,6 +10,14 @@ return function (RouteCollector $r) {
         'method'     => 'index',
     ]);
 
+    // Toutes les tâches du réseau, Boutique › Checklist › Tâche. Déclarée
+    // AVANT la route par boutique : FastRoute n'a pas d'ambiguïté ici (le
+    // segment est fixe), mais l'ordre de lecture suit celui de l'écran.
+    $r->addRoute('GET', '/checklists/tasks', [
+        'controller' => ChecklistController::class,
+        'method'     => 'networkTasks',
+    ]);
+
     $r->addRoute('GET', '/checklists/shops/{shopId:\d+}/tasks', [
         'controller' => ChecklistController::class,
         'method'     => 'shopTasks',
