@@ -799,7 +799,26 @@
             <div class="rpt-shop-name">{{ icons.svg('square-check', 15) }} {{ translations.tasks_done ?? 'Tâches réalisées' }} ({{ report.tasks_done|length }})</div>
             <div class="rpt-shop-body">
                 {% if report.tasks_done is empty %}
-                    <div class="rpt-empty">{{ translations.no_tasks_done ?? 'Aucune tâche réalisée sur la période.' }}</div>
+                    {# « Aucune tâche réalisée » est une affirmation. Elle est
+                       fausse quand des tâches sont faites mais hors période, ou
+                       quand l'endpoint des réalisations n'a pas répondu : dans
+                       ces deux cas le rapport doit dire ce qu'il sait. #}
+                    {% set d = report.tasks_done_diag ?? {} %}
+                    <div class="rpt-empty">
+                        {% if (d.done ?? 0) == 0 %}
+                            {{ translations.no_tasks_done ?? 'Aucune tâche réalisée sur la période.' }}
+                        {% elseif (d.resolved ?? 0) == 0 %}
+                            {{ d.done }} {{ translations.tasks_unresolved ??
+                                'tâche(s) marquée(s) comme faites, mais le détail de leur réalisation n’a pas pu être lu — donc aucune date pour les situer dans la période.' }}
+                        {% else %}
+                            {{ d.done }} {{ translations.tasks_out_of_period ??
+                                'tâche(s) faites au total, aucune réalisée dans la période du rapport.' }}
+                        {% endif %}
+                        {% if d.truncated ?? false %}
+                            <div style="margin-top:6px;color:#8D1D2C;">{{ translations.tasks_truncated ??
+                                'Liste tronquée : seules les premières réalisations ont été lues.' }}</div>
+                        {% endif %}
+                    </div>
                 {% else %}
                     <table class="rpt-tbl">
                         <thead><tr>

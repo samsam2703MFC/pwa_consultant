@@ -24,6 +24,39 @@ class TaskRepository
         );
     }
 
+    /**
+     * Plusieurs réalisations en un aller-retour (curl_multi).
+     *
+     * Le rapport a besoin de la DATE de chaque réalisation, et cette date ne
+     * vit que dans la réalisation — la tâche ne la porte pas. En séquence,
+     * trente tâches faites coûtaient trente attentes, et à 10 s de délai par
+     * appel la passerelle coupait avant la fin : la section « Tâches
+     * réalisées » revenait vide sans dire pourquoi.
+     *
+     * @param int[] $ids
+     * @return array<int, array> map id => réalisation ([] si indisponible)
+     */
+    public function getCompletionsMany(array $ids): array
+    {
+        $byId = [];
+        foreach (array_unique(array_map('intval', $ids)) as $id) {
+            if ($id > 0) {
+                $byId[$id] = "/consultant/tasks/completions/{$id}";
+            }
+        }
+        if ($byId === []) {
+            return [];
+        }
+        $responses = $this->apiClient->getMany(array_values($byId));
+        $out = [];
+        foreach ($byId as $id => $ep) {
+            $r = $responses[$ep] ?? null;
+            $out[$id] = (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null))
+                ? $r['data'] : [];
+        }
+        return $out;
+    }
+
     public function getCompletion(int $id): array
     {
         $response = $this->apiClient->get("/consultant/tasks/completions/{$id}");
