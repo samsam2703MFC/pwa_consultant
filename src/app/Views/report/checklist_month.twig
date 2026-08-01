@@ -70,7 +70,8 @@
                     <div class="ck-kpi-v">{{ t.pct_conf is null ? '—' : t.pct_conf|number_format(0, ',', ' ') ~ ' %' }}
                         {{ m.trend(t.pct_conf, p ? p.pct_conf : null, false, 'pts') }}</div>
                     <div class="ck-kpi-l">{{ translations.kpi_conf_s ?? 'Conformité' }}</div>
-                    <div class="ck-kpi-sub"><b>{{ t.conform }}</b> / {{ t.reviewed }} {{ translations.reviewed ?? 'évaluées' }}</div>
+                    <div class="ck-kpi-sub"><b>{{ t.conform }}</b> / {{ t.reviewed }} {{ translations.reviewed ?? 'évaluées' }}
+                        {%- if t.avg_rating is not null %} · {{ translations.rating ?? 'note' }} <b>{{ t.avg_rating|number_format(1, ',', ' ') }}/5</b>{% endif %}</div>
                 </div>
                 <div class="ck-kpi {{ t.nc > 0 ? 'k-ko' : 'k-ok' }}">
                     <div class="ck-kpi-v">{{ t.nc }}
