@@ -34,6 +34,17 @@ class TaskService
         return $this->taskRepository->getCompletion($id);
     }
 
+    /**
+     * Plusieurs réalisations en une attente réseau.
+     *
+     * @param int[] $ids
+     * @return array<int, array> map id => réalisation
+     */
+    public function getCompletionsMany(array $ids): array
+    {
+        return $this->taskRepository->getCompletionsMany($ids);
+    }
+
     public function getHelpdeskTasks(array $filters = []): array
     {
         return $this->taskRepository->getHelpdeskTasks($filters);

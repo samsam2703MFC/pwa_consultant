@@ -35,6 +35,14 @@ class ReportService
     private const MAX_COMPLETIONS = 120;
 
     /**
+     * Pourquoi la section « Tâches réalisées » est vide, le cas échéant.
+     * « Aucune tâche réalisée sur la période » est une AFFIRMATION : elle est
+     * fausse si des tâches sont faites mais hors période, ou si l'endpoint des
+     * réalisations n'a pas répondu. Le rapport doit dire lequel des trois.
+     */
+    private array $tasksDoneDiag = ['done' => 0, 'resolved' => 0, 'truncated' => false];
+
+    /**
      * Seuils de statut vs moyenne réseau, en % RELATIFS — MÊMES valeurs que
      * l'écran HEXm : score = sens × (valeur − moyenne) / |moyenne| × 100 ;
      * ✓ bon ≥ GOOD · ⚠ attention ∈ [DANGER, GOOD[ · ● danger < DANGER.
@@ -229,6 +237,7 @@ class ReportService
             'network'       => $network,
             'demandes'      => $this->demandesForPeriod($fromT, $toT, $shopFilter),
             'tasks_done'    => $this->tasksDoneForPeriod($fromT, $toT),
+            'tasks_done_diag' => $this->tasksDoneDiagnostics(),
         ];
     }
 
@@ -1460,19 +1469,37 @@ class ReportService
         $data  = $this->taskService->getConsultantTasks();
         $tasks = is_array($data['tasks'] ?? null) ? $data['tasks'] : [];
 
-        $out     = [];
-        $checked = 0;
+        // Les réalisations partent EN LOT. Une par une, trente tâches faites
+        // coûtaient trente attentes réseau : à 10 s de délai par appel, la
+        // passerelle coupait avant la fin et la section revenait vide.
+        $byTask = [];
         foreach ($tasks as $task) {
             if (!is_array($task) || empty($task['is_done'])) {
                 continue;
             }
             $completionId = (int)($task['completion_id'] ?? 0);
-            if ($completionId <= 0 || $checked >= self::MAX_COMPLETIONS) {
-                continue;
+            if ($completionId > 0) {
+                $byTask[$completionId] = $task;
             }
-            $checked++;
+        }
+        // Le plafond protège d'une liste démesurée. Il s'applique aux appels,
+        // pas au résultat : la troncature est donc SIGNALÉE plus bas plutôt que
+        // silencieuse — une section courte se lit sinon comme une section
+        // complète.
+        $this->tasksDoneDiag = [
+            'done'      => count($byTask),
+            'resolved'  => 0,
+            'truncated' => count($byTask) > self::MAX_COMPLETIONS,
+        ];
+        if ($this->tasksDoneDiag['truncated']) {
+            $byTask = array_slice($byTask, 0, self::MAX_COMPLETIONS, true);
+        }
+        $completions = $byTask !== [] ? $this->taskService->getCompletionsMany(array_keys($byTask)) : [];
+        $this->tasksDoneDiag['resolved'] = count(array_filter($completions));
 
-            $completion = $this->taskService->getCompletion($completionId);
+        $out = [];
+        foreach ($byTask as $completionId => $task) {
+            $completion = $completions[$completionId] ?? [];
             $done = $completion['completed_at'] ?? $completion['scheduled_for_date'] ?? null;
             $t = $done ? strtotime((string)$done) : false;
             if ($t === false || $t < $fromT || $t > $toT) {
@@ -1487,6 +1514,16 @@ class ReportService
         }
         usort($out, fn($a, $b) => strcmp((string)($b['completed_at'] ?? ''), (string)($a['completed_at'] ?? '')));
         return $out;
+    }
+
+    /**
+     * Ce que le rapport sait sur la section « Tâches réalisées » quand elle est
+     * vide : combien de tâches sont marquées faites, combien de réalisations
+     * ont pu être lues, et si la liste a été tronquée.
+     */
+    public function tasksDoneDiagnostics(): array
+    {
+        return $this->tasksDoneDiag;
     }
 
     /**
