@@ -1,7 +1,7 @@
 {% extends "layouts/mobile_base.twig" %}
 
 {% import "components/_icons.twig" as icons %}
-{% set active_nav = 'checklists' %}
+{% set active_nav = 'tasks' %}
 
 {% block title %}{{ translations.stack_title ?? 'Contrôler' }} — Panel consultant{% endblock %}
 {% block page_title %}{{ translations.stack_title ?? 'Contrôler' }}{% endblock %}
@@ -100,7 +100,7 @@
 <div class="page-content-loaded">
 
     <a href="{{ ROOT }}/checklists/tasks?date={{ date }}" class="app-back-btn">
-        {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_tasks ?? 'Tâches' }}</span>
+        {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_all_tasks ?? 'Toutes les tâches' }}</span>
     </a>
 
     {% if queue is empty %}
