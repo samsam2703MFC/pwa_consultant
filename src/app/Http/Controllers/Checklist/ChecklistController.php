@@ -128,6 +128,10 @@ class ChecklistController extends Controller
             'shop_id'          => $shopId,
             'id_shop'          => $shopId,
             'today'            => date('Y-m-d'),
+            // Notes posées d'office par « Conforme » / « Non conforme » :
+            // configurables, jamais en dur dans le gabarit.
+            'rating_ok'        => $this->params->getInt('checklist_review_rating_ok', 4),
+            'rating_ko'        => $this->params->getInt('checklist_review_rating_ko', 2),
             'active_nav'       => 'checklists',
         ]);
     }

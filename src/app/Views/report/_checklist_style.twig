@@ -217,7 +217,15 @@
         .ck-kpi { padding:8px 10px; }
         .ck-kpis, .ck-days, .ck-kpi, .ck-day, .ck-fd, .ck-bar-row,
         .ck-nc-item, .ck-tbl tr { break-inside:avoid; }
-        .ck-tw, .ck-bars, .ck-feed { break-inside:auto; }
+        /* Les constats et les barres de conformité restent d'un seul tenant
+           TANT QUE c'est possible : un constat seul en bas de feuille, ses
+           onze frères au verso, se lit comme une section coupée en deux. Le
+           navigateur ignore la règle quand le bloc dépasse la hauteur d'une
+           feuille — il coupe alors, faute de mieux, et remplit les pages. Un
+           tableau, lui, se coupe volontiers : ses lignes restent entières et
+           son en-tête est répété. */
+        .ck-feed, .ck-bars { break-inside:avoid; }
+        .ck-tw { break-inside:auto; }
         thead { display:table-header-group; }   /* en-tête répété par page */
 
         /* Le détail des NC est replié à l'écran ; imprimé replié, le PDF

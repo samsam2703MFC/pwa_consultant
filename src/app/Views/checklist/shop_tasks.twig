@@ -267,7 +267,12 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
     };
     var SHOP = {{ id_shop|default(0)|json_encode|raw }};
     var DATE = {{ (date ?? '')|json_encode|raw }};
-    var current = null, rating = 0, accepted = null, openSeq = 0, openedCard = null;
+    /* Notes posées d'office par « Conforme » / « Non conforme ». Le consultant
+       contrôle des dizaines de tâches : lui faire poser une note ET un verdict
+       pour chacune double le geste. Il reste libre de corriger aux étoiles. */
+    var RATE_OK = {{ rating_ok|default(4)|json_encode|raw }};
+    var RATE_KO = {{ rating_ko|default(2)|json_encode|raw }};
+    var current = null, rating = 0, ratingManual = false, accepted = null, openSeq = 0, openedCard = null;
 
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
     function close() { modal.hidden = true; }
@@ -279,8 +284,14 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
         el.className = 'dn-msg ' + (ok ? 'ok' : 'ko');
         el.textContent = text;
     }
-    function setRating(n) {
+    /**
+     * @param n       note de 0 (aucune) à 5
+     * @param manuel  vrai si le consultant l'a posée aux étoiles. Une note
+     *                manuelle n'est plus remplacée par celle du verdict.
+     */
+    function setRating(n, manuel) {
         rating = n || 0;
+        ratingManual = !!manuel;
         document.querySelectorAll('#dnStars .st').forEach(function (b) {
             var v = parseInt(b.getAttribute('data-n'), 10);
             b.classList.toggle('on', v <= rating);
@@ -329,7 +340,10 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
                       : '<div class="txt empty">' + esc(L.noNote) + '</div>');
         document.getElementById('dnExtra').innerHTML = extra;
 
-        // Évaluation existante rechargée dans le formulaire.
+        // Évaluation existante rechargée dans le formulaire. La note n'est pas
+        // marquée « manuelle » : changer de verdict sur une tâche déjà évaluée
+        // doit refaire descendre la note, sinon une tâche passée à « non
+        // conforme » garderait un 4 et la NC serait comptée mineure.
         current = d;
         setRating(d.rating != null ? parseInt(d.rating, 10) : 0);
         setAccepted(d.accepted == null ? null : (String(d.accepted) === '1' || d.accepted === true));
@@ -368,13 +382,20 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
 
     // ── Évaluation : étoiles, conformité, enregistrement ──
     document.querySelectorAll('#dnStars .st').forEach(function (b) {
-        b.addEventListener('click', function () { setRating(parseInt(b.getAttribute('data-n'), 10)); msg(null); });
+        b.addEventListener('click', function () { setRating(parseInt(b.getAttribute('data-n'), 10), true); msg(null); });
     });
     document.getElementById('dnClear').addEventListener('click', function () { setRating(0); setAccepted(null); msg(null); });
     document.querySelectorAll('.dn-acc .ac').forEach(function (b) {
         b.addEventListener('click', function () {
             var v = b.getAttribute('data-acc') === '1';
-            setAccepted(accepted === v ? null : v);   // re-clic = on retire le choix
+            var retire = (accepted === v);            // re-clic = on retire le choix
+            setAccepted(retire ? null : v);
+            // Le verdict pose la note — mais il n'écrase pas celle que le
+            // consultant a posée aux étoiles : s'il a mis 5 puis coché
+            // « conforme », il voulait 5, pas la note d'office.
+            if (!ratingManual) {
+                setRating(retire ? 0 : (v ? RATE_OK : RATE_KO));
+            }
             msg(null);
         });
     });
@@ -448,10 +469,17 @@ if (shopChecklistContent) shopChecklistContent.style.display = '';
                 // du journal local : s'il n'a pas pu être écrit, la ligne
                 // « Vérifié par » restera anonyme — autant le dire tout de suite.
                 if (p.j.journal === false) {
+                    // Avertissement à lire : la modale reste ouverte.
                     msg(L.savedNoJournal + (p.j.journal_error ? ' — ' + p.j.journal_error : ''), false);
                 } else {
                     msg(L.saved, true);
                     stampReview();
+                    // Le contrôle est terminé : on rend la liste au consultant
+                    // sans lui faire fermer la modale à la main. Le court délai
+                    // laisse voir la confirmation. Le jeton d'ouverture évite
+                    // de refermer une AUTRE tâche ouverte entre-temps.
+                    var token = openSeq;
+                    setTimeout(function () { if (openSeq === token) { close(); } }, 800);
                 }
             })
             .catch(function (e) { msg(String(e.message || e), false); })
