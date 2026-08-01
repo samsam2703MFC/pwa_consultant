@@ -58,31 +58,44 @@ const PLANS = {
   consultant: {
     format: 'tablette',
     connexion: { chemin: '/auth', identifiant: 'phone', motdepasse: 'password' },
+    // `sensible` marque les écrans qui étalent le compte de résultat d'un
+    // réseau identifiable. Ils ne sortent qu'avec --sensibles, et seulement
+    // depuis une instance de démonstration.
     ecrans: {
-      dashboard: '/dashboard',
-      shops: '/shops',
-      sixl: '/levers',
+      dashboard: { chemin: '/dashboard', sensible: true },
+      shops: { chemin: '/shops', sensible: true },
+      sixl: { chemin: '/levers', sensible: true },
       agenda: '/agenda',
       checklists: '/checklists',
-      targets: '/targets',
-      trends: '/trends',
+      targets: { chemin: '/targets', sensible: true },
+      trends: { chemin: '/trends', sensible: true },
       notes: '/notes',
-      rapports: '/reports',
+      rapports: { chemin: '/reports', sensible: true },
       helpdesk: '/helpdesk',
       tasks: '/tasks',
       claims: '/claims',
+    },
+    anonymat: {
+      marque: 'RESEAU DEMO',
+      noms: [{ motif: "Atelier by[A-Za-z\u00c0-\u00ff' \\-]{0,40}", prefixe: 'Boutique' }],
+      villes: ['Halle', 'Corbais', 'Gembloux', 'Nysa', 'Sombreffe'],
     },
   },
   cuisine: {
     format: 'tablette',
     connexion: { chemin: '/auth', identifiant: 'phone', motdepasse: 'password' },
     ecrans: {
-      dashboard: '/dashboard',
+      dashboard: { chemin: '/dashboard', sensible: true },
       checklists: '/checklists',
       produits: '/knowledge/products',
       commandes: '/orders',
       'nouvelle-commande': '/orders/new',
       reclamations: '/complaints',
+    },
+    anonymat: {
+      marque: 'RESEAU DEMO',
+      noms: [{ motif: "Atelier by[A-Za-z\u00c0-\u00ff' \\-]{0,40}", prefixe: 'Boutique' }],
+      villes: ['Halle', 'Corbais', 'Gembloux', 'Nysa', 'Sombreffe'],
     },
   },
 };
@@ -98,6 +111,10 @@ const base = (argument('base') || process.env.CAPTURE_BASE || '').replace(/\/+$/
 const cookie = argument('cookie') || process.env.CAPTURE_COOKIE || '';
 const attente = Number(argument('attente', '2500'));
 const identifiant = argument('identifiant') || process.env.CAPTURE_USER || '';
+// Les écrans chiffrés ne sortent que sur demande explicite, et l'anonymat ne
+// se lève que sur demande explicite : les deux oublis coûtent cher.
+const avecSensibles = process.argv.includes('--sensibles');
+const sansAnonymat = process.argv.includes('--sans-anonymat');
 const motDePasse = process.env.CAPTURE_PASS || '';
 
 /**
@@ -125,7 +142,24 @@ if (!base) {
   process.exit(1);
 }
 
-const plan = ecransImprovises ? { format: 'tablette', ecrans: ecransImprovises } : PLANS[slug];
+// Un plan improvisé garde les règles du module — connexion et anonymat —
+// sinon reprendre un seul écran le publierait en clair.
+const plan = ecransImprovises
+  ? { format: 'tablette', ...(PLANS[slug] || {}), ecrans: ecransImprovises }
+  : PLANS[slug];
+// Un écran se décrit par un chemin, ou par un objet quand il porte un drapeau.
+const ecrans = Object.entries(plan.ecrans)
+  .map(([cle, v]) => (typeof v === 'string' ? { cle, chemin: v, sensible: false } : { cle, ...v }))
+  .filter((e) => avecSensibles || !e.sensible);
+
+const ecartes = Object.entries(plan.ecrans).length - ecrans.length;
+if (ecartes > 0) {
+  console.log(`· ${ecartes} écran(s) chiffré(s) écarté(s) — --sensibles pour les inclure,`);
+  console.log('  et seulement depuis une instance de démonstration.');
+}
+
+const total = ecrans.length;
+
 const format = FORMATS[argument('format', plan.format)] || FORMATS.tablette;
 // Chez lui, le dépôt écrit directement là où la landing ira lire.
 const sortie = resolve(argument('sortie') || resolve(ICI, '..', 'docs', 'landing'));
@@ -310,16 +344,88 @@ if (identifiant && plan.connexion) {
   console.log('  CAPTURE_USER=… CAPTURE_PASS=… pour laisser le script se connecter.');
 }
 
-console.log(`· ${Object.keys(plan.ecrans).length} écrans à prendre, comptez une dizaine de secondes chacun.`);
+/**
+ * Retire du rendu ce qui identifie le réseau : la marque affichée et les noms
+ * de points de vente. Fait dans la page, juste avant le déclic — donc après
+ * que les données soient arrivées, ce qu'un remplacement au chargement aurait
+ * manqué.
+ *
+ * Le pseudonyme est stable dans toute la session : « Atelier by Berlo -
+ * Corbais » devient « Boutique 1 » sur les douze écrans, sinon on ne pourrait
+ * plus suivre une boutique d'une capture à l'autre.
+ */
+async function anonymiser(page, regles) {
+  await page.evaluate((r) => {
+    // La table des pseudonymes vit sur `window` : elle doit survivre aux
+    // douze appels successifs.
+    window.__pseudos = window.__pseudos || new Map();
+    const pseudo = (trouve) => {
+      const cle = trouve.trim();
+      if (!window.__pseudos.has(cle)) {
+        window.__pseudos.set(cle, `${r.prefixeCourant} ${window.__pseudos.size + 1}`);
+      }
+      return window.__pseudos.get(cle);
+    };
+
+    const remplacer = (texte) => {
+      let sortie = texte;
+      for (const regle of r.noms || []) {
+        r.prefixeCourant = regle.prefixe;
+        // L'espace qui suivait le nom est rendu : sans lui, « Boutique 1 — 395 € »
+        // devient « Boutique 1— 395 € ».
+        sortie = sortie.replace(new RegExp(regle.motif, 'gi'), (m) => pseudo(m) + m.match(/\s*$/)[0]);
+      }
+      for (const ville of r.villes || []) {
+        sortie = sortie.replace(new RegExp(`\\b${ville}\\b`, 'gi'), 'Ville');
+      }
+      return sortie;
+    };
+
+    // Les nœuds de texte, y compris ceux d'un graphique en SVG.
+    const marcheur = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const aTraiter = [];
+    while (marcheur.nextNode()) aTraiter.push(marcheur.currentNode);
+    for (const noeud of aTraiter) {
+      const neuf = remplacer(noeud.nodeValue);
+      if (neuf !== noeud.nodeValue) noeud.nodeValue = neuf;
+    }
+    // Les infobulles disent parfois ce que le texte tait.
+    for (const el of document.querySelectorAll('[title], [alt], [aria-label]')) {
+      for (const attr of ['title', 'alt', 'aria-label']) {
+        const v = el.getAttribute(attr);
+        if (v) el.setAttribute(attr, remplacer(v));
+      }
+    }
+
+    // Le logo du client : une image ne se remplace pas par du texte, on la
+    // masque et on écrit le nom neutre à sa place.
+    const logos = document.querySelectorAll(
+      'img[src*="logo" i], img[alt*="logo" i], img[src*="atelier" i], .logo, .brand, [class*="logo" i]',
+    );
+    for (const logo of logos) {
+      if (!logo || logo.dataset.anonyme) continue;
+      logo.dataset.anonyme = '1';
+      const etiquette = document.createElement('span');
+      etiquette.textContent = r.marque;
+      etiquette.style.cssText =
+        'font:700 15px/1.2 system-ui,sans-serif;letter-spacing:.08em;color:#6b7280;white-space:nowrap';
+      logo.replaceWith(etiquette);
+    }
+  }, regles);
+}
+
+console.log(`· ${total} écrans à prendre, comptez une dizaine de secondes chacun.`);
+if (plan.anonymat && !sansAnonymat) {
+  console.log('· anonymisation active : marque et noms de boutiques remplacés.');
+}
 
 let faites = 0;
 let ratees = 0;
 let refusees = 0;
 
-const total = Object.keys(plan.ecrans).length;
 let rang = 0;
 
-for (const [cle, chemin] of Object.entries(plan.ecrans)) {
+for (const { cle, chemin } of ecrans) {
   const url = `${base}${chemin}`;
   rang += 1;
   // Annoncer avant d'agir : sans ça, une page lente passe pour un blocage,
@@ -343,6 +449,7 @@ for (const [cle, chemin] of Object.entries(plan.ecrans)) {
     // Laisser les données arriver : ces écrans se remplissent en XHR.
     // --attente=5000 si les graphiques sont encore vides sur les captures.
     await page.waitForTimeout(attente);
+    if (plan.anonymat && !sansAnonymat) await anonymiser(page, plan.anonymat);
     const fichier = resolve(sortie, `${slug}-${cle}.png`);
     await page.screenshot({ path: fichier, fullPage: false });
     process.stdout.write('\r\u001b[2K');

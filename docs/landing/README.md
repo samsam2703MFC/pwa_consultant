@@ -11,22 +11,42 @@ suivant. Tant qu'il est vide, la fiche « Panel consultant » n'a rien à montre
 notées ». Un nom qui ne correspond à aucune clé reste rattaché au module entier,
 sans erreur mais sans précision.
 
-Les douze attendues :
+Huit sont publiées. Quatre écrans — `dashboard`, `shops`, `sixl`, `targets`,
+`trends`, `rapports` — étalent le compte de résultat d'un réseau identifiable :
+ils sont marqués `sensible` dans le plan et ne sortent qu'avec `--sensibles`,
+depuis une instance de démonstration.
+
+Les attendues :
 
 | Fichier | Écran |
 |---|---|
-| `consultant-dashboard.png` | `/dashboard` — Aperçu du jour |
-| `consultant-shops.png` | `/shops` — Boutiques et compte de résultat |
-| `consultant-sixl.png` | `/levers` — HEXm, les six leviers |
 | `consultant-agenda.png` | `/agenda` — Agenda des visites |
 | `consultant-checklists.png` | `/checklists` — Checklists notées |
-| `consultant-targets.png` | `/targets` — Objectifs du franchisé |
-| `consultant-trends.png` | `/trends` — Tendances sur douze mois |
 | `consultant-notes.png` | `/notes` — Notes de terrain |
-| `consultant-rapports.png` | `/reports` — Comptes rendus PDF |
 | `consultant-helpdesk.png` | `/helpdesk` — Demandes et tickets |
 | `consultant-tasks.png` | `/tasks` — Tâches du consultant |
 | `consultant-claims.png` | `/claims` — Réclamations matériel |
+| `consultant-dashboard.png` | `/dashboard` — Aperçu du jour · **sensible** |
+| `consultant-shops.png` | `/shops` — Boutiques et compte de résultat · **sensible** |
+| `consultant-sixl.png` | `/levers` — HEXm, les six leviers · **sensible** |
+| `consultant-targets.png` | `/targets` — Objectifs du franchisé · **sensible** |
+| `consultant-trends.png` | `/trends` — Tendances sur douze mois · **sensible** |
+| `consultant-rapports.png` | `/reports` — Comptes rendus PDF · **sensible** |
+
+## L'anonymisation
+
+Juste avant chaque déclic, le script retire du rendu ce qui identifie le
+réseau : le logo du client devient « RESEAU DEMO », et chaque point de vente
+un pseudonyme stable — « Atelier by Berlo - Corbais » est « Boutique 1 » sur
+toutes les captures, sinon on ne pourrait plus suivre une boutique d'un écran
+à l'autre. Les noms de villes deviennent « Ville ». Les infobulles et les
+textes de graphiques sont traités comme le reste.
+
+Les chiffres, eux, ne sont pas touchés : une capture produit qui invente ses
+montants est un mensonge. C'est pour ça que les écrans chiffrés sont écartés
+tant que la source n'est pas une instance de démonstration.
+
+`--sans-anonymat` lève la règle, à n'utiliser que sur des données fictives.
 
 ## Les produire — automatique
 

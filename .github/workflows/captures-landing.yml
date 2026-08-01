@@ -5,6 +5,13 @@
 # docs/landing/, et le push déclenche `notify-landing`, qui demande à la
 # landing de resynchroniser. Rien à faire à la main.
 #
+# Deux garde-fous, parce qu'une capture publiée ne se reprend pas :
+#   · les écrans qui étalent un compte de résultat sont écartés par défaut ;
+#   · ce qui reste passe par l'anonymisation — logo du client remplacé, noms
+#     de points de vente pseudonymisés.
+# Les lever suppose une instance de démonstration : mettre CAPTURE_BASE
+# dessus, puis passer `sensibles` à true au lancement.
+#
 # Secrets attendus (Settings → Secrets and variables → Actions) :
 #   CAPTURE_BASE   l'adresse du panel, ex. https://185.180.206.46/pwa_consultant
 #   CAPTURE_USER   le téléphone d'un compte consultant
@@ -24,6 +31,11 @@ on:
         description: 'Millisecondes de repos avant chaque déclic (monter si les graphiques sortent vides)'
         required: false
         default: '2500'
+      sensibles:
+        description: 'Inclure les écrans chiffrés — UNIQUEMENT si CAPTURE_BASE pointe une instance de démonstration'
+        type: boolean
+        required: false
+        default: false
   # Une fois par mois : l'application bouge, les captures doivent suivre.
   schedule:
     - cron: '17 4 1 * *'
@@ -60,12 +72,16 @@ jobs:
           npm i --no-save --no-audit --no-fund playwright
           npx playwright install --with-deps chromium
 
-      - name: Prendre les douze écrans
+      - name: Prendre les écrans
         if: env.CAPTURE_BASE != ''
         env:
           CAPTURE_USER: ${{ secrets.CAPTURE_USER }}
           CAPTURE_PASS: ${{ secrets.CAPTURE_PASS }}
-        run: node tools/capturer-ecrans.mjs --module=consultant --attente=${{ inputs.attente || '2500' }}
+        run: |
+          node tools/capturer-ecrans.mjs \
+            --module=consultant \
+            --attente=${{ inputs.attente || '2500' }} \
+            ${{ inputs.sensibles && '--sensibles' || '' }}
 
       - name: Publier ce qui a changé
         if: env.CAPTURE_BASE != ''
