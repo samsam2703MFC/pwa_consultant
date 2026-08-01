@@ -1,56 +1,190 @@
-{# L'envoi d'un avis, à un seul endroit.
+{# L'envoi d'un avis, à un seul endroit — et sa FILE D'ATTENTE.
 
-   Deux écrans le postent maintenant — la modale d'une liste et la pile de
-   contrôle — et le contrat est délicat : trois champs exigés côté service, et
-   chaque champ d'évaluation envoyé sous ses DEUX orthographes tant que T2 n'a
-   pas figé le contrat. Dupliquer cela, c'est garantir que la copie dérivera. #}
+   Deux écrans postent — la modale d'une liste et la pile de contrôle — et le
+   contrat est délicat : trois champs exigés côté service, et chaque champ
+   d'évaluation envoyé sous ses DEUX orthographes tant que T2 n'a pas figé le
+   contrat. Dupliquer cela, c'est garantir que la copie dérivera.
+
+   Le consultant évalue debout dans une arrière-boutique. Quand le réseau
+   manque, l'avis est ÉCRIT SUR L'APPAREIL et repart tout seul — perdre une
+   évaluation déjà saisie est la seule faute que cet écran ne peut pas se
+   permettre. Un REFUS du serveur, lui, n'est jamais rejoué : le rejouer
+   éternellement ne le ferait pas passer. Toute la difficulté est là, et elle
+   se joue dans classer() : distinguer « le serveur a dit non » de « personne
+   n'a répondu ». #}
 <script>
 window.tfbReview = (function () {
     var ROOT = window.__consultantRoot || '';
+    var CLE  = 'tfb.review.queue.v1';
+    var MAX  = 200;      // garde-fou : une file plus longue est un bug, pas un usage
 
-    /**
-     * @param p {shop_id, checklist_id, task_id, date, completion_id,
-     *           rating, accepted, comment}
-     * @return Promise<{journal: boolean, journalError: ?string}>
-     *         rejetée avec une Error dont le message est CE QUE LE SERVEUR A DIT.
-     */
-    function submit(p) {
+    var L = {
+        reseau:  {{ (translations.queue_no_network ?? 'Pas de réseau')|json_encode|raw }},
+        session: {{ (translations.queue_session ?? 'Session expirée — reconnectez-vous')|json_encode|raw }},
+        illisible: {{ (translations.queue_unreadable ?? 'Réponse illisible du serveur')|json_encode|raw }}
+    };
+
+    // ── Le stockage ─────────────────────────────────────────────────────────
+    // localStorage lève en navigation privée sur certains navigateurs : on
+    // retombe alors sur la mémoire. La file survit moins longtemps, mais elle
+    // existe — et rien ne casse.
+    var memoire = null;
+
+    function lire() {
+        if (memoire !== null) { return memoire; }
+        try {
+            var v = JSON.parse(window.localStorage.getItem(CLE) || '[]');
+            return Array.isArray(v) ? v : [];
+        } catch (e) { memoire = []; return memoire; }
+    }
+
+    function ecrire(f) {
+        if (f.length > MAX) { f = f.slice(f.length - MAX); }
+        if (memoire !== null) { memoire = f; prevenir(); return; }
+        try { window.localStorage.setItem(CLE, JSON.stringify(f)); }
+        catch (e) { memoire = f; }
+        prevenir();
+    }
+
+    // Une même tâche évaluée deux fois avant l'envoi : c'est le DERNIER avis
+    // qui vaut. Sans cette clé, la file enverrait successivement deux verdicts
+    // contradictoires et le second gagnerait par hasard d'ordonnancement.
+    function cle(p) {
+        return [p.shop_id, p.checklist_id, p.task_id, p.date].join('|');
+    }
+
+    var compteur = 0;
+    function enfiler(p, motif) {
+        var f = lire().filter(function (e) { return cle(e.p) !== cle(p); });
+        f.push({
+            id:    'q' + (Date.now()) + '_' + (++compteur),
+            p:     p,
+            at:    new Date().toISOString(),
+            essais: 0,
+            motif: motif || null,   // pourquoi elle attend
+            erreur: null            // refus du serveur → ne sera plus rejouée
+        });
+        ecrire(f);
+    }
+
+    function retirer(id) {
+        ecrire(lire().filter(function (e) { return e.id !== id; }));
+    }
+
+    function majEntree(id, champs) {
+        ecrire(lire().map(function (e) {
+            if (e.id !== id) { return e; }
+            for (var k in champs) { if (champs.hasOwnProperty(k)) { e[k] = champs[k]; } }
+            return e;
+        }));
+    }
+
+    /** Les entrées encore envoyables — celles que le serveur n'a pas refusées. */
+    function envoyables() {
+        return lire().filter(function (e) { return !e.erreur; });
+    }
+
+    // ── Les abonnés (l'affichage de la file) ────────────────────────────────
+    var abonnes = [];
+    function prevenir() {
+        for (var i = 0; i < abonnes.length; i++) {
+            try { abonnes[i](); } catch (e) { /* un affichage cassé n'empêche pas d'envoyer */ }
+        }
+    }
+
+    // ── L'envoi ─────────────────────────────────────────────────────────────
+    function corps(p) {
         var comment = p.comment || null;
         // Sans choix explicite, le panel envoie « conforme » : c'est le sens
         // d'un contrôle qu'on enregistre sans rien signaler.
         var accepted = (p.accepted === null || p.accepted === undefined) ? true : !!p.accepted;
+        // checklist_id, task_id et review_date sont EXIGÉS par
+        // ChecklistService::submitTaskReview avant tout appel à l'API.
+        // Les variantes review_* accompagnent les champs d'évaluation :
+        // l'API expose ces noms-là en lecture.
+        return {
+            shop_id:            p.shop_id,
+            checklist_id:       p.checklist_id,
+            task_id:            p.task_id,
+            review_date:        p.date,
+            completion_id:      p.completion_id,
+            rating:             p.rating,
+            review_rating:      p.rating,
+            comment:            comment,
+            review_comment:     comment,
+            is_accepted:        accepted,
+            review_is_accepted: accepted
+        };
+    }
+
+    /** Une panne de transport : personne n'a répondu. L'avis reste valable. */
+    function panne(motif) {
+        var e = new Error(motif);
+        e.transport = true;
+        return e;
+    }
+
+    /**
+     * Classe une réponse reçue. C'est LE point de décision de tout ce fichier.
+     *
+     * Rejeter avec `transport = true` → l'avis part en file et sera rejoué.
+     * Rejeter sans → le serveur a examiné l'avis et l'a refusé : le rejouer
+     * ne changerait rien, on garde l'entrée visible avec son motif.
+     */
+    function classer(r, txt) {
+        var j = null;
+        try { j = JSON.parse(txt); } catch (e) { j = null; }
+
+        // Ni JSON, ni statut d'authentification : la session a expiré et on est
+        // retombé sur la page de connexion. Ce n'est pas un refus de l'avis.
+        if (r.status === 401 || r.status === 403) { throw panne(L.session); }
+        if (j === null) { throw panne(L.illisible); }
+
+        // 422 émis par NOTRE contrôleur avec code 0 / motif cURL : l'API n'a
+        // pas répondu. L'avis est intact, il attend son tour.
+        if (!r.ok && (j.transport || j.code === 0)) {
+            throw panne(String(j.transport || L.reseau));
+        }
+        if (!r.ok || !j.success) { throw new Error(explique(j)); }
+
+        return { journal: j.journal !== false, journalError: j.journal_error || null, queued: false };
+    }
+
+    function envoyer(p) {
         return fetch(ROOT + '/checklists/reviews', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            // checklist_id, task_id et review_date sont EXIGÉS par
-            // ChecklistService::submitTaskReview avant tout appel à l'API.
-            // Les variantes review_* accompagnent les champs d'évaluation :
-            // l'API expose ces noms-là en lecture.
-            body: JSON.stringify({
-                shop_id:            p.shop_id,
-                checklist_id:       p.checklist_id,
-                task_id:            p.task_id,
-                review_date:        p.date,
-                completion_id:      p.completion_id,
-                rating:             p.rating,
-                review_rating:      p.rating,
-                comment:            comment,
-                review_comment:     comment,
-                is_accepted:        accepted,
-                review_is_accepted: accepted
-            })
-        })
-            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-            .then(function (res) {
-                if (!res.ok || !(res.j && res.j.success)) {
-                    throw new Error(explique(res.j || {}));
-                }
-                return {
-                    journal: res.j.journal !== false,
-                    journalError: res.j.journal_error || null
-                };
-            });
+            body: JSON.stringify(corps(p))
+        }).then(
+            function (r) { return r.text().then(function (txt) { return classer(r, txt); }); },
+            function () { throw panne(L.reseau); }    // fetch a échoué : aucun réseau
+        );
+    }
+
+    /**
+     * @param p {shop_id, checklist_id, task_id, date, completion_id,
+     *           rating, accepted, comment}
+     * @return Promise<{journal, journalError, queued}>
+     *         `queued` vrai : l'avis est sur l'appareil, pas encore chez l'API.
+     *         Rejetée avec une Error dont le message est CE QUE LE SERVEUR A DIT.
+     */
+    function submit(p) {
+        // Hors ligne annoncé par le navigateur : inutile d'attendre le délai
+        // d'expiration d'un fetch qui ne peut pas aboutir.
+        if (navigator.onLine === false) {
+            enfiler(p, L.reseau);
+            return Promise.resolve({ journal: true, journalError: null, queued: true, motif: L.reseau });
+        }
+        return envoyer(p).then(function (res) {
+            // Un envoi qui passe est le meilleur signe que le réseau est revenu.
+            if (envoyables().length) { vider(); }
+            return res;
+        }, function (err) {
+            if (!err.transport) { throw err; }        // refus net : à l'écran, tout de suite
+            enfiler(p, err.message);
+            return { journal: true, journalError: null, queued: true, motif: err.message };
+        });
     }
 
     /**
@@ -70,6 +204,72 @@ window.tfbReview = (function () {
         return txt;
     }
 
-    return { submit: submit };
+    // ── Le rejeu ────────────────────────────────────────────────────────────
+    var enCours = false;
+
+    /**
+     * Rejoue la file, une entrée à la fois et DANS L'ORDRE : deux avis sur la
+     * même boutique doivent arriver dans l'ordre où ils ont été portés.
+     * S'arrête à la première panne de transport — s'acharner sans réseau
+     * n'apporte rien et vide la batterie.
+     */
+    function vider() {
+        if (enCours || navigator.onLine === false) { return Promise.resolve(false); }
+        if (!envoyables().length) { return Promise.resolve(false); }
+
+        enCours = true;
+        prevenir();
+
+        function suivant() {
+            var f = envoyables();
+            if (!f.length) { return Promise.resolve(true); }
+            var e = f[0];
+            majEntree(e.id, { essais: (e.essais || 0) + 1 });
+            return envoyer(e.p).then(
+                function () { retirer(e.id); return suivant(); },
+                function (err) {
+                    if (err.transport) {
+                        majEntree(e.id, { motif: err.message });
+                        return false;                       // toujours pas de réseau
+                    }
+                    // Le serveur a refusé. On NE SUPPRIME PAS : l'entrée reste
+                    // visible avec le motif, sinon l'avis disparaîtrait sans
+                    // que personne ne l'apprenne.
+                    majEntree(e.id, { erreur: String(err.message || err) });
+                    return suivant();
+                }
+            );
+        }
+
+        return suivant().then(function (r) {
+            enCours = false; prevenir(); return r;
+        }, function () {
+            enCours = false; prevenir(); return false;
+        });
+    }
+
+    // Les trois moments où le réseau peut être revenu sans qu'on ait rien
+    // demandé : l'événement `online`, le retour sur l'onglet, et le chargement
+    // d'une page — un consultant qui navigue pendant que ça repart.
+    window.addEventListener('online', function () { vider(); });
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) { vider(); }
+    });
+    window.addEventListener('load', function () { setTimeout(vider, 400); });
+
+    // Filet lent : `online` ment parfois (Wi-Fi capté, passerelle absente).
+    // Une tentative toutes les 30 s tant qu'il reste quelque chose à envoyer.
+    setInterval(function () { if (envoyables().length) { vider(); } }, 30000);
+
+    return {
+        submit:   submit,
+        flush:    vider,
+        pending:  function () { return lire(); },
+        count:    function () { return envoyables().length; },
+        rejected: function () { return lire().filter(function (e) { return !!e.erreur; }); },
+        discard:  retirer,
+        sending:  function () { return enCours; },
+        onChange: function (fn) { abonnes.push(fn); return fn; }
+    };
 })();
 </script>

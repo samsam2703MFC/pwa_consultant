@@ -19,6 +19,7 @@
         needRate:{{ (translations.modal_need_rate ?? 'Choisissez une note de 1 à 5.')|json_encode|raw }},
         savedNoJournal: {{ (translations.modal_saved_no_journal ?? "Avis enregistré, mais son auteur n'a pas pu être consigné.")|json_encode|raw }},
         verified: {{ (translations.verified ?? 'Vérifié')|json_encode|raw }},
+        queued:  {{ (translations.modal_queued ?? "Sans réseau : gardée sur l'appareil, elle partira toute seule.")|json_encode|raw }},
         conform:    {{ (translations.modal_ok ?? 'Conforme')|json_encode|raw }},
         notConform: {{ (translations.modal_ko ?? 'Non conforme')|json_encode|raw }}
     };
@@ -207,9 +208,22 @@
             completion_id: current.completion_id,
             rating:        rating,
             accepted:      accepted,
-            comment:       comment
+            comment:       comment,
+            // Pour la file d'attente seulement, jamais envoyé à l'API : de quoi
+            // relire ce qui n'est pas encore parti.
+            label:         current.name || null
         })
             .then(function (res) {
+                // Sans réseau, l'avis est gardé sur l'appareil. On le dit, on
+                // marque quand même la ligne — la file s'en occupe — et on
+                // referme : bloquer ici ferait retaper l'évaluation.
+                if (res.queued) {
+                    msg(L.queued, true);
+                    stampReview();
+                    var jeton = openSeq;
+                    setTimeout(function () { if (openSeq === jeton) { close(); } }, 1200);
+                    return;
+                }
                 // L'avis est parti à l'API. Le nom du vérificateur, lui, vient
                 // du journal local : s'il n'a pas pu être écrit, la ligne
                 // « Vérifié par » restera anonyme — autant le dire tout de suite.

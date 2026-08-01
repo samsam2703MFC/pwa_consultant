@@ -103,6 +103,10 @@
         {{ icons.svg('chevron-left', 16) }}<span>{{ translations.back_all_tasks ?? 'Toutes les tâches' }}</span>
     </a>
 
+    {# Ce qui n'est pas encore parti chez l'API. Muette tant qu'il n'y a rien
+       à signaler — y compris quand la file est vide et le réseau présent. #}
+    {% include "checklist/_review_queue.twig" %}
+
     {% if queue is empty %}
         <div class="rs-end">
             <span class="ico">{{ icons.svg('check-check', 40) }}</span>
@@ -310,10 +314,18 @@
             // Le verdict pose la note ; les étoiles la corrigent.
             rating:        rating || (conforme ? RATE_OK : RATE_KO),
             accepted:      conforme,
-            comment:       el('rsComment').value || null
+            comment:       el('rsComment').value || null,
+            // Pour la file d'attente seulement : de quoi relire ce qui n'est
+            // pas encore parti. Ces deux champs ne sont pas envoyés à l'API.
+            label:         t.name,
+            shop_label:    t.shop
         })
             .then(function (res) {
                 faites++;
+                // Mise en file : rien ne bloque. Le bandeau du haut porte
+                // l'information, et le consultant enchaîne — c'est tout
+                // l'intérêt de la file.
+                if (res.queued) { i++; montrer(); return; }
                 if (!res.journal) {
                     // Avertissement à lire : on ne file pas à la suivante.
                     msg(L.noJournal + (res.journalError ? ' — ' + res.journalError : ''), false);

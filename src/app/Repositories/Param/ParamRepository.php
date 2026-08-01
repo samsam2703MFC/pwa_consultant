@@ -78,6 +78,18 @@ class ParamRepository
         // Un parc qui grandit ne doit pas le transformer en attente : au-delà
         // de ce nombre, la liste est tronquée et le dit à l'écran.
         'checklist_all_tasks_max_shops'   => ['30', 'Toutes les tâches : nombre de boutiques lues au maximum'],
+        // Accueil « ce qui manque » : le classement réseau couvre tout le parc
+        // pour UN jour, donc un mois coûte un appel par jour. Les journées
+        // closes sont conservées en base et ne se relisent plus ; sans base,
+        // l'accueil se limite à une fenêtre courte et le dit à l'écran.
+        'dashboard_shortfall_enabled'     => ['1',  'Accueil : afficher « ce qui manque » (tâches prévues non faites)'],
+        'dashboard_shortfall_days_max'    => ['31', 'Accueil « ce qui manque » : journées relues au maximum par ouverture'],
+        'dashboard_shortfall_days_nodb'   => ['7',  'Accueil « ce qui manque » : fenêtre (jours) quand la base ne peut rien conserver'],
+        'dashboard_shortfall_shops'       => ['3',  'Accueil « ce qui manque » : boutiques listées sous le total'],
+        // Les premiers jours du mois, le mois en cours ne contient presque
+        // rien : on glisse alors sur une fenêtre roulante, et l'écran le dit.
+        'dashboard_shortfall_min_days'    => ['7',  'Accueil « ce qui manque » : en deçà de ce quantième, fenêtre roulante au lieu du mois'],
+        'dashboard_shortfall_rolling_days'=> ['30', 'Accueil « ce qui manque » : longueur (jours) de la fenêtre roulante'],
         'checklist_green_pct'             => ['90', 'Rapport checklists : seuil vert (% de tâches faites)'],
         'checklist_orange_pct'            => ['75', 'Rapport checklists : seuil orange (% de tâches faites)'],
         // Trois endpoints renvoient le CA d'une boutique (monthly-sales,

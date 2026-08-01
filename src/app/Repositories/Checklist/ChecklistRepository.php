@@ -56,6 +56,37 @@ class ChecklistRepository
             : ['network' => [], 'shops' => []];
     }
 
+    /**
+     * Le classement réseau sur PLUSIEURS journées, en une attente réseau.
+     *
+     * Un appel couvre TOUT le réseau pour un jour : un mois coûte donc autant
+     * d'appels qu'il a de jours, et pas autant que de boutiques × jours. C'est
+     * ce qui rend l'accueil « ce qui manque » tenable avant que T11 n'existe.
+     *
+     * @param string[] $dates 'Y-m-d'
+     * @return array<string, array> map date => payload ranking ([] si muet)
+     */
+    public function getNetworkRankingForDates(array $dates): array
+    {
+        $byDate = [];
+        foreach (array_unique($dates) as $d) {
+            $byDate[$d] = '/consultant/network/tasks/ranking?' . http_build_query(['date' => $d]);
+        }
+        if ($byDate === []) {
+            return [];
+        }
+        $responses = $this->apiClient->getMany(array_values($byDate));
+        $out = [];
+        foreach ($byDate as $d => $ep) {
+            $r = $responses[$ep] ?? null;
+            self::sample('ranking', $ep, $r);
+            $out[$d] = (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null))
+                ? $r['data']
+                : [];
+        }
+        return $out;
+    }
+
     public function getShopTaskDetails(int $shopId, string $date): array
     {
         $res = $this->apiClient->get('/consultant/shops/' . $shopId . '/tasks?' . http_build_query([
