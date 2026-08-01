@@ -21,6 +21,7 @@
 {% endblock %}
 
 {% block head %}
+{% include "checklist/_review_modal_style.twig" %}
 <style>
     /* Outils collants : la recherche et les filtres restent atteignables
        quel que soit le nombre de tâches déjà parcourues. */
@@ -37,21 +38,40 @@
     .nq-f.on { background:#8D1D2C; color:#fff; border-color:#8D1D2C; }
     .nq-count { font-size:.66rem; color:#8a827a; margin:6px 2px 2px; }
 
-    /* Bandeau boutique : collant sous les outils, il dit toujours où l'on est. */
+    /* Bandeau boutique : collant sous les outils, il dit toujours où l'on est,
+       et se déplie. 44 px de haut — il se tape au pouce. */
     .nq-shop { position:sticky; top:96px; z-index:5; display:flex; align-items:center; gap:8px;
-               background:#8D1D2C; color:#fff; border-radius:10px 10px 0 0; padding:8px 12px;
-               font-size:.76rem; font-weight:800; margin-top:12px; }
+               background:#8D1D2C; color:#fff; border-radius:10px 10px 0 0; padding:0 12px;
+               min-height:44px; font-size:.76rem; font-weight:800; margin-top:12px;
+               cursor:pointer; list-style:none; -webkit-tap-highlight-color:transparent; }
+    .nq-shop::-webkit-details-marker { display:none; }
+    .nq-shop .nm { flex-shrink:0; }
     .nq-shop .v { font-weight:600; opacity:.72; font-size:.66rem; min-width:0; overflow:hidden;
                   text-overflow:ellipsis; white-space:nowrap; }
     .nq-shop .r { margin-left:auto; font-weight:900; flex-shrink:0; }
-    .nq-shop a { color:#fff; text-decoration:none; }
+    .nq-shop .badge { flex-shrink:0; background:#F2C9A0; color:#6b3410; border-radius:999px;
+                      padding:2px 8px; font-size:.62rem; font-weight:800; white-space:nowrap; }
+    /* La flèche pointe vers le bas quand c'est ouvert : elle montre le sens du
+       geste à venir, pas l'état courant — c'est ce que fait déjà l'accordéon
+       des checklists d'une boutique. */
+    .nq-shop .car, .nq-cl .car { flex-shrink:0; display:flex; transition:transform .15s ease; }
+    .nq-shop-g:not([open]) > .nq-shop .car,
+    .nq-cl-g:not([open]) > .nq-cl .car { transform:rotate(-90deg); }
+    .nq-shop-g:not([open]) > .nq-shop { border-radius:10px; }
 
     .nq-cl { display:flex; align-items:center; gap:7px; background:#fbf9f6;
-             border-left:1px solid #efe9e1; border-right:1px solid #efe9e1; padding:7px 12px;
-             font-size:.66rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
-             color:#8a827a; }
+             border-left:1px solid #efe9e1; border-right:1px solid #efe9e1; padding:0 12px;
+             min-height:44px; font-size:.66rem; font-weight:800; text-transform:uppercase;
+             letter-spacing:.04em; color:#8a827a; cursor:pointer; list-style:none;
+             -webkit-tap-highlight-color:transparent; }
+    .nq-cl::-webkit-details-marker { display:none; }
     .nq-cl .n { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .nq-cl .badge { flex-shrink:0; background:#8D1D2C; color:#fff; border-radius:999px;
+                    padding:1px 7px; font-size:.62rem; font-weight:800; }
     .nq-cl .c { margin-left:auto; color:#57504a; flex-shrink:0; }
+    /* Dernière checklist fermée d'une boutique : c'est elle qui ferme la carte. */
+    .nq-cl-g:last-child:not([open]) > .nq-cl { border-bottom:1px solid #efe9e1;
+                                               border-radius:0 0 10px 10px; }
 
     .nq-row { display:flex; align-items:center; gap:10px; background:#fff;
               border-left:1px solid #efe9e1; border-right:1px solid #efe9e1;
@@ -60,10 +80,13 @@
     .nq-row.task-openable { cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .nq-row.task-openable:active { background:#fbfcfe; }
     .nq-row.last { border-radius:0 0 10px 10px; }
-    /* `display:flex` posé par une classe l'emporte sur la règle `[hidden]` du
-       navigateur : sans ceci, filtrer comptait juste — les lignes masquées
-       restaient à l'écran. */
+    /* Deux fois le même piège : `display:flex` posé par une classe l'emporte
+       sur les règles du navigateur, aussi bien celle de `[hidden]` que celle
+       qui replie un `<details>` fermé. Sans ces deux lignes, filtrer et
+       replier comptaient juste — tout restait à l'écran. */
     .nq-row[hidden], .nq-cl[hidden], .nq-shop[hidden] { display:none !important; }
+    .nq-shop-g:not([open]) > *:not(summary),
+    .nq-cl-g:not([open]) > *:not(summary) { display:none !important; }
     .nq-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
     .nq-b { flex:1; min-width:0; padding:7px 0; }
     .nq-n { font-size:.8rem; font-weight:700; color:#241f1c; line-height:1.25; }
@@ -143,17 +166,28 @@
             'boutique(s) ne sont pas lues pour tenir le temps de chargement. Le plafond est réglable en configuration.' }}</div>
     {% endif %}
 
+    {# Deux niveaux dépliables. La boutique s'ouvre par défaut, la checklist
+       reste fermée : 170 tâches déroulées d'un coup ne se lisent pas. Le
+       filtre rouvre ce qu'il faut — voir le script. #}
     {% for s in shops %}
-        <div class="nq-shop">
-            <a href="{{ ROOT }}/checklists/shops/{{ s.shop_id }}/tasks?date={{ date }}">{{ s.shop_name }}</a>
-            <span class="v">{{ s.shop_city }}</span>
-            <span class="r">{{ s.completion is not null ? (s.completion|round) ~ ' %' : '—' }}</span>
-        </div>
+        <details class="nq-shop-g" open>
+            <summary class="nq-shop">
+                <span class="car">{{ icons.svg('chevron-down', 14) }}</span>
+                <span class="nm">{{ s.shop_name }}</span>
+                <span class="v">{{ s.shop_city }}</span>
+                {% if (s.counts.to_review ?? 0) > 0 %}
+                    <span class="badge">{{ s.counts.to_review }} {{ translations.to_review_short ?? 'à évaluer' }}</span>
+                {% endif %}
+                <span class="r">{{ s.completion is not null ? (s.completion|round) ~ ' %' : '—' }}</span>
+            </summary>
         {% for g in s.checklists %}
-            <div class="nq-cl" data-shop="{{ s.shop_id }}">
-                <span class="n">{{ g.name != '' ? g.name : (translations.no_checklist ?? 'Sans checklist') }}</span>
-                <span class="c">{{ g.done }}/{{ g.total }}</span>
-            </div>
+            <details class="nq-cl-g">
+                <summary class="nq-cl" data-shop="{{ s.shop_id }}">
+                    <span class="car">{{ icons.svg('chevron-down', 12) }}</span>
+                    <span class="n">{{ g.name != '' ? g.name : (translations.no_checklist ?? 'Sans checklist') }}</span>
+                    {% if g.to_review > 0 %}<span class="badge">{{ g.to_review }}</span>{% endif %}
+                    <span class="c">{{ g.done }}/{{ g.total }}</span>
+                </summary>
             {% for task in g.tasks %}
                 {% set dot = task.is_done ? '#2D7A3E' : (task.status == 'SKIPPED' ? '#C17A2A' : '#d8cfc4') %}
                 {# Une tâche faite s'ouvre pour être évaluée ; une tâche non
@@ -203,7 +237,9 @@
                     </span>
                 </div>
             {% endfor %}
+            </details>
         {% endfor %}
+        </details>
     {% else %}
         <div class="nq-empty">{{ translations.none_for_day ?? 'Aucune tâche pour ce jour.' }}</div>
     {% endfor %}
@@ -226,6 +262,15 @@
     var tpl    = shown ? (shown.getAttribute('data-tpl') || '%d') : '%d';
     var filtre = 'todo';
 
+    /** Une vue restreinte : le dépliage automatique n'a de sens que là. */
+    function actif() { return filtre !== 'all' || (search.value || '').trim() !== ''; }
+
+    // Compteur d'origine mémorisé : filtrer le remplace par le nombre montré,
+    // et revenir à « Toutes » doit rendre le vrai fait/total.
+    [].slice.call(document.querySelectorAll('.nq-cl .c')).forEach(function (c) {
+        c.setAttribute('data-base', c.textContent.trim());
+    });
+
     function garde(r) {
         var st = r.getAttribute('data-state');
         if (filtre === 'todo'      && st !== 'todo') { return false; }
@@ -246,30 +291,32 @@
             r.hidden = !ok;
             if (ok) { vus++; }
         });
-        // Un bandeau de boutique ou de checklist sans aucune ligne visible
-        // n'annonce plus rien : il devient un titre creux.
-        [].slice.call(document.querySelectorAll('.nq-cl')).forEach(function (cl) {
-            var n = 0, e = cl.nextElementSibling;
-            while (e && e.classList.contains('nq-row')) { if (!e.hidden) { n++; } e = e.nextElementSibling; }
-            cl.hidden = n === 0;
-        });
-        [].slice.call(document.querySelectorAll('.nq-shop')).forEach(function (sh) {
-            var n = 0, e = sh.nextElementSibling;
-            while (e && !e.classList.contains('nq-shop')) {
-                if (e.classList.contains('nq-row') && !e.hidden) { n++; }
-                e = e.nextElementSibling;
+        // Un groupe sans aucune ligne visible n'annonce plus rien : il devient
+        // un titre creux. On le masque plutôt que de laisser croire à un
+        // contenu replié.
+        [].slice.call(document.querySelectorAll('.nq-cl-g')).forEach(function (g) {
+            var lignes = [].slice.call(g.querySelectorAll('.nq-row'));
+            var vus = lignes.filter(function (r) { return !r.hidden; });
+            g.hidden = vus.length === 0;
+            // Un filtre actif rouvre ce qu'il a trouvé : filtrer puis ne rien
+            // voir parce que tout est replié serait un cul-de-sac. Sans filtre,
+            // les checklists restent fermées — 170 tâches déroulées ne se
+            // lisent pas.
+            g.open = actif() ? vus.length > 0 : false;
+            // Le compteur suit ce qui est montré, pas ce qui existe.
+            var c = g.querySelector('.nq-cl .c');
+            if (c) {
+                if (actif()) { c.textContent = vus.length; }
+                else { c.textContent = c.getAttribute('data-base') || c.textContent; }
             }
-            sh.hidden = n === 0;
+            // Arrondi du bas : la dernière ligne visible du groupe le porte.
+            lignes.forEach(function (r) { r.classList.remove('last'); });
+            if (vus.length) { vus[vus.length - 1].classList.add('last'); }
         });
-        // Arrondi du bas : la dernière ligne visible du groupe le porte.
-        rows.forEach(function (r) { r.classList.remove('last'); });
-        [].slice.call(document.querySelectorAll('.nq-shop')).forEach(function (sh) {
-            var dernier = null, e = sh.nextElementSibling;
-            while (e && !e.classList.contains('nq-shop')) {
-                if (e.classList.contains('nq-row') && !e.hidden) { dernier = e; }
-                e = e.nextElementSibling;
-            }
-            if (dernier) { dernier.classList.add('last'); }
+        [].slice.call(document.querySelectorAll('.nq-shop-g')).forEach(function (g) {
+            var vus = [].slice.call(g.querySelectorAll('.nq-row')).filter(function (r) { return !r.hidden; });
+            g.hidden = vus.length === 0;
+            if (actif()) { g.open = true; }
         });
 
         if (none) { none.hidden = vus > 0; }
@@ -287,6 +334,7 @@
         appliquer();
     });
     search.addEventListener('input', appliquer);
+
     appliquer();
 })();
 </script>
