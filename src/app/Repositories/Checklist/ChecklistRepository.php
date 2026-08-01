@@ -73,6 +73,37 @@ class ChecklistRepository
     }
 
     /**
+     * Les TÂCHES d'une boutique sur plusieurs dates, en un aller-retour.
+     *
+     * C'est la source de vérité de l'écran du jour : lui appelle `/tasks`
+     * d'abord, et n'enrichit avec les checklists que dans un try/catch. Un
+     * rapport bâti uniquement sur `/checklists` héritait donc d'un endpoint
+     * dont la défaillance est invisible ailleurs — et rendait « 0 tâche
+     * planifiée » alors que l'écran du jour en affichait trente-quatre.
+     *
+     * @param string[] $dates 'Y-m-d'
+     * @return array<string, array> map date => liste de tâches
+     */
+    public function getShopTasksForDates(int $shopId, array $dates): array
+    {
+        $byDate = [];
+        foreach (array_unique($dates) as $d) {
+            $byDate[$d] = '/consultant/shops/' . $shopId . '/tasks?' . http_build_query(['date' => $d]);
+        }
+        if ($byDate === []) {
+            return [];
+        }
+        $responses = $this->apiClient->getMany(array_values($byDate));
+        $out = [];
+        foreach ($byDate as $d => $ep) {
+            $r = $responses[$ep] ?? null;
+            $data = (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) ? $r['data'] : [];
+            $out[$d] = is_array($data['tasks'] ?? null) ? $data['tasks'] : [];
+        }
+        return $out;
+    }
+
+    /**
      * Les checklists d'une boutique sur PLUSIEURS dates, en un aller-retour.
      *
      * Un rapport hebdomadaire couvre 6 jours, un mensuel une vingtaine. En

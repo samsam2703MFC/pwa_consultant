@@ -39,6 +39,18 @@ class ChecklistService
     }
 
     /**
+     * Tâches d'une boutique sur plusieurs dates, en une attente réseau.
+     * Source de vérité des rapports : même endpoint que l'écran du jour.
+     *
+     * @param string[] $dates
+     * @return array<string, array> map date => liste de tâches
+     */
+    public function getShopTasksForDates(int $shopId, array $dates): array
+    {
+        return $this->checklistRepository->getShopTasksForDates($shopId, $dates);
+    }
+
+    /**
      * Checklists sur plusieurs dates, en une attente réseau (rapports).
      *
      * @param string[] $dates
