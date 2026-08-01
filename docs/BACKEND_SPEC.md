@@ -17,6 +17,7 @@ Nothing here breaks existing clients: every change is an *added* field or a
 | T6 | Owner validation of a review | new endpoint | M | 5 |
 | T7 | Cache headers on read-only aggregates | 5 endpoints | S | 5 |
 | T8 | **Three endpoints, three different revenues** | 3 existing endpoints | S | **2** |
+| T9 | Checklist progress over a date range | new endpoint | M | 3 |
 
 **Start with T5a and T8.** They are the only two tickets on this list about
 figures being *wrong*. Everything else makes the panel faster or richer; T5a and
@@ -596,6 +597,116 @@ correct margin on the wrong revenue is still a wrong valuation.
 
 ---
 
+## T9 — Checklist progress over a date range
+
+**Existing endpoints:**
+`GET /consultant/shops/{shopId}/checklists?date=YYYY-MM-DD` — the checklists of **one day**
+`GET /consultant/shops/{shopId}/checklists/{checklistId}/progress?date=YYYY-MM-DD` — the tasks of **one day**
+
+This is the only ticket on the list that **deletes code on our side** instead of
+adding a screen.
+
+### What to create
+
+```
+GET /consultant/shops/{shopId}/checklists/progress?from=2026-05-01&to=2026-05-31
+```
+
+`from` and `to` are dates (`YYYY-MM-DD`), inclusive. The payload is exactly what
+the two existing endpoints return, grouped by day:
+
+```json
+{
+  "days": [
+    {
+      "date": "2026-05-25",
+      "checklists": [
+        {
+          "id": 10,
+          "name": "Ouverture boutique",
+          "tasks": [
+            { "task_id": 1, "task_name": "Ouverture caisse", "status": "DONE",
+              "is_mandatory": true, "attachment_id": 77,
+              "review_is_accepted": 1, "review_rating": 5, "review_comment": "RAS" }
+          ]
+        }
+      ]
+    },
+    { "date": "2026-05-26", "checklists": [] }
+  ]
+}
+```
+
+Three rules that matter to us:
+
+1. **Every requested day appears**, even with an empty `checklists` array. A day
+   with no checklist and a day missing from the response are different facts:
+   one is "nothing was planned", the other is "we don't know".
+2. Each task object is **exactly** what `/checklists/{id}/progress` returns
+   today. Don't reshape it; we already parse that form, and the day view will
+   keep using the single-day endpoint.
+3. A sensible cap is fine — say 62 days. Tell us the limit and the error you
+   return above it, and we'll split the range client-side. Silent truncation is
+   the one thing we cannot work with: a month that comes back short reads as a
+   month where nothing happened.
+
+### Why
+
+The panel now has a **Checklist Tasks report**, weekly and monthly. A weekly
+report covers 6 days; a monthly one covers about 26. With only a per-day
+endpoint, and one extra call per checklist per day, a monthly report is roughly
+**50 sequential round trips** — at a 10 s client timeout, the gateway cuts it off
+long before the page renders.
+
+We shipped two workarounds rather than wait:
+
+- calls are grouped with `curl_multi`, so a month costs 2 waits instead of 50;
+- **every closed day is frozen into a local table** (`mac_checklist_day_snapshot`)
+  and never requested again.
+
+That second one is the expensive part. It brought a table, a JSON payload per
+day, a "is this day closed yet?" rule, and a cache that can go stale if an old
+review is corrected. **This endpoint deletes all of it** — the table, the
+freezing logic, and the staleness question. We would read the range and render.
+
+It is also the same pattern you already built for P1
+(`/consultant/shops/monthly-sales`) and that T4 and T5b ask for: one call, one
+window, many rows.
+
+### Acceptance
+
+```bash
+# 1. Every requested day is present, including days with no checklist.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/shops/2/checklists/progress?from=2026-05-01&to=2026-05-31" \
+  | jq '.days | length'
+```
+
+Must be `31` — not "the number of days that had activity".
+
+```bash
+# 2. The per-day payload matches the single-day endpoints, day by day.
+diff \
+  <(curl -s -H "Authorization: Bearer $TOKEN" \
+      "$API/consultant/shops/2/checklists/10/progress?date=2026-05-25" | jq -S '.tasks') \
+  <(curl -s -H "Authorization: Bearer $TOKEN" \
+      "$API/consultant/shops/2/checklists/progress?from=2026-05-25&to=2026-05-25" \
+    | jq -S '.days[0].checklists[] | select(.id == 10) | .tasks')
+```
+
+Must print nothing.
+
+```bash
+# 3. The range never returns a day outside it.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/consultant/shops/2/checklists/progress?from=2026-05-01&to=2026-05-31" \
+  | jq '[.days[].date | select(. < "2026-05-01" or . > "2026-05-31")] | length'
+```
+
+Must be `0`.
+
+---
+
 ## What each ticket changes for the panel
 
 | Ticket | What we can delete | What we gain |
@@ -609,6 +720,7 @@ correct margin on the wrong revenue is still a wrong valuation.
 | T6 | a local table | validation visible to all clients |
 | T7 | our TTL guesses | fewer requests, fresher data |
 | T8 | a hard-coded source preference per screen | one revenue figure, the same on every screen |
+| T9 | a snapshot table and its freezing logic | a checklist report that just reads its window |
 
 ---
 
