@@ -54,8 +54,11 @@
 
     /** Écart minimal de l'échelle, en part du maximum. Voir domaine(). */
     var ETALEMENT_MIN = 0.06;
-    /** En deçà de cet écart (en % de largeur), deux points se chevauchent. */
-    var COLLE = 5.5;
+    /**
+     * En deçà de cet écart (en % de largeur), deux pastilles se chevauchent —
+     * 4 % d'une règle de 330 px, soit 13 px, la taille d'une pastille.
+     */
+    var COLLE = 4;
 
     /**
      * Les bornes de la règle.
@@ -103,21 +106,34 @@
     }
 
     /**
-     * Les points, écartés VERTICALEMENT quand ils se marchent dessus.
+     * Les points qui se marchent dessus, REGROUPÉS.
      *
-     * Sur un réseau resserré, deux boutiques peuvent tomber à un pixel l'une de
-     * l'autre. Les décaler horizontalement mentirait sur leur valeur ; les
-     * empiler les rend comptables sans déplacer personne.
+     * Sur un réseau resserré, plusieurs boutiques tombent à un pixel l'une de
+     * l'autre. Trois façons de s'en sortir, deux mauvaises : les décaler
+     * horizontalement ment sur leur valeur ; les empiler au-dessus de la ligne
+     * dessine une diagonale que l'œil lit comme une courbe — c'était l'essai
+     * précédent, et il rendait la règle illisible. On les fond donc en UN point
+     * qui porte leur nombre : « ici, trois boutiques ».
+     *
+     * @return liste de {x, n} — position moyenne du groupe, et son effectif
      */
-    function etager(positions) {
+    function grouper(positions) {
         var tri = positions.slice().sort(function (a, b) { return a - b; });
-        var etage = {};
-        var n = 0;
+        var groupes = [];
         for (var i = 0; i < tri.length; i++) {
-            if (i > 0 && tri[i] - tri[i - 1] < COLLE) { n++; } else { n = 0; }
-            etage[tri[i].toFixed(4)] = n;
+            var g = groupes[groupes.length - 1];
+            // Comparé au PREMIER du groupe, pas au dernier : de proche en
+            // proche, quatre boutiques bien distinctes finissaient fondues en
+            // une seule pastille. Un groupe ne dépasse jamais la largeur d'une
+            // pastille.
+            if (g && tri[i] - g.min < COLLE) {
+                g.somme += tri[i]; g.n++;
+                g.x = g.somme / g.n;
+            } else {
+                groupes.push({ x: tri[i], somme: tri[i], n: 1, min: tri[i] });
+            }
         }
-        return etage;
+        return groupes;
     }
 
     function dessinerRegle(cle, moi, net) {
@@ -137,9 +153,17 @@
 
         var h = ['<div class="km-line"></div>'];
         var pMoi = place(moi.now, d);
-        var etages = etager(vals.map(function (v) { return place(v, d); })
-                                .filter(function (p) { return p !== null; }));
-        var haut = function (p) { return (etages[p.toFixed(4)] || 0) * 11; };
+
+        // Les autres boutiques, regroupées quand elles se touchent. La boutique
+        // ouverte est dessinée à part, par-dessus : elle doit rester repérable
+        // même au milieu d'un peloton.
+        var autres = [];
+        for (var j = 0; j < vals.length; j++) {
+            if (moi.now !== null && Math.abs(vals[j] - moi.now) < 1e-9) { continue; }
+            var pv = place(vals[j], d);
+            if (pv !== null) { autres.push(pv); }
+        }
+        var groupes = grouper(autres);
 
         // L'an dernier n'entre PAS dans le domaine : une boutique deux fois plus
         // grosse l'an dernier écraserait tout le réseau d'aujourd'hui. Hors
@@ -159,11 +183,11 @@
             h.push('<div class="km-avg-l" style="left:' + Math.min(84, Math.max(16, pMoy)) + '%">'
                  + esc(L.moy) + ' ' + esc(fmt(net.avg, net.decimals, net.unit)) + '</div>');
         }
-        for (var j = 0; j < vals.length; j++) {
-            if (moi.now !== null && Math.abs(vals[j] - moi.now) < 1e-9) { continue; }
-            var p = place(vals[j], d);
-            if (p === null) { continue; }
-            h.push('<div class="km-pt" style="left:' + p + '%;margin-top:-' + haut(p) + 'px"></div>');
+        for (var g = 0; g < groupes.length; g++) {
+            var x = Math.max(1.5, Math.min(98.5, groupes[g].x));
+            h.push(groupes[g].n > 1
+                ? '<div class="km-pt grp" style="left:' + x + '%">' + groupes[g].n + '</div>'
+                : '<div class="km-pt" style="left:' + x + '%"></div>');
         }
         if (pAn !== null) {
             h.push(anDehors
@@ -173,7 +197,7 @@
         }
         if (pMoi !== null) {
             var pm = Math.max(1.5, Math.min(98.5, pMoi));
-            h.push('<div class="km-pt me" style="left:' + pm + '%;margin-top:-' + haut(pMoi) + 'px"></div>');
+            h.push('<div class="km-pt me" style="left:' + pm + '%"></div>');
             h.push('<div class="km-me-l" style="left:' + Math.min(90, Math.max(10, pm)) + '%">'
                  + esc(fmt(moi.now, net.decimals, net.unit)) + '</div>');
         }

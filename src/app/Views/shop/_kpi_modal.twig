@@ -26,29 +26,36 @@
     .km-u { font-size:.8rem; font-weight:700; color:#7a7168; padding-bottom:3px; }
     .km-p { font-size:.68rem; color:#7a7168; padding-bottom:4px; margin-left:auto; }
 
-    /* La règle du réseau */
-    .km-sc { margin-top:22px; position:relative; height:58px; }
-    .km-line { position:absolute; left:0; right:0; top:24px; height:3px; border-radius:99px;
+    /* La règle du réseau — quatre étages, chacun le sien, pour que rien ne se
+       chevauche : la valeur de la boutique, la ligne et ses points, les deux
+       bornes, puis la moyenne. Empiler les points au-dessus de la ligne (essai
+       précédent) dessinait une diagonale qui se lisait comme une courbe. */
+    .km-sc { margin-top:22px; position:relative; height:74px; }
+    .km-line { position:absolute; left:0; right:0; top:26px; height:3px; border-radius:99px;
                background:linear-gradient(90deg,#efe7dc,#ded2c0); }
-    .km-avg { position:absolute; top:14px; width:2px; height:23px; background:#1F4F6B; border-radius:2px; }
-    .km-avg-l { position:absolute; top:39px; font-size:.6rem; font-weight:800; color:#1F4F6B;
+    .km-avg { position:absolute; top:16px; width:2px; height:23px; background:#1F4F6B; border-radius:2px; }
+    .km-avg-l { position:absolute; top:56px; font-size:.6rem; font-weight:800; color:#1F4F6B;
                 transform:translateX(-50%); white-space:nowrap; }
-    .km-pt { position:absolute; top:19px; width:13px; height:13px; border-radius:50%;
+    .km-pt { position:absolute; top:21px; width:13px; height:13px; border-radius:50%;
              background:#cfc3b2; transform:translateX(-50%); border:2px solid #fff; }
-    .km-pt.me { width:19px; height:19px; background:var(--c-primary,#8D1D2C); top:16px;
+    /* Plusieurs boutiques au même endroit : UN point qui les compte. Les
+       décaler mentirait sur leur valeur, les empiler ferait un graphique. */
+    .km-pt.grp { width:19px; height:19px; top:18px; font-size:.6rem; font-weight:800;
+                 color:#6b6157; display:flex; align-items:center; justify-content:center; }
+    .km-pt.me { width:19px; height:19px; background:var(--c-primary,#8D1D2C); top:18px;
                 box-shadow:0 2px 6px rgba(141,29,44,.35); z-index:3; }
     .km-pt.y1 { background:#fff; border:2px dashed #b8ab99; z-index:1; }
     .km-me-l { position:absolute; top:0; font-size:.66rem; font-weight:800;
                color:var(--c-primary,#8D1D2C); transform:translateX(-50%); white-space:nowrap; }
-    .km-mv { position:absolute; top:24px; height:3px; background:rgba(141,29,44,.3);
+    .km-mv { position:absolute; top:26px; height:3px; background:rgba(141,29,44,.3);
              border-radius:2px; z-index:1; }
     /* L'an dernier hors de l'échelle : un chevron au bord, pas un point aligné
        sur le maximum — qui se lirait « à égalité avec la meilleure ». */
-    .km-out { position:absolute; top:15px; transform:translateX(-50%); z-index:2;
+    .km-out { position:absolute; top:17px; transform:translateX(-50%); z-index:2;
               font-size:.95rem; font-weight:800; color:#b8ab99; line-height:1; }
     /* Les bornes de la règle : une échelle qui ne part pas de zéro doit dire
-       où elle commence. */
-    .km-b { position:absolute; top:39px; font-size:.58rem; font-weight:700; color:#a2988c;
+       où elle commence. Étage à elles, sous la ligne. */
+    .km-b { position:absolute; top:41px; font-size:.58rem; font-weight:700; color:#a2988c;
             white-space:nowrap; }
     .km-b.lo { left:0; } .km-b.hi { right:0; }
 
