@@ -5,6 +5,44 @@ use App\Consultant\core\Http\ApiClient;
 
 class ChecklistRepository
 {
+    /**
+     * Échantillonnage des réponses brutes, à la demande.
+     *
+     * Trois tours à supposer laquelle des sources se tait, sans jamais voir ce
+     * que l'API renvoie : il faut pouvoir le lire. Désactivé par défaut, armé
+     * par le rapport quand on le lui demande.
+     */
+    private static bool $sampling = false;
+    private static array $samples = [];
+
+    public static function sampleOn(): void
+    {
+        self::$sampling = true;
+        self::$samples  = [];
+    }
+
+    /** @return array<string, array> map clé => ['endpoint'=>…, 'response'=>…] */
+    public static function samples(): array
+    {
+        return self::$samples;
+    }
+
+    /** Un seul échantillon par clé : le premier suffit à lire le format. */
+    private static function sample(string $key, string $endpoint, $response): void
+    {
+        if (!self::$sampling || isset(self::$samples[$key])) {
+            return;
+        }
+        // Tronqué : une journée de checklists complète rendrait la page de
+        // diagnostic illisible.
+        $json = json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json !== false && strlen($json) > 12000) {
+            $response = ['_tronque' => true, '_taille_octets' => strlen($json),
+                         '_extrait' => substr($json, 0, 12000)];
+        }
+        self::$samples[$key] = ['endpoint' => $endpoint, 'response' => $response];
+    }
+
     public function __construct(private ApiClient $apiClient) {}
 
     public function getNetworkTasksRanking(string $date): array
@@ -97,6 +135,7 @@ class ChecklistRepository
         $out = [];
         foreach ($byDate as $d => $ep) {
             $r = $responses[$ep] ?? null;
+            self::sample('tasks', $ep, $r);
             $data = (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null)) ? $r['data'] : [];
             $out[$d] = is_array($data['tasks'] ?? null) ? $data['tasks'] : [];
         }
@@ -127,6 +166,7 @@ class ChecklistRepository
         $out = [];
         foreach ($byDate as $d => $ep) {
             $r = $responses[$ep] ?? null;
+            self::sample('checklists', $ep, $r);
             $out[$d] = (is_array($r) && !empty($r['success']) && isset($r['data'])) ? $r['data'] : [];
         }
         return $out;
@@ -158,6 +198,7 @@ class ChecklistRepository
         $out = [];
         foreach ($byKey as $key => $ep) {
             $r = $responses[$ep] ?? null;
+            self::sample('progress', $ep, $r);
             $out[$key] = (is_array($r) && !empty($r['success']) && is_array($r['data'] ?? null))
                 ? $r['data'] : [];
         }

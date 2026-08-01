@@ -2,6 +2,7 @@
 namespace App\Consultant\app\Http\Controllers\Report;
 
 use App\Consultant\app\Http\Controllers\Controller;
+use App\Consultant\app\Repositories\Checklist\ChecklistRepository;
 use App\Consultant\app\Services\Report\ChecklistReportService;
 use App\Consultant\core\Support\Route;
 use DateTimeImmutable;
@@ -39,10 +40,20 @@ class ChecklistReportController extends Controller
         // `?fresh=1` : ignorer les jours figés et tout redemander. Un jour figé
         // pendant qu'un endpoint se taisait garderait sinon sa conformité vide
         // pour toujours.
-        if (($_GET['fresh'] ?? '') === '1') {
+        // `?debug=1` implique `fresh` : échantillonner une réponse suppose
+        // qu'un appel ait lieu, et un rapport servi par le cache n'en fait
+        // aucun.
+        $debug = ($_GET['debug'] ?? '') === '1';
+        if ($debug || ($_GET['fresh'] ?? '') === '1') {
             $this->service->forceRefresh();
         }
+        if ($debug) {
+            ChecklistRepository::sampleOn();
+        }
         $report = $this->safeFetch([$this->service, 'week'], $this->errors, [$shopId, $monday], []);
+        if ($debug) {
+            $report['samples'] = ChecklistRepository::samples();
+        }
 
         $this->view('report/checklist_week', [
             'report'     => $report,
@@ -72,10 +83,17 @@ class ChecklistReportController extends Controller
             ? $ref
             : (new DateTimeImmutable('first day of last month'))->format('Y-m');
 
-        if (($_GET['fresh'] ?? '') === '1') {
+        $debug = ($_GET['debug'] ?? '') === '1';
+        if ($debug || ($_GET['fresh'] ?? '') === '1') {
             $this->service->forceRefresh();
         }
+        if ($debug) {
+            ChecklistRepository::sampleOn();
+        }
         $report = $this->safeFetch([$this->service, 'month'], $this->errors, [$shopId, $ym], []);
+        if ($debug) {
+            $report['samples'] = ChecklistRepository::samples();
+        }
 
         $first = new DateTimeImmutable($ym . '-01');
         $this->view('report/checklist_month', [
