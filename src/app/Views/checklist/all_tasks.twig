@@ -67,18 +67,35 @@
     .nq-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
     .nq-b { flex:1; min-width:0; padding:7px 0; }
     .nq-n { font-size:.8rem; font-weight:700; color:#241f1c; line-height:1.25; }
-    .nq-m { font-size:.63rem; color:#a2988c; margin-top:1px; }
+    /* La ligne de contexte est secondaire : elle se tronque plutôt que de
+       pousser la ligne à quatre hauteurs de texte. Le nom, lui, peut passer
+       à la ligne — c'est ce qu'on vient lire. */
+    .nq-m { font-size:.63rem; color:#a2988c; margin-top:1px;
+            overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .nq-m b { color:#991b1b; font-weight:800; }
-    .nq-right { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
-    .nq-act { min-height:32px; display:inline-flex; align-items:center; padding:0 11px;
-              border-radius:999px; font-size:.68rem; font-weight:800; white-space:nowrap; }
+    /* Verdict et note occupent chacun une COLONNE de largeur fixe : sous la
+       pastille, la note se lisait comme une mention légale et ne s'alignait
+       avec rien. Les largeurs sont figées pour que l'œil descende la liste en
+       ligne droite, quelle que soit la longueur du verdict. */
+    /* Largeur FIXE, note calée à gauche du bloc et verdict à droite : avec un
+       simple `gap`, une pastille « Non conforme » plus large que « Conforme »
+       décalait la note de quelques pixels d'une ligne à l'autre — assez pour
+       casser la colonne. */
+    .nq-right { flex-shrink:0; width:142px; display:flex; align-items:center;
+                justify-content:space-between; }
+    .nq-act { min-height:32px; width:100px; display:inline-flex; align-items:center;
+              justify-content:center; padding:0 6px; border-radius:999px;
+              font-size:.68rem; font-weight:800; white-space:nowrap; }
     .nq-act.todo { background:#8D1D2C; color:#fff; }
     .nq-act.ok   { background:rgba(45,122,62,.12); color:#2D7A3E; }
     .nq-act.ko   { background:rgba(192,24,43,.1); color:#c0182b; }
     .nq-act.na   { background:#f2eee8; color:#a2988c; }
-    /* La note du consultant, sous le verdict : c'est elle qui décide de la
-       gravité d'une non-conformité dans les rapports. */
-    .nq-rate { font-size:.62rem; font-weight:800; color:#b8860b; }
+    /* La note du consultant : c'est elle qui décide de la gravité d'une
+       non-conformité dans les rapports — elle mérite mieux qu'une mention en
+       petits caractères. Colonne réservée même quand la note est absente,
+       sinon les verdicts se décalent d'une ligne à l'autre. */
+    .nq-rate { flex-shrink:0; width:34px; text-align:right; font-size:.82rem;
+               font-weight:900; color:#b8860b; font-variant-numeric:tabular-nums; }
     .nq-empty { background:#fff; border-radius:14px; padding:26px 18px; text-align:center;
                 color:#a2988c; font-size:.82rem; margin-top:12px; }
     .nq-warn { background:#fff6e6; border:1px solid #f0d9a8; border-radius:12px; padding:9px 12px;
@@ -101,6 +118,7 @@
             <span class="nq-f" data-f="all">{{ translations.f_all ?? 'Toutes' }} {{ t.total ?? 0 }}</span>
             <span class="nq-f" data-f="ko">{{ translations.f_nc ?? 'Non conformes' }} {{ t.nc ?? 0 }}</span>
             <span class="nq-f" data-f="undone">{{ translations.f_undone ?? 'Non faites' }} {{ (t.total ?? 0) - (t.done ?? 0) }}</span>
+            <span class="nq-f" data-f="done">{{ translations.f_done ?? 'Faites' }} {{ t.done ?? 0 }}</span>
             <span class="nq-f" data-f="mandatory">{{ translations.f_mandatory ?? 'Obligatoires' }}</span>
         </div>
     </div>
@@ -167,16 +185,21 @@
                         </span>
                     </span>
                     <span class="nq-right">
+                        <span class="nq-rate js-rev-rating">{{ task.review_rating is not null ? task.review_rating ~ '/5' : '' }}</span>
                         {% if not task.is_done %}
                             <span class="nq-act na">{{ task.status == 'SKIPPED' ? (translations.skipped_one ?? 'Ignorée') : (translations.not_done ?? 'Non faite') }}</span>
                         {% elseif task.review_state == 'ok' %}
                             <span class="js-rev-chip nq-act ok">{{ translations.modal_ok ?? 'Conforme' }}</span>
                         {% elseif task.review_state == 'ko' %}
                             <span class="js-rev-chip nq-act ko">{{ translations.modal_ko ?? 'Non conforme' }}</span>
+                        {% elseif task.review_state == 'done' %}
+                            {# Hors périmètre d'évaluation : faite, et rien à
+                               juger. Elle reste ouvrable — on peut vouloir
+                               regarder — mais elle n'encombre pas la file. #}
+                            <span class="js-rev-chip nq-act na">{{ translations.done_one ?? 'Faite' }}</span>
                         {% else %}
                             <span class="js-rev-chip nq-act todo">{{ translations.evaluate ?? 'Évaluer' }}</span>
                         {% endif %}
-                        <span class="nq-rate js-rev-rating">{{ task.review_rating is not null ? task.review_rating ~ '/5' : '' }}</span>
                     </span>
                 </div>
             {% endfor %}
@@ -208,6 +231,9 @@
         if (filtre === 'todo'      && st !== 'todo') { return false; }
         if (filtre === 'ko'        && st !== 'ko')   { return false; }
         if (filtre === 'undone'    && st !== 'na')   { return false; }
+        // « Faites » = tout ce qui est fait, évalué ou non : c'est le regard
+        // du franchisé, pas la file du consultant.
+        if (filtre === 'done'      && st === 'na')   { return false; }
         if (filtre === 'mandatory' && r.getAttribute('data-mandatory') !== '1') { return false; }
         var q = (search.value || '').trim().toLowerCase();
         return q === '' || (r.getAttribute('data-name') || '').indexOf(q) !== -1;

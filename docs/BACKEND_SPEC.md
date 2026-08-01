@@ -18,6 +18,7 @@ Nothing here breaks existing clients: every change is an *added* field or a
 | T7 | Cache headers on read-only aggregates | 5 endpoints | S | 5 |
 | T8 | **Three endpoints, three different revenues** | 3 existing endpoints | S | **2** |
 | T9 | Checklist progress over a date range | new endpoint | M | 3 |
+| T10 | Product `is_pdm` + a mandatory sector | product reference data | M | 4 |
 
 **Start with T5a and T8.** They are the only two tickets on this list about
 figures being *wrong*. Everything else makes the panel faster or richer; T5a and
@@ -707,6 +708,106 @@ Must be `0`.
 
 ---
 
+## T10 — Product reference data: `is_pdm`, and a mandatory sector
+
+**Endpoints:** every payload that returns products or product categories —
+today `GET /shops/{shopId}/statistics/sales/product-category-groups`
+(`grouping=category|group|month`), plus any product list the back office exposes.
+
+**Scope:** this ticket is about the product *reference data* and the form that
+maintains it. There is no new endpoint here.
+
+### Part A — `is_pdm` on the product
+
+Add a boolean `is_pdm` to the product record, and expose it wherever products
+are returned to clients.
+
+| Field | Type | Default | Null when |
+|---|---|---|---|
+| `is_pdm` | bool (`0`/`1`) | `0` | never — a product is PDM or it is not |
+
+Two rules, both of which matter more than the field itself:
+
+1. **Never null.** A product whose flag was never set must return `false`, not
+   `null` and not an absent key. A missing key forces every client to invent a
+   default, and two clients will invent different ones.
+2. **Present even on products that are not PDM.** Filtering the flag out of the
+   payload to save bytes turns "not PDM" and "unknown" into the same thing.
+
+### Part B — the sector, mandatory in the product form
+
+The product form must **require** a sector, chosen from a closed list —
+*boulangerie*, *traiteur*, … — with no free text and no empty value.
+
+| Field | Type | Null when |
+|---|---|---|
+| `sector_id` | int | never once this ticket ships |
+| `sector_name` | string | never once this ticket ships |
+
+Three things we need beyond the form itself:
+
+1. **The list, as data.** A `GET` that returns the sectors (`id`, `name`) so the
+   panel labels them the same way the back office does. Sectors hard-coded on
+   our side would drift the day one is renamed.
+2. **A decision on the existing catalogue.** Making the field mandatory on new
+   products leaves the old ones without a sector. Either backfill them, or tell
+   us they can be null so we can display "sector not set" instead of silently
+   dropping those products out of a breakdown — the one thing we must not do is
+   count them as zero.
+3. **The sector on the sales payloads.** A sector known only inside the product
+   form is invisible to us. It has to travel with the product wherever the
+   product travels, exactly like the category does today.
+
+### Why
+
+The panel breaks revenue down by category. Category is fine for a shelf, too fine
+for a conversation with a franchisee: "your traiteur is down 8 %" is a sentence
+they act on, "your category 47 is down 8 %" is not. The sector is the level the
+franchise actually steers by, and it does not exist in any payload we receive.
+
+`is_pdm` is the same problem one notch further: as long as PDM products cannot be
+told apart from the rest, no screen and no report can separate them.
+
+### Acceptance
+
+```bash
+# 1. Every product carries the flag, PDM or not — no absent key, no null.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/shops/4/statistics/sales/product-category-groups?grouping=category&from=2026-07-01&to=2026-07-31" \
+  | jq '[.. | objects | select(has("product_id"))
+         | select(has("is_pdm") | not or (.is_pdm == null))] | length'
+```
+
+Must be `0`.
+
+```bash
+# 2. The sector travels with the product.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$API/shops/4/statistics/sales/product-category-groups?grouping=category&from=2026-07-01&to=2026-07-31" \
+  | jq '[.. | objects | select(has("product_id")) | {product_id, sector_id, sector_name, is_pdm}] | .[0:5]'
+```
+
+Every row must show a `sector_id` and a `sector_name`.
+
+```bash
+# 3. The sector list is readable as data, not only as a dropdown.
+curl -s -H "Authorization: Bearer $TOKEN" "$API/consultant/product-sectors" | jq '.data'
+```
+
+Must return the same list the product form offers.
+
+```bash
+# 4. The form refuses a product with no sector.
+#    Expect a 422 and a message naming the field.
+curl -s -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Test sans secteur","price":1.0}' "$API/products"
+```
+
+Must be `422`, not `200`.
+
+---
+
 ## What each ticket changes for the panel
 
 | Ticket | What we can delete | What we gain |
@@ -721,6 +822,7 @@ Must be `0`.
 | T7 | our TTL guesses | fewer requests, fresher data |
 | T8 | a hard-coded source preference per screen | one revenue figure, the same on every screen |
 | T9 | a snapshot table and its freezing logic | a checklist report that just reads its window |
+| T10 | nothing — we have no sector today | revenue read by sector, and PDM products we can isolate |
 
 ---
 

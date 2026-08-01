@@ -563,10 +563,16 @@ a .card:active, .card.is-tappable:active { transform:scale(.985); }
 .app-topbar-actions .btn-sm { min-height:40px; min-width:40px; }
 .cl-datenav-today { min-height:40px; display:inline-flex; align-items:center; }
 
-/* Accès à la file complète des tâches du réseau (checklists + tâches). Cible
-   au pouce comme le reste de l'app. */
-.cl-alltasks { display:flex; align-items:center; gap:9px; min-height:48px; margin:0 0 12px;
-  padding:0 14px; border-radius:14px; background:#fff; color:#8D1D2C;
-  font-size:.82rem; font-weight:800; box-shadow:0 1px 5px rgba(0,0,0,.05); }
-.cl-alltasks span { flex:1; min-width:0; }
-.cl-alltasks b { color:#c9c0b4; font-size:1.1rem; font-weight:400; }
+/* Accès à la file complète des tâches du réseau (checklists + tâches).
+   Même format de carte que .tk-summary, dont il est toujours voisin : deux
+   blocs côte à côte qui ne partagent ni rayon ni ombre se lisent comme deux
+   morceaux d'interfaces différentes. Cible au pouce, comme le reste. */
+.cl-alltasks { display:flex; align-items:center; gap:11px; min-height:56px; margin:0 0 12px;
+  padding:13px 16px; border-radius:18px; background:#fff; border:1px solid var(--c-line);
+  box-shadow:0 10px 24px -18px rgba(70,40,25,.25); color:var(--c-ink); }
+.cl-alltasks .ico { flex-shrink:0; display:flex; color:var(--c-primary); }
+.cl-alltasks .txt { flex:1; min-width:0; }
+.cl-alltasks .eyebrow { display:block; font-size:10.5px; font-weight:600; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--c-primary); margin-bottom:3px; }
+.cl-alltasks .big { display:block; font-family:'Vank','Gotham',serif; font-size:16px; color:var(--c-ink); }
+.cl-alltasks .car { flex-shrink:0; color:#c9c0b4; font-size:1.2rem; line-height:1; }

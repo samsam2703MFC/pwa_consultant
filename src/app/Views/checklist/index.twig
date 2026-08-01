@@ -82,9 +82,12 @@
            la liste réseau permet de CONTRÔLER sans revenir en arrière entre
            chaque tâche. #}
         <a href="{{ ROOT }}/checklists/tasks?date={{ date }}" class="cl-alltasks">
-            {{ icons.svg('list-checks', 16) }}
-            <span>{{ translations.all_tasks_cta ?? 'Toutes les tâches du réseau' }}</span>
-            <b>›</b>
+            <span class="ico">{{ icons.svg('list-checks', 20) }}</span>
+            <span class="txt">
+                <span class="eyebrow">{{ translations.all_tasks_eyebrow ?? 'Contrôle franchisés' }}</span>
+                <span class="big">{{ translations.all_tasks_cta ?? 'Toutes les tâches du réseau' }}</span>
+            </span>
+            <span class="car">›</span>
         </a>
         <div class="cl-eyebrow">{{ translations.shop_ranking ?? 'Classement boutiques' }}</div>
         <div class="cl-ranklist">

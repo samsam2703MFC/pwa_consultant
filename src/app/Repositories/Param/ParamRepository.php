@@ -65,6 +65,12 @@ class ParamRepository
         'checklist_review_rating_ko'      => ['2',  'Checklists : note posée d\'office par le bouton « Non conforme » (0 = aucune)'],
         // Code couleur du rapport Checklist : au-dessus du premier seuil c'est
         // vert, au-dessus du second orange, en dessous rouge.
+        // Ce que le consultant évalue vraiment : une tâche qui exige une photo
+        // (sans preuve, il n'y a rien à juger) ET qui est obligatoire. Les
+        // autres tâches faites s'affichent « Faite », sans rien réclamer.
+        // Mettre 0 à l'une des deux clés élargit la file d'un cran.
+        'checklist_review_needs_photo'     => ['1', 'Checklists : n\'évaluer que les tâches exigeant une photo'],
+        'checklist_review_needs_mandatory' => ['1', 'Checklists : n\'évaluer que les tâches obligatoires'],
         // L'écran « toutes les tâches » interroge trois endpoints par boutique.
         // Un parc qui grandit ne doit pas le transformer en attente : au-delà
         // de ce nombre, la liste est tronquée et le dit à l'écran.
