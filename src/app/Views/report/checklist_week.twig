@@ -43,6 +43,15 @@
     {% set th = report.thresholds %}
 
     <div class="ck">
+    {# Voir checklist_month.twig : en-tête recopié en haut de chaque feuille
+       à l'impression, invisible à l'écran. #}
+    <table class="ck-sheet"><thead><tr><td>
+        <div class="ck-runhead">
+            <b>{{ report.shop.name }}</b>
+            <span>{{ translations.ck_kicker_week ?? 'Checklist Tâches · Hebdomadaire' }}</span>
+            <span class="sp">{{ report.from|date('d/m/Y') }} → {{ report.to|date('d/m/Y') }}</span>
+        </div>
+    </td></tr></thead><tbody><tr><td>
         <div class="ck-head">
             <span class="ck-kicker">{{ translations.ck_kicker_week ?? 'Checklist Tâches · Hebdomadaire' }}</span>
             <h1 class="ck-title">{{ report.shop.name }}</h1>
@@ -239,6 +248,7 @@
             <div class="ck-sec-h">{{ translations.field_findings ?? 'Constats terrain' }}</div>
             {% include "report/_checklist_feed.twig" with { feed: report.feed } %}
         </div>
+    </td></tr></tbody></table>
     </div>
 {% endif %}
 

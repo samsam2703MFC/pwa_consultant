@@ -37,6 +37,16 @@
     {% set th = report.thresholds %}
 
     <div class="ck">
+    {# Ossature d'impression : l'en-tête de ce tableau est le seul élément que
+       le navigateur recopie en haut de chaque feuille en réservant sa place.
+       Replié en blocs et masqué à l'écran — voir _checklist_style.twig. #}
+    <table class="ck-sheet"><thead><tr><td>
+        <div class="ck-runhead">
+            <b>{{ report.shop.name }}</b>
+            <span>{{ translations.ck_kicker_month ?? 'Checklist Tâches · Mensuel' }}</span>
+            <span class="sp">{{ report.from|date('d/m/Y') }} → {{ report.to|date('d/m/Y') }}</span>
+        </div>
+    </td></tr></thead><tbody><tr><td>
         <div class="ck-head">
             <span class="ck-kicker">{{ translations.ck_kicker_month ?? 'Checklist Tâches · Mensuel' }}</span>
             <h1 class="ck-title">{{ report.shop.name }}</h1>
@@ -252,6 +262,7 @@
             <b>1 – {{ th.nc_major_max_rating }} = {{ translations.major_one ?? 'majeure' }}</b>,
             <b>{{ th.nc_major_max_rating + 1 }} – 5 = {{ translations.minor_one ?? 'mineure' }}</b>.
             {{ translations.threshold_configurable ?? 'Seuil réglable en configuration.' }}</div>
+    </td></tr></tbody></table>
     </div>
 {% endif %}
 

@@ -100,6 +100,17 @@
 
     .rpt-actions { display:flex; gap:10px; margin-bottom:16px; }
 
+    /* Ossature d'impression : dépliée en blocs à l'écran, où elle ne doit rien
+       changer. Le sélecteur de cellule descend en ligne directe — `.rpt-sheet
+       td` toucherait aussi les cellules des tableaux du rapport, qui
+       perdraient leur propre remplissage. */
+    .rpt-sheet, .rpt-sheet > tbody, .rpt-sheet > tbody > tr,
+    .rpt-sheet > tbody > tr > td { display:block; }
+    .rpt-sheet > thead { display:none; }
+    .rpt-sheet { border-spacing:0; width:100%; }
+    .rpt-sheet > thead > tr > td, .rpt-sheet > tbody > tr > td { padding:0; }
+    .rpt-runhead { display:none; }
+
     /* ── Vue RÉSEAU « toutes les boutiques » : 3 onglets (toggle) ── */
     .rpt-tabs { display:flex; gap:5px; margin-bottom:14px; background:#f2ede5; border-radius:12px; padding:4px; }
     .rpt-tab { flex:1; border:0; background:transparent; border-radius:9px; padding:8px 6px; font-size:.72rem; font-weight:800; color:#7a7168; cursor:pointer; -webkit-tap-highlight-color:transparent; }
@@ -181,23 +192,65 @@
     .rpt-treflo b { font-weight:900; font-size:.72rem; letter-spacing:.5px; margin-left:2px; }
     .rpt-treflo .tf-ok { color:#2D7A3E; } .rpt-treflo .tf-mid { color:#e67e22; } .rpt-treflo .tf-bad { color:#c0182b; } .rpt-treflo .tf-nd { color:#cfc7bb; }
 
-    /* Impression / « Enregistrer en PDF » : on ne garde que le rapport. */
+    /* ── Impression / « Enregistrer en PDF » ──────────────────────────────
+       Le rapport part en PDF au franchisé : une feuille A4 est un format
+       fixe, pas une fenêtre qu'on fait défiler. Masquer la navigation ne
+       suffit pas — il faut une échelle typographique en points, des coupures
+       de page choisies, et un rappel d'identité sur chaque feuille. */
     @media print {
+        /* Sans `size`, la feuille est celle de l'imprimante et les marges
+           celles du navigateur : trois rendus pour trois postes. */
+        @page { size:A4 portrait; margin:12mm 13mm; }
+
         .app-topbar, .app-tabbar-bar, .app-nav-sheet, .app-nav-backdrop,
         #nav-progress, #pwa-banner, #pwa-ios-tip, .rpt-noprint { display:none !important; }
-        body { background:#fff !important; }
+        body { background:#fff !important; orphans:3; widows:3; }
         main.app-content, .app-content { padding:0 !important; }
-        .rpt-shop { break-inside:avoid; box-shadow:none; }
         a[href] { color:inherit; text-decoration:none; }
+
+        /* Tout le rapport est dimensionné en rem : redéfinir la racine le met
+           à l'échelle du papier d'un seul geste. 12 pt d'écran pour 820 px de
+           colonne, 10,5 pt pour les 184 mm de la colonne A4 — même nombre de
+           signes par ligne. */
+        html { font-size:10.5pt; }
+        .rpt { max-width:none; margin:0; }
+
+        /* Bandeau répété : à partir de la page 2, l'en-tête du rapport n'est
+           plus là pour dire de quel périmètre et de quelle période il s'agit. */
+        .rpt-sheet { display:table !important; width:100%; }
+        .rpt-sheet > thead { display:table-header-group !important; }
+        .rpt-sheet > tbody { display:table-row-group; }
+        .rpt-sheet > thead > tr, .rpt-sheet > tbody > tr { display:table-row; }
+        .rpt-sheet > thead > tr > td, .rpt-sheet > tbody > tr > td {
+            display:table-cell; padding:0; }
+        .rpt-runhead { display:flex !important; align-items:baseline; gap:9px;
+            font-size:.6rem; color:#8a827a; padding-bottom:1.8mm; margin-bottom:4mm;
+            border-bottom:.5pt solid rgba(0,0,0,.22); }
+        .rpt-runhead b { color:#8D1D2C; font-weight:800; text-transform:uppercase;
+            letter-spacing:.04em; }
+        .rpt-runhead .sp { margin-left:auto; white-space:nowrap; }
+
         /* À l'impression : on déplie les 3 onglets réseau et on titre chacun. */
-        .rpt-tabview, .rpt-tabview[hidden] { display:block !important; break-inside:avoid; }
-        .rpt-print-title { display:block !important; }
-        /* Les cellules de heatmap gardent leurs couleurs sur papier. */
-        .rpt-cal .dcell, .rpt-hmv, .rpt-heat-cell, .rpt-hm-legend .sw {
-            -webkit-print-color-adjust:exact; print-color-adjust:exact;
-        }
-        .rpt-cal, .rpt-tblwrap { break-inside:avoid; }
-        @page { margin:14mm 12mm; }
+        .rpt-tabview, .rpt-tabview[hidden] { display:block !important; }
+        .rpt-print-title { display:block !important; break-after:avoid; }
+
+        /* Insécable ce qui n'a pas de sens coupé : une ligne de tableau, une
+           carte, un calendrier. Une BOUTIQUE entière insécable, elle, saute à
+           la feuille suivante dès qu'elle ne tient plus — et laisse une
+           demi-page blanche par boutique. */
+        .rpt-shop { break-inside:auto; box-shadow:none; }
+        .rpt-shop-name, .rpt-sec-h, .rpt-head, .rpt-cmp-sub, .rpt-syn-h { break-after:avoid; }
+        .rpt-sec, .rpt-tblwrap, .rpt-tbl-wrap { break-inside:auto; }
+        .rpt-kpi, .rpt-lev, .rpt-camp, .rpt-note, .rpt-chip, .rpt-syn-item,
+        .rpt-cal, .rpt-wd, .rpt-heat, .rpt-tbl tr { break-inside:avoid; }
+        /* Un conteneur à défilement coupe ce qui dépasse : rien à faire
+           défiler sur papier. */
+        .rpt-tblwrap, .rpt-tbl-wrap { overflow:visible !important; }
+        thead { display:table-header-group; }   /* en-tête répété par page */
+
+        /* Les cellules de heatmap gardent leurs couleurs sur papier : sans
+           cela, vert et rouge deviennent deux gris identiques. */
+        .rpt, .rpt * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     }
 </style>
 {% endblock %}
@@ -218,6 +271,16 @@
         <div class="rpt-empty">{{ translations.no_data ?? 'Données indisponibles.' }}</div>
     {% else %}
     <div class="rpt">
+    {# Ossature d'impression : l'en-tête de ce tableau est le seul élément que
+       le navigateur recopie en haut de chaque feuille EN RÉSERVANT la place.
+       Replié en blocs et masqué à l'écran — voir la feuille de style. #}
+    <table class="rpt-sheet"><thead><tr><td>
+        <div class="rpt-runhead">
+            <b>{{ report.scope.label ?? '' }}</b>
+            <span>{{ translations.title ?? 'Rapport' }} {{ report.type_label ?? '' }}</span>
+            <span class="sp">{{ report.period.label ?? '' }}</span>
+        </div>
+    </td></tr></thead><tbody><tr><td>
 
         {# ── En-tête ── #}
         <div class="rpt-head">
@@ -910,6 +973,7 @@
             </div>
         </div>
 
+    </td></tr></tbody></table>
     </div>
     {% endif %}
 
