@@ -1,0 +1,75 @@
+{# L'envoi d'un avis, à un seul endroit.
+
+   Deux écrans le postent maintenant — la modale d'une liste et la pile de
+   contrôle — et le contrat est délicat : trois champs exigés côté service, et
+   chaque champ d'évaluation envoyé sous ses DEUX orthographes tant que T2 n'a
+   pas figé le contrat. Dupliquer cela, c'est garantir que la copie dérivera. #}
+<script>
+window.tfbReview = (function () {
+    var ROOT = window.__consultantRoot || '';
+
+    /**
+     * @param p {shop_id, checklist_id, task_id, date, completion_id,
+     *           rating, accepted, comment}
+     * @return Promise<{journal: boolean, journalError: ?string}>
+     *         rejetée avec une Error dont le message est CE QUE LE SERVEUR A DIT.
+     */
+    function submit(p) {
+        var comment = p.comment || null;
+        // Sans choix explicite, le panel envoie « conforme » : c'est le sens
+        // d'un contrôle qu'on enregistre sans rien signaler.
+        var accepted = (p.accepted === null || p.accepted === undefined) ? true : !!p.accepted;
+        return fetch(ROOT + '/checklists/reviews', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            // checklist_id, task_id et review_date sont EXIGÉS par
+            // ChecklistService::submitTaskReview avant tout appel à l'API.
+            // Les variantes review_* accompagnent les champs d'évaluation :
+            // l'API expose ces noms-là en lecture.
+            body: JSON.stringify({
+                shop_id:            p.shop_id,
+                checklist_id:       p.checklist_id,
+                task_id:            p.task_id,
+                review_date:        p.date,
+                completion_id:      p.completion_id,
+                rating:             p.rating,
+                review_rating:      p.rating,
+                comment:            comment,
+                review_comment:     comment,
+                is_accepted:        accepted,
+                review_is_accepted: accepted
+            })
+        })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+                if (!res.ok || !(res.j && res.j.success)) {
+                    throw new Error(explique(res.j || {}));
+                }
+                return {
+                    journal: res.j.journal !== false,
+                    journalError: res.j.journal_error || null
+                };
+            });
+    }
+
+    /**
+     * Le message du backend, tel quel, avec le corps de sa réponse : si le
+     * format attendu diffère du nôtre, on veut LIRE lequel au lieu de le
+     * deviner. Trois tours de suppositions ont déjà été payés ici.
+     */
+    function explique(j) {
+        var txt = (typeof j.error === 'string' && j.error) ? j.error : 'Erreur';
+        // code 0 = la requête n'a pas abouti : c'est le motif de transport qui
+        // explique, pas le statut ni le corps.
+        txt += ' (HTTP ' + (j.code == null ? '?' : j.code) + ')';
+        if (j.transport) { txt += ' — ' + j.transport; }
+        var body = j.detail ? JSON.stringify(j.detail) : (j.raw || '');
+        if (body) { txt += ' — ' + body; }
+        if (j.sent) { txt += ' | envoyé : ' + j.sent.join(', '); }
+        return txt;
+    }
+
+    return { submit: submit };
+})();
+</script>

@@ -151,6 +151,39 @@ class ChecklistController extends Controller
         ]);
     }
 
+    /**
+     * GET /checklists/review — la pile de contrôle.
+     *
+     * La liste sert à CHOISIR ; quand le consultant a décidé de faire sa
+     * tournée, choisir est du travail perdu. Ici, une tâche à la fois, deux
+     * boutons, la suivante arrive seule.
+     */
+    public function reviewStack(): void
+    {
+        $date = $this->resolveDate();
+        $ranking = $this->safeFetch(
+            [$this->checklistService, 'getNetworkTasksRanking'],
+            $this->errors,
+            [$date],
+            ['network' => [], 'shops' => []]
+        );
+        $list = $this->safeFetch(
+            [$this->networkTasks, 'forDate'],
+            $this->errors,
+            [$ranking['shops'] ?? [], $date],
+            ['shops' => [], 'totals' => []]
+        );
+
+        $this->view('checklist/review_stack', [
+            'queue'      => $this->networkTasks->queue($list['shops'] ?? []),
+            'date'       => $date,
+            'today'      => date('Y-m-d'),
+            'rating_ok'  => $this->params->getInt('checklist_review_rating_ok', 4),
+            'rating_ko'  => $this->params->getInt('checklist_review_rating_ko', 2),
+            'active_nav' => 'checklists',
+        ]);
+    }
+
     public function shopTasks(int $shopId): void
     {
         $date = $this->resolveDate();

@@ -127,6 +127,46 @@ class NetworkTaskListService
         return ['shops' => $out, 'totals' => $this->totals($out)];
     }
 
+    /**
+     * La file de contrôle : les tâches à évaluer, à plat, dans l'ordre où elles
+     * s'enchaînent à l'écran. La pile de contrôle en a besoin d'un seul tenant
+     * — passer d'une tâche à l'autre ne doit rien attendre du réseau.
+     *
+     * @param array $shops le retour de forDate()['shops']
+     * @return array<int, array> une tâche par entrée, boutique comprise
+     */
+    public function queue(array $shops): array
+    {
+        $out = [];
+        foreach ($shops as $s) {
+            foreach ($s['checklists'] as $g) {
+                foreach ($g['tasks'] as $t) {
+                    // Le périmètre par défaut : ce que le consultant contrôle.
+                    // Une tâche déjà jugée n'a rien à faire dans la file.
+                    if ($t['review_state'] !== 'todo' || !$t['evaluable']) {
+                        continue;
+                    }
+                    $out[] = [
+                        'shop_id'       => $s['shop_id'],
+                        'shop'          => $s['shop_name'],
+                        'checklist'     => $g['name'],
+                        'checklist_id'  => $t['checklist_id'],
+                        'task_id'       => $t['task_id'],
+                        'name'          => $t['name'],
+                        'by'            => $t['completed_by'],
+                        'at'            => $t['completed_at'],
+                        'note'          => $t['note'],
+                        'att'           => $t['attachment_id'],
+                        'completion_id' => $t['completion_id'],
+                        'mandatory'     => $t['is_mandatory'],
+                        'photo'         => $t['requires_photo'],
+                    ];
+                }
+            }
+        }
+        return $out;
+    }
+
     /** Identifiants de checklist d'une réponse, quelle que soit sa forme. */
     private function checklistIds(array $payload): array
     {
