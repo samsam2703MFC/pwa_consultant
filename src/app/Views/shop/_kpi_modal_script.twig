@@ -1,0 +1,198 @@
+{# Pilotage de la modale KPI — voir _kpi_modal.twig.
+
+   Tout est déjà dans la page : ouvrir une tuile ne doit rien attendre du
+   réseau. La règle se dessine à partir des valeurs de TOUTES les boutiques,
+   publiées une seule fois — les répéter dans chaque tuile pèserait N² sur un
+   parc de trente boutiques. #}
+<script>
+(function () {
+    var boite = document.getElementById('kmBox');
+    if (!boite) { return; }
+
+    var PAR    = {{ kpi_insight|default({})|json_encode|raw }};
+    var RESEAU = {{ kpi_network|default({})|json_encode|raw }};
+    var PREV_L = {{ (kpi_prev_label ?? '')|json_encode|raw }};
+    var DEVISE = {{ (currency_symbol ?? '€')|json_encode|raw }};
+
+    var L = {
+        titres: {
+            ca_month:            {{ (translations.ca_month ?? 'CA du mois')|json_encode|raw }},
+            tickets_per_day:     {{ (translations.tickets_per_day ?? 'tickets / jour')|json_encode|raw }},
+            avg_basket:          {{ (translations.avg_basket ?? 'panier moyen')|json_encode|raw }},
+            products_per_client: {{ (translations.products_per_client ?? 'produits / client')|json_encode|raw }}
+        },
+        unites: {
+            tickets_per_day:     {{ (translations.tickets_unit ?? 'tickets')|json_encode|raw }},
+            products_per_client: {{ (translations.products_unit ?? 'par client')|json_encode|raw }}
+        },
+        moy:      {{ (translations.kpi_network_avg ?? 'moy. réseau')|json_encode|raw }},
+        moiJe:    {{ (translations.kpi_this_shop ?? 'cette boutique')|json_encode|raw }},
+        anDer:    {{ (translations.kpi_last_year ?? 'an dernier')|json_encode|raw }},
+        autres:   {{ (translations.kpi_other_shops ?? 'les autres boutiques')|json_encode|raw }},
+        rang:     {{ (translations.kpi_rank ?? '%s sur %s')|json_encode|raw }},
+        vsRes:    {{ (translations.kpi_vs_network ?? 'vs moyenne réseau')|json_encode|raw }},
+        sansRef:  {{ (translations.kpi_no_last_year ?? 'Pas de référence l’an dernier pour cette boutique.')|json_encode|raw }},
+        sansRes:  {{ (translations.kpi_alone ?? 'Une seule boutique a une valeur : pas de position réseau à montrer.')|json_encode|raw }},
+        courbeCa: {{ (translations.kpi_ca_curve ?? 'La courbe du chiffre d’affaires vit derrière le bouton graphique de la carte.')|json_encode|raw }}
+    };
+
+    var el = function (id) { return document.getElementById(id); };
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    /** Un nombre à la française, avec ses décimales et son unité. */
+    function fmt(v, dec, unite) {
+        if (v === null || v === undefined || isNaN(v)) { return '—'; }
+        var s = Number(v).toLocaleString('fr-FR', {
+            minimumFractionDigits: dec, maximumFractionDigits: dec
+        });
+        return unite === '€' ? s + ' ' + DEVISE : s;
+    }
+
+    /**
+     * La place d'une valeur sur la règle, en pourcentage.
+     *
+     * L'échelle part de zéro : une échelle qui commencerait au minimum du
+     * réseau ferait passer un écart de 2 % pour la moitié de la largeur, et
+     * la boutique la plus faible serait toujours collée à gauche, quel que
+     * soit son niveau réel. On garde une marge à droite pour que le maximum
+     * ne touche pas le bord.
+     */
+    function place(v, max) {
+        if (v === null || v === undefined || !isFinite(v) || max <= 0) { return null; }
+        return Math.max(3, Math.min(95, (v / max) * 88 + 4));
+    }
+
+    function dessinerRegle(cle, moi, net) {
+        var sc = el('kmScale');
+        var vals = (net && net.values) || [];
+        // L'échelle est celle du RÉSEAU D'AUJOURD'HUI. Laisser l'an dernier la
+        // fixer suffirait qu'une seule boutique ait été deux fois plus grosse
+        // pour écraser toutes les autres à gauche — la règle sert à situer
+        // parmi les boutiques, pas à mesurer le passé. Un an dernier hors
+        // échelle vient buter sur le bord ; sa valeur exacte est écrite dessous.
+        var max = 0;
+        for (var i = 0; i < vals.length; i++) { if (vals[i] > max) { max = vals[i]; } }
+
+        // Une seule valeur dans le réseau : il n'y a pas de position à montrer.
+        if (vals.length < 2 || max <= 0) {
+            sc.innerHTML = '';
+            sc.hidden = true;
+            el('kmLegend').innerHTML = '';
+            return false;
+        }
+        sc.hidden = false;
+
+        var h = ['<div class="km-line"></div>'];
+        var pMoi = place(moi.now, max);
+        var pAn  = place(moi.prev, max);
+
+        // Le déplacement depuis l'an dernier, avant les points : un trait
+        // par-dessus les pastilles les masquerait.
+        if (pMoi !== null && pAn !== null) {
+            var a = Math.min(pMoi, pAn), b = Math.max(pMoi, pAn);
+            h.push('<div class="km-mv" style="left:' + a + '%;width:' + (b - a) + '%"></div>');
+        }
+        var pMoy = place(net.avg, max);
+        if (pMoy !== null) {
+            h.push('<div class="km-avg" style="left:' + pMoy + '%"></div>');
+            h.push('<div class="km-avg-l" style="left:' + Math.min(88, Math.max(12, pMoy)) + '%">'
+                 + esc(L.moy) + ' ' + esc(fmt(net.avg, net.decimals, net.unit)) + '</div>');
+        }
+        for (var j = 0; j < vals.length; j++) {
+            if (moi.now !== null && Math.abs(vals[j] - moi.now) < 1e-9) { continue; }
+            var p = place(vals[j], max);
+            if (p !== null) { h.push('<div class="km-pt" style="left:' + p + '%"></div>'); }
+        }
+        if (pAn !== null) { h.push('<div class="km-pt y1" style="left:' + pAn + '%"></div>'); }
+        if (pMoi !== null) {
+            h.push('<div class="km-pt me" style="left:' + pMoi + '%"></div>');
+            h.push('<div class="km-me-l" style="left:' + Math.min(92, Math.max(8, pMoi)) + '%">'
+                 + esc(fmt(moi.now, net.decimals, net.unit)) + '</div>');
+        }
+        sc.innerHTML = h.join('');
+
+        var lg = ['<span><i style="background:#8D1D2C"></i>' + esc(L.moiJe) + '</span>'];
+        if (pAn !== null) {
+            lg.push('<span><i style="background:#fff;border:1.5px dashed #b8ab99"></i>'
+                  + esc(L.anDer) + '</span>');
+        }
+        lg.push('<span><i style="background:#cfc3b2"></i>' + esc(L.autres) + '</span>');
+        el('kmLegend').innerHTML = lg.join('');
+        return true;
+    }
+
+    function ouvrir(bouton) {
+        var cle  = bouton.getAttribute('data-kpi');
+        var shop = parseInt(bouton.getAttribute('data-shop'), 10);
+        var nom  = bouton.getAttribute('data-shop-name') || '';
+        var moi  = (PAR[shop] || {})[cle];
+        var net  = RESEAU[cle];
+        if (!moi || !net) { return; }
+
+        el('kmTitle').textContent = L.titres[cle] || cle;
+        el('kmWho').textContent   = nom;
+        el('kmVal').textContent   = fmt(moi.now, net.decimals, net.unit);
+        el('kmUnit').textContent  = L.unites[cle] || '';
+        el('kmPeriod').textContent = bouton.getAttribute('data-period') || '';
+
+        var aRegle = dessinerRegle(cle, moi, net);
+
+        // L'an dernier. Sans référence, on écrit « — » : une boutique ouverte
+        // cette année n'a pas fait « +100 % ».
+        el('kmPrev').textContent = fmt(moi.prev, net.decimals, net.unit);
+        var d = el('kmDelta');
+        if (moi.delta_pct === null || moi.delta_pct === undefined) {
+            d.textContent = '';
+            d.className = 'km-d na';
+        } else {
+            var haut = moi.delta_pct >= 0;
+            d.textContent = (haut ? '▲ +' : '▼ ') + fmt(moi.delta_pct, 1, '') + ' %';
+            d.className = 'km-d ' + (haut ? 'up' : 'down');
+        }
+        el('kmPrevSub').textContent = PREV_L;
+
+        // Rang et écart au réseau.
+        var r = el('kmRank');
+        if (moi.rank && moi.total > 1 && net.avg) {
+            var ecart = net.avg > 0 ? ((moi.now - net.avg) / net.avg) * 100 : null;
+            var rang = moi.rank === 1 ? '1ᵉʳ' : (moi.rank + 'e');
+            r.textContent = L.rang.replace('%s', rang).replace('%s', moi.total)
+                + (ecart === null ? '' : ' · ' + (ecart >= 0 ? '+' : '') + fmt(ecart, 0, '') + ' % ' + L.vsRes);
+            el('kmRankWrap').hidden = false;
+        } else {
+            el('kmRankWrap').hidden = true;
+        }
+
+        // La note du bas ne sert qu'à expliquer une absence.
+        var n = el('kmNote');
+        var msg = '';
+        if (moi.prev === null) { msg = L.sansRef; }
+        else if (!aRegle)      { msg = L.sansRes; }
+        else if (cle === 'ca_month') { msg = L.courbeCa; }
+        n.textContent = msg;
+        n.hidden = msg === '';
+
+        el('kmVeil').hidden = false;
+        boite.hidden = false;
+        el('kmClose').focus();
+    }
+
+    function fermer() {
+        boite.hidden = true;
+        el('kmVeil').hidden = true;
+    }
+
+    document.addEventListener('click', function (e) {
+        var b = e.target.closest && e.target.closest('.km-open');
+        if (b) { ouvrir(b); }
+    });
+    el('kmClose').addEventListener('click', fermer);
+    el('kmVeil').addEventListener('click', fermer);
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !boite.hidden) { fermer(); }
+    });
+})();
+</script>

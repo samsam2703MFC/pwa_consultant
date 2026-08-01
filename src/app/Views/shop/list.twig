@@ -867,25 +867,43 @@
                             </button>
                         </div>
 
-                        {# ── Synthèse magasin : CA du mois, tickets/jour, panier moyen ── #}
+                        {# ── Synthèse magasin : CA du mois, tickets/jour, panier moyen ──
+                             Chaque tuile s'ouvre : le chiffre nu ne dit pas s'il
+                             est bon. La modale ajoute l'an dernier et la position
+                             dans le réseau — voir _kpi_modal.twig. #}
                         {% if shop.ca_month is defined %}
+                        {% set kpi_ouvrable = kpi_insight[shop.id] is defined %}
+                        {% set kpi_nom = shop.representative_name ?? shop.name ?? ('#' ~ shop.id) %}
                         <div class="shop-synthese">
-                            <div class="shop-kpi">
-                                <span class="shop-kpi-val">{{ shop.ca_month|number_format(0, ',', ' ') }} €</span>
-                                <span class="shop-kpi-lbl">{{ translations.ca_month ?? 'CA du mois' }}</span>
-                            </div>
-                            <div class="shop-kpi">
-                                <span class="shop-kpi-val">{{ shop.tickets_per_day|round }}</span>
-                                <span class="shop-kpi-lbl">{{ translations.tickets_per_day ?? 'tickets / jour' }}</span>
-                            </div>
-                            <div class="shop-kpi">
-                                <span class="shop-kpi-val">{{ shop.avg_basket|number_format(2, ',', ' ') }} €</span>
-                                <span class="shop-kpi-lbl">{{ translations.avg_basket ?? 'panier moyen' }}</span>
-                            </div>
-                            <div class="shop-kpi">
-                                <span class="shop-kpi-val">{{ shop.products_per_client is not null ? shop.products_per_client|number_format(1, ',', ' ') : '—' }}</span>
-                                <span class="shop-kpi-lbl">{{ translations.products_per_client ?? 'produits / client' }}</span>
-                            </div>
+                            {% for m in [
+                                { k: 'ca_month',
+                                  v: (shop.ca_month|number_format(0, ',', ' ')) ~ ' €',
+                                  l: translations.ca_month ?? 'CA du mois' },
+                                { k: 'tickets_per_day',
+                                  v: shop.tickets_per_day|round,
+                                  l: translations.tickets_per_day ?? 'tickets / jour' },
+                                { k: 'avg_basket',
+                                  v: (shop.avg_basket|number_format(2, ',', ' ')) ~ ' €',
+                                  l: translations.avg_basket ?? 'panier moyen' },
+                                { k: 'products_per_client',
+                                  v: shop.products_per_client is not null
+                                     ? shop.products_per_client|number_format(1, ',', ' ') : '—',
+                                  l: translations.products_per_client ?? 'produits / client' }
+                            ] %}
+                                {% if kpi_ouvrable %}
+                                <button type="button" class="shop-kpi km-open" data-kpi="{{ m.k }}"
+                                        data-shop="{{ shop.id }}" data-shop-name="{{ kpi_nom }}"
+                                        data-period="{{ kpi_period ?? '' }}">
+                                    <span class="shop-kpi-val">{{ m.v }}</span>
+                                    <span class="shop-kpi-lbl">{{ m.l }}</span>
+                                </button>
+                                {% else %}
+                                <div class="shop-kpi">
+                                    <span class="shop-kpi-val">{{ m.v }}</span>
+                                    <span class="shop-kpi-lbl">{{ m.l }}</span>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
                         </div>
                         {% endif %}
                     </div>
@@ -982,6 +1000,9 @@
     {% endif %}
 
 </div>
+
+{% include "shop/_kpi_modal.twig" %}
+
 {% endblock %}
 
 {% block scripts %}
@@ -1958,5 +1979,5 @@ const CMP_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representat
 
 })();
 </script>
+{% include "shop/_kpi_modal_script.twig" %}
 {% endblock %}
-

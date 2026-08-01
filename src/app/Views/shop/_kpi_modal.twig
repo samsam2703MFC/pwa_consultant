@@ -1,0 +1,97 @@
+{# Ce qu'il y a derrière une tuile : l'an dernier, et la position dans le réseau.
+
+   Un chiffre nu ne dit pas s'il est bon. 247 tickets ne veut rien dire tant
+   qu'on ignore ce que faisait la boutique l'an dernier et ce que font les
+   autres. La règle porte les deux repères d'un coup — c'est plus rapide à lire
+   qu'un tableau, et c'est la question que le consultant se pose.
+
+   Attend `kpi_insight` (par boutique), `kpi_network` (les repères) et
+   `kpi_prev_label` (le libellé de la période de référence). #}
+<style>
+    .kv { position:fixed; inset:0; z-index:1080; background:rgba(24,18,14,.45); }
+    .kv[hidden], .km[hidden] { display:none !important; }
+    .km { position:fixed; left:14px; right:14px; top:50%; transform:translateY(-50%);
+          z-index:1081; background:#fff; border-radius:20px; padding:17px 17px 18px;
+          box-shadow:0 18px 40px -16px rgba(24,18,14,.45); max-width:420px; margin:0 auto;
+          max-height:86vh; overflow:auto; }
+    .km-x { position:absolute; right:14px; top:14px; width:32px; height:32px; border:0;
+            border-radius:50%; background:#f1ece4; color:#8a827a; font-size:.85rem;
+            font-weight:800; cursor:pointer; }
+
+    .km-eb { font-size:.6rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+             color:var(--c-primary,#8D1D2C); padding-right:38px; }
+    .km-who { font-size:.72rem; color:#7a7168; margin-top:2px; padding-right:38px; }
+    .km-hero { display:flex; align-items:flex-end; gap:9px; margin-top:9px; }
+    .km-v { font-size:2.05rem; font-weight:800; letter-spacing:-.035em; line-height:1; }
+    .km-u { font-size:.8rem; font-weight:700; color:#7a7168; padding-bottom:3px; }
+    .km-p { font-size:.68rem; color:#7a7168; padding-bottom:4px; margin-left:auto; }
+
+    /* La règle du réseau */
+    .km-sc { margin-top:16px; position:relative; height:56px; }
+    .km-line { position:absolute; left:0; right:0; top:24px; height:3px; border-radius:99px;
+               background:linear-gradient(90deg,#efe7dc,#ded2c0); }
+    .km-avg { position:absolute; top:14px; width:2px; height:23px; background:#1F4F6B; border-radius:2px; }
+    .km-avg-l { position:absolute; top:39px; font-size:.6rem; font-weight:800; color:#1F4F6B;
+                transform:translateX(-50%); white-space:nowrap; }
+    .km-pt { position:absolute; top:19px; width:13px; height:13px; border-radius:50%;
+             background:#cfc3b2; transform:translateX(-50%); border:2px solid #fff; }
+    .km-pt.me { width:19px; height:19px; background:var(--c-primary,#8D1D2C); top:16px;
+                box-shadow:0 2px 6px rgba(141,29,44,.35); z-index:3; }
+    .km-pt.y1 { background:#fff; border:2px dashed #b8ab99; z-index:1; }
+    .km-me-l { position:absolute; top:0; font-size:.66rem; font-weight:800;
+               color:var(--c-primary,#8D1D2C); transform:translateX(-50%); white-space:nowrap; }
+    .km-mv { position:absolute; top:24px; height:3px; background:rgba(141,29,44,.3);
+             border-radius:2px; z-index:1; }
+
+    .km-lg { display:flex; flex-wrap:wrap; gap:11px; margin-top:8px; font-size:.64rem; color:#7a7168; }
+    .km-lg span { display:inline-flex; align-items:center; gap:5px; }
+    .km-lg i { width:10px; height:10px; border-radius:50%; display:block; flex:0 0 auto; }
+
+    .km-prev { background:#faf7f2; border-radius:11px; padding:10px 12px; margin-top:14px; }
+    .km-prev-l { font-size:.6rem; font-weight:800; letter-spacing:.07em; text-transform:uppercase;
+                 color:#7a7168; }
+    .km-prev-r { display:flex; align-items:baseline; gap:9px; margin-top:3px; }
+    .km-prev-v { font-size:1.05rem; font-weight:800; font-variant-numeric:tabular-nums; }
+    .km-d { font-size:.72rem; font-weight:800; }
+    .km-d.up { color:#2D7A3E; } .km-d.down { color:#8D1D2C; } .km-d.na { color:#a2988c; }
+    .km-prev-s { font-size:.62rem; color:#a2988c; margin-top:2px; }
+
+    .km-rank { display:inline-flex; align-items:center; background:#f6e9d8; color:#8a6a35;
+               border-radius:999px; padding:4px 11px; font-size:.7rem; font-weight:800; margin-top:11px; }
+    .km-note { margin-top:12px; font-size:.66rem; color:#7a7168; line-height:1.45;
+               background:#faf7f2; border-radius:9px; padding:8px 10px; }
+
+    /* La tuile devient actionnable : sans ce repère, rien ne dit qu'on peut la toucher. */
+    .shop-kpi.km-open { cursor:pointer; -webkit-tap-highlight-color:transparent;
+                        border:0; width:100%; font:inherit; text-align:center; }
+    .shop-kpi.km-open:active { background:#ece4d9; }
+</style>
+
+<div class="kv" id="kmVeil" hidden></div>
+<div class="km" id="kmBox" hidden role="dialog" aria-modal="true" aria-labelledby="kmTitle">
+    <button type="button" class="km-x" id="kmClose"
+            aria-label="{{ translations.close ?? 'Fermer' }}">✕</button>
+    <div class="km-eb" id="kmTitle"></div>
+    <div class="km-who" id="kmWho"></div>
+
+    <div class="km-hero">
+        <span class="km-v" id="kmVal"></span>
+        <span class="km-u" id="kmUnit"></span>
+        <span class="km-p" id="kmPeriod"></span>
+    </div>
+
+    <div class="km-sc" id="kmScale"></div>
+    <div class="km-lg" id="kmLegend"></div>
+
+    <div class="km-prev">
+        <div class="km-prev-l">{{ translations.kpi_last_year ?? 'An dernier' }}</div>
+        <div class="km-prev-r">
+            <span class="km-prev-v" id="kmPrev">—</span>
+            <span class="km-d" id="kmDelta"></span>
+        </div>
+        <div class="km-prev-s" id="kmPrevSub"></div>
+    </div>
+
+    <div id="kmRankWrap"><span class="km-rank" id="kmRank"></span></div>
+    <div class="km-note" id="kmNote" hidden></div>
+</div>
