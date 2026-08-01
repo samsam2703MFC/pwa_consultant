@@ -143,6 +143,13 @@ class ApiClient
      * @param string[] $endpoints
      * @return array<string, array> map endpoint => réponse (même forme que get()).
      */
+    /**
+     * Requêtes parallèles simultanées au maximum. Au-delà, l'API ne répond plus
+     * du tout (code HTTP 0). Le reste du code plafonnait déjà à 24 – 48 par
+     * endroit ; la garde vit désormais ici, une fois pour toutes.
+     */
+    private const MAX_PARALLEL = 24;
+
     public function getMany(array $endpoints): array
     {
         $endpoints = array_values(array_unique($endpoints));
@@ -169,9 +176,32 @@ class ApiClient
             return $out;
         }
 
+        // PAR PAQUETS. Une centaine de poignées ouvertes d'un coup — un mois de
+        // checklists, c'est 27 jours × 4 = 108 requêtes — ne revient pas : les
+        // réponses arrivent avec un code HTTP 0, c'est-à-dire aucune réponse du
+        // tout. Le plafond protège tous les appelants d'un coup, plutôt que
+        // chacun de son côté.
+        foreach (array_chunk($toFetch, self::MAX_PARALLEL) as $chunk) {
+            $out += $this->fetchParallel($chunk);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Un paquet de GET en parallèle. Les erreurs sont conservées telles quelles
+     * (code HTTP, ou 0 quand la requête n'a pas abouti) : les masquer ferait
+     * passer une panne de transport pour une réponse vide.
+     *
+     * @param string[] $endpoints
+     * @return array<string, array>
+     */
+    private function fetchParallel(array $endpoints): array
+    {
+        $out     = [];
         $mh      = curl_multi_init();
         $handles = [];
-        foreach ($toFetch as $ep) {
+        foreach ($endpoints as $ep) {
             $ch = curl_init();
             $this->configureGet($ch, $this->baseUrl . $ep);
             curl_multi_add_handle($mh, $ch);
