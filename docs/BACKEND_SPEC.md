@@ -3,9 +3,10 @@
 Each ticket says **what to change**, shows the **JSON before and after**, and
 gives an **acceptance test** you can run with curl.
 
-> **In a hurry?** `BACKEND_BUILD.md` is the two-page version: the columns to
-> add, the endpoints to create, and a suggested order. This file is the
-> reference behind it.
+> **In a hurry?** `DEV_HANDOFF.md` is the single to-do list — infra first, then
+> every ticket with its payload inline. `BACKEND_BUILD.md` is the two-page
+> version: the columns to add, the endpoints to create, and a suggested order.
+> This file is the reference behind both.
 
 Nothing here breaks existing clients: every change is an *added* field or a
 *new* endpoint.

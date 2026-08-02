@@ -1,5 +1,9 @@
 # Build sheet — what to change, in order
 
+> **Start with `DEV_HANDOFF.md`.** It is the single to-do list: the infra half
+> page (Part 0), then these same tickets with their payloads inline. This file
+> and `BACKEND_SPEC.md` remain the reference behind it.
+
 The full reasoning, the JSON before/after and the acceptance tests live in
 `BACKEND_SPEC.md`. **This file is the short version: the columns to add, and the
 endpoints to create.** Nothing else.
@@ -130,12 +134,12 @@ freezing logic — the one that has already frozen days at zero.
 Material complaints for several shops in one call. Replaces one parallel call
 per shop.
 
-### 3.4 · `GET /consultant/shops/pnl/monthly?shop_ids=…&year=…`  — **T5b**
+### 3.4 · `GET /consultant/shops/pnl/monthly?from=2025-08&to=2026-07`  — **T5b**
 
 Monthly P&L for several shops in one call. Same shape as the single-shop
-endpoint, keyed by shop.
+endpoint, keyed by shop. Months (`YYYY-MM`), inclusive.
 
-### 3.5 · `POST /consultant/task-reviews/{reviewId}/validate`  — **T6**
+### 3.5 · `POST /consultant/shops/{shopId}/task-reviews/{reviewId}/validate`  — **T6**
 
 The Owner countersigns a consultant's review. Needs the columns of §1.1.
 `DELETE` on the same URL removes the validation.
