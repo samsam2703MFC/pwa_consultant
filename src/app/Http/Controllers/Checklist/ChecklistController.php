@@ -147,6 +147,12 @@ class ChecklistController extends Controller
             // consultant vérifie par défaut — obligatoire et avec photo.
             'scope_mandatory' => $this->params->getInt('checklist_review_needs_mandatory', 1) === 1,
             'scope_photo'     => $this->params->getInt('checklist_review_needs_photo', 1) === 1,
+            // La barre de couleur d'un en-tête de boutique suit les MÊMES
+            // seuils que le rapport Checklist : deux échelles pour la même
+            // grandeur feraient dire à l'écran et au rapport des choses
+            // différentes de la même boutique.
+            'green_pct'       => $this->params->getInt('checklist_green_pct', 90),
+            'orange_pct'      => $this->params->getInt('checklist_orange_pct', 75),
             // L'écran s'appelle « Toutes les tâches » et son retour mène aux
             // tâches : il appartient à cette section, pas aux checklists.
             'active_nav' => 'tasks',

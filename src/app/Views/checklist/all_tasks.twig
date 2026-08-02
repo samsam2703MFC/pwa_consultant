@@ -7,7 +7,11 @@
 
 {% block title %}{{ translations.all_tasks_title ?? 'Toutes les tâches' }} — Panel consultant{% endblock %}
 {% block page_title %}{{ translations.all_tasks_title ?? 'Toutes les tâches' }}{% endblock %}
-{% block page_subtitle %}{{ date|date('d.m.Y') }}{% endblock %}
+{# Le compte du jour monte dans l'en-tête : il vivait en bas des filtres, sur
+   une ligne qu'on ne lit qu'en la cherchant. #}
+{% block page_subtitle %}{{ date|date('d.m.Y') }}{% if (t.total ?? 0) > 0 %} ·
+    {{ t.total }} {{ translations.tasks_l ?? 'tâches' }} ·
+    {{ t.shops ?? 0 }} {{ translations.shops_l ?? 'boutiques' }}{% endif %}{% endblock %}
 
 {% block topbar_actions %}
 <div class="d-flex align-items-center gap-1">
@@ -23,22 +27,41 @@
 {% block head %}
 {% include "checklist/_review_modal_style.twig" %}
 <style>
-    /* Outils collants : la recherche et les filtres restent atteignables
-       quel que soit le nombre de tâches déjà parcourues. */
+    /* ── La barre d'outils, REPLIÉE ──────────────────────────────────────
+       Sept barres se succédaient avant la première tâche : segment, lien,
+       encart, recherche, deux lignes de filtres, bande de boutiques, ligne de
+       compte. Elles tiennent désormais en UNE ligne qui annonce son état ; le
+       détail s'ouvre au besoin. Ce qui est actif reste écrit dessous — replier
+       ne doit pas cacher ce qui filtre. */
     .nq-tools { position:sticky; top:0; z-index:6; background:var(--c-bg); padding:6px 0 8px; }
-    .nq-search { width:100%; min-height:44px; margin-top:8px; border-radius:12px;
-                 border:1px solid rgba(0,0,0,.08); background:#fff; padding:0 13px;
-                 font-size:.82rem; color:#241f1c; }
+    .nq-bar { display:flex; align-items:center; gap:9px; min-height:44px; padding:0 12px;
+              border-radius:12px; background:#fff; border:1px solid rgba(0,0,0,.07); }
+    .nq-bar .lo { flex-shrink:0; display:flex; color:#a2988c; }
+    .nq-search { flex:1; min-width:0; border:0; background:none; padding:0; font-size:.82rem;
+                 color:#241f1c; font-family:inherit; min-height:42px; }
+    .nq-search:focus { outline:none; }
     .nq-search::placeholder { color:#a2988c; }
-    /* La barre PASSE À LA LIGNE plutôt que de défiler : un filtre à moitié
-       coupé au bord de l'écran ne se voit pas, et on ne cherche pas ce qu'on
-       ne soupçonne pas. Deux boutons cycliques et deux bascules tiennent sur
-       deux lignes courtes. */
+    .nq-toggle { flex-shrink:0; display:inline-flex; align-items:center; gap:5px; border:0;
+                 background:none; font-family:inherit; font-size:.7rem; font-weight:800;
+                 color:#8D1D2C; min-height:42px; padding:0 2px; cursor:pointer;
+                 -webkit-tap-highlight-color:transparent; }
+    .nq-toggle .car { transition:transform .15s ease; display:inline-flex; }
+    .nq-tools.ouvert .nq-toggle .car { transform:rotate(180deg); }
+    .nq-toggle .pastille { background:#f4dfe2; border-radius:999px; padding:2px 8px; }
+    .nq-toggle .pastille.vide { background:#f1ece4; color:#8a827a; }
+
+    /* Ce qui filtre, en clair, quand le détail est replié. */
+    .nq-resume { font-size:.66rem; color:#8a827a; margin:6px 4px 0; line-height:1.4; }
+    .nq-resume b { color:#57504a; font-weight:800; }
+    .nq-tools.ouvert .nq-resume { display:none; }
+
+    .nq-panel { padding-top:9px; }
+    .nq-panel[hidden] { display:none !important; }
     .nq-filters { display:flex; flex-wrap:wrap; gap:6px; }
     .nq-f { flex-shrink:0; min-height:36px; display:inline-flex; align-items:center; gap:5px; padding:0 11px;
             border-radius:999px; font-size:.72rem; font-weight:800; background:#fff; color:#6c757d;
             border:1px solid rgba(0,0,0,.07); cursor:pointer; -webkit-tap-highlight-color:transparent; }
-    .nq-f.on { background:#8D1D2C; color:#fff; border-color:#8D1D2C; }
+    .nq-f.on { background:#241f1c; color:#fff; border-color:#241f1c; }
     .nq-f .n { font-weight:900; }
     .nq-f .n:empty { display:none; }
     /* Un bouton cyclique n'a pas l'air d'un bouton : la petite flèche dit que
@@ -52,11 +75,12 @@
     .nq-f.nq-scope.on { background:#F2C9A0; color:#6b3410; border-color:#e0b184; border-style:solid; }
     .nq-sep { flex-shrink:0; width:1px; align-self:stretch; margin:4px 2px;
               background:rgba(0,0,0,.12); }
-    .nq-count { font-size:.66rem; color:#8a827a; margin:6px 2px 2px; }
+    .nq-count { font-size:.66rem; color:#8a827a; margin:8px 4px 2px; }
+    .nq-count[hidden] { display:none !important; }
 
-    /* Bande des boutiques : elle défile, elle. Trente boutiques empilées
-       mangeraient l'écran ; en ligne, on en voit trois et on pousse. */
-    .nq-shops { display:flex; gap:6px; overflow-x:auto; margin-top:6px; padding-bottom:2px;
+    /* Bande des boutiques : elle défile. Trente boutiques empilées mangeraient
+       l'écran ; en ligne, on en voit trois et on pousse. */
+    .nq-shops { display:flex; gap:6px; overflow-x:auto; margin-top:7px; padding-bottom:2px;
                 -webkit-overflow-scrolling:touch; scrollbar-width:none; }
     .nq-shops::-webkit-scrollbar { display:none; }
     .nq-sh { flex-shrink:0; min-height:34px; display:inline-flex; align-items:center; gap:5px;
@@ -68,98 +92,96 @@
     .nq-sh .n:empty { display:none; }
     .nq-sh.on { background:#241f1c; border-color:#241f1c; color:#fff; }
     .nq-sh.on .n { color:#F2C9A0; }
-    /* Une boutique sans rien à montrer sous les filtres courants reste
-       cliquable mais s'efface : elle dit « rien ici », pas « rien nulle part ». */
     .nq-sh.creuse { opacity:.42; }
 
-    /* Entrée de la pile de contrôle — même facture que les tuiles de l'écran
-       Tâches : c'est le même geste, vu d'un autre écran. */
+    /* ── L'action principale : la SEULE surface rubis pleine de l'écran ──
+       C'est ce qui la rend visible. Quand tout est rouge, plus rien ne l'est. */
     .nq-start { display:flex; align-items:center; gap:11px; min-height:56px; margin:0 0 4px;
-                padding:12px 15px; border-radius:18px; background:#8D1D2C; color:#fff;
-                box-shadow:0 12px 26px -18px rgba(141,29,44,.7); }
+                padding:12px 15px; border-radius:14px; background:#8D1D2C; color:#fff;
+                box-shadow:0 10px 24px -18px rgba(141,29,44,.7); }
     .nq-start .ico { flex-shrink:0; display:flex; }
     .nq-start .txt { flex:1; min-width:0; }
-    .nq-start .eyebrow { display:block; font-size:10.5px; font-weight:600; letter-spacing:.12em;
+    .nq-start .eyebrow { display:block; font-size:10px; font-weight:800; letter-spacing:.1em;
                          text-transform:uppercase; opacity:.75; margin-bottom:2px; }
-    .nq-start .big { display:block; font-family:'Vank','Gotham',serif; font-size:17px; }
+    .nq-start .big { display:block; font-size:.95rem; font-weight:800; letter-spacing:-.015em; }
     .nq-start .car { flex-shrink:0; font-size:1.2rem; opacity:.7; }
-    /* Rien à contrôler : la même carte, en gris. Elle dit l'état du jour au
-       lieu de disparaître — et reste cliquable, la pile sait s'annoncer vide. */
     .nq-start.vide { background:#e9e4dc; color:#6f665c; border:1px solid rgba(0,0,0,.06);
                      box-shadow:none; }
     .nq-start.vide .ico { color:#9a9086; }
     .nq-start.vide .eyebrow { color:#8a827a; opacity:1; }
     .nq-start.vide .car { color:#b3aaa0; }
 
-    /* Bandeau boutique : collant sous les outils, il dit toujours où l'on est,
-       et se déplie. 44 px de haut — il se tape au pouce. */
-    /* Le bandeau se cale SOUS les outils, dont la hauteur varie avec le nombre
-       de lignes de filtres. Le 96 px que j'avais deviné faisait chevaucher les
-       deux dès que la barre passait à la ligne. */
-    .nq-shop { position:sticky; top:var(--nq-tools-h, 96px); z-index:5; display:flex; align-items:center; gap:8px;
-               background:#8D1D2C; color:#fff; border-radius:10px 10px 0 0; padding:0 12px;
-               min-height:44px; font-size:.76rem; font-weight:800; margin-top:12px;
-               cursor:pointer; list-style:none; -webkit-tap-highlight-color:transparent; }
+    /* ── Un seul niveau de carte ─────────────────────────────────────────
+       La boutique était un bandeau rubis plein, la checklist une boîte grise,
+       la tâche une troisième surface : trois fonds emboîtés pour une hiérarchie
+       qui tient à la typographie. Une carte, un en-tête clair à barre de
+       couleur, un intertitre, des lignes. */
+    /* PAS d'`overflow:hidden` ici : il ferait de la carte le bloc de référence
+       du collant, et l'en-tête de boutique irait se coller EN BAS de sa propre
+       carte, sous les checklists. C'est l'en-tête qui porte son arrondi. */
+    .nq-card { background:#fff; border:1px solid rgba(36,26,22,.08); border-radius:14px;
+               margin-top:12px; box-shadow:0 1px 2px rgba(70,40,25,.05); }
+    .nq-shop { position:sticky; top:var(--nq-tools-h, 64px); z-index:5; display:flex;
+               align-items:center; gap:8px; background:#fff; color:#241f1c;
+               border-left:3px solid #ded6cb; padding:0 12px 0 11px; min-height:46px;
+               font-size:.86rem; font-weight:800; letter-spacing:-.015em;
+               cursor:pointer; list-style:none; -webkit-tap-highlight-color:transparent;
+               border-bottom:1px solid #f2ede6; border-radius:13px 13px 0 0; }
+    .nq-shop.s-ok  { border-left-color:#2D7A3E; }
+    .nq-shop.s-mid { border-left-color:#C17A2A; }
+    .nq-shop.s-bad { border-left-color:#8D1D2C; }
     .nq-shop::-webkit-details-marker { display:none; }
     .nq-shop .nm { flex-shrink:0; }
-    .nq-shop .v { font-weight:600; opacity:.72; font-size:.66rem; min-width:0; overflow:hidden;
+    .nq-shop .v { font-weight:600; color:#a2988c; font-size:.66rem; min-width:0; overflow:hidden;
                   text-overflow:ellipsis; white-space:nowrap; }
-    .nq-shop .r { margin-left:auto; font-weight:900; flex-shrink:0; }
-    .nq-shop .badge { flex-shrink:0; background:#F2C9A0; color:#6b3410; border-radius:999px;
+    .nq-shop .r { margin-left:auto; font-weight:900; flex-shrink:0; font-size:.78rem;
+                  font-variant-numeric:tabular-nums; }
+    .nq-shop .badge { flex-shrink:0; background:#f4dfe2; color:#8D1D2C; border-radius:999px;
                       padding:2px 8px; font-size:.62rem; font-weight:800; white-space:nowrap; }
-    /* La flèche pointe vers le bas quand c'est ouvert : elle montre le sens du
-       geste à venir, pas l'état courant — c'est ce que fait déjà l'accordéon
-       des checklists d'une boutique. */
-    .nq-shop .car, .nq-cl .car { flex-shrink:0; display:flex; transition:transform .15s ease; }
+    .nq-shop .car, .nq-cl .car { flex-shrink:0; display:flex; transition:transform .15s ease;
+                                 color:#b3aaa0; }
     .nq-shop-g:not([open]) > .nq-shop .car,
     .nq-cl-g:not([open]) > .nq-cl .car { transform:rotate(-90deg); }
-    .nq-shop-g:not([open]) > .nq-shop { border-radius:10px; }
+    .nq-shop-g:not([open]) > .nq-shop { border-bottom:0; border-radius:13px; }
+    /* La dernière ligne d'une carte en porte l'arrondi bas. */
+    .nq-row.last { border-bottom-right-radius:13px; }
 
-    .nq-cl { display:flex; align-items:center; gap:7px; background:#fbf9f6;
-             border-left:1px solid #efe9e1; border-right:1px solid #efe9e1; padding:0 12px;
-             min-height:44px; font-size:.66rem; font-weight:800; text-transform:uppercase;
-             letter-spacing:.04em; color:#8a827a; cursor:pointer; list-style:none;
-             -webkit-tap-highlight-color:transparent; }
+    /* La checklist : un INTERTITRE, plus une boîte. */
+    .nq-cl { display:flex; align-items:center; gap:7px; background:none; padding:0 12px 0 14px;
+             min-height:34px; font-size:.62rem; font-weight:800; text-transform:uppercase;
+             letter-spacing:.07em; color:#a2988c; cursor:pointer; list-style:none;
+             -webkit-tap-highlight-color:transparent; margin-top:4px; }
     .nq-cl::-webkit-details-marker { display:none; }
     .nq-cl .n { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .nq-cl .badge { flex-shrink:0; background:#8D1D2C; color:#fff; border-radius:999px;
-                    padding:1px 7px; font-size:.62rem; font-weight:800; }
-    .nq-cl .c { margin-left:auto; color:#57504a; flex-shrink:0; }
-    /* Dernière checklist fermée d'une boutique : c'est elle qui ferme la carte. */
-    .nq-cl-g:last-child:not([open]) > .nq-cl { border-bottom:1px solid #efe9e1;
-                                               border-radius:0 0 10px 10px; }
+    .nq-cl .badge { flex-shrink:0; background:#f4dfe2; color:#8D1D2C; border-radius:999px;
+                    padding:1px 7px; font-size:.6rem; font-weight:800; }
+    .nq-cl .c { margin-left:auto; color:#8a827a; flex-shrink:0; font-variant-numeric:tabular-nums; }
 
+    /* La tâche : une barre de 2 px dit son état, sans fond ni bordure. */
     .nq-row { display:flex; align-items:center; gap:10px; background:#fff;
-              border-left:1px solid #efe9e1; border-right:1px solid #efe9e1;
-              border-bottom:1px solid #f6f2ec; padding:0 12px; min-height:48px;
-              width:100%; text-align:left; border-top:0; }
+              border-left:2px solid transparent; margin-left:14px; padding:0 12px 0 9px;
+              min-height:48px; text-align:left; }
+    .nq-row + .nq-row { border-top:1px solid #f6f2ec; }
+    .nq-row[data-state="todo"] { border-left-color:#8D1D2C; }
+    .nq-row[data-state="ok"]   { border-left-color:#2D7A3E; }
+    .nq-row[data-state="ko"]   { border-left-color:#c0182b; }
+    .nq-row[data-state="done"] { border-left-color:#ded6cb; }
+    .nq-row[data-state="na"]   { border-left-color:#efe9e1; }
     .nq-row.task-openable { cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .nq-row.task-openable:active { background:#fbfcfe; }
-    .nq-row.last { border-radius:0 0 10px 10px; }
     /* Deux fois le même piège : `display:flex` posé par une classe l'emporte
        sur les règles du navigateur, aussi bien celle de `[hidden]` que celle
-       qui replie un `<details>` fermé. Sans ces deux lignes, filtrer et
-       replier comptaient juste — tout restait à l'écran. */
+       qui replie un `<details>` fermé. */
     .nq-row[hidden], .nq-cl[hidden], .nq-shop[hidden] { display:none !important; }
     .nq-shop-g:not([open]) > *:not(summary),
     .nq-cl-g:not([open]) > *:not(summary) { display:none !important; }
-    .nq-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
     .nq-b { flex:1; min-width:0; padding:7px 0; }
     .nq-n { font-size:.8rem; font-weight:700; color:#241f1c; line-height:1.25; }
-    /* La ligne de contexte est secondaire : elle se tronque plutôt que de
-       pousser la ligne à quatre hauteurs de texte. Le nom, lui, peut passer
-       à la ligne — c'est ce qu'on vient lire. */
     .nq-m { font-size:.63rem; color:#a2988c; margin-top:1px;
             overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .nq-m b { color:#991b1b; font-weight:800; }
-    /* Verdict et note occupent chacun une COLONNE de largeur fixe : sous la
-       pastille, la note se lisait comme une mention légale et ne s'alignait
-       avec rien. Les largeurs sont figées pour que l'œil descende la liste en
-       ligne droite, quelle que soit la longueur du verdict. */
-    /* Largeur FIXE, note calée à gauche du bloc et verdict à droite : avec un
-       simple `gap`, une pastille « Non conforme » plus large que « Conforme »
-       décalait la note de quelques pixels d'une ligne à l'autre — assez pour
-       casser la colonne. */
+    /* Verdict et note occupent chacun une COLONNE de largeur fixe, pour que
+       l'œil descende la liste en ligne droite. */
     .nq-right { flex-shrink:0; width:142px; display:flex; align-items:center;
                 justify-content:space-between; }
     .nq-act { min-height:32px; width:100px; display:inline-flex; align-items:center;
@@ -169,10 +191,6 @@
     .nq-act.ok   { background:rgba(45,122,62,.12); color:#2D7A3E; }
     .nq-act.ko   { background:rgba(192,24,43,.1); color:#c0182b; }
     .nq-act.na   { background:#f2eee8; color:#a2988c; }
-    /* La note du consultant : c'est elle qui décide de la gravité d'une
-       non-conformité dans les rapports — elle mérite mieux qu'une mention en
-       petits caractères. Colonne réservée même quand la note est absente,
-       sinon les verdicts se décalent d'une ligne à l'autre. */
     .nq-rate { flex-shrink:0; width:34px; text-align:right; font-size:.82rem;
                font-weight:900; color:#b8860b; font-variant-numeric:tabular-nums; }
     .nq-empty { background:#fff; border-radius:14px; padding:26px 18px; text-align:center;
@@ -220,61 +238,65 @@
         <span class="car">›</span>
     </a>
 
-    {# La recherche n'est PAS collante : on remonte pour taper, alors qu'on
-       filtre en cours de route. Collante, elle prenait 44 px de haut en
-       permanence pour un champ qu'on touche une fois sur dix. #}
-    <input type="search" class="nq-search" id="nqSearch" autocomplete="off"
-           placeholder="{{ translations.search_task ?? 'Rechercher une tâche, une boutique…' }}">
-
-    <div class="nq-tools">
-        {# Deux boutons CYCLIQUES plutôt que cinq pastilles : la barre débordait
-           de l'écran et il fallait la faire défiler pour atteindre le dernier
-           filtre. Chaque bouton porte une DIMENSION et affiche l'état courant
-           avec son compte ; l'appui passe à l'état suivant.
-
-             Avis        : à évaluer → conformes → non conformes → tous
-             Réalisation : toutes → faites → non faites
-
-           Les deux se combinent, et se combinent avec le périmètre. Les
-           nombres sont comptés à l'écran : un compteur qui ne correspond pas à
-           ce qu'on obtient en appuyant est pire que pas de compteur. #}
-        <div class="nq-filters" id="nqFilters">
-            <button type="button" class="nq-f nq-cyc on" data-c="ctrl">
-                <span class="lb"></span><b class="n"></b>
+    {# Une seule barre : la recherche reste à portée, les filtres se replient
+       derrière un compteur qui dit combien sont actifs, et ce qu'ils font est
+       écrit en clair dessous. Replier ne doit pas cacher ce qui filtre. #}
+    <div class="nq-tools" id="nqTools">
+        <div class="nq-bar">
+            <span class="lo">{{ icons.svg('search', 15) }}</span>
+            <input type="search" class="nq-search" id="nqSearch" autocomplete="off"
+                   placeholder="{{ translations.search_task ?? 'Rechercher…' }}">
+            <button type="button" class="nq-toggle" id="nqToggle" aria-expanded="false"
+                    aria-controls="nqPanel">
+                <span class="pastille" id="nqActifs"></span>
+                <span class="car">{{ icons.svg('chevron-down', 13) }}</span>
             </button>
-            <button type="button" class="nq-f nq-cyc" data-c="real">
-                <span class="lb"></span><b class="n"></b>
-            </button>
-            <span class="nq-sep" aria-hidden="true"></span>
-            <span class="nq-f nq-scope{{ scope_mandatory ? ' on' : '' }}" data-s="mandatory">{{ translations.f_mandatory_one ?? 'Obligatoire' }}</span>
-            <span class="nq-f nq-scope{{ scope_photo ? ' on' : '' }}" data-s="photo">{{ translations.f_photo_one ?? 'Photo' }}</span>
         </div>
 
-        {# Les boutiques, en bande défilante. Elle DÉFILE là où les filtres
-           passent à la ligne : un parc peut compter trente boutiques, les
-           empiler mangerait l'écran. On sait toujours où l'on est — le nom de
-           la boutique sélectionnée reste le premier visible. #}
-        {% if shops|length > 1 %}
-            <div class="nq-shops" id="nqShops">
-                <button type="button" class="nq-sh on" data-shop="">{{ translations.f_all_shops ?? 'Toutes' }}</button>
-                {% for s in shops %}
-                    <button type="button" class="nq-sh" data-shop="{{ s.shop_id }}">
-                        <span class="nm">{{ s.shop_name }}</span><b class="n"></b>
-                    </button>
-                {% endfor %}
+        <div class="nq-resume" id="nqResume"></div>
+
+        <div class="nq-panel" id="nqPanel" hidden>
+            {# Deux boutons CYCLIQUES plutôt que cinq pastilles. Chaque bouton
+               porte une DIMENSION et affiche l'état courant avec son compte ;
+               l'appui passe à l'état suivant.
+
+                 Avis        : à évaluer → conformes → non conformes → tous
+                 Réalisation : toutes → faites → non faites
+
+               Les nombres sont comptés à l'écran : un compteur qui ne
+               correspond pas à ce qu'on obtient en appuyant est pire que pas
+               de compteur. #}
+            <div class="nq-filters" id="nqFilters">
+                <button type="button" class="nq-f nq-cyc on" data-c="ctrl">
+                    <span class="lb"></span><b class="n"></b>
+                </button>
+                <button type="button" class="nq-f nq-cyc" data-c="real">
+                    <span class="lb"></span><b class="n"></b>
+                </button>
+                <span class="nq-sep" aria-hidden="true"></span>
+                <span class="nq-f nq-scope{{ scope_mandatory ? ' on' : '' }}" data-s="mandatory">{{ translations.f_mandatory_one ?? 'Obligatoire' }}</span>
+                <span class="nq-f nq-scope{{ scope_photo ? ' on' : '' }}" data-s="photo">{{ translations.f_photo_one ?? 'Photo' }}</span>
             </div>
-        {% endif %}
+
+            {% if shops|length > 1 %}
+                <div class="nq-shops" id="nqShops">
+                    <button type="button" class="nq-sh on" data-shop="">{{ translations.f_all_shops ?? 'Toutes' }}</button>
+                    {% for s in shops %}
+                        <button type="button" class="nq-sh" data-shop="{{ s.shop_id }}">
+                            <span class="nm">{{ s.shop_name }}</span><b class="n"></b>
+                        </button>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
     </div>
 
-    {# Le total et la note moyenne du jour ne bougent pas quand on filtre :
-       ce sont les chiffres du jour, pas ceux de la vue. Le nombre de lignes
-       affichées vient s'ajouter devant. #}
-    <div class="nq-count">
+    {# Le total a rejoint l'en-tête ; ne reste ici que ce qui BOUGE avec les
+       filtres, plus la note moyenne du jour. Muette quand elle n'a rien à
+       ajouter. #}
+    <div class="nq-count" id="nqCount">
         <span id="nqShown" data-tpl="{{ translations.n_shown ?? '%d affichée(s)' }}"></span>
-        {{ t.total ?? 0 }} {{ translations.tasks_l ?? 'tâches' }} ·
-        {{ t.shops ?? 0 }} {{ translations.shops_l ?? 'boutiques' }} ·
-        {{ translations.sorted_by ?? 'triées par boutique puis checklist' }}
-        {%- if t.avg_rating is defined and t.avg_rating is not null %} ·
+        {%- if t.avg_rating is defined and t.avg_rating is not null %}
             {{ translations.avg_rating_l ?? 'note moyenne' }} <b>{{ t.avg_rating|number_format(1, ',', ' ') }}/5</b>
             ({{ t.rated }} {{ translations.rated_l ?? 'évaluées' }})
         {%- endif %}
@@ -290,13 +312,19 @@
        reste fermée : 170 tâches déroulées d'un coup ne se lisent pas. Le
        filtre rouvre ce qu'il faut — voir le script. #}
     {% for s in shops %}
-        <details class="nq-shop-g" open>
-            <summary class="nq-shop">
+        {# La couleur passe du FOND à une barre de 3 px : un bandeau saturé par
+           boutique donnait à la liste l'allure d'une alerte permanente. Mêmes
+           seuils que le rapport Checklist, lus en configuration. #}
+        {% set c = s.completion %}
+        {% set etat = c is null ? '' : (c >= (green_pct|default(90)) ? ' s-ok'
+                    : (c >= (orange_pct|default(75)) ? ' s-mid' : ' s-bad')) %}
+        <details class="nq-shop-g nq-card" open>
+            <summary class="nq-shop{{ etat }}">
                 <span class="car">{{ icons.svg('chevron-down', 14) }}</span>
                 <span class="nm">{{ s.shop_name }}</span>
                 <span class="v">{{ s.shop_city }}</span>
                 <span class="badge js-todo" data-l="{{ translations.to_review_short ?? 'à évaluer' }}" hidden></span>
-                <span class="r">{{ s.completion is not null ? (s.completion|round) ~ ' %' : '—' }}</span>
+                <span class="r">{{ c is not null ? (c|round) ~ ' %' : '—' }}</span>
             </summary>
         {% for g in s.checklists %}
             <details class="nq-cl-g">
@@ -307,14 +335,13 @@
                     <span class="c">{{ g.done }}/{{ g.total }}</span>
                 </summary>
             {% for task in g.tasks %}
-                {% set dot = task.is_done ? '#2D7A3E' : (task.status == 'SKIPPED' ? '#C17A2A' : '#d8cfc4') %}
                 {# Une tâche faite s'ouvre pour être évaluée ; une tâche non
                    faite n'a rien à évaluer et n'est donc pas actionnable.
                    Même convention que _task_item.twig : un div qui se comporte
                    en bouton, que la modale reconnaît à `.task-openable`. #}
                 {% set open = task.is_done %}
                 <div{% if open %} tabindex="0" role="button"{% endif %}
-                    class="nq-row{{ task.review_state == 'todo' ? ' is-todo' : '' }}{{ open ? ' task-openable' : '' }}"
+                    class="nq-row{{ open ? ' task-openable' : '' }}"
                     data-shop="{{ s.shop_id }}"
                     data-name="{{ (task.name ~ ' ' ~ s.shop_name ~ ' ' ~ g.name)|lower }}"
                     data-state="{{ task.review_state }}"
@@ -327,7 +354,6 @@
                     }|json_encode : '' }}"
                     data-mandatory="{{ task.is_mandatory ? 1 : 0 }}"
                     data-photo="{{ task.requires_photo ? 1 : 0 }}">
-                    <span class="nq-dot" style="background:{{ dot }}"></span>
                     <span class="nq-b">
                         <span class="nq-n d-block">{{ task.name }}</span>
                         <span class="nq-m d-block">
@@ -486,8 +512,43 @@
         });
     }
 
+    /* Ce qui est actif, en clair. Replier les filtres ne doit pas cacher ce
+       qu'ils font : sans cette ligne, un écran filtré ressemble à un écran
+       vide, et on cherche pourquoi il manque des tâches. */
+    var pastille = document.getElementById('nqActifs');
+    var resume   = document.getElementById('nqResume');
+    var LBL = {
+        mandatory: {{ (translations.f_mandatory_one ?? 'Obligatoire')|json_encode|raw }},
+        photo:     {{ (translations.f_photo_one ?? 'Photo')|json_encode|raw }},
+        un:        {{ (translations.n_filters_one ?? '1 filtre')|json_encode|raw }},
+        n:         {{ (translations.n_filters ?? '%d filtres')|json_encode|raw }},
+        aucun:     {{ (translations.n_filters_none ?? 'Filtrer')|json_encode|raw }},
+        tout:      {{ (translations.f_no_filter ?? 'Toutes les tâches du jour')|json_encode|raw }}
+    };
+
+    function resumer() {
+        var mots = [];
+        if (val('ctrl') !== 'any') { mots.push(DIM.ctrl.etats[DIM.ctrl.i].l); }
+        if (val('real') !== 'any') { mots.push(DIM.real.etats[DIM.real.i].l); }
+        if (perim.mandatory) { mots.push(LBL.mandatory); }
+        if (perim.photo)     { mots.push(LBL.photo); }
+        if (boutique !== '' && bande) {
+            var b = bande.querySelector('.nq-sh[data-shop="' + boutique + '"] .nm');
+            if (b) { mots.push(b.textContent.trim()); }
+        }
+        var n = mots.length;
+        pastille.textContent = n === 0 ? LBL.aucun
+            : (n === 1 ? LBL.un : LBL.n.replace('%d', n));
+        pastille.classList.toggle('vide', n === 0);
+        resume.innerHTML = n === 0 ? LBL.tout
+            : mots.map(function (m) {
+                return '<b>' + m.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</b>';
+              }).join(' · ');
+    }
+
     function appliquer() {
         peindre();
+        resumer();
         var vus = 0;
         rows.forEach(function (r) {
             var ok = garde(r);
@@ -512,9 +573,6 @@
                 c.textContent = actif() ? retenues.length : (c.getAttribute('data-base') || c.textContent);
             }
             badge(g, retenues);
-            // Arrondi du bas : la dernière ligne visible du groupe le porte.
-            lignes.forEach(function (r) { r.classList.remove('last'); });
-            if (retenues.length) { retenues[retenues.length - 1].classList.add('last'); }
         });
         [].slice.call(document.querySelectorAll('.nq-shop-g')).forEach(function (g) {
             var retenues = [].slice.call(g.querySelectorAll('.nq-row')).filter(function (r) { return !r.hidden; });
@@ -527,6 +585,8 @@
         if (shown) {
             shown.innerHTML = actif() ? tpl.replace('%d', '<b>' + vus + '</b>') + ' · ' : '';
         }
+        var ligne = document.getElementById('nqCount');
+        if (ligne) { ligne.hidden = ligne.textContent.trim() === ''; }
     }
 
     /** « n à évaluer » sur l'en-tête d'un groupe, au périmètre courant. */
@@ -587,6 +647,18 @@
         });
     }
     search.addEventListener('input', appliquer);
+
+    // Le panneau est REPLIÉ au départ : il occupait la moitié de l'écran en
+    // permanence pour des réglages qu'on touche une fois par tournée.
+    var outilsBoite = document.getElementById('nqTools');
+    var panneau = document.getElementById('nqPanel');
+    document.getElementById('nqToggle').addEventListener('click', function () {
+        var ouvert = panneau.hidden;
+        panneau.hidden = !ouvert;
+        outilsBoite.classList.toggle('ouvert', ouvert);
+        this.setAttribute('aria-expanded', ouvert ? 'true' : 'false');
+        majOffset();
+    });
 
     appliquer();
 })();
