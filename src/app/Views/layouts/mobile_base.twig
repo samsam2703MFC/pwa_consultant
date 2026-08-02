@@ -548,6 +548,55 @@
 })();
 </script>
 
+{% if perf_rid %}
+<script>
+/* Le temps RÉELLEMENT vécu — du clic à l'affichage, réseau mobile compris.
+ * Le serveur ne connaît que son propre temps ; sur un mobile en 4G, l'écart
+ * entre les deux EST le sujet. On renvoie donc la mesure du navigateur, une
+ * seule fois, sur la même ligne (le jeton rid).
+ *
+ * sendBeacon : la mesure part même si l'utilisateur quitte la page, et sans
+ * jamais retarder l'affichage. Échec = ligne sans temps vécu, rien de plus. */
+(function () {
+    'use strict';
+    var RID = '{{ perf_rid }}';
+    var URL = '{{ ROOT }}/system/perf/beacon';
+    var envoye = false;
+
+    function mesure() {
+        try {
+            var e = performance.getEntriesByType('navigation')[0];
+            if (e && e.loadEventEnd > 0) { return Math.round(e.loadEventEnd); }
+            if (e && e.responseEnd > 0)  { return Math.round(e.responseEnd); }
+        } catch (err) { /* API absente : on renonce, on n'invente pas */ }
+        return 0;
+    }
+
+    function envoyer() {
+        if (envoye) { return; }
+        var ms = mesure();
+        if (ms <= 0) { return; }
+        envoye = true;
+        var corps = JSON.stringify({ rid: RID, ms: ms });
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon(URL, new Blob([corps], { type: 'application/json' }));
+        } else {
+            fetch(URL, { method: 'POST', body: corps, keepalive: true,
+                         headers: { 'Content-Type': 'application/json' },
+                         credentials: 'same-origin' }).catch(function () {});
+        }
+    }
+
+    /* Après le chargement, jamais pendant : la mesure ne doit rien coûter à
+     * la page qu'elle mesure. Le filet « pagehide » rattrape les départs
+     * rapides — mais seulement si loadEventEnd est déjà connu. */
+    if (document.readyState === 'complete') { setTimeout(envoyer, 0); }
+    else { window.addEventListener('load', function () { setTimeout(envoyer, 0); }); }
+    window.addEventListener('pagehide', envoyer);
+})();
+</script>
+{% endif %}
+
 </body>
 </html>
 

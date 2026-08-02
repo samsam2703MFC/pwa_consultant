@@ -47,6 +47,29 @@ class ApiClient
     /** Poignée cURL réutilisée dans la requête → keep-alive (pas de handshake TCP/TLS par appel). */
     private ?\CurlHandle $handle = null;
 
+    /**
+     * Compteurs de la requête en cours, relevés par PerfRecorder.
+     *
+     * `ms` est le temps passé À ATTENDRE l'API, pas la somme des appels : sur
+     * un lot parallèle, vingt appels de 300 ms coûtent 300 ms, pas 6 s. Compter
+     * autrement ferait croire à un gain là où il n'y en a pas.
+     *
+     * `cached` compte les réponses rendues sans réseau — c'est la seule preuve
+     * chiffrée que le préchargement au login sert à quelque chose.
+     */
+    private array $stats = ['calls' => 0, 'cached' => 0, 'failed' => 0, 'ms' => 0.0];
+
+    /** @return array{calls:int, cached:int, failed:int, ms:int} */
+    public function stats(): array
+    {
+        return [
+            'calls'  => $this->stats['calls'],
+            'cached' => $this->stats['cached'],
+            'failed' => $this->stats['failed'],
+            'ms'     => (int)round($this->stats['ms']),
+        ];
+    }
+
     public function __construct(
         private string $baseUrl,
         private CookieManager $cookieManager,
@@ -105,7 +128,10 @@ class ApiClient
         $ch = $this->sharedHandle();
         $this->configureGet($ch, $this->baseUrl . $endpoint);
 
+        $t0            = microtime(true);
         $result        = curl_exec($ch);
+        $this->stats['ms']   += (microtime(true) - $t0) * 1000;
+        $this->stats['calls']++;
         $response_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $header_size   = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
         $header        = substr((string)$result, 0, $header_size);
@@ -127,6 +153,7 @@ class ApiClient
             }
         } else {
             $response['error'] = $response_code;
+            $this->stats['failed']++;
         }
 
         return $response;
@@ -208,12 +235,17 @@ class ApiClient
             $handles[$ep] = $ch;
         }
 
+        // Le lot compte pour SON temps d'horloge, pas pour la somme de ses
+        // appels : c'est ce que l'utilisateur attend réellement.
+        $t0 = microtime(true);
         do {
             $status = curl_multi_exec($mh, $running);
             if ($running) {
                 curl_multi_select($mh, 1.0);
             }
         } while ($running && $status === CURLM_OK);
+        $this->stats['ms']   += (microtime(true) - $t0) * 1000;
+        $this->stats['calls'] += count($endpoints);
 
         foreach ($handles as $ep => $ch) {
             $result        = curl_multi_getcontent($ch);
@@ -232,6 +264,7 @@ class ApiClient
                 $this->cacheWrite($ep, $response);
             } else {
                 $response['error'] = $response_code;
+                $this->stats['failed']++;
             }
 
             $out[$ep] = $response;
@@ -284,6 +317,16 @@ class ApiClient
      * sa signature change, pas l'identité). Repli : hash du token.
      */
     private function cacheUserKey(): string
+    {
+        return $this->userKey();
+    }
+
+    /**
+     * La même identité, publiée — la mesure des temps s'en sert pour ranger
+     * ses lignes. Une SECONDE définition de « qui est l'utilisateur » finirait
+     * par diverger de celle du cache ; il n'y en a donc qu'une.
+     */
+    public function userKey(): string
     {
         $token = $this->cookieManager->getAccessToken();
         if (!$token) {
@@ -339,7 +382,11 @@ class ApiClient
             @unlink($path);
             return null;
         }
-        return is_array($entry['r']) ? $entry['r'] : null;
+        if (!is_array($entry['r'])) {
+            return null;
+        }
+        $this->stats['cached']++;
+        return $entry['r'];
     }
 
     private function cacheWrite(string $endpoint, array $response): void

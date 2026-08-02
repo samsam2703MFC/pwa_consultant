@@ -1,0 +1,175 @@
+{% extends "layouts/mobile_base.twig" %}
+
+{% block title %}Temps de rendu — Panel consultant{% endblock %}
+{% block page_title %}Temps de rendu{% endblock %}
+{% block page_subtitle %}{{ from }} → {{ to }} · {{ total }} mesure{{ total > 1 ? 's' : '' }} conservée{{ total > 1 ? 's' : '' }}{% endblock %}
+
+{% block head %}
+<style>
+    .pf-card {
+        background: #fff; border-radius: 16px; padding: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 14px;
+    }
+    .pf-h { font-size: .78rem; font-weight: 900; color: #241f1c; margin-bottom: 4px; }
+    .pf-sub { font-size: .68rem; color: #7a7168; line-height: 1.4; margin-bottom: 12px; }
+
+    /* La carte peut être plus large que l'écran : elle défile SEULE, le corps
+       de la page ne part jamais de travers. */
+    .pf-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .pf-grid { border-collapse: separate; border-spacing: 2px; font-size: .62rem; }
+    .pf-grid th { font-weight: 800; color: #7a7168; padding: 2px 4px; white-space: nowrap; }
+    .pf-grid th.pf-r {
+        text-align: left; max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+        color: #241f1c; font-size: .66rem;
+    }
+    .pf-grid td {
+        width: 34px; height: 26px; border-radius: 5px; text-align: center;
+        font-variant-numeric: tabular-nums; font-weight: 800; color: #241f1c;
+    }
+    /* Cinq marches, pas un dégradé : on doit pouvoir nommer la couleur qu'on
+       voit. Vide = jamais ouvert à cette heure, ce n'est pas « rapide ». */
+    .t-x { background: #f6f3ef; color: #cdc5bc; }
+    .t-0 { background: #d9f0e0; }
+    .t-1 { background: #eaf3c9; }
+    .t-2 { background: #fdeec2; }
+    .t-3 { background: #fbd4b4; }
+    .t-4 { background: #f4b3ac; }
+
+    .pf-leg { display: flex; align-items: center; gap: 10px; font-size: .62rem; color: #7a7168; margin-top: 10px; flex-wrap: wrap; }
+    /* Pastille et libellé ne se séparent jamais : une couleur orpheline en fin
+       de ligne ne veut plus rien dire. */
+    .pf-leg b { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; white-space: nowrap; }
+    .pf-leg i { width: 16px; height: 12px; border-radius: 3px; display: inline-block; flex: none; }
+
+    /* Le tableau DÉFILE plutôt que de se comprimer : à 90 px, un nom d'écran
+       se briserait en morceaux (« /checkl ists/tas ks ») et deviendrait
+       illisible — ce qu'on cherche justement à lire. */
+    .pf-tab { border-collapse: collapse; font-size: .68rem; min-width: 100%; }
+    .pf-tab th { text-align: right; font-size: .6rem; color: #7a7168; font-weight: 800; padding: 4px 6px; white-space: nowrap; }
+    .pf-tab th:first-child { text-align: left; }
+    .pf-tab td { text-align: right; padding: 6px; border-top: 1px solid #f0ebe4; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .pf-tab td:first-child {
+        text-align: left; font-weight: 700; color: #241f1c;
+        max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+    }
+    .pf-warn {
+        background: #fdf2f2; border-left: 3px solid #c0392b; border-radius: 10px;
+        padding: 12px; font-size: .72rem; color: #8a2b22; margin-bottom: 14px;
+    }
+    .pf-empty { font-size: .74rem; color: #7a7168; text-align: center; padding: 26px 12px; line-height: 1.5; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if db_error %}
+<div class="pf-warn">
+    Aucune mesure n'est conservée : {{ db_error }}.<br>
+    Exécuter <code>database/mac_consultant_perf.sql</code>, ou ouvrir
+    <a href="{{ ROOT }}/system/db-setup">/system/db-setup</a>.
+</div>
+{% endif %}
+
+{% if lignes is empty %}
+<div class="pf-card">
+    <div class="pf-empty">
+        Rien à montrer sur cette fenêtre.<br>
+        Les mesures s'écrivent toutes seules à chaque écran ouvert : revenez
+        après quelques navigations.
+    </div>
+</div>
+{% else %}
+
+<div class="pf-card">
+    <div class="pf-h">Quand et où c'est lent</div>
+    <div class="pf-sub">
+        Temps <strong>vécu</strong> moyen par écran et par heure — celui du
+        navigateur quand il l'a renvoyé, celui du serveur sinon. Une case vide
+        veut dire « jamais ouvert à cette heure », pas « rapide ».
+    </div>
+    <div class="pf-scroll">
+        <table class="pf-grid">
+            <thead>
+                <tr>
+                    <th class="pf-r">Écran</th>
+                    {% for h in heures %}<th>{{ h }}h</th>{% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+            {% for l in lignes %}
+                <tr>
+                    <th class="pf-r" title="{{ l.route }}">{{ l.route }}</th>
+                    {% for c in l.cases %}
+                        {% if c.vide %}
+                            <td class="t-x" title="{{ l.route }} — {{ c.hour }}h : aucune ouverture">·</td>
+                        {% else %}
+                            {# En SECONDES, une décimale : « 5,3 » se lit, « 53 »
+                               demande de traduire. #}
+                            <td class="t-{{ c.ton }}"
+                                title="{{ l.route }} — {{ c.hour }}h : {{ c.ms }} ms en moyenne sur {{ c.n }} ouverture{{ c.n > 1 ? 's' : '' }}, {{ c.calls }} appel(s) API">
+                                {{ (c.ms / 1000)|number_format(1, ',', ' ') }}
+                            </td>
+                        {% endif %}
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="pf-leg">
+        <span>Secondes :</span>
+        <b><i class="t-0"></i>≤ {{ ok_ms }} ms</b>
+        <b><i class="t-2"></i>intermédiaire</b>
+        <b><i class="t-4"></i>≥ {{ slow_ms }} ms</b>
+        <b><i class="t-x"></i>aucune ouverture</b>
+    </div>
+</div>
+
+<div class="pf-card">
+    <div class="pf-h">Le détail par écran</div>
+    <div class="pf-sub">
+        La <strong>médiane</strong> dit l'ordinaire, le <strong>95ᵉ</strong> dit
+        le mauvais jour. « Cache » est la part des réponses API servies sans
+        réseau : c'est la mesure directe de ce que rapporte le préchargement au
+        login.
+    </div>
+    <div class="pf-scroll">
+        <table class="pf-tab">
+            <thead>
+                <tr>
+                    <th>Écran</th><th>Vues</th><th>Médiane</th><th>95ᵉ</th>
+                    <th>dont API</th><th>Appels</th><th>Cache</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for e in ecrans %}
+                <tr>
+                    <td>{{ e.route }}</td>
+                    <td>{{ e.n }}</td>
+                    <td>{{ e.p50 }} ms</td>
+                    <td>{{ e.p95 }} ms</td>
+                    <td>{{ e.api_ms_avg }} ms</td>
+                    <td>{{ e.calls_avg }}</td>
+                    <td>{{ e.cache_pct is null ? '—' : e.cache_pct ~ ' %' }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endif %}
+
+<div class="pf-card">
+    <div class="pf-h">Les mêmes chiffres, en JSON</div>
+    <div class="pf-sub" style="margin-bottom:0">
+        <a href="{{ ROOT }}/system/perf/data?from={{ from }}&to={{ to }}">/system/perf/data</a>
+        — fenêtre réglable par <code>?days=</code> ou <code>?from=&amp;to=</code>.
+        Réglages dans <a href="{{ ROOT }}/system/params">/system/params</a> :
+        <code>perf_enabled</code>, <code>perf_sample_pct</code>,
+        <code>perf_retention_days</code>, <code>perf_ok_ms</code>,
+        <code>perf_slow_ms</code>, <code>perf_window_days</code>.
+    </div>
+</div>
+
+{% endblock %}
