@@ -89,6 +89,11 @@ class ParamRepository
         // rien : on glisse alors sur une fenêtre roulante, et l'écran le dit.
         'dashboard_shortfall_min_days'    => ['7',  'Accueil « ce qui manque » : en deçà de ce quantième, fenêtre roulante au lieu du mois'],
         'dashboard_shortfall_rolling_days'=> ['30', 'Accueil « ce qui manque » : longueur (jours) de la fenêtre roulante'],
+        // Modale KPI : la journée en cours ne compte JAMAIS — elle fluctue.
+        // Un CUMUL (« CA du mois ») n'a de sens qu'au-delà de ce nombre de
+        // jours clos ; en deçà il se compare au mois précédent entier. Les
+        // TAUX (tickets/jour, panier) se contentent d'un jour clos.
+        'kpi_min_closed_days'             => ['7',  'Modale KPI : jours clos minimum pour comparer un cumul sur le mois en cours'],
         'checklist_green_pct'             => ['90', 'Rapport checklists : seuil vert (% de tâches faites)'],
         'checklist_orange_pct'            => ['75', 'Rapport checklists : seuil orange (% de tâches faites)'],
         // Trois endpoints renvoient le CA d'une boutique (monthly-sales,
