@@ -131,6 +131,7 @@ class ShopController extends Controller
             'kpi_insight' => $insight['shops']  ?? [],
             'kpi_network' => $insight['network'] ?? [],
             'kpi_prev_label' => $insight['prev_label'] ?? '',
+            'kpi_period'     => $insight['now_label'] ?? '',
             'active_nav' => 'shops',
             // Bandes de couleur des marges (mac_kpi_threshold) — mise en forme
             // conditionnelle configurable en base, rien en dur dans la vue.
