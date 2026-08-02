@@ -29,4 +29,20 @@ return function (RouteCollector $r) {
         'controller' => \App\Consultant\app\Http\Controllers\System\ConfigController::class,
         'method'     => 'saveKpiThresholds',
     ]);
+
+    // Temps de rendu mesurés (mac_consultant_perf) : la heatmap écran × heure,
+    // les mêmes chiffres en JSON, et la balise par laquelle le navigateur
+    // rapporte le temps RÉELLEMENT vécu.
+    $r->addRoute('GET', '/system/perf', [
+        'controller' => \App\Consultant\app\Http\Controllers\System\PerfController::class,
+        'method'     => 'page',
+    ]);
+    $r->addRoute('GET', '/system/perf/data', [
+        'controller' => \App\Consultant\app\Http\Controllers\System\PerfController::class,
+        'method'     => 'data',
+    ]);
+    $r->addRoute('POST', '/system/perf/beacon', [
+        'controller' => \App\Consultant\app\Http\Controllers\System\PerfController::class,
+        'method'     => 'beacon',
+    ]);
 };

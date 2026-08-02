@@ -52,7 +52,13 @@ INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('checklist_green_pct',             '90',  'Rapport checklists : seuil vert (% de tâches faites)'),
     ('checklist_orange_pct',            '75',  'Rapport checklists : seuil orange (% de tâches faites)'),
     ('diag_ca_tolerance_pct',           '0.5', 'Diagnostic CA : écart (%) en deçà duquel deux sources sont réputées d''accord'),
-    ('diag_ca_vat_factors',             '1.06,1.12,1.21', 'Diagnostic CA : facteurs de TVA reconnus dans un rapport entre sources');
+    ('diag_ca_vat_factors',             '1.06,1.12,1.21', 'Diagnostic CA : facteurs de TVA reconnus dans un rapport entre sources'),
+    ('perf_enabled',                    '1',   'Mesure des temps : enregistrer chaque affichage (0 = couper)'),
+    ('perf_sample_pct',                 '100', 'Mesure des temps : part des affichages enregistrés (%)'),
+    ('perf_retention_days',             '90',  'Mesure des temps : durée de conservation des mesures (jours)'),
+    ('perf_ok_ms',                      '800', 'Mesure des temps : en deçà de ce temps (ms), un écran est confortable'),
+    ('perf_slow_ms',                    '2500','Mesure des temps : au-delà de ce temps (ms), un écran est lent'),
+    ('perf_window_days',                '14',  'Mesure des temps : fenêtre affichée par défaut (jours)');
 
 -- Clés remplacées par les bornes début/fin ci-dessus. L'application ne les lit
 -- plus et les masque de l'écran de configuration ; à supprimer quand vous

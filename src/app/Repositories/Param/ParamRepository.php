@@ -99,6 +99,19 @@ class ParamRepository
         // facteurs à reconnaître, du plus courant au plus rare (BE : 6 %
         // alimentaire, 12 % restauration, 21 % standard).
         'diag_ca_vat_factors'             => ['1.06,1.12,1.21', 'Diagnostic CA : facteurs de TVA reconnus dans un rapport entre sources'],
+        // Mesure des temps de rendu (mac_consultant_perf, écran /system/perf).
+        // Tout jugement sur la vitesse de l'application repose sinon sur des
+        // estimations. La mesure s'écrit APRÈS la réponse : elle ne ralentit
+        // rien, et se coupe d'un seul paramètre si besoin.
+        'perf_enabled'                    => ['1',  'Mesure des temps : enregistrer chaque affichage (0 = couper)'],
+        'perf_sample_pct'                 => ['100','Mesure des temps : part des affichages enregistrés (%)'],
+        'perf_retention_days'             => ['90', 'Mesure des temps : durée de conservation des mesures (jours)'],
+        // Bornes de l'échelle de couleur : en deçà, c'est confortable ;
+        // au-delà, l'écran est franchement lent. Ce sont des décisions de
+        // service, pas des constantes du code.
+        'perf_ok_ms'                      => ['800', 'Mesure des temps : en deçà de ce temps (ms), un écran est confortable'],
+        'perf_slow_ms'                    => ['2500','Mesure des temps : au-delà de ce temps (ms), un écran est lent'],
+        'perf_window_days'                => ['14',  'Mesure des temps : fenêtre affichée par défaut (jours)'],
     ];
 
     /**

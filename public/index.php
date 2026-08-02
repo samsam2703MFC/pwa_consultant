@@ -22,6 +22,17 @@ GlobalRegistry::set('currency_symbol', $_ENV['CURRENCY_SYMBOL'] ?? 'zł');
 
 $container = require __DIR__ . '/../src/core/Container/Container.php';
 
+// Chronomètre de la requête (mac_consultant_perf). Démarré ici, donc AVANT le
+// routage : le temps mesuré est celui que l'utilisateur attend, pas celui qu'on
+// veut bien compter. L'écriture a lieu après l'envoi de la réponse, et toute
+// panne de mesure est avalée — un incident d'instrumentation ne casse pas un
+// écran. Se coupe par le paramètre perf_enabled.
+try {
+    $container->get(\App\Consultant\core\Support\PerfRecorder::class)->start();
+} catch (\Throwable $e) {
+    error_log('[perf] start: ' . $e->getMessage());
+}
+
 $app = $container->get(App::class);
 $app->loadController();
 

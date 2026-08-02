@@ -96,6 +96,11 @@ class Controller
         $data['permissions'] = (array)($user['permissions'] ?? []);
         $data['current_user'] = $user;
 
+        // Le jeton de mesure de la requête (PerfRecorder) : la page s'en sert
+        // pour renvoyer le temps réellement vécu. Absent = mesure coupée, et
+        // le gabarit n'écrit alors aucun script.
+        $data['perf_rid'] = GlobalRegistry::get('perf_rid') ?: null;
+
         return $data;
     }
 
