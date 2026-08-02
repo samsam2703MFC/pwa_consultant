@@ -49,6 +49,7 @@ INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('dashboard_shortfall_days_nodb',   '7',   'Accueil « ce qui manque » : fenêtre (jours) quand la base ne peut rien conserver'),
     ('dashboard_shortfall_min_days',    '7',   'Accueil « ce qui manque » : en deçà de ce quantième, fenêtre roulante au lieu du mois'),
     ('dashboard_shortfall_rolling_days','30',  'Accueil « ce qui manque » : longueur (jours) de la fenêtre roulante'),
+    ('kpi_min_closed_days',             '7',   'Modale KPI : jours clos minimum pour comparer un cumul sur le mois en cours'),
     ('checklist_green_pct',             '90',  'Rapport checklists : seuil vert (% de tâches faites)'),
     ('checklist_orange_pct',            '75',  'Rapport checklists : seuil orange (% de tâches faites)'),
     ('diag_ca_tolerance_pct',           '0.5', 'Diagnostic CA : écart (%) en deçà duquel deux sources sont réputées d''accord'),

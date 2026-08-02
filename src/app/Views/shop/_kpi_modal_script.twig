@@ -228,7 +228,11 @@
         el('kmWho').textContent   = nom;
         el('kmVal').textContent   = fmt(moi.now, net.decimals, net.unit);
         el('kmUnit').textContent  = L.unites[cle] || '';
-        el('kmPeriod').textContent = bouton.getAttribute('data-period') || '';
+        // La période vient de la DONNÉE, plus de la tuile : elle diffère d'une
+        // grandeur à l'autre. Un cumul (« CA du mois ») attend son quota de
+        // jours clos et se replie sinon sur le mois précédent, là où un taux se
+        // contente d'un jour. Et la journée en cours n'entre jamais dedans.
+        el('kmPeriod').textContent = moi.now_label || net.now_label || '';
 
         var aRegle = dessinerRegle(cle, moi, net);
 
