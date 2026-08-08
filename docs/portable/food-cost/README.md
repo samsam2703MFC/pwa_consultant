@@ -10,6 +10,12 @@ dépôt. Trois fichiers à copier :
 | `FoodCost.php` | le calcul côté serveur (PHP 8.1+, zéro dépendance — on lui injecte un `callable` HTTP) |
 | `food-cost.js` | le même calcul côté navigateur (ES5/ES6, zéro dépendance) |
 
+> **Le volet produits & catégories** — tableau « produits × boutiques »,
+> hiérarchie secteur → groupe → catégorie → produit, objectifs en pièces et
+> progression — est dans **`README-PRODUITS.md`** (`ProductMix.php`,
+> `product-mix.js`, `product_tables.sql`). Même endpoint, même fetcher injecté :
+> les deux modules se posent l'un à côté de l'autre.
+
 > **Point important avant de coller quoi que ce soit :** le food cost n'est
 > **pas stocké** dans ce projet. Il est *dérivé* à chaque affichage depuis
 > l'API métier. Les tables ci-dessous ne servent qu'à l'habillage (seuils de
