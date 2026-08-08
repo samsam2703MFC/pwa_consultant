@@ -15,6 +15,11 @@ dépôt. Trois fichiers à copier :
 > progression — est dans **`README-PRODUITS.md`** (`ProductMix.php`,
 > `product-mix.js`, `product_tables.sql`). Même endpoint, même fetcher injecté :
 > les deux modules se posent l'un à côté de l'autre.
+>
+> **Le volet campagne** — bloc « Identité & période » avec photo ou
+> illustration (champ, upload validé, point d'intérêt, affichage) — est dans
+> **`README-CAMPAGNE.md`** (`CampaignImage.php`, `campaign-illustration.js`,
+> `campaign_tables.sql`). Une campagne regroupe les objectifs du volet produits.
 
 > **Point important avant de coller quoi que ce soit :** le food cost n'est
 > **pas stocké** dans ce projet. Il est *dérivé* à chaque affichage depuis
