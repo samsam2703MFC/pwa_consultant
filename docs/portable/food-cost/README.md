@@ -20,6 +20,12 @@ dépôt. Trois fichiers à copier :
 > illustration (champ, upload validé, point d'intérêt, affichage) — est dans
 > **`README-CAMPAGNE.md`** (`CampaignImage.php`, `campaign-illustration.js`,
 > `campaign_tables.sql`). Une campagne regroupe les objectifs du volet produits.
+>
+> **Le volet impression** — traitement automatique des visuels pour des
+> brochures jusqu'à 10 × 15 cm : recadrage sur le point d'intérêt, fond perdu,
+> résolution inscrite dans le fichier, verdict de qualité — est dans
+> **`README-IMPRESSION.md`** (`PrintImage.php`, utilisable aussi en ligne de
+> commande sur un dossier entier).
 
 > **Point important avant de coller quoi que ce soit :** le food cost n'est
 > **pas stocké** dans ce projet. Il est *dérivé* à chaque affichage depuis
