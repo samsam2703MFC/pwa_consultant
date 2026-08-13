@@ -36,7 +36,7 @@ class PerfRepository
         $this->ready = true;
         $pdo = $this->pdo();
         if ($pdo === null) {
-            $this->lastError = 'base injoignable';
+            $this->lastError = Database::unavailableReason();
             return;
         }
         try {

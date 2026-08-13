@@ -18,7 +18,9 @@ use App\Consultant\core\Db\Database;
 
 $pdo = Database::pdo();
 if ($pdo === null) {
-    fwrite(STDERR, "[migrate_google] base indisponible (config/db.local.php absent ?) — ignoré.\n");
+    // La cause, pas une supposition : ce message part dans le journal de
+    // déploiement, où il est parfois la seule trace qu'on ait.
+    fwrite(STDERR, "[migrate_google] migration ignorée — " . Database::unavailableReason() . "\n");
     exit(0);
 }
 

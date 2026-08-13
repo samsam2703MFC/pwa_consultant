@@ -38,7 +38,7 @@ class DbSetupController extends Controller
             return $this->pretty([
                 'ok'     => false,
                 'db'     => 'indisponible',
-                'hint'   => 'config/db.local.php absent ou connexion MySQL refusée.',
+                'hint'   => Database::unavailableReason(),
                 'tables' => [],
             ]);
         }
