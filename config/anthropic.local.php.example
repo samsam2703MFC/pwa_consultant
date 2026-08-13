@@ -1,0 +1,14 @@
+<?php
+// Copier ce fichier en `config/anthropic.local.php` SUR LE SERVEUR (hors Git)
+// et renseigner la clé API Anthropic. Généré automatiquement au déploiement à
+// partir du secret GitHub ANTHROPIC_API_KEY (cf. .github/workflows/deploy.yml).
+// Le rsync de déploiement ne supprime pas ce fichier (pas de --delete).
+//
+// Clé absente ou laissée à REMPLACER_CLE → le bouton « Corriger » n'apparaît
+// pas dans le formulaire de note. Rien d'autre ne change.
+return [
+    // console.anthropic.com → API keys. La clé donne accès à un compte
+    // facturé : la restreindre à un espace de travail dédié, avec un plafond
+    // de dépense mensuel.
+    'api_key' => 'REMPLACER_CLE',
+];

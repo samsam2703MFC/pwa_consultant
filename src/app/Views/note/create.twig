@@ -36,6 +36,29 @@
     }
     .nt-photo-btn:active { background:rgba(141,29,44,.06); border-color:rgba(141,29,44,.4); transform:scale(.98); }
     .nt-photo-btn svg { width:22px; height:22px; }
+
+    /* « Corriger » : discret, à hauteur du libellé du champ. La relecture est
+       une aide, pas l'action principale de l'écran — elle ne doit pas
+       concurrencer « Enregistrer la note ». */
+    .nt-content-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
+    .nt-fix-wrap { display:flex; gap:6px; flex:none; }
+    .nt-fix {
+        display:inline-flex; align-items:center; gap:5px;
+        border:1px solid rgba(141,29,44,.22); border-radius:999px; background:#fff;
+        color:#8D1D2C; font-size:.74rem; font-weight:700; padding:4px 11px;
+        cursor:pointer; transition:background .15s, opacity .15s;
+        -webkit-tap-highlight-color:transparent;
+    }
+    .nt-fix:active { background:rgba(141,29,44,.07); }
+    .nt-fix[disabled] { opacity:.55; cursor:default; }
+    .nt-undo { color:#6c757d; border-color:rgba(0,0,0,.14); }
+    .nt-fix[hidden] { display:none !important; }
+    .nt-fix-msg { font-size:.74rem; font-weight:700; margin-top:6px; line-height:1.35; }
+    .nt-fix-msg[hidden] { display:none !important; }
+    .nt-fix-msg.is-err { color:#c0392b; }
+    .nt-fix-msg.is-ok  { color:#2D7A3E; }
+    @keyframes ntSpin { to { transform:rotate(360deg); } }
+    .nt-fix.is-busy svg { animation:ntSpin .9s linear infinite; }
 </style>
 {% endblock %}
 
@@ -110,12 +133,29 @@
         </div>
 
         <div class="mb-3">
-            <label class="form-label fw-600" style="font-size:.88rem;">
-                {{ translations.note_content ?? 'Contenu de la note' }} <span class="text-danger">*</span>
-            </label>
-            <textarea name="content" rows="5"
+            <div class="nt-content-head">
+                <label class="form-label fw-600 mb-0" for="ntContent" style="font-size:.88rem;">
+                    {{ translations.note_content ?? 'Contenu de la note' }} <span class="text-danger">*</span>
+                </label>
+                {# Le bouton n'existe que si la clé est en place : un bouton qui
+                   échoue sous le doigt est pire que pas de bouton. #}
+                {% if ai_correct %}
+                <div class="nt-fix-wrap">
+                    <button type="button" id="ntFix" class="nt-fix">
+                        {{ icons.svg('wand-sparkles', 14) }}
+                        <span id="ntFixLabel">{{ translations.note_fix ?? 'Corriger' }}</span>
+                    </button>
+                    <button type="button" id="ntUndo" class="nt-fix nt-undo" hidden>
+                        {{ icons.svg('rotate-ccw', 14) }}
+                        <span>{{ translations.note_fix_undo ?? 'Annuler' }}</span>
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+            <textarea name="content" id="ntContent" rows="5"
                       class="form-control rounded-3 {{ errors.content is defined ? 'is-invalid' : '' }}"
                       placeholder="{{ translations.describe_ph ?? "Décrivez l'observation ou le problème..." }}" style="font-size:.9rem;">{{ old('content') }}</textarea>
+            <div id="ntFixMsg" class="nt-fix-msg" hidden></div>
             {% if errors.content is defined %}
                 <div class="invalid-feedback">{{ errors.content }}</div>
             {% endif %}
@@ -263,4 +303,88 @@ function ntPhotoNames(input) {
     }
 })();
 </script>
+
+{% if ai_correct %}
+<script>
+/* « Corriger » — relecture orthographique du contenu saisi.
+ *
+ * Rien n'est enregistré : le texte corrigé revient DANS le champ, et
+ * « Annuler » rétablit l'original tant que la page est ouverte. Le consultant
+ * reste l'auteur de sa note ; la correction n'est qu'une proposition qu'il
+ * relit. C'est aussi le garde-fou contre une relecture qui se tromperait.
+ *
+ * Un échec ne bloque jamais la saisie : le champ garde ce qui a été tapé et
+ * le motif s'affiche sous le champ. */
+(function () {
+    'use strict';
+    var champ  = document.getElementById('ntContent');
+    var bouton = document.getElementById('ntFix');
+    var annul  = document.getElementById('ntUndo');
+    var etiq   = document.getElementById('ntFixLabel');
+    var msg    = document.getElementById('ntFixMsg');
+    if (!champ || !bouton) { return; }
+
+    var LIBELLE = etiq ? etiq.textContent : 'Corriger';
+    var avant   = null;          // texte d'origine, tant qu'il n'est pas repris
+
+    function dire(texte, classe) {
+        if (!msg) { return; }
+        msg.textContent = texte || '';
+        msg.className = 'nt-fix-msg' + (classe ? ' ' + classe : '');
+        msg.hidden = !texte;
+    }
+
+    function occupe(oui) {
+        bouton.disabled = oui;
+        bouton.classList.toggle('is-busy', oui);
+        if (etiq) { etiq.textContent = oui ? '{{ translations.note_fix_busy ?? "Relecture…" }}' : LIBELLE; }
+    }
+
+    bouton.addEventListener('click', function () {
+        var texte = champ.value.trim();
+        if (texte === '') { dire('{{ translations.note_fix_empty ?? "Écrivez d’abord la note." }}', 'is-err'); return; }
+
+        occupe(true);
+        dire('', '');
+
+        fetch('{{ ROOT }}/notes/ai-correct', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ text: texte }),
+        })
+        .then(function (r) { return r.json().catch(function () { return null; }); })
+        .then(function (j) {
+            occupe(false);
+            if (!j || !j.ok) {
+                dire((j && j.error) || '{{ translations.note_fix_failed ?? "Correction impossible." }}', 'is-err');
+                return;
+            }
+            if (j.changed === false) {
+                dire('{{ translations.note_fix_clean ?? "Aucune faute trouvée." }}', 'is-ok');
+                return;
+            }
+            avant = champ.value;                  // ce qu'on pourra rétablir
+            champ.value = j.text;
+            if (annul) { annul.hidden = false; }
+            dire('{{ translations.note_fix_done ?? "Texte relu — vérifiez avant d’enregistrer." }}', 'is-ok');
+        })
+        .catch(function () {
+            occupe(false);
+            dire('{{ translations.note_fix_offline ?? "Réseau indisponible : la note reste telle quelle." }}', 'is-err');
+        });
+    });
+
+    if (annul) {
+        annul.addEventListener('click', function () {
+            if (avant === null) { return; }
+            champ.value = avant;
+            avant = null;
+            annul.hidden = true;
+            dire('{{ translations.note_fix_reverted ?? "Texte d’origine rétabli." }}', '');
+        });
+    }
+})();
+</script>
+{% endif %}
 {% endblock %}

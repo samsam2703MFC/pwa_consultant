@@ -83,4 +83,11 @@ return function (RouteCollector $r) {
         'controller' => NoteController::class,
         'method'     => 'deleteComment',
     ]);
+
+    // Relecture d'une note (bouton « Corriger »). Route STATIQUE : elle ne
+    // heurte pas /notes/{id:\d+}, dont le motif n'accepte que des chiffres.
+    $r->addRoute('POST', '/notes/ai-correct', [
+        'controller' => NoteController::class,
+        'method'     => 'aiCorrect',
+    ]);
 };

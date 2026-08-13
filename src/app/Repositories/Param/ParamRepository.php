@@ -112,6 +112,22 @@ class ParamRepository
         'perf_ok_ms'                      => ['800', 'Mesure des temps : en deçà de ce temps (ms), un écran est confortable'],
         'perf_slow_ms'                    => ['2500','Mesure des temps : au-delà de ce temps (ms), un écran est lent'],
         'perf_window_days'                => ['14',  'Mesure des temps : fenêtre affichée par défaut (jours)'],
+        // Bouton « Corriger » du formulaire de note (API Claude). La clé vit
+        // dans config/anthropic.local.php, hors Git ; sans elle le bouton ne
+        // s'affiche pas. Ces réglages-ci décident du COÛT et de la LATENCE.
+        'note_ai_enabled'                 => ['1',   'Notes : proposer le bouton « Corriger » (relecture orthographique)'],
+        // Le modèle est un réglage, pas une constante : on en change sans
+        // redéployer, et l'écran de configuration liste les valeurs possibles.
+        'note_ai_model'                   => ['claude-sonnet-5', 'Notes « Corriger » : modèle Claude appelé'],
+        // Une correction n'a rien à raisonner : l'effort le plus bas évite
+        // d'attendre une réflexion inutile. Vide = paramètre omis (modèles qui
+        // ne le connaissent pas).
+        'note_ai_effort'                  => ['low', 'Notes « Corriger » : effort de raisonnement (low/medium/high, vide = non transmis)'],
+        // Au-delà, on refuse plutôt que de tronquer : une note coupée en deux
+        // serait pire que la faute qu'on venait réparer.
+        'note_ai_max_chars'               => ['4000','Notes « Corriger » : longueur maximale acceptée (caractères)'],
+        'note_ai_max_tokens'              => ['2000','Notes « Corriger » : longueur maximale de la réponse (tokens)'],
+        'note_ai_timeout'                 => ['20',  'Notes « Corriger » : délai d\'attente maximal (secondes)'],
     ];
 
     /**

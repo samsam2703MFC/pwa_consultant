@@ -116,6 +116,23 @@ jobs:
           file_put_contents("config/google.local.php", "<?php\nreturn " . var_export($c, true) . ";\n");'
           echo "config/google.local.php généré (clé Places présente)."
 
+      # Génère config/anthropic.local.php (hors Git) à partir du secret
+      # ANTHROPIC_API_KEY. Absent → étape ignorée, le bouton « Corriger » du
+      # formulaire de note ne s'affiche pas (dégradation propre).
+      - name: Write Anthropic key → config/anthropic.local.php (from secret)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "WARN: secret ANTHROPIC_API_KEY absent — config/anthropic.local.php non généré,"
+            echo "      bouton « Corriger » masqué."
+            exit 0
+          fi
+          mkdir -p config
+          php -r '$c = ["api_key" => getenv("ANTHROPIC_API_KEY")];
+          file_put_contents("config/anthropic.local.php", "<?php\nreturn " . var_export($c, true) . ";\n");'
+          echo "config/anthropic.local.php généré (clé Anthropic présente)."
+
       - name: Deploy app → APP_DIR (rsync)
         env:
           SSHPASS: ${{ secrets.SSH_PASSWORD }}
