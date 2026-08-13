@@ -58,7 +58,13 @@ INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('perf_retention_days',             '90',  'Mesure des temps : durée de conservation des mesures (jours)'),
     ('perf_ok_ms',                      '800', 'Mesure des temps : en deçà de ce temps (ms), un écran est confortable'),
     ('perf_slow_ms',                    '2500','Mesure des temps : au-delà de ce temps (ms), un écran est lent'),
-    ('perf_window_days',                '14',  'Mesure des temps : fenêtre affichée par défaut (jours)');
+    ('perf_window_days',                '14',  'Mesure des temps : fenêtre affichée par défaut (jours)'),
+    ('note_ai_enabled',                 '1',   'Notes : proposer le bouton « Corriger » (relecture orthographique)'),
+    ('note_ai_model',                   'claude-sonnet-5', 'Notes « Corriger » : modèle Claude appelé'),
+    ('note_ai_effort',                  'low', 'Notes « Corriger » : effort de raisonnement (low/medium/high, vide = non transmis)'),
+    ('note_ai_max_chars',               '4000','Notes « Corriger » : longueur maximale acceptée (caractères)'),
+    ('note_ai_max_tokens',              '2000','Notes « Corriger » : longueur maximale de la réponse (tokens)'),
+    ('note_ai_timeout',                 '20',  'Notes « Corriger » : délai d''attente maximal (secondes)');
 
 -- Clés remplacées par les bornes début/fin ci-dessus. L'application ne les lit
 -- plus et les masque de l'écran de configuration ; à supprimer quand vous

@@ -3,3 +3,6 @@
 
 # Clé Google Places — NE JAMAIS committer
 /config/google.local.php
+
+# Clé API Anthropic (bouton « Corriger ») — NE JAMAIS committer
+/config/anthropic.local.php

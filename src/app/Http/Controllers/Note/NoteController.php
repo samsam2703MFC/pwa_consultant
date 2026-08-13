@@ -5,6 +5,7 @@ use App\Consultant\app\Http\Controllers\Controller;
 use App\Consultant\app\Services\Note\NoteService;
 use App\Consultant\app\Services\Shop\ShopService;
 use App\Consultant\app\Repositories\Consultant\ConsultantUserRepository;
+use App\Consultant\app\Services\Ai\TextCorrectionService;
 use App\Consultant\core\Support\GlobalRegistry;
 
 class NoteController extends Controller
@@ -12,7 +13,8 @@ class NoteController extends Controller
     public function __construct(
         private NoteService $noteService,
         private ShopService $shopService,
-        private ConsultantUserRepository $consultantUsers
+        private ConsultantUserRepository $consultantUsers,
+        private TextCorrectionService $correction,
     ) {}
 
     /**
@@ -145,7 +147,34 @@ class NoteController extends Controller
             'employees'   => $employees,
             'note_types'  => $this->noteService->getNoteTypes(),
             'active_nav'  => 'notes',
+            // Sans clé API, le bouton « Corriger » n'a rien à proposer : il
+            // n'est pas affiché plutôt que d'échouer sous le doigt.
+            'ai_correct'  => $this->correction->available(),
         ]);
+    }
+
+    /**
+     * POST /notes/ai-correct — relecture du contenu saisi.
+     *
+     * Ne touche à AUCUNE note enregistrée : le texte corrigé revient au
+     * navigateur, où le consultant le relit et peut annuler. La correction
+     * est une proposition, pas une écriture.
+     */
+    public function aiCorrect(): \Symfony\Component\HttpFoundation\JsonResponse
+    {
+        // Même garde que les autres appels internes : depuis la page, pas
+        // depuis un lien collé dans une barre d'adresse.
+        if (empty($_SERVER['HTTP_X_REQUESTED_WITH'])
+            || strtolower((string)$_SERVER['HTTP_X_REQUESTED_WITH']) !== 'xmlhttprequest'
+        ) {
+            return $this->json(['ok' => false, 'error' => 'Forbidden'], 403);
+        }
+
+        $raw  = (string)file_get_contents('php://input');
+        $body = json_decode($raw, true);
+        $body = is_array($body) ? $body : $_POST;
+
+        return $this->json($this->correction->correct((string)($body['text'] ?? '')));
     }
 
     /**
