@@ -25,6 +25,8 @@ Nothing here breaks existing clients: every change is an *added* field or a
 | T9 | Checklist progress over a date range | new endpoint | M | 3 |
 | T10 | Product `is_pdm` + a mandatory sector | product reference data | M | 4 |
 | T11 | **Every task of the network, in one call** | new endpoint | L | **3** |
+| T12 | Quarterly sales history, per shop | new endpoint | M | 6 |
+| T13 | **`product_id` on a task that controls a product** | 2 existing endpoints | S | **3** |
 
 **Start with T5a and T8.** They are the only two tickets on this list about
 figures being *wrong*. Everything else makes the panel faster or richer; T5a and
@@ -67,6 +69,8 @@ column is the code we delete the day the ticket lands.
 | T9 | Keeps `mac_checklist_day_snapshot` and freezes closed days itself | the table **and** its freezing logic |
 | T10 | Nothing — there is no sector and no PDM flag anywhere today | nothing; this one only adds |
 | T11 | Issues 1 + N + N + M calls (31 for 5 shops, 181 for 30) and joins them on `task_id` | the fan-out **and** the service that stitches it back together |
+| T12 | Ships the KPI modal **without** its sparkline, and says so in the code | nothing; the chart appears when the endpoint does |
+| T13 | Renders the comparison screen, dark: it carries the field end to end and waits for it | nothing; the screen lights up on its own |
 
 Two of these are worth more than the others because they **remove** code rather
 than add a screen: **T1** deletes a table that only knows about reviews posted
@@ -93,6 +97,8 @@ in its own section below.
 | T9 | `curl -s -o /dev/null -w '%{http_code}' "$API/consultant/shops/4/checklists/progress?from=2026-07-01&to=2026-07-31" -H "Authorization: Bearer $TOKEN"` | `200` |
 | T10 | `curl -s "$API/shops/4/statistics/sales/product-category-groups?grouping=category&from=2026-07-01&to=2026-07-31" -H "Authorization: Bearer $TOKEN" \| jq '[.. \| objects \| select(has("product_id")) \| has("is_pdm")] \| all'` | `true` |
 | T11 | `curl -s -o /dev/null -w '%{http_code}' "$API/consultant/network/tasks?date=2026-07-30" -H "Authorization: Bearer $TOKEN"` | `200` |
+| T12 | `curl -s "$API/consultant/shops/sales-kpis/quarterly?quarters=6" -H "Authorization: Bearer $TOKEN" \| jq '.quarters \| length'` | `6` |
+| T13 | `curl -s "$API/consultant/shops/4/checklists/44/progress?date=2026-07-30" -H "Authorization: Bearer $TOKEN" \| jq '[.tasks[] \| has("product_id")] \| all'` | `true` |
 
 **Nothing on this list has been confirmed shipped at the time of writing.** If
 one of them has landed since, the line above will say so faster than a meeting.
@@ -1171,3 +1177,104 @@ The sparkline ships, and the *Boutiques* screen keeps its current cost: two
 calls total, whatever the number of shops. Until then the modal shows the
 network position and last year — and simply has no chart, which is stated in
 the code, not silently missing.
+
+---
+
+## T13 — `product_id` on a task that controls a product
+
+**Existing endpoints:**
+`GET /consultant/shops/{shopId}/checklists/{checklistId}/progress?date=…`
+`GET /consultant/shops/{shopId}/tasks?date=…`
+
+**One field.** The smallest ticket on this list, and it lights up a screen that
+is already built, tested and deployed.
+
+### The problem
+
+A consultant opens *« Contrôle qualité – Salade Grecque »*. They see the photo
+the shop took — and nothing to compare it against. The product is judged from
+memory, on the screen where they decide whether it is acceptable.
+
+The panel now renders the product's **technical-sheet photo side by side** with
+the photo taken. That comparison is live. It stays dark because the task payload
+never says *which product* is being controlled.
+
+### Today
+
+```json
+{
+  "task_id": 1216,
+  "task_name": "Contrôle qualité – Salade Grecque",
+  "status": "DONE",
+  "is_mandatory": 1,
+  "requires_photo": 1,
+  "attachment_id": 393
+}
+```
+
+The product exists only inside a free-text label.
+
+### Wanted — add
+
+| Field | Type | Null when |
+|---|---|---|
+| `product_id` | int | the task controls no product — send `null`, never `0`, never an absent key |
+
+```json
+{
+  "task_id": 1216,
+  "task_name": "Contrôle qualité – Salade Grecque",
+  "attachment_id": 393,
+  "product_id": 87
+}
+```
+
+Four rules:
+
+1. **It must be the catalogue's own identifier** — the one `GET /products`
+   returns. A line id or a recipe id makes the lookup miss silently.
+2. **`null` for tasks with no product.** *« Nettoyage du sol »* has none, and
+   that is not an error: the panel shows a single column. Absent and `null` are
+   different facts (rule 2 of the payload rules).
+3. **On both endpoints**, so the shop screen and the network list behave the
+   same.
+4. Three spellings are accepted on our side — `product_id`, `id_product`,
+   `productId` — so a naming mismatch costs no round trip. Pick one, keep it.
+
+### Why an identifier and not the name
+
+We built name matching first, and threw it away. With a catalogue holding
+« Salade » and « Grecque », matching *« Contrôle qualité – Salade Grecque »*
+returned **« Grecque »** — the wrong product, shown with the authority of a
+reference photo, on a screen where someone decides whether food leaves the
+counter. A wrong visual is worse than no visual. The id is the only key we will
+use.
+
+### Acceptance
+
+```bash
+# 1. Every task carries the key — present, even when null.
+curl -s "$API/consultant/shops/4/checklists/44/progress?date=2026-07-30" \
+  -H "Authorization: Bearer $TOKEN" | jq '[.tasks[] | has("product_id")] | all'
+# expect: true
+
+# 2. A product-control task carries a real id, and it resolves in the catalogue.
+PID=$(curl -s "$API/consultant/shops/4/checklists/44/progress?date=2026-07-30" \
+  -H "Authorization: Bearer $TOKEN" | jq '[.tasks[] | .product_id | select(. != null)][0]')
+curl -s "$API/products" -H "Authorization: Bearer $TOKEN" | jq --argjson p "$PID" \
+  '[.. | objects | select(.id == $p) | .name] | first'
+# expect: the product name, not null
+
+# 3. The same field on the day view.
+curl -s "$API/consultant/shops/4/tasks?date=2026-07-30" \
+  -H "Authorization: Bearer $TOKEN" | jq '[.data.tasks[] | has("product_id")] | all'
+# expect: true
+```
+
+### What is already done on our side
+
+The field is carried end to end — the three `data-done` producers feed the review
+modal — `GET /products` is read tolerantly (list, `{data}`, `{products}`,
+`{items}` envelopes; photo as a URL, an object, a list, or an `attachment_id`)
+and cached 30 minutes. `GET /checklists/product-photo?id=…&debug=1` on the panel
+shows exactly what was read. Nothing else waits on us.

@@ -4,7 +4,7 @@ One file, two audiences.
 
 - **Part 0 — Infra / DBA.** Half a page, no API work. Ships with the current
   package. This is what makes the performance heatmap exist.
-- **Parts 1 to 3 — Backend API.** Twelve tickets: two column migrations, six
+- **Parts 1 to 3 — Backend API.** Thirteen tickets: two column migrations, six
   existing endpoints to enrich, **seven endpoints that do not exist yet**.
 
 Everything below is *added* — a new column, a new field, a new URL. **No
@@ -133,7 +133,7 @@ hour is a **query** problem — and that second one is what Parts 1–3 are abou
 
 # Part 1 — Backend database migrations
 
-Only two tickets touch a table. **T2, T3, T4, T5a, T5b, T7, T8, T9, T11 and T12
+Only two tickets touch a table. **T2, T3, T4, T5a, T5b, T7, T8, T9, T11, T12 and T13
 are query, payload or header work — no migration.**
 
 Column and table names are suggestions. Only the *meaning* and the
@@ -210,6 +210,7 @@ list? Until that is answered, we will carry the field and display nothing.
 | Endpoint | Add | Ticket |
 |---|---|---|
 | `GET /consultant/shops/{id}/checklists/{cid}/progress` | `review_by`, `review_by_name`, `reviewed_at` on each task | **T1** |
+| `GET /consultant/shops/{id}/checklists/{cid}/progress` (and `…/tasks`) | **`product_id` on each task that controls a product** | **T13** |
 | `GET /consultant/shops/{id}/tasks` | `completion_id`, `attachment_id`, `review_rating`, `review_is_accepted`, `review_comment` on each task | **T3** |
 | `GET /consultant/shops/{id}/pnl/monthly` | **`material` on every month**, `0` when there is nothing — never an absent line | **T5a — blocking** |
 | `POST /consultant/shops/{id}/task-reviews` | nothing to add: **write the contract down** | **T2** |
@@ -271,7 +272,53 @@ Today the panel guesses its own TTLs per endpoint. Those guesses are now
 *measured* (§0.6, the `Cache` column): if a screen shows 90 % cache and is still
 slow, the TTL is not the problem. Your headers replace our guesses.
 
-## 2.4 · T2 — write the review POST contract down
+## 2.4 · T13 — `product_id` on a task that controls a product
+
+**One field.** It is the smallest ticket on this list and it unlocks a screen
+that is already built and shipped.
+
+A consultant opening *« Contrôle qualité – Salade Grecque »* sees the photo the
+shop took, and nothing to compare it against — so the product is judged from
+memory. The panel now shows the product's **technical-sheet photo side by side**
+with the one taken. That screen is live; it is dark only because the task
+payload does not say which product is being controlled.
+
+```json
+{
+  "task_id": 1216,
+  "task_name": "Contrôle qualité – Salade Grecque",
+  "status": "DONE",
+  "attachment_id": 393,
+  "product_id": 87          // ← this is the whole ticket
+}
+```
+
+- **`null` when the task controls no product.** *« Nettoyage du sol »* has no
+  product, and that is not an error — the panel simply shows one column. Send
+  `null`, not `0`, and never omit the key (see rule 2 in Part 4).
+- **On both endpoints** — `…/checklists/{cid}/progress` and `…/shops/{id}/tasks` —
+  so the shop screen and the network list behave the same.
+- **It must be the catalogue's own identifier**, the one `GET /products`
+  returns. Anything else (a line id, a recipe id) makes the lookup miss
+  silently.
+- **We accept three spellings** — `product_id`, `id_product`, `productId` —
+  so a naming mismatch does not cost a round trip. Pick one and keep it.
+
+**Why an identifier and not the name.** We could match *« Contrôle qualité –
+Salade Grecque »* against the catalogue by name. We built that first, and threw
+it away: with a catalogue holding « Salade » and « Grecque », the matcher
+returned **« Grecque »** — the wrong product, displayed with the authority of a
+reference photo, on the screen where a consultant decides whether a product is
+acceptable. A wrong visual is worse than no visual. The id is the only key we
+will use.
+
+**What we already did on our side:** the field is carried end to end (three
+`data-done` producers → the review modal), `GET /products` is read tolerantly
+(list, `{data}`, `{products}`, `{items}` envelopes; photo as a URL, an object, a
+list, or an `attachment_id`) and cached 30 minutes. Nothing else is waiting on
+us.
+
+## 2.5 · T2 — write the review POST contract down
 
 We currently send every field **twice** to cover both spellings — `rating` *and*
 `review_rating`, `comment` *and* `review_comment`, `is_accepted` *and*
@@ -534,6 +581,7 @@ per screen.
 | 2 | **T8** | a wrong revenue, on every screen |
 | 3 | **T1** | unlocks the deletion of our review journal |
 | 4 | **T3** | cheap alone, and makes T11 nearly free |
+| 4 | **T13** | one field; lights up a comparison screen that is already shipped |
 | 5 | **T11** | the daily screen: 181 requests → 1 |
 | 6 | **T9** | deletes our snapshot table *and* its freezing logic |
 | 7 | T2, T7 | a document, and six headers |
@@ -563,6 +611,7 @@ T5a and T8 come first because they are the only two about figures being
 | T10 | `curl -s "$API/consultant/product-sectors" -H "Authorization: Bearer $TOKEN" \| jq '.sectors \| length > 0'` | `true` |
 | T11 | `curl -s -o /dev/null -w '%{http_code}' "$API/consultant/network/tasks?date=2026-07-30" -H "Authorization: Bearer $TOKEN"` | `200` |
 | T12 | `curl -s "$API/consultant/shops/sales-kpis/quarterly?quarters=6" -H "Authorization: Bearer $TOKEN" \| jq '.quarters \| length'` | `6` |
+| T13 | `curl -s "$API/consultant/shops/4/checklists/44/progress?date=2026-07-30" -H "Authorization: Bearer $TOKEN" \| jq '[.tasks[] \| has("product_id")] \| all'` | `true` |
 
 ## What we owe you, in return
 
