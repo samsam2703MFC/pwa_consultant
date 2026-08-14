@@ -12,7 +12,8 @@ class ChecklistController extends Controller
         private ChecklistService $checklistService,
         private TaskReviewRepository $taskReviews,
         private \App\Consultant\app\Services\Param\ParamService $params,
-        private \App\Consultant\app\Services\Checklist\NetworkTaskListService $networkTasks
+        private \App\Consultant\app\Services\Checklist\NetworkTaskListService $networkTasks,
+        private \App\Consultant\app\Services\Product\ProductPhotoService $productPhotos,
     ) {}
 
     /**
@@ -35,6 +36,33 @@ class ChecklistController extends Controller
     }
 
     /** POST /checklists/reviews/validate — l'Owner valide (ou retire) un avis. */
+    /**
+     * GET /checklists/product-photo?id=…  — le visuel de la fiche technique.
+     *
+     * Le contrôle qualité d'un produit se juge par comparaison ; sans le
+     * visuel attendu, le consultant note de mémoire.
+     *
+     * L'IDENTIFIANT SEUL fait foi — jamais l'intitulé de la tâche. Une
+     * référence rapprochée « à peu près » ferait refuser un produit correct
+     * avec l'air d'une preuve.
+     *
+     * ?debug=1 expose la lecture du catalogue (clés du payload, nombre de
+     * produits, produit retenu) : cet endpoint n'ayant jamais été appelé par
+     * le panel, sa forme réelle doit pouvoir se constater sans lire le code.
+     */
+    public function productPhoto(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $id = (int)($_GET['id'] ?? 0);
+        $res = $this->productPhotos->forProductId($id);
+        if (!empty($_GET['debug'])) {
+            $res['debug'] = $this->productPhotos->diagnostics();
+        }
+        echo json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
     public function validateReview(): void
     {
         header('Content-Type: application/json');
@@ -282,8 +310,14 @@ class ChecklistController extends Controller
 
             // Champs ajoutés. La note et l'auteur ne sont repris QUE s'ils
             // manquent : /tasks reste la source de l'affichage existant.
+            // Le produit contrôlé fait partie de la liste : c'est LUI qui
+            // permet d'afficher la photo de la fiche technique en face de
+            // celle prise. Sans cette entrée, un product_id renvoyé par l'API
+            // serait jeté ici sans un mot — la panne la plus coûteuse à
+            // diagnostiquer, parce qu'elle ressemble à un backend muet.
             $extra = ['completion_id', 'attachment_id', 'attachment_filename', 'checklist_id',
-                      'review_id', 'review_is_accepted', 'review_rating', 'review_comment'];
+                      'review_id', 'review_is_accepted', 'review_rating', 'review_comment',
+                      'product_id', 'id_product', 'productId'];
             foreach ($tasks as &$task) {
                 if (!is_array($task) || empty($task['task_id'])) {
                     continue;

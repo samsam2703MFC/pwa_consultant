@@ -31,6 +31,10 @@ class ApiClient
         '/consultant/shops/' => 60,    // .../pnl, .../stats… — volatil
         '/consultant/shops'  => 300,   // liste des magasins — stable
         '/shops/'            => 120,
+        // Catalogue produits (photo de la fiche technique) : donnée de
+        // RÉFÉRENCE, elle ne bouge pas dans la journée. Sans ce palier, chaque
+        // ouverture de modale de contrôle relirait tout le catalogue.
+        '/products'          => 1800,
     ];
 
     /**

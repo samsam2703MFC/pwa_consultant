@@ -346,7 +346,8 @@
                     data-name="{{ (task.name ~ ' ' ~ s.shop_name ~ ' ' ~ g.name)|lower }}"
                     data-state="{{ task.review_state }}"
                     data-done="{{ open ? {
-                        att: task.attachment_id, file: task.attachment_filename, name: task.name,
+                        att: task.attachment_id, product_id: task.product_id,
+                        file: task.attachment_filename, name: task.name,
                         by: task.completed_by, at: task.completed_at, note: task.note,
                         task_id: task.task_id, checklist_id: task.checklist_id,
                         completion_id: task.completion_id, rating: task.review_rating,

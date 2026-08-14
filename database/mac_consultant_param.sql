@@ -64,7 +64,9 @@ INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('note_ai_effort',                  'low', 'Notes « Corriger » : effort de raisonnement (low/medium/high, vide = non transmis)'),
     ('note_ai_max_chars',               '4000','Notes « Corriger » : longueur maximale acceptée (caractères)'),
     ('note_ai_max_tokens',              '2000','Notes « Corriger » : longueur maximale de la réponse (tokens)'),
-    ('note_ai_timeout',                 '20',  'Notes « Corriger » : délai d''attente maximal (secondes)');
+    ('note_ai_timeout',                 '20',  'Notes « Corriger » : délai d''attente maximal (secondes)'),
+    ('product_ref_enabled',             '1',   'Contrôle qualité : afficher la photo de la fiche technique en comparaison'),
+    ('product_ref_endpoint',            '/products', 'Contrôle qualité : endpoint du catalogue produits (relatif à l''API)');
 
 -- Clés remplacées par les bornes début/fin ci-dessus. L'application ne les lit
 -- plus et les masque de l'écran de configuration ; à supprimer quand vous

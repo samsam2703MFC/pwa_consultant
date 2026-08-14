@@ -41,4 +41,12 @@ return function (RouteCollector $r) {
         'controller' => ChecklistController::class,
         'method'     => 'validateReview',
     ]);
+
+    // La photo de la fiche technique du produit contrôlé, à mettre en face de
+    // celle prise en boutique. Rapprochée sur l'intitulé de la tâche, faute
+    // d'identifiant produit dessus (T13). ?debug=1 montre le rapprochement.
+    $r->addRoute('GET', '/checklists/product-photo', [
+        'controller' => ChecklistController::class,
+        'method'     => 'productPhoto',
+    ]);
 };
