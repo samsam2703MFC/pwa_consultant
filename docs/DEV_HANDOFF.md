@@ -4,7 +4,7 @@ One file, two audiences.
 
 - **Part 0 — Infra / DBA.** Half a page, no API work. Ships with the current
   package. This is what makes the performance heatmap exist.
-- **Parts 1 to 3 — Backend API.** Thirteen tickets: two column migrations, six
+- **Parts 1 to 3 — Backend API.** Fourteen tickets: two column migrations, eight
   existing endpoints to enrich, **seven endpoints that do not exist yet**.
 
 Everything below is *added* — a new column, a new field, a new URL. **No
@@ -210,6 +210,7 @@ list? Until that is answered, we will carry the field and display nothing.
 | Endpoint | Add | Ticket |
 |---|---|---|
 | `GET /consultant/shops/{id}/checklists/{cid}/progress` | `review_by`, `review_by_name`, `reviewed_at` on each task | **T1** |
+| `GET /products` | nothing to add, if you confirm it: **does a product row carry a photo, and in which form?** | **T14** |
 | `GET /consultant/shops/{id}/checklists/{cid}/progress` (and `…/tasks`) | **`product_id` on each task that controls a product** | **T13** |
 | `GET /consultant/shops/{id}/tasks` | `completion_id`, `attachment_id`, `review_rating`, `review_is_accepted`, `review_comment` on each task | **T3** |
 | `GET /consultant/shops/{id}/pnl/monthly` | **`material` on every month**, `0` when there is nothing — never an absent line | **T5a — blocking** |
@@ -272,7 +273,42 @@ Today the panel guesses its own TTLs per endpoint. Those guesses are now
 *measured* (§0.6, the `Cache` column): if a screen shows 90 % cache and is still
 slow, the TTL is not the problem. Your headers replace our guesses.
 
-## 2.4 · T13 — `product_id` on a task that controls a product
+## 2.4 · T14 — does the catalogue carry a product photo?
+
+**A question, not a change** — unless the answer is "no". One curl closes it,
+and it comes before T13 because **T13 is worthless without it**: knowing *which*
+product a task controls buys nothing if the catalogue holds no picture of that
+product.
+
+We have never seen the payload of `GET /products`. The panel therefore reads it
+four ways at once and hopes one matches:
+
+| Shape we accept | Example |
+|---|---|
+| a direct URL, under `photo_url`, `image_url`, `url` or `image` | `"photo_url": "https://…/x.jpg"` |
+| a nested object carrying a URL | `"photo": { "url": "https://…/x.jpg" }` |
+| a list of images | `"images": [ { "url": "https://…/x.jpg" } ]` |
+| an attachment identifier | `"attachment_id": 4321` |
+
+Three of those four readers are dead code we cannot delete until you answer.
+
+- **Which shape is it** — or is there no photo at all?
+- If it is an **attachment id**, confirm `GET /attachments/{id}/presigned-url`
+  signs it like task and claim attachments. The panel currently renders only a
+  direct `url`; an id-only catalogue shows nothing, silently.
+- Confirm the row carries **`id`** — the identifier T13 puts on the task — and a
+  readable name (we accept `name`, `product_name`, `label`, `title`, `nom`,
+  `designation`).
+
+If there is no photo anywhere in the catalogue, say so plainly: we would rather
+delete the second column than leave a consultant waiting for an image that is
+never coming.
+
+**Point our own diagnostic at it and it answers itself:**
+`GET /checklists/product-photo?id=…&debug=1` on the panel prints the payload
+keys, the row count and how many rows carried a photo.
+
+## 2.5 · T13 — `product_id` on a task that controls a product
 
 **One field.** It is the smallest ticket on this list and it unlocks a screen
 that is already built and shipped.
@@ -318,7 +354,7 @@ will use.
 list, or an `attachment_id`) and cached 30 minutes. Nothing else is waiting on
 us.
 
-## 2.5 · T2 — write the review POST contract down
+## 2.6 · T2 — write the review POST contract down
 
 We currently send every field **twice** to cover both spellings — `rating` *and*
 `review_rating`, `comment` *and* `review_comment`, `is_accepted` *and*
@@ -581,6 +617,7 @@ per screen.
 | 2 | **T8** | a wrong revenue, on every screen |
 | 3 | **T1** | unlocks the deletion of our review journal |
 | 4 | **T3** | cheap alone, and makes T11 nearly free |
+| 4 | **T14** | one curl, an answer only — and T13 is worthless until it lands |
 | 4 | **T13** | one field; lights up a comparison screen that is already shipped |
 | 5 | **T11** | the daily screen: 181 requests → 1 |
 | 6 | **T9** | deletes our snapshot table *and* its freezing logic |
@@ -612,6 +649,7 @@ T5a and T8 come first because they are the only two about figures being
 | T11 | `curl -s -o /dev/null -w '%{http_code}' "$API/consultant/network/tasks?date=2026-07-30" -H "Authorization: Bearer $TOKEN"` | `200` |
 | T12 | `curl -s "$API/consultant/shops/sales-kpis/quarterly?quarters=6" -H "Authorization: Bearer $TOKEN" \| jq '.quarters \| length'` | `6` |
 | T13 | `curl -s "$API/consultant/shops/4/checklists/44/progress?date=2026-07-30" -H "Authorization: Bearer $TOKEN" \| jq '[.tasks[] \| has("product_id")] \| all'` | `true` |
+| T14 | `curl -s "$API/products" -H "Authorization: Bearer $TOKEN" \| jq '[.. \| objects \| select(has("id")) \| keys] \| flatten \| unique'` | a key we can read a photo from |
 
 ## What we owe you, in return
 
