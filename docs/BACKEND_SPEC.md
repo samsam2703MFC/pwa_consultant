@@ -27,6 +27,7 @@ Nothing here breaks existing clients: every change is an *added* field or a
 | T11 | **Every task of the network, in one call** | new endpoint | L | **3** |
 | T12 | Quarterly sales history, per shop | new endpoint | M | 6 |
 | T13 | **`product_id` on a task that controls a product** | 2 existing endpoints | S | **3** |
+| T14 | **Does the catalogue carry a product photo?** | `GET /products` | S | **3 — answer first** |
 
 **Start with T5a and T8.** They are the only two tickets on this list about
 figures being *wrong*. Everything else makes the panel faster or richer; T5a and
@@ -71,6 +72,7 @@ column is the code we delete the day the ticket lands.
 | T11 | Issues 1 + N + N + M calls (31 for 5 shops, 181 for 30) and joins them on `task_id` | the fan-out **and** the service that stitches it back together |
 | T12 | Ships the KPI modal **without** its sparkline, and says so in the code | nothing; the chart appears when the endpoint does |
 | T13 | Renders the comparison screen, dark: it carries the field end to end and waits for it | nothing; the screen lights up on its own |
+| T14 | Reads `/products` four different ways at once, because we do not know which one is right | three of the four readers, and the guessing |
 
 Two of these are worth more than the others because they **remove** code rather
 than add a screen: **T1** deletes a table that only knows about reviews posted
@@ -99,6 +101,7 @@ in its own section below.
 | T11 | `curl -s -o /dev/null -w '%{http_code}' "$API/consultant/network/tasks?date=2026-07-30" -H "Authorization: Bearer $TOKEN"` | `200` |
 | T12 | `curl -s "$API/consultant/shops/sales-kpis/quarterly?quarters=6" -H "Authorization: Bearer $TOKEN" \| jq '.quarters \| length'` | `6` |
 | T13 | `curl -s "$API/consultant/shops/4/checklists/44/progress?date=2026-07-30" -H "Authorization: Bearer $TOKEN" \| jq '[.tasks[] \| has("product_id")] \| all'` | `true` |
+| T14 | `curl -s "$API/products" -H "Authorization: Bearer $TOKEN" \| jq '[.. \| objects \| select(has("id")) \| keys] \| flatten \| unique'` | a key we can read a photo from |
 
 **Nothing on this list has been confirmed shipped at the time of writing.** If
 one of them has landed since, the line above will say so faster than a meeting.
@@ -1278,3 +1281,64 @@ modal — `GET /products` is read tolerantly (list, `{data}`, `{products}`,
 `{items}` envelopes; photo as a URL, an object, a list, or an `attachment_id`)
 and cached 30 minutes. `GET /checklists/product-photo?id=…&debug=1` on the panel
 shows exactly what was read. Nothing else waits on us.
+
+---
+
+## T14 — does the product catalogue carry a photo?
+
+**Existing endpoint:** `GET /products`
+
+**A question first, a ticket only if the answer is no.** It costs you one curl.
+It is listed just before T13 because **T13 is worthless without it**: knowing
+*which* product a task controls buys nothing if the catalogue has no picture of
+that product.
+
+### The problem
+
+The panel now renders the technical-sheet photo beside the photo the shop took
+(see T13). To do that it reads `GET /products` — an endpoint **we have never
+seen the payload of**. So we read it four ways at once and hope one matches:
+
+| Shape we accept | Example |
+|---|---|
+| a direct URL, under `photo_url`, `image_url`, `url` or `image` | `"photo_url": "https://…/x.jpg"` |
+| a nested object carrying a URL | `"photo": { "url": "https://…/x.jpg" }` |
+| a list of images | `"images": [ { "url": "https://…/x.jpg" } ]` |
+| an attachment identifier | `"attachment_id": 4321` |
+
+Four readers, one of which is right and three of which are dead code we cannot
+delete until you answer.
+
+### What we need
+
+1. **Which of the four shapes is it** — or is there no photo at all?
+2. If it is an **attachment id**, confirm it is signed by
+   `GET /attachments/{id}/presigned-url`, like task and claim attachments. Today
+   the panel only renders a direct `url`; an id-only catalogue displays nothing,
+   silently.
+3. Confirm the row carries **`id`** — the same identifier T13 puts on the task —
+   and a human-readable name (we read `name`, `product_name`, `label`, `title`,
+   `nom` or `designation`).
+
+If the catalogue holds no photo anywhere, say so plainly: we would rather delete
+the second column than leave a consultant waiting for an image that is never
+coming.
+
+### Acceptance
+
+```sh
+curl -s "$API/products" -H "Authorization: Bearer $TOKEN" \
+  | jq '[.. | objects | select(has("id")) | keys] | flatten | unique'
+```
+
+The answer is complete when that key list contains an `id`, a name, and one of
+the four photo shapes above — or when you have told us there is none.
+
+### What we already did on our side
+
+`ProductRepository::all()` reads every envelope we could think of (a bare list,
+`{data}`, `{products}`, `{items}`, `{results}`, `{rows}`, `{content}`, and one
+level of nesting), the catalogue is cached 30 minutes, and
+`GET /checklists/product-photo?id=…&debug=1` prints exactly what was parsed —
+payload keys, row count, how many rows carried a photo. Point it at the real
+catalogue and it answers this ticket without a meeting.
