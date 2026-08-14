@@ -5,6 +5,7 @@
 <div class="task-card{{ openable ? ' task-openable' : '' }}"
      {% if openable %}role="button" tabindex="0" data-done="{{ {
         att: t.attachment_id,
+        product_id: t.product_id ?? null,
         file: t.attachment_filename ?? null,
         name: t.task_name ?? t.name ?? '',
         by: t.completed_by ?? null,

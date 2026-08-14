@@ -21,7 +21,8 @@
         verified: {{ (translations.verified ?? 'Vérifié')|json_encode|raw }},
         queued:  {{ (translations.modal_queued ?? "Sans réseau : gardée sur l'appareil, elle partira toute seule.")|json_encode|raw }},
         conform:    {{ (translations.modal_ok ?? 'Conforme')|json_encode|raw }},
-        notConform: {{ (translations.modal_ko ?? 'Non conforme')|json_encode|raw }}
+        notConform: {{ (translations.modal_ko ?? 'Non conforme')|json_encode|raw }},
+        refNone:    {{ (translations.photo_reference_none ?? 'Fiche technique sans photo')|json_encode|raw }}
     };
     /* Boutique de la page. Sur la liste réseau il n'y en a pas : chaque carte
        porte la sienne dans `data-shop`, et c'est elle qui fait foi. Envoyer
@@ -142,6 +143,11 @@
         link.textContent = L.open;
         modal.hidden = false;
 
+        // La fiche technique du produit contrôlé, cherchée en parallèle. Elle
+        // ne retarde jamais l'affichage de la photo prise : la colonne
+        // apparaît quand (et si) la référence arrive.
+        chargerReference(d.product_id);
+
         // Toutes les tâches ne demandent pas de photo. Sur la liste réseau,
         // elles sont pourtant toutes à évaluer : sans cette sortie, la modale
         // s'ouvrait sur un « Chargement de la photo… » qui n'arrivait jamais.
@@ -170,6 +176,68 @@
                 if (token !== openSeq) { return; }
                 ph.innerHTML = '<div class="msg">' + esc(L.failed) + '</div>';
             });
+    }
+
+    /**
+     * La photo de la fiche technique, à côté de celle prise en boutique.
+     *
+     * L'IDENTIFIANT DU PRODUIT seul déclenche la recherche — jamais l'intitulé
+     * de la tâche. Et ABSENCE SILENCIEUSE : la plupart des tâches ne portent
+     * sur aucun produit (« Nettoyage du sol »), elles ne doivent pas afficher
+     * une erreur à chaque ouverture.
+     */
+    function chargerReference(pid) {
+        var col  = document.getElementById('dnRefCol');
+        var cmp  = document.getElementById('dnCompare');
+        var box  = document.getElementById('dnRefPhoto');
+        var lien = document.getElementById('dnRefOpen');
+        var cap  = document.getElementById('dnCapRef');
+        if (!col || !cmp || !box) { return; }
+
+        // Remise à zéro : la référence de la tâche précédente ne doit jamais
+        // rester en face de la photo de la suivante.
+        col.hidden = true;
+        cmp.classList.remove('has-ref');
+        box.innerHTML = '';
+        lien.hidden = true;
+        lien.removeAttribute('href');
+        lien.textContent = L.open;
+        if (!pid) { return; }                 // tâche sans produit : rien à comparer
+
+        var token = openSeq;                  // même jeton que la photo prise
+        fetch(ROOT + '/checklists/product-photo?id=' + encodeURIComponent(pid),
+              { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (token !== openSeq || !j || !j.found) { return; }
+                col.hidden = false;
+                cmp.classList.add('has-ref');
+                if (cap && j.name) { cap.textContent = j.name; }
+
+                if (j.url) { return afficherRef(j.url, token); }
+                if (j.att) {
+                    // Photo stockée comme pièce jointe : même signature que
+                    // celle prise en boutique.
+                    return fetch(ROOT + '/helpdesk/attachments/' + encodeURIComponent(j.att) + '/url',
+                                 { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                        .then(function (r) { return r.json(); })
+                        .then(function (a) { afficherRef(a && a.data && a.data.url, token); });
+                }
+                // Produit trouvé, mais sa fiche n'a pas de visuel : le dire,
+                // c'est actionnable (quelqu'un doit la compléter).
+                box.innerHTML = '<div class="msg">' + esc(L.refNone) + '</div>';
+            })
+            .catch(function () { /* pas de référence : on n'encombre pas l'écran */ });
+
+        function afficherRef(url, tk) {
+            if (tk !== openSeq || !url) {
+                if (tk === openSeq) { box.innerHTML = '<div class="msg">' + esc(L.failed) + '</div>'; }
+                return;
+            }
+            box.innerHTML = '<img src="' + esc(url) + '" alt="' + esc(cap ? cap.textContent : '') + '" loading="lazy">';
+            lien.href = url;
+            lien.hidden = false;
+        }
     }
 
     // ── Évaluation : étoiles, conformité, enregistrement ──

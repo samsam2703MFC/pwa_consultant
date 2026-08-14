@@ -29,6 +29,24 @@
     .dn-modal .lnk { display:block; text-align:center; margin-top:10px; font-size:.76rem;
                      font-weight:800; color:#435ebe; }
     .dn-modal .lnk[hidden] { display:none; }
+
+    /* Comparaison « produit / attendu ». Deux colonnes dès qu'il y a une
+       référence, une seule sinon — le contrôle d'une tâche sans produit ne
+       doit pas se retrouver avec une demi-largeur perdue. */
+    /* Une colonne par défaut, deux quand le script a trouvé la référence : la
+       classe est posée en JS plutôt qu'avec :has(), qui manque encore à des
+       navigateurs de téléphones en service. Sans elle, une tâche sans produit
+       perdrait la moitié de la largeur pour une colonne vide. */
+    .dn-cmp { display:grid; grid-template-columns:1fr; gap:10px; }
+    .dn-cmp.has-ref { grid-template-columns:1fr 1fr; }
+    .dn-col { min-width:0; }
+    .dn-col[hidden] { display:none; }
+    .dn-cap { font-size:.62rem; font-weight:800; text-transform:uppercase;
+              letter-spacing:.04em; color:#7a7168; margin-bottom:4px; }
+    /* La colonne de référence se distingue au premier coup d'œil : ce n'est
+       pas une seconde photo du magasin. */
+    #dnRefCol .dn-cap { color:#8D1D2C; }
+    #dnRefCol .ph { border-color:rgba(141,29,44,.24); background:#fdfaf6; }
     .dn-modal .txt.empty { color:#9a9086; font-style:italic; }
 
     /* Évaluation : étoiles, conformité, commentaire */

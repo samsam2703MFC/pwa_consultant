@@ -158,6 +158,7 @@ class NetworkTaskListService
                         'at'            => $t['completed_at'],
                         'note'          => $t['note'],
                         'att'           => $t['attachment_id'],
+                        'product_id'    => $t['product_id'],
                         'completion_id' => $t['completion_id'],
                         'mandatory'     => $t['is_mandatory'],
                         'photo'         => $t['requires_photo'],
@@ -286,6 +287,12 @@ class NetworkTaskListService
             'completion_id' => (int)($t['completion_id'] ?? $src['completion_id'] ?? 0) ?: null,
             'attachment_id' => (int)($t['attachment_id'] ?? $src['attachment_id'] ?? 0) ?: null,
             'attachment_filename' => (string)($t['attachment_filename'] ?? $src['attachment_filename'] ?? ''),
+            // Le produit contrôlé, quand la tâche en désigne un : c'est LUI
+            // qui donne la photo de la fiche technique à mettre en face de
+            // celle prise. Trois orthographes acceptées — l'API n'a jamais été
+            // lue là-dessus, et une clé manquée serait un écran muet.
+            'product_id'    => (int)($t['product_id'] ?? $t['id_product'] ?? $t['productId']
+                                     ?? $src['product_id'] ?? $src['id_product'] ?? $src['productId'] ?? 0) ?: null,
             'review_rating'  => $rating,
             // Vraie ou déduite : l'écran peut vouloir le dire, la moyenne non —
             // c'est la même note dans les deux cas.

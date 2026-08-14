@@ -128,6 +128,11 @@ class ParamRepository
         'note_ai_max_chars'               => ['4000','Notes « Corriger » : longueur maximale acceptée (caractères)'],
         'note_ai_max_tokens'              => ['2000','Notes « Corriger » : longueur maximale de la réponse (tokens)'],
         'note_ai_timeout'                 => ['20',  'Notes « Corriger » : délai d\'attente maximal (secondes)'],
+        // Contrôle qualité : la photo de la fiche technique, en face de celle
+        // prise en boutique. Le produit est désigné par SON IDENTIFIANT, porté
+        // par la tâche — jamais rapproché sur l'intitulé.
+        'product_ref_enabled'             => ['1', 'Contrôle qualité : afficher la photo de la fiche technique en comparaison'],
+        'product_ref_endpoint'            => ['/products', 'Contrôle qualité : endpoint du catalogue produits (relatif à l\'API)'],
     ];
 
     /**

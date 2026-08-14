@@ -12,8 +12,24 @@
             <button type="button" class="x" id="dnClose" aria-label="{{ translations.close ?? 'Fermer' }}">✕</button>
         </div>
         <div class="who" id="dnWho"></div>
-        <div class="ph" id="dnPhoto"></div>
-        <a class="lnk" id="dnOpen" target="_blank" rel="noopener" hidden></a>
+
+        {# Deux photos côte à côte : ce qui a été produit, et ce qui était
+           attendu. Un contrôle qualité sans le visuel de la fiche technique se
+           juge de mémoire. La colonne « attendu » n'apparaît que si le produit
+           a été retrouvé SANS AMBIGUÏTÉ — une référence fausse ferait refuser
+           un produit correct avec l'air d'une preuve. #}
+        <div class="dn-cmp" id="dnCompare">
+            <div class="dn-col">
+                <div class="dn-cap" id="dnCapTaken">{{ translations.photo_taken ?? 'Photo prise' }}</div>
+                <div class="ph" id="dnPhoto"></div>
+                <a class="lnk" id="dnOpen" target="_blank" rel="noopener" hidden></a>
+            </div>
+            <div class="dn-col" id="dnRefCol" hidden>
+                <div class="dn-cap" id="dnCapRef">{{ translations.photo_reference ?? 'Fiche technique' }}</div>
+                <div class="ph" id="dnRefPhoto"></div>
+                <a class="lnk" id="dnRefOpen" target="_blank" rel="noopener" hidden></a>
+            </div>
+        </div>
         <div id="dnExtra"></div>
 
         {# Évaluation par le consultant : note sur 5, conformité, commentaire. #}
