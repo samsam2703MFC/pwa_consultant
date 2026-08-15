@@ -11,7 +11,7 @@ neuf fiches sur douze et un consultant qui rend les douze finissent au même
 endroit, avec la même coche verte.
 
 > **État : livré.** Le chantier a été intégré dans `samsam2703MFC/consultant_BO`,
-> branche `claude/new-session-deedox` (commit `fcd960c`). Les maquettes
+> branche `claude/new-session-deedox`, fusionné dans `main` (PR #1 et #2). Les maquettes
 > ci-dessous ont servi à décider ; les captures de l'application réelle sont en
 > fin de document.
 
@@ -158,7 +158,7 @@ depuis la même source**, et non deux constantes recopiées à la main.
 ![La validation dans l'application, note 2](img/bo_live_signalement.png)
 
 Intégré dans `samsam2703MFC/consultant_BO`, branche `claude/new-session-deedox`
-(`fcd960c`) : `sql/schema.sql`, `sql/seed.sql`, `src/endpoints.php`,
+(PR #1 et #2) : `sql/schema.sql`, `src/installer.php`, `sql/seed.sql`, `src/endpoints.php`,
 `src/writes.php`, `public/assets/js/{data,api,app,templates}.js`,
 `docs/contrat-api.md`.
 
@@ -168,6 +168,18 @@ signale, changer de famille change les types proposés, la validation déplace l
 ligne vers « Validées » avec sa pastille et décrémente le compteur « à
 valider », aucune erreur JavaScript.
 
-**Non éprouvé :** le chemin serveur. Il n'y a pas de MySQL dans cet
-environnement, donc `PATCH /projects/{id}/tasks/{taskId}` et la transaction
-n'ont été relus qu'à la main. À passer sur une base avant mise en production.
+**Le chemin serveur est éprouvé lui aussi**, sur une MariaDB 10.11 montée pour
+l'occasion — pas sur la base de production. 19 vérifications : note hors 1..5
+refusée en `422` sans rien écrire, note sous le seuil sans famille refusée sans
+clôturer, note ≥ 4 validée et clôturée sans signalement, note < 4 complète
+créant le signalement au statut « nouveau », les deux lignes de journal, et
+`/projects` qui rend `note`, `valideePar` et `signalement`. Puis 12
+vérifications de bout en bout, écran → API → base → écran, avec rechargement.
+
+**Ce que ce passage sur base a trouvé**, et qui serait passé en production sans
+lui : `ensureInstalled()` ne rejoue `schema.sql` que si la base est vierge, donc
+une installation **déjà en service** n'aurait reçu ni les colonnes, ni la table,
+ni le réglage — et l'écran s'en serait accommodé sans rien dire : niveaux vides,
+aucune famille à choisir, plus moyen de signaler. Corrigé par
+`ensureValidation()`, qui pose le tout à chaque démarrage
+(`consultant_BO` PR #2). **Aucune migration à lancer à la main.**
