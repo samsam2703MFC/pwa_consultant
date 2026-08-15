@@ -153,33 +153,50 @@ depuis la même source**, et non deux constantes recopiées à la main.
 
 ---
 
-## 8. Livré — l'application réelle
+## 8. En ligne
 
-![La validation dans l'application, note 2](img/bo_live_signalement.png)
+**`http://185.180.206.46/consulant_bo/`** — déployé le 15 août 2026, recette du
+job passée sur les trois endpoints publics.
 
-Intégré dans `samsam2703MFC/consultant_BO`, branche `claude/new-session-deedox`
-(PR #1 et #2) : `sql/schema.sql`, `src/installer.php`, `sql/seed.sql`, `src/endpoints.php`,
-`src/writes.php`, `public/assets/js/{data,api,app,templates}.js`,
-`docs/contrat-api.md`.
+![La validation dans l'application](img/bo_live_signalement.png)
 
-**Éprouvé sur l'application réelle**, pas sur une maquette — Chromium, mode
-démonstration, 20 vérifications : le panneau s'ouvre, 4 ne signale pas, 2
-signale, changer de famille change les types proposés, la validation déplace la
-ligne vers « Validées » avec sa pastille et décrémente le compteur « à
-valider », aucune erreur JavaScript.
+L'API de production répond, et `ensureValidation()` a bien tourné sur la vraie
+base :
 
-**Le chemin serveur est éprouvé lui aussi**, sur une MariaDB 10.11 montée pour
-l'occasion — pas sur la base de production. 19 vérifications : note hors 1..5
-refusée en `422` sans rien écrire, note sous le seuil sans famille refusée sans
-clôturer, note ≥ 4 validée et clôturée sans signalement, note < 4 complète
-créant le signalement au statut « nouveau », les deux lignes de journal, et
-`/projects` qui rend `note`, `valideePar` et `signalement`. Puis 12
-vérifications de bout en bout, écran → API → base → écran, avec rechargement.
+```
+GET /api/cockpit/meta
+"signalement":{"seuil":4,"niveaux":[{"n":5,"nom":"Exemplaire",…},…]}
+```
 
-**Ce que ce passage sur base a trouvé**, et qui serait passé en production sans
-lui : `ensureInstalled()` ne rejoue `schema.sql` que si la base est vierge, donc
-une installation **déjà en service** n'aurait reçu ni les colonnes, ni la table,
-ni le réglage — et l'écran s'en serait accommodé sans rien dire : niveaux vides,
-aucune famille à choisir, plus moyen de signaler. Corrigé par
-`ensureValidation()`, qui pose le tout à chaque démarrage
-(`consultant_BO` PR #2). **Aucune migration à lancer à la main.**
+### Ce qu'il a fallu corriger pour y arriver
+
+Le travail avait d'abord été fusionné dans **`main`** — qui ne déploie rien. Le
+workflow ne se déclenche que sur `claude/deploiement-application-serveur-lmz1bm`,
+au changement de `deploy.trigger`. Juste, et rangé au mauvais endroit.
+
+Reporté sur la branche qui déploie (PR #3), où le portage a d'ailleurs
+**simplifié** le résultat : cette branche n'a plus de `data.js`, donc la
+définition des cinq niveaux n'a plus qu'une seule source — le réglage serveur.
+
+### Ce que la mise en ligne ne règle pas
+
+La recette montre aussi `GET /api/cockpit/stores` → `[]` : **la base de
+production est vide**. L'écran Tâches consultants est donc en ligne mais sans
+rien à valider tant que les magasins, projets et tâches n'y sont pas. C'est
+voulu — la branche de déploiement a retiré les données de démonstration — mais
+il ne faut pas confondre « déployé » et « utilisable ».
+
+### Le dépôt a trois lignées
+
+`main`, la branche de déploiement, et la branche par défaut
+`claude/new-session-deedox` — toutes divergentes. C'est exactement ce qui a
+produit le quiproquo ci-dessus, et ça se reproduira. Il faut une seule ligne
+qui déploie, et que ce soit la branche par défaut.
+
+### Éprouvé avant la mise en ligne
+
+Sur une MariaDB 10.11 montée pour l'occasion — **pas la base de production** :
+19 vérifications du chemin serveur (refus `422` hors échelle et sans famille,
+clôture, transaction, journal, lecture) et 12 de bout en bout, écran → API →
+base → écran avec rechargement. Installation vérifiée dans les trois états :
+base déjà en service, rejeu immédiat, base neuve.
