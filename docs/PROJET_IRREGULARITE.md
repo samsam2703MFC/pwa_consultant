@@ -8,7 +8,9 @@
 2. Il faut toujours **quelque chose à comparer** : la fiche technique quand la
    tâche porte sur un produit, une **photo type** quand elle n'en porte pas.
 
-> **État : proposition.** Aucun code applicatif modifié. Les maquettes sont
+> **État : proposition.** La même mécanique est proposée pour les tâches des
+> consultants, dans le back office CEO : `PROJET_VALIDATION_BO.md`.
+> Aucun code applicatif modifié. Les maquettes sont
 > rendues avec l'habillage **réel** de la modale
 > (`_review_modal_style.twig`) — une maquette dessinée à part ment sur les
 > proportions.
