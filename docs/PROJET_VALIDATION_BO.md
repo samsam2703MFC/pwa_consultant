@@ -10,10 +10,10 @@ le livrable est arrivé ; on ne sait pas s'il était bon. Un consultant qui rend
 neuf fiches sur douze et un consultant qui rend les douze finissent au même
 endroit, avec la même coche verte.
 
-> **État : proposition.** Les maquettes sont rendues avec l'habillage **réel du
-> BO** — `public/assets/ds/global.css` et `public/assets/css/app.css` du dépôt
-> cloné, polices Gotham comprises. Aucun code modifié, et cette session est en
-> lecture seule sur ce dépôt.
+> **État : livré.** Le chantier a été intégré dans `samsam2703MFC/consultant_BO`,
+> branche `claude/new-session-deedox` (commit `fcd960c`). Les maquettes
+> ci-dessous ont servi à décider ; les captures de l'application réelle sont en
+> fin de document.
 
 ---
 
@@ -115,12 +115,12 @@ de référence, comme `ceo_project_famille`. Pas dans le JavaScript.
    une tâche traîne des semaines et fausse tous les délais.
 3. **Le seuil est 4**, réglable dans `ceo_app_setting` — comme le paramètre
    équivalent côté panel.
-4. **La relance existante** (`POST /tasks/{id}/reminder`) envoie déjà un e-mail.
-   **Le BO a donc l'infrastructure de mail que le panel n'a pas** : le
-   signalement peut partir par e-mail dès la v1, sans rien ajouter.
-
-Ce dernier point est le seul écart réel entre les deux applications, et il joue
-en faveur du BO.
+4. **L'envoi.** Correction d'une affirmation que j'avais faite trop vite : le
+   BO **n'envoie aucun e-mail**. `POST /tasks/{id}/reminder` et
+   `POST /reporting/reports/{id}/send` portent des noms d'envoi, mais ne font
+   qu'inscrire une date et journaliser une ligne — rien ne quitte le serveur.
+   Les deux applications sont donc logées à la même enseigne : le signalement
+   vit dans l'écran et le journal, et l'e-mail est un lot à part, à décider.
 
 ---
 
@@ -149,3 +149,25 @@ où « mineur » devient « à surveiller » d'un côté seulement, les deux tab
 bord cessent silencieusement de parler de la même chose. À défaut de code
 commun, que ce soit **une ligne de paramètre dans chaque application, écrite
 depuis la même source**, et non deux constantes recopiées à la main.
+
+
+---
+
+## 8. Livré — l'application réelle
+
+![La validation dans l'application, note 2](img/bo_live_signalement.png)
+
+Intégré dans `samsam2703MFC/consultant_BO`, branche `claude/new-session-deedox`
+(`fcd960c`) : `sql/schema.sql`, `sql/seed.sql`, `src/endpoints.php`,
+`src/writes.php`, `public/assets/js/{data,api,app,templates}.js`,
+`docs/contrat-api.md`.
+
+**Éprouvé sur l'application réelle**, pas sur une maquette — Chromium, mode
+démonstration, 20 vérifications : le panneau s'ouvre, 4 ne signale pas, 2
+signale, changer de famille change les types proposés, la validation déplace la
+ligne vers « Validées » avec sa pastille et décrémente le compteur « à
+valider », aucune erreur JavaScript.
+
+**Non éprouvé :** le chemin serveur. Il n'y a pas de MySQL dans cet
+environnement, donc `PATCH /projects/{id}/tasks/{taskId}` et la transaction
+n'ont été relus qu'à la main. À passer sur une base avant mise en production.
