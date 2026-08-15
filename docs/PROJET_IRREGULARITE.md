@@ -23,13 +23,12 @@ Le bouton *« Conforme / Non conforme »* **disparaît**, et le champ
 *« Gravité »* aussi : l'étoile porte les deux. Un geste au lieu de trois, sur un
 téléphone, debout dans une boutique.
 
-**« Exemplaire »** plutôt qu'« excellent » ou « exceptionnel » : le mot dit quoi
-*faire* de la note, pas seulement qu'elle est bonne. Une réalisation exemplaire
-devient l'exemple — c'est elle qui alimente la photo type (§3).
+**« Exemplaire »** plutôt qu'« excellent » ou « exceptionnel » : le mot dit
+qu'il y a un modèle à montrer, pas seulement que c'était bien fait.
 
 | ★ | Niveau | Ce que ça veut dire | Effet |
 |---|---|---|---|
-| 5 | **Exemplaire** | au-dessus de l'attendu | propose de devenir la photo type |
+| 5 | **Exemplaire** | au-dessus de l'attendu | rien |
 | 4 | **Conforme** | conforme à la fiche ou à la consigne | rien |
 | 3 | **Non conforme — mineur** | détail à reprendre, sans impact client | signalement |
 | 2 | **Non conforme — majeur** | écart net, visible par le client | signalement |
@@ -64,26 +63,18 @@ Les deux photos partent avec le signalement : le consultant n'a rien à joindre.
 
 ## 3. Une tâche sans produit : la photo type
 
-![Une tâche notée 5](img/irregularite_tache_exemplaire.png)
-
 *« Mise en place vitrine du matin »* ne porte aucun produit — donc aucune fiche
 technique. La colonne de droite affiche alors la **photo type de la tâche** :
-ce à quoi ça doit ressembler.
+ce à quoi ça doit ressembler. Même mise en page que l'écran du §2, seule la
+légende change — « Photo type · tâche » au lieu de « Fiche technique ».
 
-**D'où vient cette photo.** De deux endroits, et le second est le plus
-intéressant :
+La photo est **déposée sur la tâche par l'Owner**, une fois. Une seule active
+par tâche ; l'ancienne est conservée, datée et signée — « qui a décidé que
+c'était ça, et quand » est une question qui se pose six mois plus tard.
 
-1. **Déposée** par l'Owner sur la tâche, une fois.
-2. **Promue** : une réalisation notée **5 — Exemplaire** propose de devenir la
-   photo type pour tout le réseau. Un clic sur *« Définir »*.
-
-La boucle se ferme toute seule : la meilleure réalisation observée devient la
-consigne visuelle de la suivante. Personne n'a de séance photo à organiser, et
-la référence ne vieillit pas — elle se remplace le jour où quelqu'un fait mieux.
-
-**Une seule photo type active par tâche.** L'ancienne est conservée, datée et
-signée : « qui a décidé que c'était ça, et quand » est une question qui se pose
-six mois plus tard.
+Cette moitié **ne dépend d'aucun endpoint** : elle vit entièrement dans le
+panel et peut partir sans attendre le backend, contrairement à la fiche
+produit.
 
 ---
 
@@ -101,7 +92,7 @@ Traité**.
 
 | Fichier | Ce qui change |
 |---|---|
-| `src/app/Views/checklist/_review_modal.twig` | le bandeau de niveau, le bloc `.dn-irr`, l'encart de promotion ; **suppression** de `.dn-acc` |
+| `src/app/Views/checklist/_review_modal.twig` | le bandeau de niveau, le bloc `.dn-irr` ; **suppression** de `.dn-acc` |
 | `src/app/Views/checklist/_review_modal_style.twig` | ≈ 55 lignes, vocabulaire existant |
 | `src/app/Views/checklist/_review_modal_script.twig` | le niveau pilote l'affichage ; la colonne de droite bascule fiche technique / photo type |
 | `src/app/Views/checklist/_review_submit.twig` | `window.tfbReview` porte la famille, le type, les destinataires |
@@ -132,8 +123,8 @@ created_at · seen_at · closed_at · id_closed_by
 ```
 
 **`mac_task_reference_photo`** — la photo type :
-`id · id_task · attachment_id · source (upload|promotion) · id_completion_source
-· actif · id_auteur · created_at`. L'historique reste ; une seule ligne active.
+`id · id_task · attachment_id · actif · id_auteur · created_at`.
+L'historique reste ; une seule ligne active par tâche.
 
 Les **destinataires** viennent de `user_membership` / `user_profile`, que
 `ConsultantUserRepository` lit déjà. Pas de second annuaire.
@@ -142,17 +133,15 @@ Les **destinataires** viennent de `user_membership` / `user_profile`, que
 
 ## 7. Ce qui reste à trancher
 
-Cinq points, avec ma recommandation.
+Quatre points, avec ma recommandation.
 
 1. **Le seuil de conformité est 4**, en paramètre. Si un jour 3 doit passer pour
    acceptable, c'est un réglage, pas un déploiement.
 2. **Famille et type obligatoires** sous 4. Sans ça, six mois plus tard la
    moitié du fil est en « Autre » et rien n'est analysable.
-3. **La promotion en photo type est proposée, jamais automatique.** Un 5 donné
-   vite fait ne doit pas devenir la consigne du réseau.
-4. **Qui peut promouvoir :** l'Owner seul, ou tout consultant ? Je recommande
-   l'Owner — c'est une décision réseau, pas une appréciation de tournée.
-5. **L'envoi.** Le panel n'a **aucune infrastructure de mail** : ni SMTP, ni
+3. **Qui dépose la photo type :** l'Owner seul. C'est une consigne réseau, pas
+   une appréciation de tournée.
+4. **L'envoi.** Le panel n'a **aucune infrastructure de mail** : ni SMTP, ni
    PHPMailer. La v1 est donc le fil + le badge. L'e-mail est un lot à part, à
    décider sur un chiffre — si les irrégularités restent « Nouveau » trois
    jours, il est justifié.
@@ -166,11 +155,11 @@ Cinq points, avec ma recommandation.
 | 1 | L'échelle : bandeau, seuil paramétrable, `is_accepted` dérivé | ½ journée |
 | 2 | Les trois tables + le référentiel dans `/system/params` | ½ journée |
 | 3 | Le bloc irrégularité (3 partiels) + `review_stack.twig` | 1 journée |
-| 4 | La photo type : dépôt, promotion, bascule de la colonne | 1 journée |
+| 4 | La photo type : dépôt et bascule de la colonne | ¾ journée |
 | 5 | L'écran `/irregularites` + le badge | 1 journée |
-| 6 | Bancs de test (seuil, filtrage du type, une seule requête, promotion) | ½ journée |
+| 6 | Bancs de test (seuil, filtrage du type, une seule requête) | ½ journée |
 
-**≈ 4,5 jours**, sans l'e-mail.
+**≈ 4 jours**, sans l'e-mail.
 
 La colonne « Fiche technique » reste éteinte tant que **T13** et **T14** ne sont
 pas livrés côté API. La **photo type**, elle, ne dépend de personne : elle vit
