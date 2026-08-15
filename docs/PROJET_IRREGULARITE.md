@@ -1,160 +1,177 @@
-# Projet — signaler une irrégularité
+# Projet — une échelle unique, et la référence en face
 
-**Le besoin.** Pendant la validation d'une tâche, quand le consultant coche
-*« Non conforme »*, il doit pouvoir **qualifier** l'irrégularité — famille,
-type de problème, gravité — et l'**envoyer** aux consultants concernés.
+**Le besoin, en deux morceaux.**
 
-Aujourd'hui *« Non conforme »* ne produit qu'un `is_accepted = 0` et un
-commentaire libre. C'est invisible : rien n'est classable, rien n'est comptable,
-et personne n'est prévenu. Le refus meurt dans la ligne de la tâche.
+1. La note et la conformité ne font qu'un : **5 = exemplaire, 4 = conforme,
+   3 / 2 / 1 = non conforme mineur / majeur / critique**. En dessous de 4,
+   le consultant qualifie l'irrégularité et l'envoie.
+2. Il faut toujours **quelque chose à comparer** : la fiche technique quand la
+   tâche porte sur un produit, une **photo type** quand elle n'en porte pas.
 
-> **État : proposition.** Rien de ce document n'est en production. Aucun code
-> applicatif n'a été modifié — les deux écrans ci-dessous sont des maquettes
-> rendues avec l'habillage **réel** de la modale (`_review_modal_style.twig`),
-> pour que les proportions soient les vraies.
+> **État : proposition.** Aucun code applicatif modifié. Les maquettes sont
+> rendues avec l'habillage **réel** de la modale
+> (`_review_modal_style.twig`) — une maquette dessinée à part ment sur les
+> proportions.
 
 ---
 
-## 1. L'écran
+## 1. Une seule échelle
 
-### Dans la modale d'évaluation
+![Les cinq niveaux](img/echelle_5_niveaux.png)
 
-![La modale, sur « Non conforme »](img/irregularite_modale.png)
+Le bouton *« Conforme / Non conforme »* **disparaît**, et le champ
+*« Gravité »* aussi : l'étoile porte les deux. Un geste au lieu de trois, sur un
+téléphone, debout dans une boutique.
 
-Le bloc bordeaux **n'existe pas tant que « Conforme » est sélectionné**. Il
-apparaît au clic sur *« Non conforme »* et le bouton du bas devient
-*« Enregistrer et signaler »*.
+**« Exemplaire »** plutôt qu'« excellent » ou « exceptionnel » : le mot dit quoi
+*faire* de la note, pas seulement qu'elle est bonne. Une réalisation exemplaire
+devient l'exemple — c'est elle qui alimente la photo type (§3).
 
-Quatre champs, dans l'ordre où l'on pense :
+| ★ | Niveau | Ce que ça veut dire | Effet |
+|---|---|---|---|
+| 5 | **Exemplaire** | au-dessus de l'attendu | propose de devenir la photo type |
+| 4 | **Conforme** | conforme à la fiche ou à la consigne | rien |
+| 3 | **Non conforme — mineur** | détail à reprendre, sans impact client | signalement |
+| 2 | **Non conforme — majeur** | écart net, visible par le client | signalement |
+| 1 | **Non conforme — critique** | à retirer / arrêter immédiatement | signalement |
 
-| Champ | Forme | Pourquoi |
-|---|---|---|
-| **Famille** | liste | Produit · Service · Propreté · Matériel · Hygiène & sécurité · Autre |
-| **Type de problème** | liste, **filtrée par la famille** | « Cuisson » n'a de sens que sous Produit |
-| **Gravité** | 3 pastilles | Mineure / Majeure / Critique — c'est ce qui trie le fil |
-| **Envoyer à** | pastilles pré-remplies, retirables | les consultants de la boutique, déjà là ; `+ ajouter` pour élargir |
+**Aucun changement d'API.** `rating` existe déjà dans le contrat d'avis, et
+`is_accepted` se déduit : `rating >= 4 → 1`, `rating <= 3 → 0`. Le seuil vit en
+paramètre (`review_conforme_min`, défaut 4), pas dans le code.
 
-Les deux photos déjà affichées — celle prise et la fiche technique — partent
-avec le signalement. Le consultant n'a rien à joindre.
+---
 
-### Où ça arrive
+## 2. Un produit : la fiche technique en face
+
+![Un produit noté 2](img/irregularite_produit.png)
+
+C'est ce qui est **déjà construit et déployé** : `product_id` sur la tâche →
+`GET /products` → la colonne « Fiche technique ». Elle reste éteinte tant que
+T13 et T14 ne sont pas livrés côté API (voir `API_ASKS.md`).
+
+Sous 4, le bloc bordeaux apparaît. Il ne demande plus la gravité — elle est
+déjà dans l'étoile, rappelée en pastille (« majeur — 2/5 ») :
+
+| Champ | Forme |
+|---|---|
+| **Famille** | Produit · Service · Propreté · Matériel · Hygiène & sécurité · Autre |
+| **Type de problème** | liste **filtrée par la famille** — « Cuisson » n'a de sens que sous Produit |
+| **Envoyer à** | les consultants de la boutique, pré-remplis et retirables |
+
+Les deux photos partent avec le signalement : le consultant n'a rien à joindre.
+
+---
+
+## 3. Une tâche sans produit : la photo type
+
+![Une tâche notée 5](img/irregularite_tache_exemplaire.png)
+
+*« Mise en place vitrine du matin »* ne porte aucun produit — donc aucune fiche
+technique. La colonne de droite affiche alors la **photo type de la tâche** :
+ce à quoi ça doit ressembler.
+
+**D'où vient cette photo.** De deux endroits, et le second est le plus
+intéressant :
+
+1. **Déposée** par l'Owner sur la tâche, une fois.
+2. **Promue** : une réalisation notée **5 — Exemplaire** propose de devenir la
+   photo type pour tout le réseau. Un clic sur *« Définir »*.
+
+La boucle se ferme toute seule : la meilleure réalisation observée devient la
+consigne visuelle de la suivante. Personne n'a de séance photo à organiser, et
+la référence ne vieillit pas — elle se remplace le jour où quelqu'un fait mieux.
+
+**Une seule photo type active par tâche.** L'ancienne est conservée, datée et
+signée : « qui a décidé que c'était ça, et quand » est une question qui se pose
+six mois plus tard.
+
+---
+
+## 4. Où le signalement arrive
 
 ![Le fil des irrégularités](img/irregularite_fil.png)
 
-Un écran `/irregularites`, avec un badge dans la navigation. Filtres par état et
-par famille, tri par gravité puis par date. Trois états : **Nouveau → Vu →
+Un écran `/irregularites` avec un badge dans la navigation. Tri par gravité —
+c'est-à-dire par étoile — puis par date. Trois états : **Nouveau → Vu →
 Traité**.
 
 ---
 
-## 2. Où ça se branche
-
-Tout existe déjà ; le projet ajoute, il ne réécrit rien.
+## 5. Ce que ça touche dans le code
 
 | Fichier | Ce qui change |
 |---|---|
-| `src/app/Views/checklist/_review_modal.twig` | le bloc `.dn-irr`, après `.dn-acc`, `hidden` par défaut |
-| `src/app/Views/checklist/_review_modal_style.twig` | l'habillage du bloc (≈ 40 lignes, vocabulaire existant) |
-| `src/app/Views/checklist/_review_modal_script.twig` | afficher/masquer sur `data-acc`, filtrer le type sur la famille |
-| `src/app/Views/checklist/_review_submit.twig` | `window.tfbReview` porte les 4 champs en plus |
-| `src/app/Http/Controllers/Checklist/ChecklistController.php` | `submitReview()` écrit l'irrégularité quand `is_accepted = 0` |
-| `src/app/Views/checklist/review_stack.twig` | **écran séparé** — il a sa propre carte, à traiter aussi ou il perdra le bloc en silence |
+| `src/app/Views/checklist/_review_modal.twig` | le bandeau de niveau, le bloc `.dn-irr`, l'encart de promotion ; **suppression** de `.dn-acc` |
+| `src/app/Views/checklist/_review_modal_style.twig` | ≈ 55 lignes, vocabulaire existant |
+| `src/app/Views/checklist/_review_modal_script.twig` | le niveau pilote l'affichage ; la colonne de droite bascule fiche technique / photo type |
+| `src/app/Views/checklist/_review_submit.twig` | `window.tfbReview` porte la famille, le type, les destinataires |
+| `src/app/Http/Controllers/Checklist/ChecklistController.php` | `submitReview()` dérive `is_accepted` et écrit l'irrégularité sous le seuil |
+| `src/app/Services/Product/ProductPhotoService.php` | rend la fiche produit **ou**, à défaut de `product_id`, la photo type de la tâche |
+| `src/app/Views/checklist/review_stack.twig` | **écran séparé, carte propre** — à traiter aussi, sinon il perd tout en silence |
 
-Le signalement se pose dans **la même requête** que l'avis. Un consultant sur le
-terrain, en 4G, ne doit pas voir son avis enregistré et son signalement perdu :
-un seul POST, une seule transaction.
+Le signalement part dans **le même POST** que l'avis. En 4G, un avis enregistré
+et un signalement perdu est le pire des deux mondes.
 
 ---
 
-## 3. Ce qui n'est pas codé en dur
+## 6. Ce qui vit en base, pas dans le code
 
-Les listes vivent en base, pas dans le Twig.
+**`mac_irregularity_type`** — le référentiel, auto-provisionné :
+`id · famille · libelle · ordre · actif`. Ajouter « Allergènes » sous Hygiène se
+fait par une ligne, pas par un déploiement.
 
-**`mac_irregularity_type`** — le référentiel, auto-provisionné comme les autres
-(`CREATE TABLE IF NOT EXISTS` + miroir dans `database/`) :
-
-```
-id · famille · libelle · ordre · actif
-```
-
-Ajouter « Allergènes » sous Hygiène, ou retirer « Rupture », se fait par une
-ligne — pas par un déploiement. L'écran `/system/params` sert déjà de modèle
-d'administration.
-
-**`mac_irregularity`** — les signalements :
+**`mac_irregularity`** — les signalements. **Pas de colonne `gravite`** : elle
+serait la copie de `rating`, et deux sources pour un même fait finissent par
+diverger.
 
 ```
 id · id_shop · id_task · id_checklist · completion_id · review_date
-id_type · gravite · commentaire · attachment_id · product_id
+id_type · rating · commentaire · attachment_id · product_id
 id_auteur · auteur_nom · destinataires · statut
 created_at · seen_at · closed_at · id_closed_by
 ```
 
-Les **destinataires** viennent de `user_membership` / `user_profile` — les
-tables que `ConsultantUserRepository` lit déjà. Pas de liste de noms en dur, pas
-de doublon d'annuaire.
+**`mac_task_reference_photo`** — la photo type :
+`id · id_task · attachment_id · source (upload|promotion) · id_completion_source
+· actif · id_auteur · created_at`. L'historique reste ; une seule ligne active.
+
+Les **destinataires** viennent de `user_membership` / `user_profile`, que
+`ConsultantUserRepository` lit déjà. Pas de second annuaire.
 
 ---
 
-## 4. « Envoyer aux consultants » — ce que ça veut dire exactement
+## 7. Ce qui reste à trancher
 
-**Il n'y a aucun envoi d'e-mail dans le panel aujourd'hui** : pas de SMTP, pas
-de PHPMailer, rien. C'est le point à trancher, et il change le chiffrage.
+Cinq points, avec ma recommandation.
 
-| Option | Ce que ça donne | Coût |
-|---|---|---|
-| **A. Fil + badge dans le panel** *(recommandé pour la v1)* | le consultant voit le compteur en ouvrant l'app | aucun ajout d'infra |
-| **B. A + e-mail** | il est prévenu sans ouvrir l'app | un service SMTP à configurer et un secret de plus au déploiement |
-| **C. A + poussée vers la boutique** | la boutique voit son irrégularité dans **son** app | **dépend de l'API** — voir §6 |
-
-Je recommande **A maintenant, B ensuite si le délai de réaction pose problème**.
-Le fil se mesure : si les irrégularités restent « Nouveau » trois jours, l'e-mail
-est justifié par un chiffre, pas par une intuition.
-
----
-
-## 5. Ce que je propose de trancher ainsi
-
-Cinq décisions, avec ma recommandation — dites-moi celles que vous changez.
-
-1. **La famille et le type sont obligatoires** dès qu'on coche « Non conforme ».
-   Sans ça, six mois plus tard, la moitié du fil est en « Autre » et rien n'est
-   analysable.
-2. **La gravité est facultative**, par défaut *Majeure*. Un champ obligatoire de
-   plus, sur un téléphone, en boutique, se remplit au hasard.
-3. **Les destinataires sont pré-remplis** avec les consultants de la boutique,
-   et modifiables. Personne ne choisit correctement dans une liste vide.
-4. **Un seul signalement par tâche et par jour**, mis à jour si on revient
-   dessus — la même clé unique que `mac_task_review`.
-5. **Qui clôture :** l'auteur ou l'Owner. Le consultant destinataire passe la
-   ligne en « Vu », pas en « Traité » : voir n'est pas régler.
+1. **Le seuil de conformité est 4**, en paramètre. Si un jour 3 doit passer pour
+   acceptable, c'est un réglage, pas un déploiement.
+2. **Famille et type obligatoires** sous 4. Sans ça, six mois plus tard la
+   moitié du fil est en « Autre » et rien n'est analysable.
+3. **La promotion en photo type est proposée, jamais automatique.** Un 5 donné
+   vite fait ne doit pas devenir la consigne du réseau.
+4. **Qui peut promouvoir :** l'Owner seul, ou tout consultant ? Je recommande
+   l'Owner — c'est une décision réseau, pas une appréciation de tournée.
+5. **L'envoi.** Le panel n'a **aucune infrastructure de mail** : ni SMTP, ni
+   PHPMailer. La v1 est donc le fil + le badge. L'e-mail est un lot à part, à
+   décider sur un chiffre — si les irrégularités restent « Nouveau » trois
+   jours, il est justifié.
 
 ---
 
-## 6. Ce que ça demanderait à l'API — **T15**, si l'on veut l'option C
-
-Rien n'est bloquant pour la v1 : le fil vit entièrement côté panel.
-
-Pour que l'irrégularité arrive **dans l'app de la boutique**, il faudrait :
-
-```
-POST /consultant/shops/{shopId}/irregularities
-GET  /consultant/irregularity-types          # le référentiel, réseau-large
-```
-
-À poser dans `BACKEND_SPEC.md` seulement quand l'option C est décidée — un
-ticket ouvert que personne n'a demandé encombre la liste et retarde les autres.
-
----
-
-## 7. Chiffrage
+## 8. Chiffrage
 
 | Lot | Contenu | Ordre de grandeur |
 |---|---|---|
-| 1 | Les deux tables + le référentiel + `/system/params` | ½ journée |
-| 2 | Le bloc dans la modale (3 partiels) + `review_stack.twig` | 1 journée |
-| 3 | L'écriture dans `submitReview()`, transaction commune | ½ journée |
-| 4 | L'écran `/irregularites` + le badge | 1 journée |
-| 5 | Bancs de test (référentiel, filtrage du type, une seule requête) | ½ journée |
+| 1 | L'échelle : bandeau, seuil paramétrable, `is_accepted` dérivé | ½ journée |
+| 2 | Les trois tables + le référentiel dans `/system/params` | ½ journée |
+| 3 | Le bloc irrégularité (3 partiels) + `review_stack.twig` | 1 journée |
+| 4 | La photo type : dépôt, promotion, bascule de la colonne | 1 journée |
+| 5 | L'écran `/irregularites` + le badge | 1 journée |
+| 6 | Bancs de test (seuil, filtrage du type, une seule requête, promotion) | ½ journée |
 
-**≈ 3,5 jours**, sans l'e-mail et sans l'option C.
+**≈ 4,5 jours**, sans l'e-mail.
+
+La colonne « Fiche technique » reste éteinte tant que **T13** et **T14** ne sont
+pas livrés côté API. La **photo type**, elle, ne dépend de personne : elle vit
+entièrement dans le panel et peut partir tout de suite.
