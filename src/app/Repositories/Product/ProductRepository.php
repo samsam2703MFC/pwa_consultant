@@ -23,6 +23,26 @@ class ProductRepository
     /** Trace du dernier appel — jamais le jeton, jamais la charge entière. */
     private array $debug = [];
 
+    /** Base des chemins de photo, réglée par le service (paramètre en base). */
+    private string $baseReglee = '';
+
+    /** Base résolue, calculée une fois. */
+    private ?string $photoBase = null;
+
+    /**
+     * La base contre laquelle résoudre `shop_photo_path`.
+     *
+     * Vide = on retombe sur l'origine de l'API. Le réglage existe parce que
+     * rien ne dit que les médias vivent sur le même hôte que l'API, et qu'une
+     * mauvaise base donne une image morte sans le moindre message.
+     */
+    public function avecBasePhoto(string $base): self
+    {
+        $this->baseReglee = $base;
+        $this->photoBase = null;
+        return $this;
+    }
+
     public function diagnostics(): array
     {
         return $this->debug;
@@ -118,22 +138,38 @@ class ProductRepository
     }
 
     /**
-     * Une URL d'image directement utilisable. Les payloads mettent parfois
-     * l'image sous un objet ({photo:{url:…}}) ou sous une liste d'images.
+     * Une URL d'image utilisable.
+     *
+     * `shop_photo_path` est la clé de l'API — et c'est un CHEMIN, pas une URL :
+     * il est résolu contre une base réglable (`product_ref_photo_base`), vide
+     * par défaut, auquel cas on retombe sur l'origine de l'API. Deviner cette
+     * base afficherait une image morte sans rien dire ; la régler est une ligne
+     * de paramètre, pas un déploiement.
+     *
+     * Les autres orthographes restent acceptées : le panel a servi plusieurs
+     * formes avant que l'API ne tranche, et une base plus ancienne ne doit pas
+     * perdre sa photo au passage.
      */
     private function premierUrl(array $r): ?string
     {
-        $cles = ['photo_url', 'image_url', 'picture_url', 'thumbnail_url', 'url',
+        $cles = ['shop_photo_path', 'photo_path', 'image_path',
+                 'photo_url', 'image_url', 'picture_url', 'thumbnail_url', 'url',
                  'photo', 'image', 'picture', 'thumbnail', 'media', 'cover'];
         foreach ($cles as $k) {
             $v = $r[$k] ?? null;
-            if (is_string($v) && preg_match('#^https?://#i', $v)) {
-                return $v;
+            if (is_string($v) && $v !== '') {
+                $abs = $this->absolutiser($v);
+                if ($abs !== null) {
+                    return $abs;
+                }
             }
             if (is_array($v)) {
-                foreach (['url', 'src', 'href', 'path', 'link'] as $sk) {
-                    if (is_string($v[$sk] ?? null) && preg_match('#^https?://#i', $v[$sk])) {
-                        return $v[$sk];
+                foreach (['url', 'src', 'href', 'path', 'link', 'shop_photo_path'] as $sk) {
+                    if (is_string($v[$sk] ?? null) && $v[$sk] !== '') {
+                        $abs = $this->absolutiser($v[$sk]);
+                        if ($abs !== null) {
+                            return $abs;
+                        }
                     }
                 }
                 // Liste d'images : la première suffit — c'est la fiche, pas une galerie.
@@ -152,6 +188,59 @@ class ProductRepository
             }
         }
         return null;
+    }
+
+    /**
+     * Un chemin d'image devient une URL, ou rien.
+     *
+     * Déjà absolue → rendue telle quelle. Sinon on la résout contre la base
+     * réglée, à défaut contre l'origine de l'API — `API_BASE_URL` finit par
+     * `/api/v1`, qu'on retire : un chemin de média ne vit pas sous le préfixe
+     * de l'API.
+     *
+     * Rend null pour ce qui ne ressemble à aucun des deux, plutôt que de
+     * fabriquer une URL qui ne mènera nulle part.
+     */
+    private function absolutiser(string $v): ?string
+    {
+        $v = trim($v);
+        if ($v === '') {
+            return null;
+        }
+        if (preg_match('#^https?://#i', $v)) {
+            return $v;
+        }
+        // Une valeur sans extension ni séparateur n'est pas un chemin d'image :
+        // c'est plus probablement un libellé qu'on transformerait en lien mort.
+        if (!str_contains($v, '/') && !preg_match('#\.(jpe?g|png|webp|gif|avif)$#i', $v)) {
+            return null;
+        }
+        $base = $this->photoBase();
+        if ($base === '') {
+            return null;
+        }
+        return rtrim($base, '/') . '/' . ltrim($v, '/');
+    }
+
+    /** La base des chemins de photo : réglage d'abord, origine de l'API sinon. */
+    private function photoBase(): string
+    {
+        if ($this->photoBase !== null) {
+            return $this->photoBase;
+        }
+        $regle = trim($this->baseReglee);
+        if ($regle !== '') {
+            return $this->photoBase = $regle;
+        }
+        if (!defined('API_BASE_URL')) {
+            return $this->photoBase = '';
+        }
+        $parts = parse_url((string)API_BASE_URL);
+        if (empty($parts['scheme']) || empty($parts['host'])) {
+            return $this->photoBase = '';
+        }
+        return $this->photoBase = $parts['scheme'] . '://' . $parts['host']
+            . (isset($parts['port']) ? ':' . $parts['port'] : '');
     }
 
     /** À défaut d'URL : un identifiant de pièce jointe, à signer comme les autres. */

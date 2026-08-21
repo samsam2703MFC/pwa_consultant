@@ -34,6 +34,9 @@ class ApiClient
         // Catalogue produits (photo de la fiche technique) : donnée de
         // RÉFÉRENCE, elle ne bouge pas dans la journée. Sans ce palier, chaque
         // ouverture de modale de contrôle relirait tout le catalogue.
+        // Catalogue de référence : il change rarement, et la modale de contrôle
+        // qualité le relit à chaque ouverture.
+        '/recipes'           => 1800,
         '/products'          => 1800,
     ];
 

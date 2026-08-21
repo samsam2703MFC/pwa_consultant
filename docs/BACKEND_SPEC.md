@@ -27,7 +27,7 @@ Nothing here breaks existing clients: every change is an *added* field or a
 | T11 | **Every task of the network, in one call** | new endpoint | L | **3** |
 | T12 | Quarterly sales history, per shop | new endpoint | M | 6 |
 | T13 | **`product_id` on a task that controls a product** | 2 existing endpoints | S | **3** |
-| T14 | **Does the catalogue carry a product photo?** | `GET /products` | S | **3 — answer first** |
+| T14 | **Photo du catalogue produits** ✅ répondu | `GET /recipes` · `shop_photo_path` | S | **fait — reste la base des chemins** |
 
 **Start with T5a and T8.** They are the only two tickets on this list about
 figures being *wrong*. Everything else makes the panel faster or richer; T5a and
@@ -72,7 +72,7 @@ column is the code we delete the day the ticket lands.
 | T11 | Issues 1 + N + N + M calls (31 for 5 shops, 181 for 30) and joins them on `task_id` | the fan-out **and** the service that stitches it back together |
 | T12 | Ships the KPI modal **without** its sparkline, and says so in the code | nothing; the chart appears when the endpoint does |
 | T13 | Renders the comparison screen, dark: it carries the field end to end and waits for it | nothing; the screen lights up on its own |
-| T14 | Reads `/products` four different ways at once, because we do not know which one is right | three of the four readers, and the guessing |
+| T14 | Lit `/recipes` et résout `shop_photo_path` contre un réglage | rien : la réponse est arrivée, le lecteur est branché |
 
 Two of these are worth more than the others because they **remove** code rather
 than add a screen: **T1** deletes a table that only knows about reviews posted
@@ -101,7 +101,7 @@ in its own section below.
 | T11 | `curl -s -o /dev/null -w '%{http_code}' "$API/consultant/network/tasks?date=2026-07-30" -H "Authorization: Bearer $TOKEN"` | `200` |
 | T12 | `curl -s "$API/consultant/shops/sales-kpis/quarterly?quarters=6" -H "Authorization: Bearer $TOKEN" \| jq '.quarters \| length'` | `6` |
 | T13 | `curl -s "$API/consultant/shops/4/checklists/44/progress?date=2026-07-30" -H "Authorization: Bearer $TOKEN" \| jq '[.tasks[] \| has("product_id")] \| all'` | `true` |
-| T14 | `curl -s "$API/products" -H "Authorization: Bearer $TOKEN" \| jq '[.. \| objects \| select(has("id")) \| keys] \| flatten \| unique'` | a key we can read a photo from |
+| T14 | `curl -s "$API/recipes" -H "Authorization: Bearer $TOKEN" \| jq '[.. \| objects \| select(has("shop_photo_path")) \| .shop_photo_path] \| .[0:3]'` | des chemins — **contre quelle base ?** |
 
 **Nothing on this list has been confirmed shipped at the time of writing.** If
 one of them has landed since, the line above will say so faster than a meeting.
@@ -1284,7 +1284,18 @@ shows exactly what was read. Nothing else waits on us.
 
 ---
 
-## T14 — does the product catalogue carry a photo?
+## T14 — does the product catalogue carry a photo?  ✅ RÉPONDU
+
+> **Réponse reçue le 16 août 2026 : `GET /api/v1/recipes/`, clé
+> `shop_photo_path`.** Ce n'est ni `/products` ni une URL : c'est un **chemin**,
+> résolu par le panel contre `product_ref_photo_base` (réglage, vide = même
+> hôte que l'API). Le panel lit désormais cet endpoint et cette clé ; les
+> anciennes orthographes restent acceptées pour ne pas casser une base plus
+> ancienne. **Reste à confirmer la base des chemins** — un chemin résolu contre
+> le mauvais hôte donne une image morte, et une image morte sur l'écran où l'on
+> juge un produit ressemble à un produit sans référence.
+
+### La question, telle qu'elle a été posée
 
 **Existing endpoint:** `GET /products`
 
