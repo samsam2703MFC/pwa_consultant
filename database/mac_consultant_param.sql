@@ -65,6 +65,7 @@ INSERT IGNORE INTO mac_consultant_param (param_key, param_value, label) VALUES
     ('note_ai_max_chars',               '4000','Notes « Corriger » : longueur maximale acceptée (caractères)'),
     ('note_ai_max_tokens',              '2000','Notes « Corriger » : longueur maximale de la réponse (tokens)'),
     ('note_ai_timeout',                 '20',  'Notes « Corriger » : délai d''attente maximal (secondes)'),
+    ('google_sweep_last',               '',    'Note Google : date du dernier relevé mensuel complet (vider pour forcer)'),
     ('product_ref_enabled',             '1',   'Contrôle qualité : afficher la photo de la fiche technique en comparaison'),
     ('product_ref_endpoint',            '/recipes', 'Contrôle qualité : endpoint du catalogue produits (relatif à l''API)'),
     ('product_ref_photo_base',          '',    'Contrôle qualité : base des chemins de photo (shop_photo_path). Vide = même hôte que l''API');
