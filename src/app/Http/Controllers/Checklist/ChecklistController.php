@@ -54,6 +54,18 @@ class ChecklistController extends Controller
     {
         header('Content-Type: application/json; charset=utf-8');
 
+        // `?list=1` rend un échantillon du catalogue : de quoi choisir un
+        // identifiant d'essai et voir, du même coup, si les chemins de photo
+        // se résolvent contre la bonne base.
+        if (!empty($_GET['list'])) {
+            $res = $this->productPhotos->echantillon((int)($_GET['n'] ?? 20));
+            if (!empty($_GET['debug'])) {
+                $res['debug'] = $this->productPhotos->diagnostics();
+            }
+            echo json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
         $id = (int)($_GET['id'] ?? 0);
         $res = $this->productPhotos->forProductId($id);
         if (!empty($_GET['debug'])) {
