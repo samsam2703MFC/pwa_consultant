@@ -40,6 +40,55 @@ class ProductPhotoService
     /**
      * @return array{found:bool, id?:int, name?:string, url?:?string, att?:?int, reason?:string}
      */
+    /**
+     * Un échantillon du catalogue : identifiant, nom, photo résolue.
+     *
+     * Sans lui, personne ne peut choisir un identifiant d'essai sans un jeton
+     * et une ligne de curl — et tant qu'on n'a pas essayé sur un vrai produit,
+     * on ne sait pas si les chemins `shop_photo_path` se résolvent contre la
+     * bonne base. C'est la question ouverte de T14, et cet échantillon y répond
+     * en une page.
+     *
+     * @return array{ok: bool, total?: int, avec_photo?: int, produits?: array, reason?: string}
+     */
+    public function echantillon(int $combien = 20): array
+    {
+        $this->diag = [];
+        if (!$this->enabled()) {
+            return ['ok' => false, 'reason' => 'désactivé'];
+        }
+        $catalogue = $this->products
+            ->avecBasePhoto($this->params->getString('product_ref_photo_base', ''))
+            ->all($this->params->getString('product_ref_endpoint', '/recipes'));
+        $this->diag = $this->products->diagnostics();
+
+        if ($catalogue === []) {
+            return ['ok' => false, 'reason' => 'catalogue vide ou illisible'];
+        }
+        $avecPhoto = 0;
+        foreach ($catalogue as $p) {
+            if (($p['url'] ?? null) !== null || ($p['att'] ?? null) !== null) {
+                $avecPhoto++;
+            }
+        }
+        // Les produits AVEC photo d'abord : ce sont les seuls qui permettent
+        // d'éprouver la comparaison.
+        usort($catalogue, static fn ($a, $b) =>
+            (int)(($b['url'] ?? null) !== null) <=> (int)(($a['url'] ?? null) !== null));
+
+        return [
+            'ok'         => true,
+            'total'      => count($catalogue),
+            'avec_photo' => $avecPhoto,
+            'produits'   => array_slice(array_map(static fn ($p) => [
+                'id'    => $p['id'] ?? null,
+                'nom'   => $p['name'] ?? null,
+                'photo' => $p['url'] ?? null,
+                'att'   => $p['att'] ?? null,
+            ], $catalogue), 0, max(1, min($combien, 100))),
+        ];
+    }
+
     public function forProductId(int $id): array
     {
         $this->diag = ['product_id' => $id];
