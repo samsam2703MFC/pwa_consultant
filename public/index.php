@@ -33,6 +33,26 @@ try {
     error_log('[perf] start: ' . $e->getMessage());
 }
 
+// Relevé mensuel de la note Google, complété APRÈS la réponse.
+//
+// Il ne peut pas être un cron : lire une note demande la liste des boutiques,
+// donc l'API, donc un jeton — un cron tomberait sur l'écran de connexion. Il se
+// greffe donc sur une requête d'un consultant déjà authentifié, une fois par
+// jour au plus, et seulement pour les magasins qui manquent au mois en cours.
+//
+// L'utilisateur n'attend rien : le balayage démarre après fastcgi_finish_request().
+// Toute panne est avalée — Google indisponible ne casse pas un écran.
+register_shutdown_function(static function () use ($container): void {
+    try {
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
+        $container->get(\App\Consultant\app\Services\Google\GoogleSnapshotSweeper::class)->sweep();
+    } catch (\Throwable $e) {
+        error_log('[google-snapshot] sweep: ' . $e->getMessage());
+    }
+});
+
 $app = $container->get(App::class);
 $app->loadController();
 

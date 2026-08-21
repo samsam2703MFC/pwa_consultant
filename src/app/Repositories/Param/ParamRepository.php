@@ -131,6 +131,9 @@ class ParamRepository
         // Contrôle qualité : la photo de la fiche technique, en face de celle
         // prise en boutique. Le produit est désigné par SON IDENTIFIANT, porté
         // par la tâche — jamais rapproché sur l'intitulé.
+        // Date du dernier balayage du relevé Google : une garde, pas un
+        // réglage — la vider force un nouveau balayage à la requête suivante.
+        'google_sweep_last'               => ['', 'Note Google : date du dernier relevé mensuel complet (vider pour forcer)'],
         'product_ref_enabled'             => ['1', 'Contrôle qualité : afficher la photo de la fiche technique en comparaison'],
         'product_ref_endpoint'            => ['/recipes', 'Contrôle qualité : endpoint du catalogue produits (relatif à l\'API)'],
         'product_ref_photo_base'          => ['', 'Contrôle qualité : base des chemins de photo (shop_photo_path). Vide = même hôte que l\'API'],
