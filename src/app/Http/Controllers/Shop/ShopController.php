@@ -3,6 +3,7 @@ namespace App\Consultant\app\Http\Controllers\Shop;
 
 use App\Consultant\app\Http\Controllers\Controller;
 use App\Consultant\app\Repositories\Google\GoogleRatingRepository;
+use App\Consultant\app\Repositories\Google\GoogleRatingSnapshotRepository;
 use App\Consultant\app\Repositories\Shop\ShopRepository;
 use App\Consultant\app\Repositories\Shop\ShopSalesRepository;
 use App\Consultant\app\Services\Shop\ShopKpiInsightService;
@@ -16,6 +17,7 @@ class ShopController extends Controller
         private ShopSalesRepository $shopSales,
         private ShopRepository $shopRepository,
         private GoogleRatingRepository $googleRating,
+        private GoogleRatingSnapshotRepository $googleSnapshots,
         private KpiThresholdService $kpiThresholds,
         private ShopKpiInsightService $kpiInsight,
     ) {}
@@ -50,7 +52,17 @@ class ShopController extends Controller
         if ($name === '' && $address === '' && $placeId === null) {
             return $this->json(['ok' => true, 'data' => null]);
         }
-        return $this->json(['ok' => true, 'data' => $this->googleRating->getRating($shopId, $name, $city, $address, $placeId)]);
+        $note = $this->googleRating->getRating($shopId, $name, $city, $address, $placeId);
+
+        // On consigne au passage. Google ne rend que le présent : un mois non
+        // relevé ne se rattrape jamais, contrairement au P&L qui dort en base.
+        // L'écriture est silencieuse — si elle échoue, la note s'affiche quand
+        // même : on perd le relevé, pas l'écran.
+        if (is_array($note)) {
+            $this->googleSnapshots->record($shopId, $note['rating'] ?? null, (int)($note['reviews'] ?? 0));
+        }
+
+        return $this->json(['ok' => true, 'data' => $note]);
     }
 
     /**
