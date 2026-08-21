@@ -52,7 +52,9 @@ class ProductPhotoService
             return ['found' => false, 'reason' => 'la tâche ne porte pas de product_id'];
         }
 
-        $catalogue = $this->products->all($this->params->getString('product_ref_endpoint', '/products'));
+        $catalogue = $this->products
+            ->avecBasePhoto($this->params->getString('product_ref_photo_base', ''))
+            ->all($this->params->getString('product_ref_endpoint', '/recipes'));
         if ($catalogue === []) {
             return ['found' => false, 'reason' => 'catalogue produits vide ou illisible'];
         }
