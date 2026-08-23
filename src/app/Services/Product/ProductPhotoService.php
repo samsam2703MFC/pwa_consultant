@@ -111,20 +111,67 @@ class ProductPhotoService
         foreach ($catalogue as $p) {
             if ($p['id'] === $id) {
                 $this->diag['matched'] = $p['name'];
-                return [
-                    'found' => true,
-                    'id'    => $id,
-                    'name'  => $p['name'],
-                    'url'   => $p['url'],
-                    'att'   => $p['att'],
+                $out = [
+                    'found'  => true,
+                    'id'     => $id,
+                    'name'   => $p['name'],
+                    'url'    => $p['url'],
+                    'att'    => $p['att'],
+                    'source' => 'fiche',
                 ];
+                // Fiche technique SANS visuel : la photo produit du webshop
+                // (même identifiant ERP) prend le relais — et la modale dit
+                // d'où vient l'image. Vérifié le 23/08 sur « Ebly à la
+                // niçoise » (2130010) : fiche sans visuel, webshop fourni.
+                if ($out['url'] === null && $out['att'] === null) {
+                    $ws = $this->webshopPhotoUrl($id);
+                    if ($ws !== null) {
+                        $out['url']    = $ws;
+                        $out['source'] = 'webshop';
+                        $this->diag['webshop_photo'] = $ws;
+                    }
+                }
+                return $out;
             }
         }
 
         // Un identifiant que le catalogue ne connaît pas : produit retiré, ou
         // catalogue tronqué (pagination). Les deux se corrigent, à condition
         // de les distinguer d'une tâche sans produit — d'où ce motif à part.
+        // La photo webshop, elle, reste tentée : même id ERP, et un contrôle
+        // qualité sans référence est pire qu'une référence sans libellé.
         $this->diag['catalogue_size'] = count($catalogue);
+        $ws = $this->webshopPhotoUrl($id);
+        if ($ws !== null) {
+            $this->diag['webshop_photo'] = $ws;
+            return ['found' => true, 'id' => $id, 'name' => null,
+                    'url' => $ws, 'att' => null, 'source' => 'webshop'];
+        }
         return ['found' => false, 'reason' => 'produit ' . $id . ' absent du catalogue'];
+    }
+
+    /**
+     * La photo produit du webshop pour un id ERP, si le fichier existe.
+     *
+     * Le webshop range ses photos (synchronisées depuis l'ERP) en
+     * assets/product_pictures/<id>.<ext> sur CE serveur — on vérifie le
+     * fichier sur disque plutôt que de servir une URL peut-être morte.
+     * Répertoire et base URL réglables (autre hébergement) via params.
+     */
+    private function webshopPhotoUrl(int $id): ?string
+    {
+        $dir  = rtrim($this->params->getString(
+            'product_ref_webshop_dir', '/var/www/html/webshop/assets/product_pictures'), '/');
+        $base = rtrim($this->params->getString(
+            'product_ref_webshop_base', '/webshop/assets/product_pictures'), '/');
+        if ($dir === '' || $base === '') {
+            return null;
+        }
+        foreach (glob($dir . '/' . $id . '.*') ?: [] as $f) {
+            if (preg_match('/\.(png|jpe?g|webp)$/i', $f)) {
+                return $base . '/' . basename($f);
+            }
+        }
+        return null;
     }
 }

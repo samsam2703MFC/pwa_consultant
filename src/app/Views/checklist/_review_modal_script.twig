@@ -22,7 +22,8 @@
         queued:  {{ (translations.modal_queued ?? "Sans réseau : gardée sur l'appareil, elle partira toute seule.")|json_encode|raw }},
         conform:    {{ (translations.modal_ok ?? 'Conforme')|json_encode|raw }},
         notConform: {{ (translations.modal_ko ?? 'Non conforme')|json_encode|raw }},
-        refNone:    {{ (translations.photo_reference_none ?? 'Fiche technique sans photo')|json_encode|raw }}
+        refNone:    {{ (translations.photo_reference_none ?? 'Fiche technique sans photo')|json_encode|raw }},
+        refWebshop: {{ (translations.photo_reference_webshop ?? 'Photo produit du webshop — fiche technique sans visuel')|json_encode|raw }}
     };
     /* Boutique de la page. Sur la liste réseau il n'y en a pas : chaque carte
        porte la sienne dans `data-shop`, et c'est elle qui fait foi. Envoyer
@@ -214,7 +215,7 @@
                 cmp.classList.add('has-ref');
                 if (cap && j.name) { cap.textContent = j.name; }
 
-                if (j.url) { return afficherRef(j.url, token); }
+                if (j.url) { return afficherRef(j.url, token, j.source === 'webshop' ? L.refWebshop : ''); }
                 if (j.att) {
                     // Photo stockée comme pièce jointe : même signature que
                     // celle prise en boutique.
@@ -229,12 +230,13 @@
             })
             .catch(function () { /* pas de référence : on n'encombre pas l'écran */ });
 
-        function afficherRef(url, tk) {
+        function afficherRef(url, tk, note) {
             if (tk !== openSeq || !url) {
                 if (tk === openSeq) { box.innerHTML = '<div class="msg">' + esc(L.failed) + '</div>'; }
                 return;
             }
-            box.innerHTML = '<img src="' + esc(url) + '" alt="' + esc(cap ? cap.textContent : '') + '" loading="lazy">';
+            box.innerHTML = '<img src="' + esc(url) + '" alt="' + esc(cap ? cap.textContent : '') + '" loading="lazy">'
+                + (note ? '<div class="msg">' + esc(note) + '</div>' : '');
             lien.href = url;
             lien.hidden = false;
         }
