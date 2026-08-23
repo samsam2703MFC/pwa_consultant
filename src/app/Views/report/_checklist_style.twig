@@ -86,6 +86,18 @@
     /* Constats terrain : photo, titre, puis le commentaire du consultant sur
        DEUX lignes. Une seule ligne coupait la phrase au tiers sur téléphone. */
     .ck-feed { display:flex; flex-direction:column; gap:8px; }
+    .ck-cq { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .ck-cqc { border:1px solid #e5decf; border-radius:10px; padding:10px; background:#fff; }
+    .ck-cq-t { font-weight:600; font-size:.8rem; margin-bottom:2px; }
+    .ck-cq-m { display:flex; flex-wrap:wrap; gap:5px; align-items:center; font-size:.68rem; color:#8a8377; margin-bottom:8px; }
+    .ck-cq-imgs { display:flex; gap:8px; }
+    .ck-cq-imgs figure { flex:1; min-width:0; margin:0; }
+    .ck-cq-img { display:flex; align-items:center; justify-content:center; width:100%; aspect-ratio:1/1; border-radius:8px; background:#f4efe7; border:0; padding:0; }
+    img.ck-cq-img { object-fit:cover; display:block; }
+    button.ck-cq-img { cursor:pointer; color:#8a8377; }
+    .ck-cq-none { border:1px dashed #d8d0bf; color:#8a8377; font-size:.68rem; text-align:center; padding:4px; }
+    .ck-cq-imgs figcaption { font-size:.62rem; color:#8a8377; text-align:center; margin-top:3px; }
+    .ck-cq-stars { font-size:.68rem; color:#C9A227; }
     .ck-fd { display:flex; align-items:flex-start; gap:10px; padding:9px 11px 9px 9px; background:#fff;
              border:1px solid rgba(0,0,0,.09); border-left:4px solid #6c757d; border-radius:11px; }
     .ck-fd.f-maj  { border-left-color:#c0392b; }

@@ -247,6 +247,12 @@
         </div>
         {% endif %}
 
+        {# ── Contrôle qualité produits ──────────────────────────────────── #}
+        <div class="ck-sec">
+            <div class="ck-sec-h">{{ translations.cq_section ?? 'Contrôle qualité produits' }}</div>
+            {% include "report/_checklist_cq.twig" with { cq: report.cq ?? [] } %}
+        </div>
+
         {# ── Constats terrain ───────────────────────────────────────────── #}
         <div class="ck-sec">
             <div class="ck-sec-h">{{ translations.field_findings ?? 'Constats terrain' }}</div>

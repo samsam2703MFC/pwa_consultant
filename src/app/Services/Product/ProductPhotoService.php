@@ -101,53 +101,34 @@ class ProductPhotoService
             return ['found' => false, 'reason' => 'la tâche ne porte pas de product_id'];
         }
 
+        // LA source du visuel : la photo produit du WEBSHOP, en direct par
+        // identifiant ERP (décision du 23/08 — pas de cascade de sources).
+        // Pas de fichier → url null, et l'écran écrit « Pas de photo » au
+        // lieu d'aller chercher ailleurs.
+        $url = $this->webshopUrlFor($id);
+        if ($url !== null) {
+            $this->diag['webshop_photo'] = $url;
+        }
+
+        // Le NOM sert de légende quand le catalogue des fiches répond ; son
+        // absence n'empêche ni la photo ni le contrôle.
+        $name = null;
         $catalogue = $this->products
             ->avecBasePhoto($this->params->getString('product_ref_photo_base', ''))
             ->all($this->params->getString('product_ref_endpoint', '/recipes'));
-        if ($catalogue === []) {
-            return ['found' => false, 'reason' => 'catalogue produits vide ou illisible'];
-        }
-
         foreach ($catalogue as $p) {
             if ($p['id'] === $id) {
-                $this->diag['matched'] = $p['name'];
-                $out = [
-                    'found'  => true,
-                    'id'     => $id,
-                    'name'   => $p['name'],
-                    'url'    => $p['url'],
-                    'att'    => $p['att'],
-                    'source' => 'fiche',
-                ];
-                // Fiche technique SANS visuel : la photo produit du webshop
-                // (même identifiant ERP) prend le relais — et la modale dit
-                // d'où vient l'image. Vérifié le 23/08 sur « Ebly à la
-                // niçoise » (2130010) : fiche sans visuel, webshop fourni.
-                if ($out['url'] === null && $out['att'] === null) {
-                    $ws = $this->webshopPhotoUrl($id);
-                    if ($ws !== null) {
-                        $out['url']    = $ws;
-                        $out['source'] = 'webshop';
-                        $this->diag['webshop_photo'] = $ws;
-                    }
-                }
-                return $out;
+                $name = $p['name'];
+                $this->diag['matched'] = $name;
+                break;
             }
         }
-
-        // Un identifiant que le catalogue ne connaît pas : produit retiré, ou
-        // catalogue tronqué (pagination). Les deux se corrigent, à condition
-        // de les distinguer d'une tâche sans produit — d'où ce motif à part.
-        // La photo webshop, elle, reste tentée : même id ERP, et un contrôle
-        // qualité sans référence est pire qu'une référence sans libellé.
-        $this->diag['catalogue_size'] = count($catalogue);
-        $ws = $this->webshopPhotoUrl($id);
-        if ($ws !== null) {
-            $this->diag['webshop_photo'] = $ws;
-            return ['found' => true, 'id' => $id, 'name' => null,
-                    'url' => $ws, 'att' => null, 'source' => 'webshop'];
+        if ($name === null) {
+            $this->diag['catalogue_size'] = count($catalogue);
         }
-        return ['found' => false, 'reason' => 'produit ' . $id . ' absent du catalogue'];
+
+        return ['found' => true, 'id' => $id, 'name' => $name,
+                'url' => $url, 'att' => null, 'source' => 'webshop'];
     }
 
     /**
@@ -158,13 +139,13 @@ class ProductPhotoService
      * fichier sur disque plutôt que de servir une URL peut-être morte.
      * Répertoire et base URL réglables (autre hébergement) via params.
      */
-    private function webshopPhotoUrl(int $id): ?string
+    public function webshopUrlFor(int $id): ?string
     {
         $dir  = rtrim($this->params->getString(
             'product_ref_webshop_dir', '/var/www/html/webshop/assets/product_pictures'), '/');
         $base = rtrim($this->params->getString(
             'product_ref_webshop_base', '/webshop/assets/product_pictures'), '/');
-        if ($dir === '' || $base === '') {
+        if ($id <= 0 || $dir === '' || $base === '') {
             return null;
         }
         foreach (glob($dir . '/' . $id . '.*') ?: [] as $f) {

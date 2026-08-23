@@ -6,6 +6,7 @@ use App\Consultant\app\Repositories\Param\ParamRepository;
 use App\Consultant\app\Services\Checklist\ChecklistService;
 use App\Consultant\app\Services\Checklist\ReviewRating;
 use App\Consultant\app\Services\Shop\ShopService;
+use App\Consultant\app\Services\Product\ProductPhotoService;
 use DateTimeImmutable;
 
 /**
@@ -75,6 +76,7 @@ class ChecklistReportService
         private ShopService $shopService,
         private ParamRepository $params,
         private ReviewRating $notes,
+        private ProductPhotoService $productPhotos,
     ) {}
 
     /**
@@ -103,6 +105,7 @@ class ChecklistReportService
             'totals'     => $this->totals($days),
             'checklists' => $this->checklistNames($days),
             'feed'       => $this->feed($days),
+            'cq'         => $this->cqSection($days),
             'thresholds' => $this->thresholds(),
             'diag'       => $this->diagnostics(),
         ];
@@ -149,6 +152,7 @@ class ChecklistReportService
             'checklists' => $this->conformityByChecklist($days),
             'top_nc'     => $this->topRecurring($days),
             'feed'       => $this->feed($days),
+            'cq'         => $this->cqSection($days),
             'thresholds' => $this->thresholds(),
             'diag'       => $this->diagnostics(),
         ];
@@ -389,6 +393,31 @@ class ChecklistReportService
             }
 
             $accepted = $t['review_is_accepted'] ?? $rev['review_is_accepted'] ?? null;
+
+            // Contrôle qualité PRODUIT : la tâche porte un product_id — elle
+            // rejoint la section dédiée du rapport (photo boutique face à la
+            // photo produit du webshop), avis posé ou non. Mêmes clés
+            // tolérées que l'écran des tâches.
+            $pid = 0;
+            foreach (['product_id', 'id_product', 'productId'] as $k) {
+                $v = $t[$k] ?? $rev[$k] ?? null;
+                if (!empty($v)) { $pid = (int)$v; break; }
+            }
+            if ($done && $pid > 0) {
+                $rawQ = $t['review_rating'] ?? $rev['review_rating'] ?? null;
+                $day['cq'][] = [
+                    'task_id'    => $taskId,
+                    'title'      => (string)($t['task_name'] ?? $t['name'] ?? ''),
+                    'checklist'  => $name,
+                    'product_id' => $pid,
+                    'photo'      => !empty($t['attachment_id']) ? (int)$t['attachment_id']
+                                  : (!empty($rev['attachment_id']) ? (int)$rev['attachment_id'] : null),
+                    'accepted'   => $accepted === null ? null : (int)$accepted,
+                    'rating'     => $accepted === null ? null
+                                  : $this->notes->of($rawQ, ReviewRating::verdict($accepted)),
+                ];
+            }
+
             if (!$done || $accepted === null) {
                 continue;   // pas d'avis : ni conforme, ni non conforme
             }
@@ -586,6 +615,36 @@ class ChecklistReportService
         return array_slice($out, 0, $limit);
     }
 
+    /**
+     * Contrôles qualité PRODUIT de la période — la section dédiée du rapport.
+     * Photo modèle = photo produit du webshop, en direct par id ERP, résolue
+     * une fois par produit (fichier vérifié sur disque). Pas de photo : la
+     * carte l'écrit, aucune autre source n'est tentée.
+     */
+    private function cqSection(array $days): array
+    {
+        $out = [];
+        foreach ($days as $date => $day) {
+            foreach ($day['cq'] ?? [] as $c) {
+                $out[] = $c + ['date' => $date];
+            }
+        }
+        if ($out === []) {
+            return [];
+        }
+        usort($out, fn($a, $b) => [$b['date'], $a['title']] <=> [$a['date'], $b['title']]);
+        $refs = [];
+        foreach ($out as &$c) {
+            $pid = (int)$c['product_id'];
+            if (!array_key_exists($pid, $refs)) {
+                $refs[$pid] = $this->productPhotos->webshopUrlFor($pid);
+            }
+            $c['ref_url'] = $refs[$pid];
+        }
+        unset($c);
+        return $out;
+    }
+
     /** Noms des checklists suivies sur la période (puces de l'en-tête). */
     private function checklistNames(array $days): array
     {
@@ -636,7 +695,7 @@ class ChecklistReportService
         return ['date' => $date, 'planned' => 0, 'done' => 0, 'reviewed' => 0, 'conform' => 0,
                 'nc_major' => 0, 'nc_minor' => 0, 'blocking_missed' => 0,
                 'rating_sum' => 0, 'rating_count' => 0,
-                'nc' => [], 'checklists' => [], 'conform_ids' => []];
+                'nc' => [], 'cq' => [], 'checklists' => [], 'conform_ids' => []];
     }
 
     /** null quand le dénominateur est nul : « 0 % » serait un jugement faux. */

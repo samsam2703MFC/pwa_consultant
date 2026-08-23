@@ -1,0 +1,56 @@
+{# Contrôle qualité produits — la photo prise en boutique FACE à la photo
+   produit du webshop (source directe par identifiant ERP, aucune autre
+   source tentée). Deux contrôles par rangée. Pas de photo : la carte
+   l'écrit — « Pas de photo » — plutôt que d'inventer un visuel.
+
+   La photo boutique suit le parti pris des constats : une URL signée par
+   pièce jointe, demandée AU CLIC seulement. Sur un rapport partagé, l'appel
+   est impossible pour le porteur du lien : placeholder d'emblée. #}
+{% import "components/_icons.twig" as icons %}
+
+<div class="ck-cq">
+{% for c in cq %}
+    <div class="ck-cqc">
+        <div class="ck-cq-t">{{ c.title }}</div>
+        <div class="ck-cq-m">
+            <span>{{ c.checklist }}</span>
+            <span>· {{ c.date|date('d/m') }}</span>
+            {% if c.accepted is same as(1) %}
+                <span class="ck-sev ck-sev-lift">{{ translations.cq_conform ?? 'conforme' }}</span>
+            {% elseif c.accepted is same as(0) %}
+                <span class="ck-sev ck-sev-maj">{{ translations.cq_nc ?? 'non conforme' }}</span>
+            {% else %}
+                <span class="ck-sev ck-sev-min">{{ translations.cq_pending ?? 'à évaluer' }}</span>
+            {% endif %}
+            {% if c.rating is not null %}
+                <span class="ck-cq-stars"><b>{{ '★★★★★'|slice(0, c.rating) }}</b>{{ '☆☆☆☆☆'|slice(0, 5 - c.rating) }}</span>
+            {% endif %}
+        </div>
+        <div class="ck-cq-imgs">
+            <figure>
+                {% if c.photo and not (shared ?? false) %}
+                    <button type="button" class="ck-cq-img ck-photo" data-att="{{ c.photo }}"
+                            title="{{ translations.see_photo ?? 'Voir la photo' }}"
+                            aria-label="{{ translations.see_photo ?? 'Voir la photo' }}">
+                        {{ icons.svg('image', 22) }}
+                    </button>
+                {% else %}
+                    <span class="ck-cq-img ck-cq-none">{{ translations.cq_no_photo ?? 'Pas de photo' }}</span>
+                {% endif %}
+                <figcaption>{{ translations.cq_shop_photo ?? 'Photo en boutique' }}</figcaption>
+            </figure>
+            <figure>
+                {% if c.ref_url %}
+                    <img class="ck-cq-img" src="{{ c.ref_url }}" alt="{{ c.title }}" loading="lazy">
+                {% else %}
+                    <span class="ck-cq-img ck-cq-none">{{ translations.cq_no_photo ?? 'Pas de photo' }}</span>
+                {% endif %}
+                <figcaption>{{ translations.cq_model_photo ?? 'Photo produit (modèle)' }}</figcaption>
+            </figure>
+        </div>
+    </div>
+{% else %}
+    <div class="ck-empty">{{ translations.cq_empty ??
+        'Aucun contrôle qualité produit sur la période — les jours figés avant cette évolution ne les portent pas encore (régénérer avec recalcul).' }}</div>
+{% endfor %}
+</div>
