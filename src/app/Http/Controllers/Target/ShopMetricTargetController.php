@@ -91,6 +91,57 @@ class ShopMetricTargetController extends Controller
         return $this->json(['ok' => true, 'data' => ['year' => $year, 'month' => $month, 'kpis' => $out]]);
     }
 
+    /**
+     * Fragments (clé/libellé, minuscules) reconnaissant la métrique CA —
+     * tolérant aux variantes de nommage backend, comme FRANCHISE_KPIS.
+     */
+    private const TURNOVER_FRAGS = ['turnover', 'chiffre', 'revenue', 'obrot', 'przych'];
+
+    /**
+     * GET /targets/{shopId}/turnover-objective?year=&month=
+     * L'objectif de CA VALIDÉ (encodé — consultant d'abord, sinon admin) du
+     * mois, pour la jauge du compte de résultat du jour. objective=null quand
+     * rien n'est encodé : la jauge le dit, on n'invente pas de cible.
+     */
+    public function turnoverObjective(int $shopId): JsonResponse
+    {
+        $year  = (int)($_GET['year']  ?? date('Y'));
+        $month = (int)($_GET['month'] ?? date('n'));
+
+        $metrics = $this->targetService->getMetricDefinitions();
+        $targets = $this->targetService->getTargets($shopId, $year, $month);
+
+        $found = null;
+        foreach ($metrics as $key => $m) {
+            $hay = mb_strtolower((string)$key . ' ' . (string)($m['label'] ?? ''));
+            $hit = (bool)preg_match('/\bca\b/', $hay);
+            foreach (self::TURNOVER_FRAGS as $f) {
+                if (mb_strpos($hay, $f) !== false) {
+                    $hit = true;
+                    break;
+                }
+            }
+            if (!$hit) {
+                continue;
+            }
+            $t = $targets[$key]['consultant'] ?? $targets[$key]['admin'] ?? $targets[$key] ?? null;
+            $found = [
+                'metric_key' => (string)$key,
+                'label'      => (string)($m['label'] ?? $key),
+                'objective'  => $this->objectiveOf(is_array($t) ? $t : [], !empty($m['lower_is_better'])),
+            ];
+            break;
+        }
+
+        return $this->json(['ok' => true, 'data' => [
+            'year'       => $year,
+            'month'      => $month,
+            'metric'     => $found,
+            'objective'  => $found['objective'] ?? null,
+            'thresholds' => ['green' => self::STATUS_GREEN, 'orange' => self::STATUS_ORANGE],
+        ]]);
+    }
+
     /** Meilleur seuil encodé = l'objectif (schéma threshold_1..3 tolérant). */
     private function objectiveOf(array $t, bool $lower): ?float
     {

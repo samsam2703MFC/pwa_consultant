@@ -15,6 +15,12 @@ return function (RouteCollector $r) {
         'method'     => 'franchiseData',
     ]);
 
+    // Objectif de CA VALIDÉ du mois — la jauge du compte de résultat du jour.
+    $r->addRoute('GET', '/targets/{shopId:\d+}/turnover-objective', [
+        'controller' => \App\Consultant\app\Http\Controllers\Target\ShopMetricTargetController::class,
+        'method'     => 'turnoverObjective',
+    ]);
+
     $r->addRoute('GET', '/targets/{shopId:\d+}', [
         'controller' => \App\Consultant\app\Http\Controllers\Target\ShopMetricTargetController::class,
         'method'     => 'edit',

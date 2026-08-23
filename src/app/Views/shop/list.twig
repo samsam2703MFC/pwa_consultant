@@ -1023,7 +1023,10 @@ const I18N = {
     tmLegendMargin: {{ (translations.tm_legend_margin ?? 'Surface : poids dans le CA · Couleur : niveau de marge')|json_encode|raw }},
     cmpCategory:  {{ (translations.cmp_category ?? 'Catégorie')|json_encode|raw }},
     cmpNetwork:   {{ (translations.cmp_network ?? 'Réseau')|json_encode|raw }},
-    cmpVsNetwork: {{ (translations.cmp_vs_network ?? 'vs réseau')|json_encode|raw }}
+    cmpVsNetwork: {{ (translations.cmp_vs_network ?? 'vs réseau')|json_encode|raw }},
+    objLabel: {{ (translations.pnl_objective ?? 'Objectif validé')|json_encode|raw }},
+    objNone:  {{ (translations.pnl_objective_none ?? 'Aucun objectif de CA validé pour ce mois')|json_encode|raw }},
+    objOf:    {{ (translations.pnl_objective_of ?? "de l'objectif")|json_encode|raw }}
 };
 // Magasins de la page (pour la comparaison de structure).
 const CMP_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representative_name ?? s.name)|json_encode|raw }} }{{ loop.last ? '' : ',' }}{% endfor %}];
@@ -1123,6 +1126,13 @@ const CMP_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representat
             to:   data.date_to   ? String(data.date_to).slice(0, 10)   : null,
             costs: null,
         };
+
+        // 1bis. Jauge « objectif validé » : CA de la fenêtre vs objectif de CA
+        // encodé (mois, proratisé jour/semaine comme l'overhead). Remplie en
+        // asynchrone par fillObjective — cache par magasin+mois.
+        rows.push(`
+            <div class="pnl-row pnl-row-sub" id="pnl-obj-${shopId}" style="display:none;"></div>
+        `);
 
         // 2. Food Cost + 3. Marge brute
         {
@@ -1568,6 +1578,60 @@ const CMP_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representat
         }
     }
 
+    // ── OBJECTIF VALIDÉ (jauge) ─────────────────────────────────────────────
+    // L'objectif de CA du MOIS (targets encodés — consultant d'abord, sinon
+    // admin) ramené à la fenêtre du P&L : / jours du mois pour « day »,
+    // / 4,3 pour « week », tel quel pour « month ». Fenêtre custom : pas de
+    // jauge (une cible mensuelle n'y a pas de sens). Aucun objectif encodé →
+    // la jauge le DIT plutôt que d'inventer une cible.
+    const _objCache = {};
+
+    function fillObjective(shopId, period, data) {
+        const row = document.getElementById('pnl-obj-' + shopId);
+        if (!row) return;
+        if (period !== 'day' && period !== 'week' && period !== 'month') { row.style.display = 'none'; return; }
+
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth() + 1;
+        const key = shopId + '|' + y + '-' + m;
+
+        const paint = (obj, thr) => {
+            const T = Number(data.turnover && data.turnover.value) || 0;
+            if (obj == null || !isFinite(obj) || obj <= 0) {
+                row.style.display = '';
+                row.innerHTML = `<span class="pnl-row-label" style="color:#9BA1A6;">${I18N.objLabel}</span>
+                    <span class="pnl-row-value"></span>
+                    <span class="pnl-row-pct" style="color:#9BA1A6;white-space:normal;">${I18N.objNone}</span>`;
+                return;
+            }
+            const objP = period === 'day' ? obj / daysInCurrentMonth() : (period === 'week' ? obj / WEEKS_PER_MONTH : obj);
+            const p = objP > 0 ? (T / objP) * 100 : 0;
+            const g = (thr && Number(thr.green)) || 95, o = (thr && Number(thr.orange)) || 80;
+            const color = p >= g ? '#2E7D32' : (p >= o ? '#E65100' : '#C62828');
+            row.style.display = '';
+            row.innerHTML = `
+                <span class="pnl-row-label">${I18N.objLabel}</span>
+                <span class="pnl-row-value" style="min-width:0;">
+                    <span style="display:block;height:6px;border-radius:4px;background:rgba(0,0,0,.08);overflow:hidden;">
+                        <span style="display:block;height:100%;width:${Math.max(2, Math.min(100, p)).toFixed(0)}%;border-radius:4px;background:${color};"></span>
+                    </span>
+                </span>
+                <span class="pnl-row-pct" style="color:${color};white-space:nowrap;">${fmt(objP)} · ${p.toFixed(0)}\u00a0% ${I18N.objOf}</span>`;
+        };
+
+        if (_objCache[key]) { paint(_objCache[key].objective, _objCache[key].thresholds); return; }
+        ConsultantAjax.load({
+            endpoint: '/targets/' + shopId + '/turnover-objective',
+            params: { year: y, month: m },
+            onSuccess: (d) => {
+                _objCache[key] = { objective: (d && d.objective != null) ? Number(d.objective) : null,
+                                   thresholds: (d && d.thresholds) || null };
+                paint(_objCache[key].objective, _objCache[key].thresholds);
+            },
+            onError: () => { paint(null, null); },
+        });
+    }
+
     // ── FOOD COST (coût matière) ────────────────────────────────────────────
     // Source : GET /shops/{id}/statistics/daily-summary sur la fenêtre exacte
     // du P&L (date_from/date_to). Côté backend :
@@ -1689,6 +1753,7 @@ const CMP_SHOPS = [{% for s in shops %}{ id: {{ s.id }}, name: {{ (s.representat
                 if (skel) skel.style.display = 'none';
                 if (data) data.style.display = '';
                 renderPnl(shopId, responseData);
+                fillObjective(shopId, period, responseData);
             });
         };
 
